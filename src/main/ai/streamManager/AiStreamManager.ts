@@ -22,18 +22,12 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
-import {
-  buildCompactReplay,
-  mergeDeltaPayload,
-  splitDeltaPayload,
-  type ToolApprovalRequestPayload,
-  type ToolCreatorPayload
-} from './buildCompactReplay'
+import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -158,70 +152,6 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
-}
-
-/**
- * Defensive cap on `evictedToolCreators` — the stash self-cleans when a part's
- * terminal chunk is evicted, so this only bounds a pathological turn holding
- * hundreds of tool parts open across an overflowing ring.
- */
-const MAX_EVICTED_TOOL_CREATORS = 256
-
-/**
- * Track complete part-creating tool chunks the ring evicts, so attach-time
- * repair can preserve both parser state and approval input. Terminal chunks
- * close the part: evicting one means every earlier chunk of that part is
- * already out of the ring (FIFO) and nothing will reference it again.
- */
-function recordEvictedToolCreator(exec: StreamExecution, evicted: StreamChunkPayload): void {
-  const chunk = evicted.chunk
-  if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') {
-    const creators = (exec.evictedToolCreators ??= new Map())
-    creators.set(chunk.toolCallId, { ...evicted, chunk })
-    if (creators.size > MAX_EVICTED_TOOL_CREATORS) {
-      const oldest = creators.keys().next()
-      if (!oldest.done) creators.delete(oldest.value)
-    }
-  } else if (
-    chunk.type === 'tool-input-error' ||
-    (chunk.type === 'tool-output-available' && chunk.preliminary !== true) ||
-    chunk.type === 'tool-output-error' ||
-    chunk.type === 'tool-output-denied'
-  ) {
-    exec.evictedToolCreators?.delete(chunk.toolCallId)
-  }
-}
-
-function findToolCreator(exec: StreamExecution, toolCallId: string): ToolCreatorPayload | undefined {
-  for (let index = exec.buffer.length - 1; index >= 0; index--) {
-    const payload = exec.buffer[index]
-    const chunk = payload.chunk
-    if (
-      (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') &&
-      chunk.toolCallId === toolCallId
-    ) {
-      return { ...payload, chunk }
-    }
-  }
-  return exec.evictedToolCreators?.get(toolCallId)
-}
-
-function recordPendingApprovalCheckpoint(exec: StreamExecution, request: ToolApprovalRequestPayload): void {
-  const checkpoints = (exec.pendingApprovalCheckpoints ??= new Map())
-  const existing = checkpoints.get(request.chunk.toolCallId)
-  checkpoints.set(request.chunk.toolCallId, {
-    creator: findToolCreator(exec, request.chunk.toolCallId) ?? existing?.creator,
-    request
-  })
-}
-
-/** toolCallIds of the tool parts on a `continue-conversation` accumulator seed. */
-function collectSeedToolCallIds(seed: CherryUIMessage): ReadonlySet<string> | undefined {
-  const ids = new Set<string>()
-  for (const part of seed.parts) {
-    if (isToolUIPart(part)) ids.add(part.toolCallId)
-  }
-  return ids.size > 0 ? ids : undefined
 }
 
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
@@ -908,7 +838,6 @@ export class AiStreamManager extends BaseService {
     for (const exec of stream.executions.values()) {
       const pendingApprovals = exec.pendingApprovalToolCallIds
       if (!pendingApprovals?.delete(toolCallId)) continue
-      exec.pendingApprovalCheckpoints?.delete(toolCallId)
       exec.runtimeTiming.finishApproval({ toolCallId })
       changed = true
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
@@ -973,7 +902,6 @@ export class AiStreamManager extends BaseService {
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
       ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
-      recordPendingApprovalCheckpoint(exec, { ...payload, chunk })
       exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
     } else if (
       chunk.type === 'tool-output-available' ||
@@ -981,7 +909,6 @@ export class AiStreamManager extends BaseService {
       chunk.type === 'tool-output-denied'
     ) {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
-      exec.pendingApprovalCheckpoints?.delete(chunk.toolCallId)
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
     // Broadcast payloads and consumers only care about "any pending?", so only
@@ -1001,8 +928,9 @@ export class AiStreamManager extends BaseService {
     }
 
     // Per-execution ring buffer — a chatty model can't push a slower one's
-    // replay out. Operational approval checkpoints live outside this lossy
-    // history, so eviction never pauses and the entry cap remains invariant.
+    // replay out. Eviction pauses while an approval is pending because the
+    // approval's tool-input chunks are still-operable state a reconnect must
+    // replay for the user to decide.
     //
     // Contiguous deltas of one part collapse into the buffer tail on ingest,
     // so the cap counts protocol units (parts, tool events) rather than raw
@@ -1016,10 +944,9 @@ export class AiStreamManager extends BaseService {
       if (merged) {
         exec.buffer[exec.buffer.length - 1] = merged
       } else {
-        while (exec.buffer.length >= bufferLimit) {
-          const evicted = exec.buffer.shift()
+        if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
+          exec.buffer.shift()
           exec.droppedChunks += 1
-          if (evicted) recordEvictedToolCreator(exec, evicted)
         }
         exec.buffer.push(segment)
       }
@@ -1124,7 +1051,6 @@ export class AiStreamManager extends BaseService {
     // `resolveTerminalStatus`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
-    exec.pendingApprovalCheckpoints?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
 
@@ -1167,7 +1093,6 @@ export class AiStreamManager extends BaseService {
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
-    exec.pendingApprovalCheckpoints?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
 
@@ -1463,12 +1388,7 @@ export class AiStreamManager extends BaseService {
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
       bufferedChunks.push(
-        ...buildCompactReplay(exec.buffer, {
-          seedToolCallIds: exec.seedToolCallIds,
-          evictedToolCreators: exec.evictedToolCreators,
-          pendingApprovalCheckpoints: exec.pendingApprovalCheckpoints,
-          maxDeltaBytes: this.config.maxDeltaBytes
-        }).map(projectStreamChunkPayloadForRenderer)
+        ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
     return { status: 'attached', bufferedChunks }
@@ -1547,17 +1467,6 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
-    // `continue-conversation` chunks reference toolCallIds on the anchor
-    // assistant message; without seeding, `readUIMessageStream`'s
-    // `getToolInvocation` throws and silently halts the accumulator.
-    // Extracted before the first await so `exec.seedToolCallIds` is set
-    // synchronously — attach-time replay repair consults it (the same seed
-    // makes bare tool-output chunks valid for a cold-attaching reader).
-    const lastIncoming = request.messages?.at(-1)
-    const accumulatorSeed: CherryUIMessage | undefined =
-      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
-    exec.seedToolCallIds = accumulatorSeed ? collectSeedToolCallIds(accumulatorSeed) : undefined
-
     let rawStream: ReadableStream<UIMessageChunk>
     try {
       // Pre-stream rejection (model resolution, param build) routes through
@@ -1596,6 +1505,13 @@ export class AiStreamManager extends BaseService {
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
     const stream = withReasoningTimingMetadata(idleStream)
+
+    // `continue-conversation` chunks reference toolCallIds on the anchor
+    // assistant message; without seeding, `readUIMessageStream`'s
+    // `getToolInvocation` throws and silently halts the accumulator.
+    const lastIncoming = request.messages?.at(-1)
+    const accumulatorSeed: CherryUIMessage | undefined =
+      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {

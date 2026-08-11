@@ -1027,10 +1027,12 @@ describe('AiStreamManager', () => {
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
       expect(snap.executions[0].droppedChunks).toBe(0)
 
-      const late = new FakeListener('late:a')
-      ringMgr.addListener('a', late)
-      expect(late.chunks.map((c: any) => c.type)).toEqual(['text-start', 'text-delta'])
-      expect(late.chunks[1]).toMatchObject({ delta: '01234' })
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
+      expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
     })
 
     it('per-execution ring buffer drops oldest chunk on overflow and tracks droppedChunks', () => {
@@ -1135,324 +1137,6 @@ describe('AiStreamManager', () => {
       ])
     })
 
-    it('repairs an evicted tool creator so the attach replay and later live deltas stay parseable', async () => {
-      // Interleaved tool-input streams can evict tool A's start while A is
-      // still streaming: [start(A), start(B), delta(A)] + delta(B) drops
-      // start(A). The replay must synthesize it back — otherwise not just the
-      // replayed delta(A) but every FUTURE live delta(A) the attached reader
-      // receives throws "tool-input-delta for missing tool call".
-      const ringMgr = createManager({ maxBufferChunks: 3 })
-      startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-start',
-        toolCallId: 'A',
-        toolName: 'alpha'
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-start',
-        toolCallId: 'B',
-        toolName: 'beta'
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-delta',
-        toolCallId: 'A',
-        inputTextDelta: '{"a"'
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-delta',
-        toolCallId: 'B',
-        inputTextDelta: '{"b"'
-      } as UIMessageChunk)
-
-      expect(ringMgr.inspect('a')!.executions[0].droppedChunks).toBe(1)
-
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
-      expect(response.status).toBe('attached')
-      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
-        'tool-input-start',
-        'tool-input-start',
-        'tool-input-delta',
-        'tool-input-delta'
-      ])
-      expect(response.bufferedChunks[1].chunk).toMatchObject({ toolCallId: 'A', toolName: 'alpha' })
-
-      // Replay + the live deltas that keep streaming after attach.
-      const errors: unknown[] = []
-      const stream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
-          controller.enqueue({ type: 'tool-input-delta', toolCallId: 'A', inputTextDelta: ':1}' } as UIMessageChunk)
-          controller.enqueue({ type: 'tool-input-delta', toolCallId: 'B', inputTextDelta: ':2}' } as UIMessageChunk)
-          controller.close()
-        }
-      })
-      let message: CherryUIMessage | undefined
-      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
-        stream,
-        terminateOnError: false,
-        onError: (err) => errors.push(err)
-      })) {
-        message = snapshot
-      }
-
-      expect(errors).toEqual([])
-      expect(message?.parts).toEqual([
-        expect.objectContaining({ type: 'tool-beta', toolCallId: 'B', input: { b: 2 } }),
-        expect.objectContaining({ type: 'tool-alpha', toolCallId: 'A', input: { a: 1 } })
-      ])
-    })
-
-    it('keeps an evicted creator through preliminary outputs so the final replay stays parseable', async () => {
-      vi.useRealTimers()
-      const ringMgr = createManager({ maxBufferChunks: 2 })
-      startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-available',
-        toolCallId: 'A',
-        toolName: 'search',
-        input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-output-available',
-        toolCallId: 'A',
-        output: { progress: 50 },
-        preliminary: true
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p2' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-output-available',
-        toolCallId: 'A',
-        output: { done: true }
-      } as UIMessageChunk)
-
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
-      expect(response.status).toBe('attached')
-      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-
-      const errors: unknown[] = []
-      const stream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
-          controller.close()
-        }
-      })
-      let message: CherryUIMessage | undefined
-      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
-        stream,
-        terminateOnError: false,
-        onError: (err) => errors.push(err)
-      })) {
-        message = snapshot
-      }
-
-      expect(errors).toEqual([])
-      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
-        input: { query: 'Cherry Studio' },
-        output: { done: true },
-        state: 'output-available'
-      })
-    })
-
-    it('keeps later preliminary output and a future live final on the same repaired tool part', async () => {
-      vi.useRealTimers()
-      const ringMgr = createManager({ maxBufferChunks: 2 })
-      startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-available',
-        toolCallId: 'A',
-        toolName: 'search',
-        input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
-      for (const progress of [25, 50]) {
-        ringMgr.onChunk('a', 'provider-a::model-a', {
-          type: 'tool-output-available',
-          toolCallId: 'A',
-          output: { progress },
-          preliminary: true
-        } as UIMessageChunk)
-        if (progress === 25) {
-          ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-        }
-      }
-
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
-      expect(response.status).toBe('attached')
-      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-
-      const errors: unknown[] = []
-      const stream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
-          controller.enqueue({
-            type: 'tool-output-available',
-            toolCallId: 'A',
-            output: { done: true }
-          } as UIMessageChunk)
-          controller.close()
-        }
-      })
-      let message: CherryUIMessage | undefined
-      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
-        stream,
-        terminateOnError: false,
-        onError: (err) => errors.push(err)
-      })) {
-        message = snapshot
-      }
-
-      expect(errors).toEqual([])
-      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
-        output: { done: true },
-        state: 'output-available'
-      })
-    })
-
-    it('replays a complete pending approval checkpoint after history evicts its request', async () => {
-      vi.useRealTimers()
-      const ringMgr = createManager({ maxBufferChunks: 2 })
-      startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-start',
-        toolCallId: 'A',
-        toolName: 'alpha'
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-input-available',
-        toolCallId: 'A',
-        toolName: 'AskUserQuestion',
-        input: {
-          questions: [
-            {
-              question: 'Continue?',
-              options: [
-                { label: 'Yes', description: 'Continue the task' },
-                { label: 'No', description: 'Stop here' }
-              ]
-            }
-          ]
-        }
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p2' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-approval-request',
-        toolCallId: 'A',
-        approvalId: 'ap-1'
-      } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p3' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p4' } as UIMessageChunk)
-
-      // Both the input and approval request have left the ordinary ring, which
-      // remains hard-capped while the operational checkpoint stays complete.
-      expect(ringMgr.inspect('a')!.executions[0]).toMatchObject({ bufferedChunkCount: 2, droppedChunks: 5 })
-
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
-      expect(response.status).toBe('attached')
-      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
-        'tool-input-available',
-        'tool-approval-request',
-        'text-start',
-        'text-start'
-      ])
-      expect(response.bufferedChunks[0].chunk).toMatchObject({
-        toolCallId: 'A',
-        toolName: 'AskUserQuestion',
-        input: { questions: [{ question: 'Continue?' }] }
-      })
-
-      const errors: unknown[] = []
-      const stream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
-          controller.close()
-        }
-      })
-      let message: CherryUIMessage | undefined
-      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
-        stream,
-        terminateOnError: false,
-        onError: (err) => errors.push(err)
-      })) {
-        message = snapshot
-      }
-
-      expect(errors).toEqual([])
-      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
-        state: 'approval-requested',
-        approval: { id: 'ap-1' },
-        input: { questions: [{ question: 'Continue?' }] }
-      })
-    })
-
-    it('keeps a seeded continuation tool result in the attach replay', () => {
-      // An approval continue-conversation seeds the accumulator with the
-      // persisted anchor message, so its buffer legitimately opens with a bare
-      // tool-output for the approved call — the renderer's cold-attach reader
-      // seeds from the same message and can apply it without a creator chunk.
-      const mgr = createManager()
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: {
-          chatId: 'a',
-          trigger: 'continue-conversation',
-          messages: [
-            { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hi' }] },
-            {
-              id: 'anchor-1',
-              role: 'assistant',
-              parts: [{ type: 'tool-search', toolCallId: 'call-1', state: 'input-available', input: { q: 'x' } }]
-            }
-          ]
-        } as any,
-        listeners: [new FakeListener('l:a')]
-      })
-
-      mgr.onChunk('a', 'provider-a::model-a', {
-        type: 'tool-output-available',
-        toolCallId: 'call-1',
-        output: { ok: true }
-      } as UIMessageChunk)
-
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
-      expect(response.status).toBe('attached')
-      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['tool-output-available'])
-      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
-    })
-
     it('splits one oversized delta at maxDeltaBytes so long content evicts instead of accreting', () => {
       const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
       startSingle(ringMgr, {
@@ -1529,7 +1213,7 @@ describe('AiStreamManager', () => {
       expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
     })
 
-    it('keeps the history ring capped while an approval is pending and after it resolves', () => {
+    it('pauses ring eviction while an approval is pending and resumes once it resolves', () => {
       const approvalMgr = createManager({ maxBufferChunks: 3 })
       startSingle(approvalMgr, {
         topicId: 'a',
@@ -1556,8 +1240,8 @@ describe('AiStreamManager', () => {
         approvalId: 'approval-1',
         toolCallId: 'call-1'
       } as UIMessageChunk)
-      // The operational approval checkpoint keeps the input replayable while
-      // ordinary history continues to obey the cap.
+      // Over the cap while pending: nothing may be evicted, so the tool input
+      // needed to render and act on the approval stays replayable.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p2',
@@ -1565,9 +1249,9 @@ describe('AiStreamManager', () => {
       } as UIMessageChunk)
 
       const snap = approvalMgr.inspect('a')!
-      // The two same-part deltas merged into one entry on ingest.
-      expect(snap.executions[0].bufferedChunkCount).toBe(3)
-      expect(snap.executions[0].droppedChunks).toBe(1)
+      // The two same-part deltas merge into one entry on ingest.
+      expect(snap.executions[0].bufferedChunkCount).toBe(4)
+      expect(snap.executions[0].droppedChunks).toBe(0)
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
@@ -1575,17 +1259,17 @@ describe('AiStreamManager', () => {
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-available',
         'text-start',
         'text-delta',
-        'tool-input-available',
         'tool-approval-request',
         'text-start',
         'text-delta'
       ])
-      expect(response.bufferedChunks[2].chunk).toMatchObject({ toolCallId: 'call-1' })
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
 
-      // Resolving the approval removes its checkpoint; the ring remains at the
-      // same hard cap instead of preserving an over-cap length.
+      // The approval response clears the pending set before the eviction
+      // check runs, so this same chunk resumes ordinary ring behaviour.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'call-1',
@@ -1593,8 +1277,8 @@ describe('AiStreamManager', () => {
       } as UIMessageChunk)
 
       const after = approvalMgr.inspect('a')!
-      expect(after.executions[0].bufferedChunkCount).toBe(3)
-      expect(after.executions[0].droppedChunks).toBe(2)
+      expect(after.executions[0].bufferedChunkCount).toBe(4)
+      expect(after.executions[0].droppedChunks).toBe(1)
     })
 
     it('stream remains accessible during grace period', async () => {

@@ -1,14 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildCompactReplay,
-  mergeDeltaPayload,
-  type PendingApprovalCheckpoint,
-  splitDeltaPayload,
-  type ToolApprovalRequestPayload,
-  type ToolCreatorPayload
-} from '../buildCompactReplay'
+import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
@@ -194,9 +187,9 @@ describe('buildCompactReplay', () => {
       }
     ])
 
-    // B1 must not merge into A's run — and since execution B never announced
-    // tc1 with a tool-input-start, its orphaned delta is dropped (the SDK
-    // would throw on it). A1/A2 stay split because B1 interrupted the run.
+    // B1 must not merge into A's run. Tool chunks otherwise preserve the
+    // pre-existing pass-through behavior; A1/A2 stay split because B1
+    // interrupted the run.
     expect(result).toEqual([
       {
         topicId: 'topic-1',
@@ -207,6 +200,11 @@ describe('buildCompactReplay', () => {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }
       },
       {
         topicId: 'topic-1',
@@ -244,168 +242,6 @@ describe('buildCompactReplay', () => {
       ])
 
       expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
-    })
-
-    it('drops orphaned tool chunks whose part-creating chunk was evicted', () => {
-      const result = buildCompactReplay([
-        // tc1's tool-input-start was evicted and no seed / evicted-creator
-        // context is provided: its delta cannot be repaired (no toolName on a
-        // delta) and its output has no part to apply to.
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
-        },
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
-        },
-        // tc2's tool-input-available survived — it recreates the part, so its
-        // output stays replayable.
-        {
-          topicId: 'topic-1',
-          chunk: {
-            type: 'tool-input-available',
-            toolCallId: 'tc2',
-            toolName: 'search',
-            input: { q: 'x' }
-          } as UIMessageChunk
-        },
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-output-available', toolCallId: 'tc2', output: { ok: true } } as UIMessageChunk
-        }
-      ])
-
-      expect(result).toEqual([
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-input-available', toolCallId: 'tc2', toolName: 'search', input: { q: 'x' } }
-        },
-        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc2', output: { ok: true } } }
-      ])
-    })
-
-    it('keeps orphaned tool chunks whose toolCallId is on the accumulator seed', () => {
-      // A continue-conversation execution's buffer legitimately opens with
-      // bare tool results — the part lives on the persisted anchor message
-      // both the main accumulator and a cold-attaching renderer seed from.
-      const chunks = [
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
-        },
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-output-error', toolCallId: 'tc2', errorText: 'boom' } as UIMessageChunk
-        },
-        { topicId: 'topic-1', chunk: { type: 'tool-output-denied', toolCallId: 'tc3' } as UIMessageChunk },
-        {
-          topicId: 'topic-1',
-          chunk: { type: 'tool-approval-request', toolCallId: 'tc4', approvalId: 'ap1' } as UIMessageChunk
-        }
-      ]
-
-      // Without the seed they'd all be dropped as orphans…
-      expect(buildCompactReplay(chunks)).toEqual([])
-      // …with it they replay untouched.
-      expect(buildCompactReplay(chunks, { seedToolCallIds: new Set(['tc1', 'tc2', 'tc3', 'tc4']) })).toEqual(chunks)
-    })
-
-    it('synthesizes a start from the evicted-creator stash for a surviving delta run', () => {
-      const result = buildCompactReplay(
-        [
-          {
-            topicId: 'topic-1',
-            chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
-          },
-          {
-            topicId: 'topic-1',
-            chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
-          }
-        ],
-        {
-          evictedToolCreators: new Map<string, ToolCreatorPayload>([
-            [
-              'tc1',
-              {
-                topicId: 'topic-1',
-                chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' }
-              }
-            ]
-          ])
-        }
-      )
-
-      expect(result).toEqual([
-        { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } },
-        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } },
-        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
-      ])
-    })
-
-    it('replays the complete input from the evicted-creator stash for an orphaned approval request', () => {
-      const result = buildCompactReplay(
-        [
-          {
-            topicId: 'topic-1',
-            chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } as UIMessageChunk
-          }
-        ],
-        {
-          evictedToolCreators: new Map<string, ToolCreatorPayload>([
-            [
-              'tc1',
-              {
-                topicId: 'topic-1',
-                chunk: {
-                  type: 'tool-input-available',
-                  toolCallId: 'tc1',
-                  toolName: 'searchWeb',
-                  input: { query: 'Cherry Studio' },
-                  providerExecuted: false
-                }
-              }
-            ]
-          ])
-        }
-      )
-
-      expect(result).toEqual([
-        {
-          topicId: 'topic-1',
-          chunk: {
-            type: 'tool-input-available',
-            toolCallId: 'tc1',
-            toolName: 'searchWeb',
-            input: { query: 'Cherry Studio' },
-            providerExecuted: false
-          }
-        },
-        { topicId: 'topic-1', chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } }
-      ])
-    })
-
-    it('prepends a pending approval checkpoint when history eviction removed the request', () => {
-      const creator = {
-        topicId: 'topic-1',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: 'tc1',
-          toolName: 'AskUserQuestion',
-          input: { questions: [{ question: 'Continue?', options: [{ label: 'Yes' }, { label: 'No' }] }] }
-        }
-      } satisfies ToolCreatorPayload
-      const request = {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' }
-      } satisfies ToolApprovalRequestPayload
-
-      const result = buildCompactReplay(
-        [{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'later' } as UIMessageChunk }],
-        { pendingApprovalCheckpoints: new Map<string, PendingApprovalCheckpoint>([['tc1', { creator, request }]]) }
-      )
-
-      expect(result).toEqual([creator, request, { topicId: 'topic-1', chunk: { type: 'text-start', id: 'later' } }])
     })
   })
 
@@ -461,7 +297,7 @@ describe('buildCompactReplay', () => {
           { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk },
           { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } as UIMessageChunk }
         ],
-        { maxDeltaBytes: 4 }
+        4
       )
 
       expect(result).toEqual([

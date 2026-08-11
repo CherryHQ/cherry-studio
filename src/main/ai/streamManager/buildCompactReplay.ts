@@ -1,41 +1,4 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
-import type { UIMessageChunk } from 'ai'
-
-type ChunkPayload<TYPE extends UIMessageChunk['type']> = Omit<StreamChunkPayload, 'chunk'> & {
-  chunk: Extract<UIMessageChunk, { type: TYPE }>
-}
-
-export type ToolCreatorPayload = ChunkPayload<'tool-input-start' | 'tool-input-available'>
-export type ToolApprovalRequestPayload = ChunkPayload<'tool-approval-request'>
-
-/**
- * Complete part-creating tool chunk the ring evicted while its part was still
- * open. `tool-input-available.input` is retained because it is the evidence a
- * user needs to decide a later approval request.
- */
-export type EvictedToolCreator = ToolCreatorPayload
-
-/** Operational state retained independently from the lossy history ring. */
-export interface PendingApprovalCheckpoint {
-  creator?: ToolCreatorPayload
-  request: ToolApprovalRequestPayload
-}
-
-export interface CompactReplayContext {
-  /**
-   * toolCallIds whose parts already exist on the execution's accumulator seed
-   * (the `continue-conversation` anchor message). The renderer's cold-attach
-   * reader seeds from the same persisted message, so tool chunks referencing
-   * them are valid without an in-ring part-creating chunk.
-   */
-  seedToolCallIds?: ReadonlySet<string>
-  /** Evicted part creators, keyed by toolCallId. See `EvictedToolCreator`. */
-  evictedToolCreators?: ReadonlyMap<string, EvictedToolCreator>
-  /** Complete requests still awaiting a user decision, keyed by toolCallId. */
-  pendingApprovalCheckpoints?: ReadonlyMap<string, PendingApprovalCheckpoint>
-  /** Maximum UTF-8 bytes in one replayed delta chunk. */
-  maxDeltaBytes?: number
-}
 
 function utf8CodePointBytes(codePoint: number): number {
   if (codePoint <= 0x7f) return 1
@@ -127,8 +90,8 @@ export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: nu
  * part run (same part id / toolCallId, same executionId and anchorMessageId).
  * Returns the merged payload, or `undefined` when the two don't form a
  * contiguous run — or when merging would grow the entry past
- * `maxDeltaBytes`, so ingestion starts a new segment entry and the ring's
- * entry cap keeps bounding retained UTF-8 bytes (not just protocol units).
+ * `maxDeltaBytes`, so ingestion starts a new segment entry and ordinary ring
+ * eviction remains bounded by UTF-8 bytes (not just protocol units).
  *
  * The merge is lossy w.r.t. the original chunks: `providerMetadata` keeps the
  * run's last non-undefined value. That is exactly the part state AI SDK's
@@ -190,55 +153,21 @@ export function mergeDeltaPayload(
 }
 
 /**
- * Compact an execution's buffered chunks for replay: merge contiguous delta
- * runs, and — because ring eviction can drop a part's opening chunk while
- * later chunks survive — repair the head so the replay stays consumable by AI
- * SDK's `processUIMessageStream` (which throws on a delta/end with no active
- * part, and on tool chunks whose part was never created):
- *
- *  - orphaned `text-delta` / `reasoning-delta`: synthesize the missing start
- *    (the delta carries its part id) — the run renders head-truncated but
- *    coherent, and the persisted message restores the full text on terminal;
- *  - orphaned `text-end` / `reasoning-end` (all content evicted too): drop
- *    instead of rendering an empty part;
- *  - orphaned tool chunks referencing a `context.seedToolCallIds` part: keep
- *    as-is — the attaching reader seeds from the same persisted anchor
- *    message, so the part exists without any in-ring creator (a
- *    `continue-conversation` execution's buffer legitimately opens with a
- *    bare `tool-output-*` for the approved call);
- *  - orphaned tool chunks whose creator is in `context.evictedToolCreators`:
- *    replay the complete creator, so the part exists for the replayed chunk
- *    and future live chunks of the same toolCallId;
- *  - pending approvals whose history was evicted: prepend their complete
- *    creator + request checkpoint so the user can still inspect and decide;
- *  - remaining orphaned tool chunks: drop — nothing to synthesize from, and
- *    output/approval chunks need a part to apply to.
+ * Compact an execution's buffered chunks for replay. Contiguous delta runs
+ * are merged, and a missing `text-start` / `reasoning-start` is synthesized
+ * when ring eviction leaves a surviving delta run. A bare end with no
+ * surviving content is dropped instead of creating an empty part.
  */
 export function buildCompactReplay(
   buffer: readonly StreamChunkPayload[],
-  context?: CompactReplayContext
+  maxDeltaBytes?: number
 ): StreamChunkPayload[] {
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
-
-  const bufferedApprovalIds = new Set<string>()
-  for (const payload of buffer) {
-    if (payload.chunk.type === 'tool-approval-request') bufferedApprovalIds.add(payload.chunk.approvalId)
-  }
-  const approvalPrelude: StreamChunkPayload[] = []
-  for (const checkpoint of context?.pendingApprovalCheckpoints?.values() ?? []) {
-    if (bufferedApprovalIds.has(checkpoint.request.chunk.approvalId)) continue
-    if (checkpoint.creator) approvalPrelude.push(checkpoint.creator)
-    approvalPrelude.push(checkpoint.request)
-  }
-  const replayBuffer = approvalPrelude.length > 0 ? [...approvalPrelude, ...buffer] : buffer
-
   const openParts = new Set<string>()
-  const createdToolParts = new Set<string>()
-  const startedToolInputs = new Set<string>()
+
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
-  /** Key for a text/reasoning part in `openParts` — namespaced explicitly so the two part kinds can't collide on a shared id. */
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
 
@@ -248,30 +177,9 @@ export function buildCompactReplay(
     pending = undefined
   }
 
-  /**
-   * Replay a complete creator from operational approval state or the evicted
-   * creator stash. A tool-input delta specifically requires a start chunk;
-   * terminal/approval chunks can use either creator form.
-   */
-  const replayEvictedCreator = (
-    payload: StreamChunkPayload,
-    toolCallId: string,
-    requireInputStart = false
-  ): boolean => {
-    const creator =
-      context?.pendingApprovalCheckpoints?.get(toolCallId)?.creator ?? context?.evictedToolCreators?.get(toolCallId)
-    if (!creator) return false
-    if (requireInputStart && creator.chunk.type !== 'tool-input-start') return false
-    const key = scopedKey(payload, toolCallId)
-    createdToolParts.add(key)
-    if (creator.chunk.type === 'tool-input-start') startedToolInputs.add(key)
-    compact.push(creator)
-    return true
-  }
-
-  for (const payload of replayBuffer) {
+  for (const payload of buffer) {
     if (pending) {
-      const merged = mergeDeltaPayload(pending, payload, context?.maxDeltaBytes)
+      const merged = mergeDeltaPayload(pending, payload, maxDeltaBytes)
       if (merged) {
         pending = merged
         continue
@@ -309,56 +217,10 @@ export function buildCompactReplay(
         break
       }
 
-      case 'tool-input-start': {
-        // Preserve the part announcement — without it the renderer's chat
-        // reducer cannot apply subsequent live tool-input-delta chunks for
-        // this toolCallId when attach happens before tool-input-available.
+      case 'tool-input-delta':
         flushPending()
-        const key = scopedKey(payload, chunk.toolCallId)
-        createdToolParts.add(key)
-        startedToolInputs.add(key)
-        compact.push(payload)
-        break
-      }
-
-      case 'tool-input-delta': {
-        flushPending()
-        // A seed part can't host a delta — the reader tracks streaming input
-        // per `tool-input-start`, which a persisted part doesn't re-announce —
-        // so only an evicted-creator synthesis can repair one.
-        if (
-          !startedToolInputs.has(scopedKey(payload, chunk.toolCallId)) &&
-          !replayEvictedCreator(payload, chunk.toolCallId, true)
-        ) {
-          break
-        }
         pending = payload
         break
-      }
-
-      case 'tool-input-available':
-      case 'tool-input-error': {
-        flushPending()
-        createdToolParts.add(scopedKey(payload, chunk.toolCallId))
-        compact.push(payload)
-        break
-      }
-
-      case 'tool-approval-request':
-      case 'tool-output-available':
-      case 'tool-output-error':
-      case 'tool-output-denied': {
-        flushPending()
-        if (
-          !createdToolParts.has(scopedKey(payload, chunk.toolCallId)) &&
-          !context?.seedToolCallIds?.has(chunk.toolCallId) &&
-          !replayEvictedCreator(payload, chunk.toolCallId)
-        ) {
-          break
-        }
-        compact.push(payload)
-        break
-      }
 
       default:
         flushPending()
@@ -368,6 +230,5 @@ export function buildCompactReplay(
   }
 
   flushPending()
-
   return compact
 }
