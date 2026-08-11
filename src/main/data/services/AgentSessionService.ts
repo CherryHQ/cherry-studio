@@ -8,6 +8,7 @@ import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/ag
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
@@ -598,12 +599,20 @@ export class AgentSessionService {
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
     const result = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
+      const channelReferences = agentChannelService.resetWorkspaceReferencesTx(tx, workspaceId)
+      const taskReferences = getDataService('AgentTaskService').resetWorkspaceReferencesTx(tx, workspaceId)
       const taskScheduleIds = this.getTaskScheduleIdsForWorkspaceTx(tx, workspaceId)
       const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-      return { deletedIds, taskScheduleIds }
+      return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
     })
-    publishTaskReadModelChanges(result.taskScheduleIds)
+    publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
+    logger.info('Deleted user workspace', {
+      workspaceId,
+      deletedSessionCount: result.deletedIds.length,
+      resetChannelCount: result.channelReferences.length,
+      resetTaskCount: result.taskReferences.length
+    })
     return { deletedIds: result.deletedIds }
   }
 

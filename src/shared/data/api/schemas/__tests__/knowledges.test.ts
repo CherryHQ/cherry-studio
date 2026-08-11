@@ -16,7 +16,6 @@ import {
 } from '../../../types/knowledge'
 import {
   KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_DEFAULT_PAGE,
   KNOWLEDGE_BASES_MAX_LIMIT,
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
@@ -784,17 +783,17 @@ describe('isCompletedVectorKnowledgeBase', () => {
 describe('ListKnowledgeBasesQuerySchema', () => {
   it('trims search and applies pagination defaults', () => {
     expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       search: 'docs'
     })
   })
 
-  it('accepts max limit and rejects blank search', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
-      page: 2,
+  it('accepts cursor and max limit and rejects the old page field', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ cursor: 'next-page', limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      cursor: 'next-page',
       limit: KNOWLEDGE_BASES_MAX_LIMIT
     })
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 2, limit: 20 }).success).toBe(false)
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 
@@ -806,7 +805,6 @@ describe('ListKnowledgeBasesQuerySchema', () => {
         updatedAtFrom: '2026-05-01T00:00:00.000Z'
       })
     ).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       sortBy: 'updatedAt',
       sortOrder: 'desc',

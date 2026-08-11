@@ -12,12 +12,20 @@ import { knowledgeFileProcessingExts } from '@shared/utils/file'
 const logger = loggerService.withContext('Knowledge:PathStorage')
 
 // A processed `.md` artifact is emitted iff the source actually runs through the file
-// processor — the exact predicate `needsFileProcessing` (sourcePlanning) uses. Keying
-// reservation off the same processing-ext source of truth keeps the two from ever
-// disagreeing (e.g. `.xls`, which is processed but not in the app-wide `documentExts`).
+// processor, so reservation keys off the same processing-ext source of truth that
+// `needsFileProcessing` (sourcePlanning) uses. Sharing it keeps import-time name
+// selection and scheduling in agreement — were they to diverge, a name chosen at
+// import could collide with the artifact a later processing job writes.
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
-const CHERRY_META_DIR = '.cherry'
+/**
+ * The control dir (`{baseDir}/.cherry`) holding the derived index, sibling to `raw/`.
+ * Exported because it is also a reserved *material* name: `assertSafeKnowledgeRelativePath`
+ * rejects a `relativePath` of `.cherry` (or under it), so anything choosing a top-level
+ * material name must treat it as already taken rather than emit a path that throws on
+ * every read.
+ */
+export const CHERRY_META_DIR = '.cherry'
 const VECTOR_STORE_FILE = 'index.sqlite'
 
 /**

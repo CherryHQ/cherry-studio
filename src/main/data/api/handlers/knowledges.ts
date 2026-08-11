@@ -25,7 +25,7 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
   '/knowledge-bases': {
     GET: async ({ query }) => {
       const parsed = ListKnowledgeBasesQuerySchema.parse(query ?? {})
-      return knowledgeBaseService.list(parsed)
+      return knowledgeBaseService.listCursor(parsed)
     }
   },
 
