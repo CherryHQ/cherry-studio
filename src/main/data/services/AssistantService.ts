@@ -28,6 +28,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'dri
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
+import { promptService } from './PromptService'
 import { topicService } from './TopicService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -583,6 +584,7 @@ export class AssistantDataService {
     if (!row) return false
 
     pinService.purgeForEntityTx(tx, 'assistant', id)
+    promptService.purgeForTargetTx(tx, 'assistant', id)
 
     return true
   }

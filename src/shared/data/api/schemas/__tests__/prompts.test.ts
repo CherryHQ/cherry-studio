@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '../../../types/prompt'
-import { CreatePromptSchema, ListPromptsQuerySchema, UpdatePromptSchema } from '../prompts'
+import { CreatePromptSchema, ListPromptsQuerySchema, PromptBindingParamsSchema, UpdatePromptSchema } from '../prompts'
+
+const PROMPT_ID = '550e8400-e29b-41d4-a716-446655440000'
+const TARGET_ID = '550e8400-e29b-41d4-a716-446655440001'
 
 describe('prompt DTO schemas', () => {
   it('accepts create with title and content', () => {
@@ -41,6 +44,40 @@ describe('prompt DTO schemas', () => {
     ).toThrow()
   })
 
+  it('accepts an Assistant or Agent as the optional initial binding target', () => {
+    expect(
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        bindingTarget: { type: 'assistant', id: TARGET_ID }
+      })
+    ).toMatchObject({ bindingTarget: { type: 'assistant', id: TARGET_ID } })
+    expect(
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        bindingTarget: { type: 'agent', id: 'legacy-agent-id' }
+      })
+    ).toMatchObject({ bindingTarget: { type: 'agent', id: 'legacy-agent-id' } })
+  })
+
+  it('rejects malformed or unsupported binding targets', () => {
+    expect(() =>
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        bindingTarget: { type: 'painting', id: TARGET_ID }
+      })
+    ).toThrow()
+    expect(() =>
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        bindingTarget: { type: 'assistant', id: 'not-a-uuid' }
+      })
+    ).toThrow()
+  })
+
   it('rejects empty update payloads', () => {
     expect(() => UpdatePromptSchema.parse({})).toThrow('At least one field is required')
   })
@@ -58,6 +95,7 @@ describe('prompt DTO schemas', () => {
   it('rejects removed version, scope, and variable fields', () => {
     expect(() => UpdatePromptSchema.parse({ currentVersion: 2 })).toThrow()
     expect(() => UpdatePromptSchema.parse({ assistantId: 'assistant-1' })).toThrow()
+    expect(() => UpdatePromptSchema.parse({ bindingTarget: { type: 'assistant', id: TARGET_ID } })).toThrow()
     expect(() => UpdatePromptSchema.parse({ variables: [] })).toThrow()
   })
 
@@ -68,5 +106,33 @@ describe('prompt DTO schemas', () => {
   it('rejects empty list search query and unknown query fields', () => {
     expect(() => ListPromptsQuerySchema.parse({ search: '   ' })).toThrow()
     expect(() => ListPromptsQuerySchema.parse({ tagIds: ['tag-1'] })).toThrow()
+  })
+
+  it('requires a complete Assistant or Agent target when filtering the list', () => {
+    expect(ListPromptsQuerySchema.parse({ targetType: 'assistant', targetId: TARGET_ID })).toEqual({
+      targetType: 'assistant',
+      targetId: TARGET_ID
+    })
+    expect(() => ListPromptsQuerySchema.parse({ targetType: 'assistant' })).toThrow()
+    expect(() => ListPromptsQuerySchema.parse({ targetId: TARGET_ID })).toThrow()
+    expect(() => ListPromptsQuerySchema.parse({ targetType: 'painting', targetId: TARGET_ID })).toThrow()
+    expect(ListPromptsQuerySchema.parse({ targetType: 'agent', targetId: 'legacy-agent-id' })).toEqual({
+      targetType: 'agent',
+      targetId: 'legacy-agent-id'
+    })
+  })
+
+  it('validates binding route parameters', () => {
+    expect(PromptBindingParamsSchema.parse({ id: PROMPT_ID, targetType: 'agent', targetId: TARGET_ID })).toEqual({
+      id: PROMPT_ID,
+      targetType: 'agent',
+      targetId: TARGET_ID
+    })
+    expect(
+      PromptBindingParamsSchema.parse({ id: PROMPT_ID, targetType: 'agent', targetId: 'legacy-agent-id' })
+    ).toEqual({ id: PROMPT_ID, targetType: 'agent', targetId: 'legacy-agent-id' })
+    expect(() =>
+      PromptBindingParamsSchema.parse({ id: PROMPT_ID, targetType: 'assistant', targetId: 'invalid' })
+    ).toThrow()
   })
 })

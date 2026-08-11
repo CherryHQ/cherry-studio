@@ -48,10 +48,14 @@ function MockPromptEditorField(props: any) {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        'settings.prompts.variablePlaceholder': '${variable}'
-      })[key] ?? key
+    t: (key: string, options?: { target?: string }) => {
+      if (key === 'settings.prompts.binding.createHint') return `${key}:${options?.target}`
+      return (
+        {
+          'settings.prompts.variablePlaceholder': '${variable}'
+        }[key] ?? key
+      )
+    }
   })
 }))
 
@@ -152,6 +156,42 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 describe('PromptEditDialog', () => {
+  it('shows the captured context only when creating a prompt', () => {
+    const bindingTarget = { type: 'assistant' as const, id: '550e8400-e29b-41d4-a716-446655440001' }
+    const { rerender } = render(
+      <PromptEditDialog
+        open
+        prompt={null}
+        bindingTarget={bindingTarget}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/settings\.prompts\.binding\.createHint/)).toHaveTextContent(
+      'settings.prompts.binding.currentAssistant'
+    )
+
+    rerender(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Existing',
+          content: 'Content',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        bindingTarget={bindingTarget}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText(/settings\.prompts\.binding\.createHint/)).not.toBeInTheDocument()
+  })
+
   it('uses the shared prompt editor without prompt generation', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(undefined)

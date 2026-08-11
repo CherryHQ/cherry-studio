@@ -3,9 +3,9 @@
  *
  * Sources:
  *   Dexie quick_phrases                                 → global prompts
- *   Redux assistants.assistants[].regularPhrases       → global prompts
- *   Redux assistants.presets[].regularPhrases          → global prompts
- *   Redux assistants.defaultAssistant.regularPhrases   → global prompts
+ *   Redux assistants.assistants[].regularPhrases       → global prompts + Assistant bindings
+ *   Redux assistants.presets[].regularPhrases          → global prompts + Assistant bindings
+ *   Redux assistants.defaultAssistant.regularPhrases   → global prompts + Assistant bindings
  *
  * Mapping:
  *   QuickPhrase.id        → prompt.id (preserve unique UUIDs; regenerate invalid/conflicting IDs)
@@ -13,9 +13,10 @@
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
  *   QuickPhrase.order     → drives global relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase timestamps → prompt timestamps (preserve valid date values; repair missing/invalid values)
+ *   Source assistant id   → prompt_binding target (after AssistantMigrator remapping)
  */
 
-import { promptTable } from '@data/db/schemas/prompt'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
@@ -38,6 +39,7 @@ const INSERT_BATCH_SIZE = 100
 const INVALID_SOURCE_PREVIEW_LIMIT = 5
 
 type PromptInsertRow = typeof promptTable.$inferInsert
+type PromptBindingInsertRow = typeof promptBindingTable.$inferInsert
 
 interface PreparedPhrase {
   id: string
@@ -63,6 +65,7 @@ interface LegacyAssistantState {
 interface LegacyPhraseCandidate {
   phrase: unknown
   source: string
+  bindingAssistantId?: string
   invalidReason?: string
 }
 
@@ -81,12 +84,14 @@ export class PromptMigrator extends BaseMigrator {
   private promptCount = 0
   private skippedCount = 0
   private preparedPhrases: PreparedPhrase[] = []
+  private preparedBindings: PromptBindingInsertRow[] = []
 
   override reset(): void {
     this.sourceCount = 0
     this.promptCount = 0
     this.skippedCount = 0
     this.preparedPhrases = []
+    this.preparedBindings = []
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -112,11 +117,16 @@ export class PromptMigrator extends BaseMigrator {
 
       this.sourceCount = candidates.length
       this.preparedPhrases = []
+      this.preparedBindings = []
 
       const fallbackTimestamp = Date.now()
       const reservedIds = collectReservedPromptIds(candidates)
-      const variantsByLegacyId = new Map<string, Set<string>>()
+      const variantsByLegacyId = new Map<string, Map<string, string>>()
       const usedIds = new Set<string>()
+      const bindingKeys = new Set<string>()
+      const validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string> | undefined) ?? new Set<string>()
+      const assistantIdRemap =
+        (ctx.sharedData.get('legacyAssistantIdRemap') as Map<string, string> | undefined) ?? new Map<string, string>()
       let invalidCount = 0
       let duplicateCount = 0
       let reassignedIdCount = 0
@@ -141,9 +151,18 @@ export class PromptMigrator extends BaseMigrator {
 
         if (legacyId) {
           const existingVariants = variantsByLegacyId.get(legacyId)
+          const existingPromptId = existingVariants?.get(fingerprint)
 
-          if (existingVariants?.has(fingerprint)) {
+          if (existingPromptId) {
             duplicateCount++
+            appendPreparedBinding(
+              this.preparedBindings,
+              bindingKeys,
+              existingPromptId,
+              candidate.bindingAssistantId,
+              validAssistantIds,
+              assistantIdRemap
+            )
             continue
           }
 
@@ -169,8 +188,8 @@ export class PromptMigrator extends BaseMigrator {
             }
           }
 
-          const variants = existingVariants ?? new Set<string>()
-          variants.add(fingerprint)
+          const variants = existingVariants ?? new Map<string, string>()
+          variants.set(fingerprint, id)
           variantsByLegacyId.set(legacyId, variants)
         } else {
           id = generateUniqueId(usedIds, reservedIds)
@@ -182,6 +201,14 @@ export class PromptMigrator extends BaseMigrator {
         if (normalized.value.normalizedTitle) normalizedTitleCount++
         if (normalized.value.normalizedTimestamps) normalizedTimestampCount++
         this.preparedPhrases.push({ id, ...phrase })
+        appendPreparedBinding(
+          this.preparedBindings,
+          bindingKeys,
+          id,
+          candidate.bindingAssistantId,
+          validAssistantIds,
+          assistantIdRemap
+        )
       }
 
       this.skippedCount = invalidCount + duplicateCount
@@ -201,7 +228,8 @@ export class PromptMigrator extends BaseMigrator {
         reassignedIds: reassignedIdCount,
         regeneratedIds: regeneratedIdCount,
         normalizedTitles: normalizedTitleCount,
-        repairedTimestamps: normalizedTimestampCount
+        repairedTimestamps: normalizedTimestampCount,
+        bindingCount: this.preparedBindings.length
       })
 
       return {
@@ -258,9 +286,17 @@ export class PromptMigrator extends BaseMigrator {
             .values(rows.slice(start, start + INSERT_BATCH_SIZE))
             .run()
         }
+        for (let start = 0; start < this.preparedBindings.length; start += INSERT_BATCH_SIZE) {
+          tx.insert(promptBindingTable)
+            .values(this.preparedBindings.slice(start, start + INSERT_BATCH_SIZE))
+            .run()
+        }
       })
 
-      logger.info('Prompt migration completed', { processedCount: rows.length })
+      logger.info('Prompt migration completed', {
+        processedCount: rows.length,
+        bindingCount: this.preparedBindings.length
+      })
       return { success: true, processedCount: rows.length }
     } catch (error) {
       const err = wrapExecuteError(error, stamped, rows.length)
@@ -305,6 +341,17 @@ export class PromptMigrator extends BaseMigrator {
           expected: 0,
           actual: invalidTargetRows.length,
           message: `${invalidTargetRows.length} migrated prompts violate the v2 prompt contract`
+        })
+      }
+
+      const bindingResult = db.select({ count: sql<number>`count(*)` }).from(promptBindingTable).get()
+      const targetBindingCount = bindingResult?.count ?? 0
+      if (targetBindingCount !== this.preparedBindings.length) {
+        errors.push({
+          key: 'prompt_binding_count_mismatch',
+          expected: this.preparedBindings.length,
+          actual: targetBindingCount,
+          message: `Expected ${this.preparedBindings.length} prompt bindings, got ${targetBindingCount}`
         })
       }
 
@@ -359,8 +406,9 @@ function collectAssistantPhraseCandidates(state: LegacyAssistantState | undefine
       return
     }
 
+    const bindingAssistantId = typeof assistant.id === 'string' ? assistant.id : undefined
     assistant.regularPhrases.forEach((phrase, index) => {
-      candidates.push({ phrase, source: `${source}.regularPhrases[${index}]` })
+      candidates.push({ phrase, source: `${source}.regularPhrases[${index}]`, bindingAssistantId })
     })
   }
 
@@ -373,6 +421,24 @@ function collectAssistantPhraseCandidates(state: LegacyAssistantState | undefine
   appendAssistant(state.defaultAssistant, 'defaultAssistant')
 
   return candidates
+}
+
+function appendPreparedBinding(
+  bindings: PromptBindingInsertRow[],
+  bindingKeys: Set<string>,
+  promptId: string,
+  legacyAssistantId: string | undefined,
+  validAssistantIds: ReadonlySet<string>,
+  assistantIdRemap: ReadonlyMap<string, string>
+): void {
+  if (!legacyAssistantId) return
+  const targetId = assistantIdRemap.get(legacyAssistantId) ?? legacyAssistantId
+  if (!validAssistantIds.has(targetId)) return
+
+  const key = `${promptId}:${targetId}`
+  if (bindingKeys.has(key)) return
+  bindingKeys.add(key)
+  bindings.push({ promptId, targetType: 'assistant', targetId })
 }
 
 function normalizeLegacyPhrase(

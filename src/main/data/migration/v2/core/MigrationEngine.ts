@@ -35,7 +35,7 @@ import { noteTable } from '@data/db/schemas/note'
 import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { promptTable } from '@data/db/schemas/prompt'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -95,6 +95,7 @@ const MIGRATION_TARGET_TABLES = [
   { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
   { table: knowledgeBaseTable, name: 'knowledge_base' },
   { table: groupTable, name: 'group' }, // Shared parent: topic/assistant/knowledge_base cleared above
+  { table: promptBindingTable, name: 'prompt_binding' }, // Junction: clear before prompt
   { table: promptTable, name: 'prompt' },
   // Agents-domain tables — child → parent order
   { table: agentSessionMessageTable, name: 'agent_session_message' },

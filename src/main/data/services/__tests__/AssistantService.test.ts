@@ -7,6 +7,7 @@ import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -1239,6 +1240,18 @@ describe('AssistantDataService', () => {
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
+    })
+
+    it('should remove prompt bindings for the deleted assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440020'
+      await dbh.db.insert(promptTable).values({ id: promptId, title: 'Bound', content: 'Body', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'assistant', targetId: 'ast-1' })
+
+      assistantDataService.delete('ast-1')
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
     it('should delete assistant topics atomically when requested', async () => {

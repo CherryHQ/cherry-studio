@@ -1,4 +1,6 @@
-import { promptTable } from '@data/db/schemas/prompt'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc } from 'drizzle-orm'
@@ -13,20 +15,28 @@ function createMockContext(
     tableExists?: boolean
     tableData?: unknown[]
     promptCount?: number
+    bindingCount?: number
     promptRows?: unknown[]
     assistantState?: unknown
   } = {}
 ): MigrationContext {
-  const { tableExists = true, tableData = [], promptCount = 0, promptRows = [], assistantState } = overrides
+  const {
+    tableExists = true,
+    tableData = [],
+    promptCount = 0,
+    bindingCount = 0,
+    promptRows = [],
+    assistantState
+  } = overrides
 
   const insertFn = vi.fn().mockImplementation(() => ({
     values: vi.fn().mockImplementation(() => ({ run: vi.fn() }))
   }))
 
   const selectFn = vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation(() => ({
-      get: vi.fn().mockReturnValue({ count: promptCount }),
-      all: vi.fn().mockReturnValue(promptRows)
+    from: vi.fn().mockImplementation((table) => ({
+      get: vi.fn().mockReturnValue({ count: table === promptBindingTable ? bindingCount : promptCount }),
+      all: vi.fn().mockReturnValue(table === promptTable ? promptRows : [])
     }))
   }))
 
@@ -804,5 +814,60 @@ describe('PromptMigrator SQLite integration', () => {
       '550e8400-e29b-41d4-a716-446655440001'
     ])
     expect(rows[0].orderKey < rows[1].orderKey).toBe(true)
+  })
+
+  it('deduplicates legacy prompts while preserving every valid Assistant binding', async () => {
+    const assistantId = '550e8400-e29b-41d4-a716-446655440010'
+    const secondAssistantId = '550e8400-e29b-41d4-a716-446655440011'
+    await dbh.db.insert(assistantTable).values([
+      {
+        id: assistantId,
+        name: 'Default assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      },
+      {
+        id: secondAssistantId,
+        name: 'Second assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a1'
+      }
+    ])
+    const phrase = makePhrase({
+      id: '550e8400-e29b-41d4-a716-446655440012',
+      title: 'Shared phrase',
+      content: 'shared content'
+    })
+    const ctx = createMockContext({
+      tableExists: false,
+      assistantState: {
+        assistants: [{ id: secondAssistantId, regularPhrases: [phrase] }],
+        presets: [],
+        defaultAssistant: { id: 'default', regularPhrases: [{ ...phrase }] }
+      }
+    })
+    ctx.db = dbh.db
+    ctx.sharedData.set('assistantIds', new Set([assistantId, secondAssistantId]))
+    ctx.sharedData.set('legacyAssistantIdRemap', new Map([['default', assistantId]]))
+    const migrator = new PromptMigrator()
+
+    const prepareResult = await migrator.prepare(ctx)
+    const executeResult = await migrator.execute(ctx)
+    const validateResult = await migrator.validate(ctx)
+    const prompts = await dbh.db.select().from(promptTable)
+    const bindings = await dbh.db.select().from(promptBindingTable)
+
+    expect(prepareResult).toMatchObject({ success: true, itemCount: 1 })
+    expect(executeResult).toMatchObject({ success: true, processedCount: 1 })
+    expect(validateResult.success).toBe(true)
+    expect(prompts).toHaveLength(1)
+    expect(bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ promptId: prompts[0].id, targetType: 'assistant', targetId: assistantId }),
+        expect.objectContaining({ promptId: prompts[0].id, targetType: 'assistant', targetId: secondAssistantId })
+      ])
+    )
   })
 })

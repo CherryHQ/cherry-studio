@@ -1,15 +1,15 @@
 # PromptMigrator
 
-`PromptMigrator` migrates both v1 quick-phrase stores into the single v2 `prompt` table. Assistant ownership is intentionally discarded because v2 exposes one global prompt list.
+`PromptMigrator` migrates both v1 quick-phrase stores into the global v2 `prompt` table. Phrases stored on an assistant also create `prompt_binding` rows so the Composer can recommend them in that Assistant context without duplicating Prompt content.
 
 ## Data Sources
 
 | Data | Source | Notes |
 |------|--------|-------|
 | Global quick phrases | Dexie `quick_phrases` | Optional table in the v1 `CherryStudio` IndexedDB database |
-| Assistant quick phrases | Redux `state.assistants.assistants[].regularPhrases` | Stored inline on each assistant |
-| Preset quick phrases | Redux `state.assistants.presets[].regularPhrases` | Presets share the v1 Assistant shape |
-| Default assistant quick phrases | Redux `state.assistants.defaultAssistant.regularPhrases` | Separate slot that may duplicate or diverge from `assistants[0]` |
+| Assistant quick phrases | Redux `state.assistants.assistants[].regularPhrases` | Creates global prompts plus bindings to the migrated assistant |
+| Preset quick phrases | Redux `state.assistants.presets[].regularPhrases` | Presets share the v1 Assistant shape and are migrated as assistants |
+| Default assistant quick phrases | Redux `state.assistants.defaultAssistant.regularPhrases` | Uses AssistantMigrator's remapped ID and may duplicate `assistants[0]` |
 
 The absence of the Dexie table does not stop migration. Redux assistant phrases are still prepared and inserted.
 
@@ -24,7 +24,7 @@ The absence of the Dexie table does not stop migration. Redux assistant phrases 
 | `createdAt` | `createdAt`; preserve valid date values, otherwise use `updatedAt` or the migration timestamp |
 | `updatedAt` | `updatedAt`; preserve valid date values, otherwise use the normalized `createdAt` |
 
-No assistant identifier is written to the target table.
+Assistant identifiers never enter the `prompt` row. They are normalized through AssistantMigrator's `legacyAssistantIdRemap`, checked against its migrated Assistant ID set, and written to `prompt_binding`. A phrase whose source Assistant was skipped remains available globally without an orphan binding.
 
 ## Ordering
 
@@ -41,7 +41,7 @@ This keeps the existing global migration order stable and deterministically appe
 
 The v1 Redux state can contain the same assistant data in multiple slots, especially the default assistant.
 
-- Same ID, title, and content: keep the first row and count later rows as skipped duplicates. Timestamp-only differences do not create another prompt.
+- Same ID, title, and content: keep the first row and count later rows as skipped duplicates. Timestamp-only differences do not create another prompt, but every distinct valid source Assistant still receives a binding to that one Prompt.
 - Same ID but different title or content: preserve both rows. The first row keeps the v1 ID; each later conflicting row receives a new UUID.
 - Missing or non-UUID ID: preserve the phrase under a generated UUID. Repeated non-empty legacy IDs still participate in duplicate detection before regeneration.
 - Different IDs: preserve both rows even when their title and content match. The migrator does not infer that separately-created user records are duplicates.
@@ -54,7 +54,7 @@ A candidate is rejected as invalid when its content cannot satisfy the v2 prompt
 
 Identical rows that reuse an ID are skipped separately as duplicates. A non-array `regularPhrases` value counts as one invalid source container, so it contributes to both `sourceCount` and `skippedCount` instead of disappearing from the migration report.
 
-Before insertion and again after migration, every row is checked against the shared v2 prompt field schemas. Validation reports:
+Before insertion and again after migration, every row is checked against the shared v2 prompt field schemas. Validation also requires the inserted binding count to match the prepared relation set. Validation reports:
 
 - `sourceCount`: all global and assistant candidates;
 - `skippedCount`: invalid candidates plus identical duplicate IDs;
@@ -64,4 +64,4 @@ The target count must exactly equal the number of prepared rows. The migration e
 
 ## Execution
 
-The combined prompt list is inserted in batches of 100 inside one SQLite transaction. This keeps the migration atomic while staying below SQLite's bound-variable limit for arbitrarily large imported assistant or preset lists.
+The combined prompt list and its Assistant bindings are inserted in batches of 100 inside one SQLite transaction. This keeps the migration atomic while staying below SQLite's bound-variable limit for arbitrarily large imported assistant or preset lists.

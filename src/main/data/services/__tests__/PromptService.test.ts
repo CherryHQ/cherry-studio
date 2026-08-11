@@ -1,11 +1,17 @@
-import { promptTable } from '@data/db/schemas/prompt'
+import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { PromptService, promptService } from '@data/services/PromptService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 const PROMPT_ID_MISSING = '11111111-1111-4111-8111-111111111111'
+const ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
+const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
+const AGENT_ID = 'legacy-agent-id'
 
 async function seedPrompt(title = 'Hello', content = 'Prompt body') {
   return promptService.create({ title, content })
@@ -13,6 +19,26 @@ async function seedPrompt(title = 'Hello', content = 'Prompt body') {
 
 describe('PromptService', () => {
   const dbh = setupTestDatabase()
+
+  async function seedAssistant(id: string, orderKey: string) {
+    await dbh.db.insert(assistantTable).values({
+      id,
+      name: `Assistant ${id}`,
+      emoji: '🌟',
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      orderKey
+    })
+  }
+
+  async function seedAgent() {
+    await dbh.db.insert(agentTable).values({
+      id: AGENT_ID,
+      type: 'claude-code',
+      name: 'Agent',
+      instructions: 'Help',
+      orderKey: 'a0'
+    })
+  }
 
   it('should export a module-level singleton of PromptService', () => {
     expect(promptService).toBeInstanceOf(PromptService)
@@ -40,6 +66,38 @@ describe('PromptService', () => {
 
       const rows = await dbh.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
       expect(rows.map((r) => r.id)).toEqual([a.id, b.id, c.id])
+    })
+
+    it('should atomically create a global prompt and its initial Assistant binding', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+
+      const result = promptService.create({
+        title: 'Bound',
+        content: 'Assistant prompt',
+        bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+      })
+
+      expect(promptService.list()).toEqual([result])
+      expect(promptService.list({ targetType: 'assistant', targetId: ASSISTANT_ID })).toEqual([result])
+      const bindings = await dbh.db.select().from(promptBindingTable)
+      expect(bindings).toHaveLength(1)
+      expect(bindings[0]).toMatchObject({
+        promptId: result.id,
+        targetType: 'assistant',
+        targetId: ASSISTANT_ID
+      })
+    })
+
+    it('should roll back prompt creation when the binding target does not exist', () => {
+      expect(() =>
+        promptService.create({
+          title: 'Orphan',
+          content: 'Must not persist',
+          bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+        })
+      ).toThrow(DataApiError)
+
+      expect(promptService.list()).toEqual([])
     })
   })
 
@@ -81,6 +139,56 @@ describe('PromptService', () => {
 
       const literalMiss = promptService.list({ search: '_Match' })
       expect(literalMiss).toHaveLength(0)
+    })
+
+    it('should filter prompts by Assistant or Agent binding at the query layer', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      await seedAssistant(OTHER_ASSISTANT_ID, 'a1')
+      await seedAgent()
+      const assistantPrompt = await seedPrompt('Assistant', 'assistant only')
+      const agentPrompt = await seedPrompt('Agent', 'agent only')
+      const unboundPrompt = await seedPrompt('Global', 'unbound')
+
+      promptService.bindToTarget(assistantPrompt.id, { type: 'assistant', id: ASSISTANT_ID })
+      promptService.bindToTarget(agentPrompt.id, { type: 'agent', id: AGENT_ID })
+
+      expect(promptService.list({ targetType: 'assistant', targetId: ASSISTANT_ID })).toEqual([assistantPrompt])
+      expect(promptService.list({ targetType: 'assistant', targetId: OTHER_ASSISTANT_ID })).toEqual([])
+      expect(promptService.list({ targetType: 'agent', targetId: AGENT_ID })).toEqual([agentPrompt])
+      expect(promptService.list().map((prompt) => prompt.id)).toEqual([
+        assistantPrompt.id,
+        agentPrompt.id,
+        unboundPrompt.id
+      ])
+    })
+  })
+
+  describe('bindings', () => {
+    it('should bind and unbind idempotently', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      const prompt = await seedPrompt()
+      const target = { type: 'assistant' as const, id: ASSISTANT_ID }
+
+      promptService.bindToTarget(prompt.id, target)
+      promptService.bindToTarget(prompt.id, target)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
+
+      promptService.unbindFromTarget(prompt.id, target)
+      promptService.unbindFromTarget(prompt.id, target)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(promptService.getById(prompt.id)).toMatchObject({ id: prompt.id })
+    })
+
+    it('should reject a missing prompt or target', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      const prompt = await seedPrompt()
+
+      expect(() => promptService.bindToTarget(PROMPT_ID_MISSING, { type: 'assistant', id: ASSISTANT_ID })).toThrow(
+        DataApiError
+      )
+      expect(() => promptService.bindToTarget(prompt.id, { type: 'assistant', id: OTHER_ASSISTANT_ID })).toThrow(
+        DataApiError
+      )
     })
   })
 
@@ -145,6 +253,19 @@ describe('PromptService', () => {
 
       const prompts = await dbh.db.select().from(promptTable).where(eq(promptTable.id, p.id))
       expect(prompts).toHaveLength(0)
+    })
+
+    it('should cascade-delete prompt bindings', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      const prompt = promptService.create({
+        title: 'Bound',
+        content: 'Body',
+        bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+      })
+
+      promptService.delete(prompt.id)
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when the prompt does not exist', async () => {

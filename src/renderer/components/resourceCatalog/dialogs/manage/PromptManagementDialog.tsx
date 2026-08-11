@@ -11,12 +11,12 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import { usePromptMutations, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
+import { usePromptBindingMutations, usePromptMutations, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { Prompt } from '@shared/data/types/prompt'
-import { Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { type KeyboardEvent, useCallback, useMemo, useState } from 'react'
+import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
+import { Link2, Pencil, Plus, Search, Trash2, Unlink, X } from 'lucide-react'
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PromptEditDialog } from '../edit'
@@ -26,7 +26,10 @@ type PromptDialogState = { prompt: Prompt | null } | null
 export type PromptManagementDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  bindingTarget?: PromptBindingTarget
 }
+
+type PromptView = 'all' | 'current'
 
 function getPromptSummary(prompt: Prompt) {
   return prompt.content.replace(/\s+/g, ' ').trim()
@@ -40,25 +43,60 @@ function activateOnKeyDown(event: KeyboardEvent<HTMLDivElement>, action: () => v
   action()
 }
 
-export function PromptManagementDialog({ open, onOpenChange }: PromptManagementDialogProps) {
+export function PromptManagementDialog({ open, onOpenChange, bindingTarget }: PromptManagementDialogProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const [view, setView] = useState<PromptView>('all')
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [deleteTarget, setDeleteTarget] = useState<Prompt | null>(null)
   const [savingPrompt, setSavingPrompt] = useState(false)
   const [deletingPrompt, setDeletingPrompt] = useState(false)
+  const [bindingPromptId, setBindingPromptId] = useState<string | null>(null)
 
   const trimmedSearch = search.trim()
-  const query = useMemo(() => (trimmedSearch ? { search: trimmedSearch } : undefined), [trimmedSearch])
-  const { data, error, isLoading, refetch } = useQuery('/prompts', {
-    enabled: open,
-    ...(query ? { query } : {})
+  const searchQuery = useMemo(() => (trimmedSearch ? { search: trimmedSearch } : undefined), [trimmedSearch])
+  const {
+    data: allPromptsData,
+    error: allPromptsError,
+    isLoading: isAllPromptsLoading,
+    refetch: refetchAllPrompts
+  } = useQuery('/prompts', {
+    enabled: open && view === 'all',
+    ...(searchQuery ? { query: searchQuery } : {})
   })
-  const prompts = data ?? []
+  const {
+    data: boundPromptsData,
+    error: boundPromptsError,
+    isLoading: isBoundPromptsLoading,
+    refetch: refetchBoundPrompts
+  } = useQuery('/prompts', {
+    enabled: open && bindingTarget !== undefined,
+    ...(bindingTarget
+      ? {
+          query: {
+            ...searchQuery,
+            targetType: bindingTarget.type,
+            targetId: bindingTarget.id
+          }
+        }
+      : {})
+  })
+  const prompts = (view === 'current' ? boundPromptsData : allPromptsData) ?? []
+  const error = view === 'current' ? boundPromptsError : allPromptsError
+  const isLoading = view === 'current' ? isBoundPromptsLoading : isAllPromptsLoading
+  const refetch = view === 'current' ? refetchBoundPrompts : refetchAllPrompts
+  const boundPromptIds = useMemo(() => new Set((boundPromptsData ?? []).map((prompt) => prompt.id)), [boundPromptsData])
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const activePrompt = promptDialogPrompt ?? deleteTarget
   const { createPrompt } = usePromptMutations()
   const { updatePrompt, deletePrompt } = usePromptMutationsById(activePrompt?.id ?? '')
+  const { bindPrompt, unbindPrompt } = usePromptBindingMutations()
+
+  useEffect(() => {
+    if (!bindingTarget && view === 'current') {
+      setView('all')
+    }
+  }, [bindingTarget, view])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -67,6 +105,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
       if (!nextOpen) {
         setPromptDialog(null)
         setDeleteTarget(null)
+        setBindingPromptId(null)
       }
     },
     [deletingPrompt, onOpenChange, savingPrompt]
@@ -119,6 +158,40 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
     }
   }, [deletePrompt, deleteTarget, refetch, t])
 
+  const handleToggleBinding = useCallback(
+    async (prompt: Prompt, isBound: boolean) => {
+      if (!bindingTarget) return
+
+      setBindingPromptId(prompt.id)
+      try {
+        if (isBound) {
+          await unbindPrompt(prompt.id, bindingTarget)
+        } else {
+          await bindPrompt(prompt.id, bindingTarget)
+        }
+        await refetchBoundPrompts()
+      } catch (err) {
+        toast.error(
+          formatErrorMessageWithPrefix(
+            err,
+            t(isBound ? 'settings.prompts.errors.unbindFailed' : 'settings.prompts.errors.bindFailed')
+          )
+        )
+      } finally {
+        setBindingPromptId(null)
+      }
+    },
+    [bindPrompt, bindingTarget, refetchBoundPrompts, t, unbindPrompt]
+  )
+
+  const currentViewLabel = bindingTarget
+    ? t(
+        bindingTarget.type === 'assistant'
+          ? 'settings.prompts.binding.currentAssistant'
+          : 'settings.prompts.binding.currentAgent'
+      )
+    : ''
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -128,6 +201,25 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
           </DialogHeader>
 
           <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-5 pb-3">
+            {bindingTarget ? (
+              <div className="flex shrink-0 rounded-md bg-secondary p-0.5">
+                <Button
+                  variant={view === 'all' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('all')}
+                  className="h-7 px-2.5 text-xs shadow-none">
+                  {t('settings.prompts.allPrompts')}
+                </Button>
+                <Button
+                  variant={view === 'current' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('current')}
+                  className="h-7 px-2.5 text-xs shadow-none">
+                  {currentViewLabel}
+                </Button>
+              </div>
+            ) : null}
+
             <div className="relative min-w-0 flex-1">
               <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-tertiary" />
               <Input
@@ -176,9 +268,19 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
             ) : prompts.length === 0 ? (
               <EmptyState
                 preset={trimmedSearch ? 'no-result' : 'no-resource'}
-                title={trimmedSearch ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+                title={
+                  trimmedSearch
+                    ? t('library.empty_state.no_match_title')
+                    : view === 'current'
+                      ? t('settings.prompts.noBoundPrompts')
+                      : t('library.empty_state.title')
+                }
                 description={
-                  trimmedSearch ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+                  trimmedSearch
+                    ? t('library.empty_state.no_match_description')
+                    : view === 'current'
+                      ? t('settings.prompts.binding.noBoundDescription')
+                      : t('library.empty_state.description')
                 }
                 className="py-20"
               />
@@ -188,8 +290,12 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
                   <PromptRow
                     key={prompt.id}
                     prompt={prompt}
+                    bindingTarget={bindingTarget}
+                    isBound={boundPromptIds.has(prompt.id)}
+                    bindingPending={bindingPromptId === prompt.id}
                     onEdit={() => setPromptDialog({ prompt })}
                     onDelete={() => setDeleteTarget(prompt)}
+                    onToggleBinding={() => void handleToggleBinding(prompt, boundPromptIds.has(prompt.id))}
                   />
                 ))}
               </div>
@@ -242,7 +348,23 @@ function PromptListSkeleton() {
   )
 }
 
-function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit: () => void; prompt: Prompt }) {
+function PromptRow({
+  bindingPending,
+  bindingTarget,
+  isBound,
+  onDelete,
+  onEdit,
+  onToggleBinding,
+  prompt
+}: {
+  bindingPending: boolean
+  bindingTarget?: PromptBindingTarget
+  isBound: boolean
+  onDelete: () => void
+  onEdit: () => void
+  onToggleBinding: () => void
+  prompt: Prompt
+}) {
   const { t } = useTranslation()
   const summary = getPromptSummary(prompt)
 
@@ -259,6 +381,18 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
         <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</div>
       </div>
       <div className="flex shrink-0 items-center gap-1" onClick={(event) => event.stopPropagation()}>
+        {bindingTarget ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t(isBound ? 'settings.prompts.binding.unbindCurrent' : 'settings.prompts.binding.bindCurrent')}
+            onClick={onToggleBinding}
+            loading={bindingPending}
+            disabled={bindingPending}
+            className="text-muted-foreground hover:text-foreground">
+            {isBound ? <Unlink size={12} /> : <Link2 size={12} />}
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           size="icon-sm"

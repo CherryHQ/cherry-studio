@@ -7,6 +7,8 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from './assistant'
+
 // ============================================================================
 // Prompt Schemas
 // ============================================================================
@@ -17,6 +19,20 @@ export const PROMPT_TITLE_MAX = 256
 export const PROMPT_CONTENT_MAX = 100_000
 export const PromptTitleSchema = z.string().trim().min(1).max(PROMPT_TITLE_MAX)
 export const PromptContentSchema = z.string().min(1).max(PROMPT_CONTENT_MAX)
+
+export const PromptBindingTargetTypeSchema = z.enum(['assistant', 'agent'])
+export const PromptAssistantBindingTargetSchema = z.strictObject({
+  type: z.literal('assistant'),
+  id: AssistantIdSchema
+})
+export const PromptAgentBindingTargetSchema = z.strictObject({
+  type: z.literal('agent'),
+  id: z.string().min(1)
+})
+export const PromptBindingTargetSchema = z.discriminatedUnion('type', [
+  PromptAssistantBindingTargetSchema,
+  PromptAgentBindingTargetSchema
+])
 
 /** Complete Prompt entity as returned by the API. */
 export const PromptSchema = z.strictObject({
@@ -33,3 +49,5 @@ export const PromptSchema = z.strictObject({
 // ============================================================================
 
 export type Prompt = z.infer<typeof PromptSchema>
+export type PromptBindingTargetType = z.infer<typeof PromptBindingTargetTypeSchema>
+export type PromptBindingTarget = z.infer<typeof PromptBindingTargetSchema>

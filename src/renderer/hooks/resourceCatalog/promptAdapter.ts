@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
-import type { Prompt } from '@shared/data/types/prompt'
+import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
 import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
@@ -59,4 +59,26 @@ export function usePromptMutationsById(id: string) {
   const deletePrompt = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
 
   return { updatePrompt, deletePrompt }
+}
+
+export function usePromptBindingMutations() {
+  const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
+    refresh: ['/prompts']
+  })
+  const { trigger: unbindTrigger } = useMutation('DELETE', '/prompts/:id/bindings/:targetType/:targetId', {
+    refresh: ['/prompts']
+  })
+
+  const bindPrompt = useCallback(
+    (id: string, target: PromptBindingTarget): Promise<void> =>
+      bindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
+    [bindTrigger]
+  )
+  const unbindPrompt = useCallback(
+    (id: string, target: PromptBindingTarget): Promise<void> =>
+      unbindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
+    [unbindTrigger]
+  )
+
+  return { bindPrompt, unbindPrompt }
 }

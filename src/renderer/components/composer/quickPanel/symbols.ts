@@ -8,6 +8,7 @@ export const ComposerPanelSymbol = {
   Root: '/',
   KnowledgeBase: '#',
   QuickPhrases: 'quick-phrases',
+  QuickPhrasesAll: 'quick-phrases-all',
   McpStatus: 'mcp-status',
   Notes: 'notes'
 } as const

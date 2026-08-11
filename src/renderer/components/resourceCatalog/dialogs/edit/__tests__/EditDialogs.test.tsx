@@ -10,6 +10,8 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  bindPromptMock,
+  boundPromptsRefetchMock,
   createGroupMock,
   fetchGenerateMock,
   installedSkillsState,
@@ -17,14 +19,18 @@ const {
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
+  promptCatalogState,
   promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
   updateAssistantMock,
+  unbindPromptMock,
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  bindPromptMock: vi.fn(),
+  boundPromptsRefetchMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   installedSkillsState: {
@@ -53,11 +59,34 @@ const {
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  promptCatalogState: {
+    current: {
+      all: [
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          title: 'Reusable prompt',
+          content: 'Reusable prompt content',
+          orderKey: 'a0',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        }
+      ],
+      bound: [] as Array<{
+        id: string
+        title: string
+        content: string
+        orderKey: string
+        createdAt: string
+        updatedAt: string
+      }>
+    }
+  },
   promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
+  unbindPromptMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn()
 }))
@@ -431,6 +460,14 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.prompts.binding.currentAgent': 'Current agent',
+          'settings.prompts.binding.currentAssistant': 'Current assistant',
+          'settings.prompts.binding.editDescription': 'Choose prompts for {{target}}.',
+          'settings.prompts.binding.tabTitle': 'Quick Phrases',
+          'settings.prompts.errors.bindFailed': 'Failed to link prompt',
+          'settings.prompts.errors.loadFailed': 'Failed to load prompts',
+          'settings.prompts.errors.unbindFailed': 'Failed to unlink prompt',
+          'settings.prompts.noPrompts': 'No prompts',
           'settings.title': 'Settings'
         })[key] ??
         fallback ??
@@ -525,7 +562,11 @@ beforeEach(() => {
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
-  useQueryMock.mockImplementation((path: string) => {
+  promptCatalogState.current.bound = []
+  boundPromptsRefetchMock.mockResolvedValue(undefined)
+  bindPromptMock.mockResolvedValue(undefined)
+  unbindPromptMock.mockResolvedValue(undefined)
+  useQueryMock.mockImplementation((path: string, options?: { query?: { targetType?: string } }) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
       return {
@@ -566,6 +607,13 @@ beforeEach(() => {
         isLoading: false
       }
     }
+    if (path === '/prompts') {
+      return {
+        data: options?.query?.targetType ? promptCatalogState.current.bound : promptCatalogState.current.all,
+        isLoading: false,
+        refetch: options?.query?.targetType ? boundPromptsRefetchMock : vi.fn()
+      }
+    }
     return { data: { items: [] }, isLoading: false }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
@@ -574,6 +622,12 @@ beforeEach(() => {
     }
     if (method === 'PATCH' && path.startsWith('/agents/')) {
       return { trigger: updateAgentMock, isLoading: false, error: undefined }
+    }
+    if (method === 'PUT' && path === '/prompts/:id/bindings/:targetType/:targetId') {
+      return { trigger: bindPromptMock, isLoading: false, error: undefined }
+    }
+    if (method === 'DELETE' && path === '/prompts/:id/bindings/:targetType/:targetId') {
+      return { trigger: unbindPromptMock, isLoading: false, error: undefined }
     }
     return { trigger: vi.fn(), isLoading: false, error: undefined }
   })
@@ -663,6 +717,49 @@ function mockDeferredAnimationFrames() {
 }
 
 describe('edit dialogs', () => {
+  it('binds a quick phrase to the assistant being edited', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Quick Phrases')
+    const bindingSwitch = screen.getByRole('switch', { name: 'Reusable prompt' })
+    expect(bindingSwitch).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(bindingSwitch)
+
+    await waitFor(() =>
+      expect(bindPromptMock).toHaveBeenCalledWith({
+        params: {
+          id: '00000000-0000-4000-8000-000000000001',
+          targetType: 'assistant',
+          targetId: ASSISTANT.id
+        }
+      })
+    )
+    expect(unbindPromptMock).not.toHaveBeenCalled()
+    expect(boundPromptsRefetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('unbinds a quick phrase from the agent being edited', async () => {
+    promptCatalogState.current.bound = [...promptCatalogState.current.all]
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Quick Phrases')
+    const bindingSwitch = screen.getByRole('switch', { name: 'Reusable prompt' })
+    expect(bindingSwitch).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(bindingSwitch)
+
+    await waitFor(() =>
+      expect(unbindPromptMock).toHaveBeenCalledWith({
+        params: {
+          id: '00000000-0000-4000-8000-000000000001',
+          targetType: 'agent',
+          targetId: AGENT.id
+        }
+      })
+    )
+    expect(bindPromptMock).not.toHaveBeenCalled()
+    expect(boundPromptsRefetchMock).toHaveBeenCalledOnce()
+  })
+
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

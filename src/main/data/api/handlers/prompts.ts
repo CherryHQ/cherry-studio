@@ -10,6 +10,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   CreatePromptSchema,
   ListPromptsQuerySchema,
+  PromptBindingParamsSchema,
   PromptIdSchema,
   type PromptSchemas,
   UpdatePromptSchema
@@ -44,6 +45,20 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
     DELETE: async ({ params }) => {
       const id = PromptIdSchema.parse(params.id)
       promptService.delete(id)
+      return undefined
+    }
+  },
+
+  '/prompts/:id/bindings/:targetType/:targetId': {
+    PUT: async ({ params }) => {
+      const parsed = PromptBindingParamsSchema.parse(params)
+      promptService.bindToTarget(parsed.id, { type: parsed.targetType, id: parsed.targetId })
+      return undefined
+    },
+
+    DELETE: async ({ params }) => {
+      const parsed = PromptBindingParamsSchema.parse(params)
+      promptService.unbindFromTarget(parsed.id, { type: parsed.targetType, id: parsed.targetId })
       return undefined
     }
   },

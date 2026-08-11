@@ -7,14 +7,16 @@
  */
 
 import { application } from '@application'
-import { promptTable } from '@data/db/schemas/prompt'
+import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
-import type { Prompt } from '@shared/data/types/prompt'
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+import type { Prompt, PromptBindingTarget, PromptBindingTargetType } from '@shared/data/types/prompt'
+import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -60,6 +62,23 @@ export class PromptService {
       if (searchClause) conditions.push(searchClause)
     }
 
+    if ('targetType' in query) {
+      const rows = this.db
+        .select({ prompt: promptTable })
+        .from(promptTable)
+        .innerJoin(promptBindingTable, eq(promptBindingTable.promptId, promptTable.id))
+        .where(
+          and(
+            eq(promptBindingTable.targetType, query.targetType),
+            eq(promptBindingTable.targetId, query.targetId),
+            ...conditions
+          )
+        )
+        .orderBy(asc(promptTable.orderKey))
+        .all()
+      return rows.map((row) => rowToPrompt(row.prompt))
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const rows = this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey)).all()
     return rows.map(rowToPrompt)
@@ -74,7 +93,11 @@ export class PromptService {
   }
 
   create(dto: CreatePromptDto): Prompt {
-    return this.db.transaction((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
+      if (dto.bindingTarget) {
+        this.assertBindingTargetExistsTx(tx, dto.bindingTarget)
+      }
+
       const inserted = insertWithOrderKey(
         tx,
         promptTable,
@@ -86,9 +109,54 @@ export class PromptService {
       )
       const row = inserted as typeof promptTable.$inferSelect
 
-      logger.info('Created prompt', { id: row.id })
+      if (dto.bindingTarget) {
+        tx.insert(promptBindingTable)
+          .values({
+            promptId: row.id,
+            targetType: dto.bindingTarget.type,
+            targetId: dto.bindingTarget.id
+          })
+          .run()
+      }
+
+      logger.info('Created prompt', { id: row.id, bindingTarget: dto.bindingTarget })
       return rowToPrompt(row)
     })
+  }
+
+  bindToTarget(promptId: string, target: PromptBindingTarget): void {
+    application.get('DbService').withWriteTx((tx) => {
+      this.assertPromptExistsTx(tx, promptId)
+      this.assertBindingTargetExistsTx(tx, target)
+      tx.insert(promptBindingTable)
+        .values({ promptId, targetType: target.type, targetId: target.id })
+        .onConflictDoNothing()
+        .run()
+    })
+    logger.info('Bound prompt to target', { promptId, target })
+  }
+
+  unbindFromTarget(promptId: string, target: PromptBindingTarget): void {
+    application.get('DbService').withWriteTx((tx) => {
+      this.assertPromptExistsTx(tx, promptId)
+      tx.delete(promptBindingTable)
+        .where(
+          and(
+            eq(promptBindingTable.promptId, promptId),
+            eq(promptBindingTable.targetType, target.type),
+            eq(promptBindingTable.targetId, target.id)
+          )
+        )
+        .run()
+    })
+    logger.info('Unbound prompt from target', { promptId, target })
+  }
+
+  purgeForTargetTx(tx: Pick<DbType, 'delete'>, targetType: PromptBindingTargetType, targetId: string): void {
+    tx.delete(promptBindingTable)
+      .where(and(eq(promptBindingTable.targetType, targetType), eq(promptBindingTable.targetId, targetId)))
+      .run()
+    logger.info('Purged prompt bindings for target', { targetType, targetId })
   }
 
   update(id: string, dto: UpdatePromptDto): Prompt {
@@ -141,6 +209,33 @@ export class PromptService {
     const found = new Set(rows.map((r) => r.id))
     const missing = uniqueIds.find((id) => !found.has(id)) ?? uniqueIds[0]
     throw DataApiErrorFactory.notFound('Prompt', missing)
+  }
+
+  private assertPromptExistsTx(tx: Pick<DbType, 'select'>, id: string): void {
+    const row = tx.select({ id: promptTable.id }).from(promptTable).where(eq(promptTable.id, id)).limit(1).get()
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Prompt', id)
+    }
+  }
+
+  private assertBindingTargetExistsTx(tx: Pick<DbType, 'select'>, target: PromptBindingTarget): void {
+    const row =
+      target.type === 'assistant'
+        ? tx
+            .select({ id: assistantTable.id })
+            .from(assistantTable)
+            .where(and(eq(assistantTable.id, target.id), isNull(assistantTable.deletedAt)))
+            .limit(1)
+            .get()
+        : tx
+            .select({ id: agentTable.id })
+            .from(agentTable)
+            .where(and(eq(agentTable.id, target.id), isNull(agentTable.deletedAt)))
+            .limit(1)
+            .get()
+    if (!row) {
+      throw DataApiErrorFactory.notFound(target.type === 'assistant' ? 'Assistant' : 'Agent', target.id)
+    }
   }
 
   delete(id: string): void {

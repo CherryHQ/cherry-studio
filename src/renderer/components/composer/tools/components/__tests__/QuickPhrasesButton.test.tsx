@@ -28,9 +28,18 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  PromptEditDialog: ({ open, onCancel }: { open: boolean; onCancel: () => void }) =>
+  PromptEditDialog: ({
+    bindingTarget,
+    open,
+    onCancel
+  }: {
+    bindingTarget?: { type: string; id: string }
+    open: boolean
+    onCancel: () => void
+  }) =>
     open ? (
       <div data-testid="prompt-edit-dialog">
+        <span data-testid="prompt-edit-binding-target">{bindingTarget?.type}</span>
         <button type="button" onClick={onCancel}>
           close prompt edit
         </button>
@@ -38,9 +47,18 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     ) : null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/manage', () => ({
-  PromptManagementDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
+  PromptManagementDialog: ({
+    bindingTarget,
+    open,
+    onOpenChange
+  }: {
+    bindingTarget?: { type: string; id: string }
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }) =>
     open ? (
       <div data-testid="prompt-management-dialog">
+        <span data-testid="prompt-management-binding-target">{bindingTarget?.type}</span>
         <button type="button" onClick={() => onOpenChange(false)}>
           close prompt management
         </button>
@@ -70,6 +88,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 vi.mock('lucide-react', async (importOriginal) => ({
   ...(await importOriginal<typeof LucideReact>()),
+  List: () => <span data-testid="list-icon" />,
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Zap: () => <span data-testid="zap-icon" />
@@ -185,6 +204,61 @@ describe('QuickPhrasesToolRuntime', () => {
 
     expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
     expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
+  })
+
+  it('defaults to current-context prompts and opens all prompts as a separate panel', async () => {
+    const launcher = createLauncherApi()
+    const bindingTarget = { type: 'assistant' as const, id: '550e8400-e29b-41d4-a716-446655440001' }
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} bindingTarget={bindingTarget} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+      enabled: false,
+      query: { targetType: 'assistant', targetId: bindingTarget.id }
+    })
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
+    })
+
+    await waitFor(() =>
+      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+        enabled: true,
+        query: { targetType: 'assistant', targetId: bindingTarget.id }
+      })
+    )
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
+      'Prompt 1',
+      'settings.prompts.allPrompts',
+      'settings.prompts.manage',
+      'settings.prompts.add...'
+    ])
+
+    const openNestedPanel = vi.fn()
+    const allPromptsItem = panelOptions.list.find(
+      (item: { label: string }) => item.label === 'settings.prompts.allPrompts'
+    )
+    act(() => {
+      allPromptsItem.action({ context: { open: openNestedPanel } } as never)
+    })
+    expect(openNestedPanel).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'quick-phrases-all', title: 'settings.prompts.allPrompts' })
+    )
+
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
+    act(() => {
+      addItem.action({} as never)
+    })
+    expect(screen.getByTestId('prompt-edit-binding-target')).toHaveTextContent('assistant')
   })
 
   it('restores composer focus after closing the add prompt dialog opened from quick panel', async () => {

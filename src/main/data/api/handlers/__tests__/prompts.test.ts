@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, getByIdMock, createMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
+const {
+  listMock,
+  getByIdMock,
+  createMock,
+  updateMock,
+  deleteMock,
+  bindToTargetMock,
+  unbindFromTargetMock,
+  reorderMock,
+  reorderBatchMock
+} = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByIdMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  bindToTargetMock: vi.fn(),
+  unbindFromTargetMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -17,6 +29,8 @@ vi.mock('@data/services/PromptService', () => ({
     create: createMock,
     update: updateMock,
     delete: deleteMock,
+    bindToTarget: bindToTargetMock,
+    unbindFromTarget: unbindFromTargetMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -26,6 +40,7 @@ import { promptHandlers } from '../prompts'
 
 const PROMPT_ID = '550e8400-e29b-41d4-a716-446655440000'
 const OTHER_PROMPT_ID = '550e8400-e29b-41d4-a716-446655440001'
+const TARGET_ID = '550e8400-e29b-41d4-a716-446655440002'
 
 describe('promptHandlers', () => {
   beforeEach(() => {
@@ -53,6 +68,18 @@ describe('promptHandlers', () => {
       expect(listMock).toHaveBeenCalledWith({ search: 'daily' })
     })
 
+    it('should parse and forward an Assistant binding filter', async () => {
+      listMock.mockResolvedValueOnce([])
+
+      await expect(
+        promptHandlers['/prompts'].GET({
+          query: { targetType: 'assistant', targetId: TARGET_ID, search: ' daily ' }
+        } as never)
+      ).resolves.toEqual([])
+
+      expect(listMock).toHaveBeenCalledWith({ targetType: 'assistant', targetId: TARGET_ID, search: 'daily' })
+    })
+
     it('should reject empty search query before calling the service', async () => {
       await expect(promptHandlers['/prompts'].GET({ query: { search: '   ' } } as never)).rejects.toHaveProperty(
         'name',
@@ -70,6 +97,24 @@ describe('promptHandlers', () => {
 
       expect(createMock).toHaveBeenCalledWith({ title: 't', content: 'c' })
       expect(result).toMatchObject({ id: PROMPT_ID })
+    })
+
+    it('should delegate POST with an initial binding target', async () => {
+      createMock.mockResolvedValueOnce({ id: PROMPT_ID, title: 't', content: 'c' })
+
+      await promptHandlers['/prompts'].POST({
+        body: {
+          title: 't',
+          content: 'c',
+          bindingTarget: { type: 'agent', id: TARGET_ID }
+        }
+      } as never)
+
+      expect(createMock).toHaveBeenCalledWith({
+        title: 't',
+        content: 'c',
+        bindingTarget: { type: 'agent', id: TARGET_ID }
+      })
     })
 
     it('should reject POST with empty fields before calling the service', async () => {
@@ -102,6 +147,32 @@ describe('promptHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(createMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/prompts/:id/bindings/:targetType/:targetId', () => {
+    it('should idempotently delegate binding and unbinding', async () => {
+      const params = { id: PROMPT_ID, targetType: 'assistant' as const, targetId: TARGET_ID }
+
+      await expect(
+        promptHandlers['/prompts/:id/bindings/:targetType/:targetId'].PUT({ params } as never)
+      ).resolves.toBeUndefined()
+      await expect(
+        promptHandlers['/prompts/:id/bindings/:targetType/:targetId'].DELETE({ params } as never)
+      ).resolves.toBeUndefined()
+
+      expect(bindToTargetMock).toHaveBeenCalledWith(PROMPT_ID, { type: 'assistant', id: TARGET_ID })
+      expect(unbindFromTargetMock).toHaveBeenCalledWith(PROMPT_ID, { type: 'assistant', id: TARGET_ID })
+    })
+
+    it('should reject invalid binding params before calling the service', async () => {
+      await expect(
+        promptHandlers['/prompts/:id/bindings/:targetType/:targetId'].PUT({
+          params: { id: PROMPT_ID, targetType: 'painting', targetId: TARGET_ID }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(bindToTargetMock).not.toHaveBeenCalled()
     })
   })
 
