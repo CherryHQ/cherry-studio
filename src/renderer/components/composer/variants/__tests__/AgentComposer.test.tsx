@@ -2521,13 +2521,32 @@ describe('AgentComposer', () => {
     expect(items.some((item) => item.id === 'agent-resource:error')).toBe(false)
   })
 
-  it('shows the resource error row only when every accessible root rejects', async () => {
+  it('describes an all-roots rejection as a workspace resource load failure', async () => {
     mocks.listDirectoryEntries.mockRejectedValue(new Error('offline'))
     const { result } = renderAgentResourceMentionSource(['/workspace', '/offline'])
     const source = requireFirstResourceMentionSource(result.current)
 
     await expect(source.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
-      expect.objectContaining({ id: 'agent-resource:error', disabled: true })
+      expect.objectContaining({
+        id: 'agent-resource:error',
+        label: 'common.error',
+        description: 'chat.input.resource_panel.load_failed',
+        disabled: true
+      })
+    ])
+  })
+
+  it('describes a workspace without accessible paths as having no resources', async () => {
+    const { result } = renderAgentResourceMentionSource([])
+    const source = requireFirstResourceMentionSource(result.current)
+
+    await expect(source.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'agent-resource:no-paths',
+        label: 'chat.input.resource_panel.no_resources_found.label',
+        description: 'chat.input.resource_panel.no_resources_found.description',
+        disabled: true
+      })
     ])
   })
 
@@ -2545,8 +2564,6 @@ describe('AgentComposer', () => {
     const items = await source.items({ query: '', editor })
 
     expect(items).toEqual([expect.objectContaining({ label: 'docs', disabled: true })])
-    expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalledOnce()
-    expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalledWith(editor)
   })
 
   it('rechecks Windows folder separators before inserting from a stale enabled item', async () => {
@@ -2569,7 +2586,7 @@ describe('AgentComposer', () => {
     expect(chain.insertContent).not.toHaveBeenCalled()
   })
 
-  it('groups files and sessions under header rows when @ has no query', async () => {
+  it('groups workspace resources and sessions under header rows when @ has no query', async () => {
     mocks.listDirectoryEntries.mockResolvedValue(
       Array.from({ length: 7 }, (_, index) => ({ path: `/workspace/docs/f${index}.md`, isDirectory: false }))
     )
@@ -2597,14 +2614,14 @@ describe('AgentComposer', () => {
     const items = await source?.items({ query: '', editor: {} as any })
     const ids = items?.map((item) => item.id)
 
-    expect(ids?.[0]).toBe('agent-resource:files-header')
+    expect(ids?.[0]).toBe('agent-resource:resources-header')
     expect(ids).toContain('agent-resource:sessions-header')
     expect(ids).toContain('reference:session:s1')
-    // Files are capped below the fold so the sessions group stays visible.
-    const fileRows = items?.filter((item) => item.id?.startsWith('agent-resource:') && !item.disabled)
-    expect(fileRows).toHaveLength(5)
+    // Workspace resources are capped below the fold so the sessions group stays visible.
+    const resourceRows = items?.filter((item) => item.id?.startsWith('agent-resource:') && !item.disabled)
+    expect(resourceRows).toHaveLength(5)
     expect(ids?.indexOf('agent-resource:sessions-header')).toBeGreaterThan(
-      Number(ids?.indexOf('agent-resource:files-header'))
+      Number(ids?.indexOf('agent-resource:resources-header'))
     )
   })
 

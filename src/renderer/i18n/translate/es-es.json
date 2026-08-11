@@ -1544,20 +1544,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "files": "Archivos",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "Habilidades"
         },
         "description": "Selecciona entre archivos, agentes o habilidades",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "Cargando...",
-        "no_file_found": {
-          "description": "No hay archivos disponibles en las carpetas accesibles",
-          "label": "No se encontró ningún archivo"
-        },
         "no_items_found": {
           "description": "Sin archivos, agentes o habilidades disponibles",
           "label": "No se encontraron elementos"
         },
-        "title": "Recursos"
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
+        },
+        "title": "[to be translated]:Resources & Sessions"
       },
       "restore": "Restaurar",
       "send": "Enviar",

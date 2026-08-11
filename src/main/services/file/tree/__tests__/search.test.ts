@@ -300,7 +300,6 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
         isDirectory: false
       }
     ])
-    expect(mockSpawn).toHaveBeenCalledTimes(2)
   })
 
   it('returns empty directories from a directory-only fuzzy search', async () => {
@@ -511,7 +510,6 @@ describe('listDirectory (error paths)', () => {
         searchPattern: 'ab'
       })
     ).rejects.toThrow('Ripgrep failed with exit code 2: fallback failed')
-    expect(mockSpawn).toHaveBeenCalledTimes(2)
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {

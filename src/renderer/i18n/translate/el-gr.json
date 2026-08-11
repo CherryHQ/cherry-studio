@@ -1544,20 +1544,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Πράκτορες",
-          "files": "Αρχεία",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "Δεξιότητες"
         },
         "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "Φόρτωση...",
-        "no_file_found": {
-          "description": "Δεν υπάρχουν διαθέσιμα αρχεία στους προσβάσιμους καταλόγους",
-          "label": "Δεν βρέθηκε αρχείο"
-        },
         "no_items_found": {
           "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
           "label": "Δεν βρέθηκαν στοιχεία"
         },
-        "title": "Πόροι"
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
+        },
+        "title": "[to be translated]:Resources & Sessions"
       },
       "restore": "Επαναφορά",
       "send": "Αποστολή",

@@ -1544,20 +1544,21 @@
       "resource_panel": {
         "categories": {
           "agents": "エージェント",
-          "files": "ファイル",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "スキル"
         },
         "description": "ファイル、エージェント、またはスキルから選択",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "読み込み中...",
-        "no_file_found": {
-          "description": "アクセス可能なフォルダーに利用可能なファイルがありません",
-          "label": "ファイルが見つかりません"
-        },
         "no_items_found": {
           "description": "ファイル、エージェント、スキルは利用できません",
           "label": "アイテムが見つかりません"
         },
-        "title": "リソース"
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
+        },
+        "title": "[to be translated]:Resources & Sessions"
       },
       "restore": "復元",
       "send": "送信",

@@ -226,7 +226,7 @@ export function useAgentResourceMentionSource({
             resourceItems.push({
               id: 'agent-resource:error',
               label: t('common.error'),
-              description: t('chat.input.resource_panel.no_file_found.description'),
+              description: t('chat.input.resource_panel.load_failed'),
               icon: <Folder size={16} />,
               disabled: true,
               command: () => undefined
@@ -300,8 +300,8 @@ export function useAgentResourceMentionSource({
           return [
             {
               id: 'agent-resource:no-paths',
-              label: t('chat.input.resource_panel.no_file_found.label'),
-              description: t('chat.input.resource_panel.no_file_found.description'),
+              label: t('chat.input.resource_panel.no_resources_found.label'),
+              description: t('chat.input.resource_panel.no_resources_found.description'),
               icon: <Folder size={16} />,
               disabled: true,
               command: () => undefined
@@ -316,7 +316,10 @@ export function useAgentResourceMentionSource({
           const grouped: ComposerSuggestionItem[] = []
           if (resourceItems.length > 0) {
             grouped.push(
-              createGroupHeaderItem('agent-resource:files-header', t('chat.input.resource_panel.categories.files')),
+              createGroupHeaderItem(
+                'agent-resource:resources-header',
+                t('chat.input.resource_panel.categories.resources')
+              ),
               ...resourceItems.slice(0, EMPTY_QUERY_RESOURCE_LIMIT)
             )
           }
