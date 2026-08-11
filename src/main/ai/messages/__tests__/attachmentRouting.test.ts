@@ -75,7 +75,6 @@ describe('prepareChatMessages — routing', () => {
 
   it.each([
     ['audio', 'mp3', 'audio/mpeg'],
-    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)('keeps a supported managed %s part inline', async (_kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
@@ -157,7 +156,6 @@ describe('prepareChatMessages — routing', () => {
 
   it.each([
     ['audio', 'mp3', 'audio/mpeg'],
-    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })

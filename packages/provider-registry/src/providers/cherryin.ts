@@ -29,32 +29,37 @@ const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', '
 
 const qwenAudioCompatibilityOverrides = [
   {
+    apiModelId: 'qwen/qwen3.5-122b-a10b',
     modelId: 'qwen3-5-122b-a10b',
     capabilities: { remove: ['audio-recognition'] },
     inputModalities: ['text', 'image', 'video'],
     reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
   },
   {
+    apiModelId: 'qwen/qwen3.5-27b',
     modelId: 'qwen3-5-27b',
     capabilities: { remove: ['audio-recognition'] },
     inputModalities: ['text', 'image', 'video'],
     reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
   },
   {
+    apiModelId: 'qwen/qwen3.5-35b-a3b',
     modelId: 'qwen3-5-35b-a3b',
     capabilities: { remove: ['audio-recognition'] },
     inputModalities: ['text', 'image', 'video'],
     reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
   },
   {
-    modelId: 'qwen3-5-35b-a3b',
+    modelId: 'qwen3-5-35b-a3b-free',
     apiModelId: 'qwen/qwen3.5-35b-a3b(free)',
     modelVariants: ['35b', 'free'],
+    name: 'Qwen3.5 35B A3B (Free)',
     capabilities: { remove: ['audio-recognition', 'video-recognition'] },
     inputModalities: ['text', 'image'],
     reason: 'CherryIN free endpoint accepts text and image_url parts only'
   },
   {
+    apiModelId: 'qwen/qwen3.5-397b-a17b',
     modelId: 'qwen3-5-397b-a17b',
     capabilities: { remove: ['audio-recognition'] },
     inputModalities: ['text', 'image', 'video'],
