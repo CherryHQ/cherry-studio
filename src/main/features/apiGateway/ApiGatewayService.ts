@@ -202,10 +202,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
   }
 
+  /** Validated Agent session id from the internal usage headers; undefined for external requests. */
+  getAgentSessionId(headers: Headers): string | undefined {
+    if (!this.isInternalAgentRequest(headers)) return undefined
+    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+  }
+
   /** Validate the process-local proof, then capture the reserved continuation or active turn. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
-    if (!this.isInternalAgentRequest(headers)) return undefined
-    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
   }

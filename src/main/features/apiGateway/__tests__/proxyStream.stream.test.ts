@@ -49,7 +49,8 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              isInternalAgentRequest: mockIsInternalAgentRequest
+              isInternalAgentRequest: mockIsInternalAgentRequest,
+              getAgentSessionId: vi.fn(() => undefined)
             }
           : undefined
     )

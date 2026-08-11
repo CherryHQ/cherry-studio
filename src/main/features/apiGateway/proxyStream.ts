@@ -33,6 +33,7 @@ import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { resolveGatewayModelAddress } from './utils/models'
+import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -207,12 +208,19 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
     converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
-  const providerOptions = applyFastModeToProviderOptions(
+  const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     extractedProviderOptions,
     config.fastMode === true
   )
+
+  const agentSessionId = config.requestHeaders
+    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
+    : undefined
+  const providerOptions = agentSessionId
+    ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
+    : fastModeProviderOptions
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
