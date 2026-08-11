@@ -125,10 +125,11 @@ describe('TopicImageCaptureHost', () => {
 
     expect(messages.map((message) => message.id)).toEqual([
       'user-active',
+      'assistant-model-a-old',
       'assistant-model-a-active',
       'assistant-model-b'
     ])
-    expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, true, false])
+    expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, false, true, false])
   })
 
   it('omits persisted empty user messages from the captured conversation', async () => {

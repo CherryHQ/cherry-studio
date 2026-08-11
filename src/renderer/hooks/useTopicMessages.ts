@@ -72,14 +72,6 @@ function compareMessageOrder(a: SharedMessage, b: SharedMessage): number {
   return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
 }
 
-function getBucketFirstMessage(bucket: SharedMessage[]): SharedMessage {
-  let first = bucket[0]
-  for (let i = 1; i < bucket.length; i++) {
-    if (compareMessageOrder(bucket[i], first) < 0) first = bucket[i]
-  }
-  return first
-}
-
 function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): SharedMessage {
   return bucket.find((m) => m.id === activeMessageId) ?? pickLatest(bucket)
 }
@@ -90,16 +82,16 @@ function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): Sh
  * Visibility rules:
  * - User siblings: alternate branches — only the active one is on the path;
  *   off-path branches go through the sibling navigator.
- * - Assistant siblings: bucket by `modelId`. One bubble per distinct model.
- *   - Buckets are sorted by their first-created member, so switching active
- *     branch does not reshuffle the multi-model tab order.
- *   - The active bucket displays the active member. Off-path buckets display
- *     their most-recent sibling.
+ * - Assistant siblings: use `modelId` only to distinguish a regenerate cohort
+ *   from a multi-model display group.
+ *   - A single-model group is a regenerate cohort, so it displays only the
+ *     active member (or the latest member when off-path).
+ *   - A multi-model group displays every persisted member. This keeps later
+ *     replies from the same model visible in creation order instead of
+ *     replacing each other.
  *
- * This handles the three shapes uniformly: pure regenerate (1 bucket of N →
- * 1 bubble), pure multi-model (N buckets of 1 → N bubbles), mixed (N buckets
- * where at least one has >1 → N bubbles, per-model navigator on the larger
- * buckets).
+ * This preserves the regenerate navigator without collapsing repeated-model
+ * replies inside a multi-model display group.
  */
 function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
   const result: DisplayBranchMessage[] = []
@@ -110,11 +102,14 @@ function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
     }
 
     const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    const sortedBuckets = Array.from(buckets.values()).sort((a, b) =>
-      compareMessageOrder(getBucketFirstMessage(a), getBucketFirstMessage(b))
-    )
-    for (const bucket of sortedBuckets) {
-      const message = pickDisplayMember(bucket, item.message.id)
+    if (buckets.size === 1) {
+      const message = pickDisplayMember(buckets.values().next().value!, item.message.id)
+      result.push({ message, isActiveBranch: message.id === item.message.id })
+      continue
+    }
+
+    const displayMembers = [item.message, ...item.siblingsGroup].sort(compareMessageOrder)
+    for (const message of displayMembers) {
       result.push({ message, isActiveBranch: message.id === item.message.id })
     }
   }
@@ -128,10 +123,8 @@ function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
  * the order in which branches were created.
  *
  * - User siblings → one group per `siblings_group_id` (all members).
- * - Assistant siblings → one group per **(siblings_group_id, modelId)**.
- *   Only buckets with ≥2 members are emitted; singletons don't need a
- *   navigator. Means the mixed case surfaces a per-model navigator only
- *   on the models that were actually regenerated.
+ * - Assistant siblings → a navigator only for a single-model regenerate
+ *   group. Multi-model groups already render every member directly.
  */
 function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[]> {
   const map: Record<string, SharedMessage[]> = {}
@@ -145,6 +138,8 @@ function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[
     }
 
     const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
+    if (buckets.size > 1) continue
+
     for (const bucket of buckets.values()) {
       if (bucket.length < 2) continue
       bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
