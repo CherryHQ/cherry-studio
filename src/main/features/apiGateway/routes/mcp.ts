@@ -8,6 +8,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
 
+import { jsonRpcEnvelope, MCP_TRANSPORT_ERROR } from '../errors'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 
 const logger = loggerService.withContext('McpRoutes')
@@ -234,21 +235,18 @@ function forbiddenOrigin(request: Request): Response | undefined {
   if (isLoopback) return undefined
 
   logger.warn('Rejected MCP request from a non-local origin', { origin })
-  return new Response(
-    JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'Forbidden: invalid Origin' }, id: null }),
-    { status: 403, headers: { 'Content-Type': 'application/json' } }
-  )
+  return new Response(JSON.stringify(jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Forbidden: invalid Origin')), {
+    status: 403,
+    headers: { 'Content-Type': 'application/json' }
+  })
 }
 
 /** The MCP SDK's own 405 body, so clients see one shape whoever produced it. */
 function methodNotAllowed(): Response {
-  return new Response(
-    JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null }),
-    {
-      status: 405,
-      headers: { Allow: 'POST', 'Content-Type': 'application/json' }
-    }
-  )
+  return new Response(JSON.stringify(jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Method not allowed.')), {
+    status: 405,
+    headers: { Allow: 'POST', 'Content-Type': 'application/json' }
+  })
 }
 
 /**
