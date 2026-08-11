@@ -7,10 +7,12 @@ import { useHasWindowControls, WindowControls } from '@renderer/components/Windo
 import { useTabs } from '@renderer/hooks/tab'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, type CSSProperties, useEffect, useRef } from 'react'
+import { Activity, type CSSProperties, useEffect, useRef, useState } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -30,6 +32,7 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -47,6 +50,32 @@ export const SubWindowAppShell = () => {
       forceNew: true
     })
   }, [init, openTab])
+
+  // Track native fullscreen (macOS hides the traffic lights in fullscreen), so the
+  // standalone title bar can drop its traffic-light reserve. Mirrors AppShell.
+  useEffect(() => {
+    if (!isMac) return
+
+    let cancelled = false
+    void ipcApi
+      .request('window.is_full_screen')
+      .then((value) => {
+        if (!cancelled) {
+          setIsFullscreen(value)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useIpcOn('window.fullscreen_changed', (value) => {
+    if (isMac) {
+      setIsFullscreen(value)
+    }
+  })
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
@@ -80,7 +109,7 @@ export const SubWindowAppShell = () => {
         data-ui="app.detached-window"
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
-        <SubWindowTitleBar />
+        <SubWindowTitleBar isFullscreen={isFullscreen} />
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
           {/* Route Tabs: Only render non-dormant tabs */}

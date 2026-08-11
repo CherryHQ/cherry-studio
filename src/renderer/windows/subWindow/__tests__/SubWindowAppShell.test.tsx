@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,10 +15,23 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
+const ipcListeners = new Map<string, (value: boolean) => void>()
 
-async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitData | null } = {}) {
+async function renderSubWindowAppShell({
+  init = null,
+  isMac = false
+}: {
+  init?: SubWindowInitData | null
+  isMac?: boolean
+} = {}) {
   vi.resetModules()
-  vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/utils/platform', () => ({ isMac, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/ipc', () => ({
+    ipcApi: { request: vi.fn().mockResolvedValue(false) },
+    useIpcOn: (event: string, handler: (value: boolean) => void) => {
+      ipcListeners.set(event, handler)
+    }
+  }))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
   }))
@@ -54,7 +67,9 @@ async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitDa
     useHasWindowControls: () => false
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
-    SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
+    SubWindowTitleBar: ({ isFullscreen }: { isFullscreen: boolean }) => (
+      <header data-testid="sub-window-title-bar" data-fullscreen={String(isFullscreen)} />
+    )
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
     TabRouter: () => <section data-testid="tab-router" />
@@ -76,6 +91,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.resetModules()
+  ipcListeners.clear()
 })
 
 describe('SubWindowAppShell', () => {
@@ -112,5 +128,18 @@ describe('SubWindowAppShell', () => {
       })
     })
     expect(openTab).toHaveBeenCalledOnce()
+  })
+
+  it('reflects native fullscreen in the title bar on macOS', async () => {
+    await renderSubWindowAppShell({ isMac: true })
+
+    const titleBar = screen.getByTestId('sub-window-title-bar')
+    expect(titleBar).toHaveAttribute('data-fullscreen', 'false')
+
+    act(() => {
+      ipcListeners.get('window.fullscreen_changed')?.(true)
+    })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
   })
 })
