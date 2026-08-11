@@ -1,5 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,8 +60,7 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
+      streamableHttpTransports.push({ url, opts })
     }
   }
   const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
@@ -100,6 +100,7 @@ const mcpSdkMock = vi.hoisted(() => {
     }
   }
   const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  const streamableHttpTransports: Array<{ url: unknown; opts?: any }> = []
   class StdioClientTransport {
     kind = 'stdio' as const
     stderr = null
@@ -115,6 +116,7 @@ const mcpSdkMock = vi.hoisted(() => {
     StreamableHTTPError,
     StdioClientTransport,
     stdioTransports,
+    streamableHttpTransports,
     clients,
     state: { failStreamable: false, failStreamableCode: 503 }
   }
@@ -209,6 +211,55 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+})
+
+describe('McpRuntimeService QVeris hosted transport', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    mcpSdkMock.streamableHttpTransports.length = 0
+  })
+
+  it('connects to the hosted endpoint with the configured API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: 'qveris-test-key' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transport = mcpSdkMock.streamableHttpTransports.at(-1)
+    expect(String(transport?.url)).toBe('https://mcp.qveris.ai/mcp')
+    expect(transport?.opts).toEqual(
+      expect.objectContaining({
+        requestInit: expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer qveris-test-key' })
+        })
+      })
+    )
+  })
+
+  it('rejects activation without an API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    )
   })
 })
 
