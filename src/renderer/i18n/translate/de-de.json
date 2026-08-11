@@ -2359,6 +2359,7 @@
       "name_required": "Gruppenname ist erforderlich"
     },
     "help": "Hilfe",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "ignore": "Ignorieren",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
     "sessions": "Sitzungen",
     "settings": "Einstellungen",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Pinyin aufsteigend",

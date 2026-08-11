@@ -2359,6 +2359,7 @@
       "name_required": "Απαιτείται όνομα ομάδας"
     },
     "help": "Βοήθεια",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
     "sessions": "Συνεδρίες",
     "settings": "Ρυθμίσεις",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Αύξουσα ταξινόμηση κατά Πινγίν",

@@ -2359,6 +2359,7 @@
       "name_required": "Le nom du groupe est obligatoire"
     },
     "help": "Aide",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
     "ignore": "Ignorer",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "{{count}} messages sélectionnés",
     "sessions": "Sessions",
     "settings": "Paramètres",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Trier par pinyin (A-Z)",

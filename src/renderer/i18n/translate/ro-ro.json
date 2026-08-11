@@ -2359,6 +2359,7 @@
       "name_required": "Numele grupului este obligatoriu"
     },
     "help": "Ajutor",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "{{count}} mesaje selectate",
     "sessions": "Sesiuni",
     "settings": "Setări",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Sortează după Pinyin (A-Z)",

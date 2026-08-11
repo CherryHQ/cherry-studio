@@ -2379,6 +2379,7 @@
       "name_required": "请输入分组名称"
     },
     "help": "帮助",
+    "hide_credential": "隐藏凭据",
     "html_preview": "HTML 预览",
     "i_know": "我知道了",
     "ignore": "忽略",
@@ -2438,6 +2439,7 @@
     "selectedMessages": "选中 {{count}} 条消息",
     "sessions": "会话",
     "settings": "设置",
+    "show_credential": "显示凭据",
     "sort": {
       "pinyin": {
         "asc": "按拼音升序",

@@ -2359,6 +2359,7 @@
       "name_required": "群組名稱為必填欄位"
     },
     "help": "幫助",
+    "hide_credential": "隱藏憑證",
     "html_preview": "HTML 預覽",
     "i_know": "我知道了",
     "ignore": "忽略",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "已選取 {{count}} 則訊息",
     "sessions": "工作階段",
     "settings": "設定",
+    "show_credential": "顯示憑證",
     "sort": {
       "pinyin": {
         "asc": "依拼音遞增",

@@ -2359,6 +2359,7 @@
       "name_required": "Tên nhóm là bắt buộc"
     },
     "help": "Giúp đỡ",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "Xem trước HTML",
     "i_know": "Tôi biết",
     "ignore": "Bỏ qua",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "Đã chọn {{count}} tin nhắn",
     "sessions": "Phiên",
     "settings": "Cài đặt",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Sắp xếp theo phiên âm (A-Z)",

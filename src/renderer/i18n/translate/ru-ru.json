@@ -2359,6 +2359,7 @@
       "name_required": "Название группы обязательно"
     },
     "help": "Помощь",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "ignore": "Игнорировать",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "Выбрано {{count}} сообщений",
     "sessions": "Сессии",
     "settings": "Настройки",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "Сортировать по пиньинь (А-Я)",

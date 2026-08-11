@@ -2359,6 +2359,7 @@
       "name_required": "グループ名は必須です"
     },
     "help": "ヘルプ",
+    "hide_credential": "[to be translated]:Hide credential",
     "html_preview": "HTMLプレビュー",
     "i_know": "わかりました",
     "ignore": "無視",
@@ -2418,6 +2419,7 @@
     "selectedMessages": "{{count}}件のメッセージを選択しました",
     "sessions": "セッション",
     "settings": "設定",
+    "show_credential": "[to be translated]:Show credential",
     "sort": {
       "pinyin": {
         "asc": "ピンインで昇順ソート",
