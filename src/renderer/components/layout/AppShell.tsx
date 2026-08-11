@@ -26,19 +26,13 @@ export const AppShell = () => {
     void SearchPopup.show()
   }, [])
 
-  // Note: We cycle through all tabs (including pinned ones) as a flat list.
-  // This matches standard browser/IDE behavior (e.g., Chrome, VS Code) where
-  // Ctrl+Tab cycles all open tabs sequentially, ensuring pinned tabs remain
-  // keyboard-accessible.
+  // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
   const cycleTab = useCallback(
     (direction: 'next' | 'prev') => {
       if (tabs.length <= 1) return
       const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
       if (currentIndex === -1) return
 
-      // Note: We cycle through all tabs (including dormant ones). Waking them up
-      // upon activation is necessary so they render their content area, and it
-      // ensures keyboard navigation parity with the tab bar UI.
       const offset = direction === 'next' ? 1 : -1
       const nextIndex = (currentIndex + offset + tabs.length) % tabs.length
       setActiveTab(tabs[nextIndex].id)

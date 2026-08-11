@@ -1,4 +1,3 @@
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
 import { describe, expect, it } from 'vitest'
 
@@ -79,11 +78,11 @@ describe('command definitions', () => {
     })
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.next')).toMatchObject({
       command: 'tab.next',
-      defaultBinding: ['CommandOrControl', 'Tab']
+      defaultBinding: { default: ['CommandOrControl', 'Tab'], darwin: ['Ctrl', 'Tab'] }
     })
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.prev')).toMatchObject({
       command: 'tab.prev',
-      defaultBinding: ['CommandOrControl', 'Shift', 'Tab']
+      defaultBinding: { default: ['CommandOrControl', 'Shift', 'Tab'], darwin: ['Ctrl', 'Shift', 'Tab'] }
     })
   })
 
@@ -158,16 +157,7 @@ describe('command shortcut preferences', () => {
     })
   })
 
-  it('uses platform bindings carried by default preferences without overriding user shortcuts', () => {
-    expect(
-      resolveCommandKeybinding({
-        command: 'tab.next',
-        preference: DefaultPreferences.default['shortcut.tab.next'],
-        context: {},
-        platform: 'darwin'
-      })?.binding
-    ).toEqual(['Ctrl', 'Tab'])
-
+  it('lets a user shortcut override the platform-specific default', () => {
     expect(resolveCommandShortcutPreference('tab.next', { binding: ['Alt', 'J'], enabled: true }, 'darwin')).toEqual({
       binding: ['Alt', 'J'],
       enabled: true
@@ -480,10 +470,13 @@ describe('findKeybindingConflicts', () => {
   })
 
   it('checks candidate shortcuts with platform-specific default bindings', () => {
+    const macDefault = getCommandDefaultShortcutPreference('tab.next', 'darwin')
+    expect(macDefault).toEqual({ binding: ['Ctrl', 'Tab'], enabled: true })
+
     expect(
       findKeybindingConflicts({
         command: 'tab.next',
-        preference: DefaultPreferences.default['shortcut.tab.next'],
+        preference: macDefault!,
         preferences: { 'topic.create': { binding: ['Ctrl', 'Tab'], enabled: true } },
         platform: 'darwin',
         rules: [

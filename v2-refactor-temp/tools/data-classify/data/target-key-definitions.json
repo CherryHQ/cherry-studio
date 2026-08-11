@@ -519,13 +519,7 @@
           "CommandOrControl",
           "Tab"
         ],
-        "enabled": true,
-        "platformBindings": {
-          "darwin": [
-            "Ctrl",
-            "Tab"
-          ]
-        }
+        "enabled": true
       },
       "status": "classified",
       "description": "Command shortcut: tab.next (unified command system)"
@@ -539,14 +533,7 @@
           "Shift",
           "Tab"
         ],
-        "enabled": true,
-        "platformBindings": {
-          "darwin": [
-            "Ctrl",
-            "Shift",
-            "Tab"
-          ]
-        }
+        "enabled": true
       },
       "status": "classified",
       "description": "Command shortcut: tab.prev (unified command system)"

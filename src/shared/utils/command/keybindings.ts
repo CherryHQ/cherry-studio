@@ -1,6 +1,12 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { CommandScope, ContextReader, RegisteredKeybindingRule, SupportedPlatform } from '@shared/types/command'
+import type {
+  CommandScope,
+  ContextReader,
+  PlatformDefaultBinding,
+  RegisteredKeybindingRule,
+  SupportedPlatform
+} from '@shared/types/command'
 import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
@@ -117,16 +123,24 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   return binding.join('+')
 }
 
-const resolvePlatformBinding = (
-  platformBindings: PreferenceShortcutType['platformBindings'] | undefined,
+const isPlatformBindingMap = (
+  defaultBinding: PlatformDefaultBinding
+): defaultBinding is { default: ShortcutBinding } & Partial<Record<SupportedPlatform, ShortcutBinding>> =>
+  !Array.isArray(defaultBinding)
+
+const getRuleBaseBinding = (defaultBinding: PlatformDefaultBinding): ShortcutBinding =>
+  isPlatformBindingMap(defaultBinding) ? defaultBinding.default : defaultBinding
+
+const getRulePlatformBinding = (
+  defaultBinding: PlatformDefaultBinding,
   platform?: SupportedPlatform
 ): ShortcutBinding | undefined => {
-  if (!platform) {
+  if (!platform || !isPlatformBindingMap(defaultBinding)) {
     return undefined
   }
 
-  const binding = platformBindings?.[platform]
-  return Array.isArray(binding) ? normalizeShortcutBinding(binding) : undefined
+  const binding = defaultBinding[platform]
+  return binding ? normalizeShortcutBinding(binding) : undefined
 }
 
 const getDefaultShortcutPreferenceForRule = (
@@ -134,11 +148,11 @@ const getDefaultShortcutPreferenceForRule = (
   platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference => {
   const fallback = DefaultPreferences.default[rule.preferenceKey]
-  const platformBinding = resolvePlatformBinding(fallback?.platformBindings, platform)
+  const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
   const fallbackBinding = fallback?.binding?.length ? normalizeShortcutBinding(fallback.binding) : undefined
 
   return {
-    binding: platformBinding ?? fallbackBinding ?? rule.defaultBinding,
+    binding: platformBinding ?? fallbackBinding ?? getRuleBaseBinding(rule.defaultBinding),
     enabled: typeof fallback?.enabled === 'boolean' ? fallback.enabled : true
   }
 }
@@ -165,10 +179,11 @@ export const resolveCommandShortcutPreference = (
   }
 
   const fallback = getDefaultShortcutPreferenceForRule(rule, platform)
-  const preferencePlatformBinding = resolvePlatformBinding(preference?.platformBindings, platform)
   const binding: ShortcutBinding =
     preference != null
-      ? (preferencePlatformBinding ?? (preference.binding?.length ? normalizeShortcutBinding(preference.binding) : []))
+      ? preference.binding?.length
+        ? normalizeShortcutBinding(preference.binding)
+        : []
       : fallback.binding
 
   return {
@@ -252,17 +267,16 @@ export const findKeybindingConflicts = ({
   rules = REGISTERED_KEYBINDINGS
 }: FindKeybindingConflictsOptions): KeybindingConflict[] => {
   const commandRule = rules.find((rule) => rule.command === command)
-  const candidatePreference = resolveCommandShortcutPreference(command, preference, platform)
   if (
     !commandRule ||
-    !candidatePreference?.enabled ||
-    !candidatePreference.binding.length ||
+    !preference.enabled ||
+    !preference.binding.length ||
     !isPlatformSupported(commandRule, platform)
   ) {
     return []
   }
 
-  const candidateBinding = normalizeShortcutBinding(candidatePreference.binding)
+  const candidateBinding = normalizeShortcutBinding(preference.binding)
   const candidateTriggers = getTriggerBindings(candidateBinding, commandRule.additionalBindings)
   const preferenceLookup = {
     ...preferences,

@@ -1,6 +1,5 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/utils/platform'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
 import type { ResolvedShortcut } from '@shared/types/shortcut'
@@ -8,7 +7,6 @@ import {
   type CommandId,
   evaluateContextExpr,
   findCommandDefinition,
-  findKeybindingRule,
   getCommandDefaultShortcutPreference,
   REGISTERED_KEYBINDINGS,
   resolveCommandShortcutPreference
@@ -21,6 +19,8 @@ import { useCommandContextReader } from './useCommandContext'
 
 export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
+
+const currentPlatform = platform as SupportedPlatform | undefined
 
 const shortcutPreferenceKeyMap = REGISTERED_KEYBINDINGS.reduce<Record<CommandId, CommandShortcutKey>>(
   (acc, rule) => {
@@ -43,79 +43,25 @@ const commandCategoryToSettingsGroup = (categoryKey: string): ShortcutSettingsGr
   return 'assistant'
 }
 
-const normalizePlatformBindings = (
-  platformBindings: PreferenceShortcutType['platformBindings'] | undefined
-): PreferenceShortcutType['platformBindings'] | undefined => {
-  if (!platformBindings) {
-    return undefined
-  }
-
-  const normalized: PreferenceShortcutType['platformBindings'] = {}
-  for (const targetPlatform of ['darwin', 'win32', 'linux'] as const) {
-    const binding = platformBindings[targetPlatform]
-    if (Array.isArray(binding)) {
-      normalized[targetPlatform] = normalizeShortcutBinding(binding)
-    }
-  }
-  return Object.keys(normalized).length ? normalized : undefined
-}
-
-const normalizeShortcutPreference = (preference: PreferenceShortcutType): PreferenceShortcutType => {
-  const platformBindings = normalizePlatformBindings(preference.platformBindings)
-  return {
-    binding: normalizeShortcutBinding(preference.binding),
-    enabled: preference.enabled,
-    ...(platformBindings ? { platformBindings } : {})
-  }
-}
-
-const getCommandDefaultFullPreference = (command: CommandId): PreferenceShortcutType | undefined => {
-  const rule = findKeybindingRule(command)
-  if (!rule) {
-    return undefined
-  }
-
-  const defaultValue = DefaultPreferences.default[rule.preferenceKey] as PreferenceShortcutType | undefined
-  if (defaultValue) {
-    return normalizeShortcutPreference(defaultValue)
-  }
-
-  return {
-    binding: normalizeShortcutBinding(rule.defaultBinding),
-    enabled: true
-  }
-}
-
 const buildNextPreference = (
   state: ResolvedShortcut,
   currentValue: PreferenceShortcutType | undefined,
-  defaultValue: PreferenceShortcutType | undefined,
   patch: Partial<PreferenceShortcutType>
 ): PreferenceShortcutType => {
   const current: Partial<PreferenceShortcutType> = currentValue ?? {}
-  const enabled =
-    typeof patch.enabled === 'boolean'
-      ? patch.enabled
-      : typeof current.enabled === 'boolean'
-        ? current.enabled
-        : state.enabled
-
-  if (Array.isArray(patch.binding)) {
-    const platformBindings = normalizePlatformBindings(patch.platformBindings)
-    return {
-      binding: normalizeShortcutBinding(patch.binding),
-      enabled,
-      ...(platformBindings ? { platformBindings } : {})
-    }
-  }
-
-  const source = currentValue ?? defaultValue
-  const platformBindings = normalizePlatformBindings(source?.platformBindings)
 
   return {
-    binding: Array.isArray(source?.binding) ? normalizeShortcutBinding(source.binding) : state.binding,
-    enabled,
-    ...(platformBindings ? { platformBindings } : {})
+    binding: Array.isArray(patch.binding)
+      ? normalizeShortcutBinding(patch.binding)
+      : Array.isArray(current.binding)
+        ? normalizeShortcutBinding(current.binding)
+        : state.binding,
+    enabled:
+      typeof patch.enabled === 'boolean'
+        ? patch.enabled
+        : typeof current.enabled === 'boolean'
+          ? current.enabled
+          : state.enabled
   }
 }
 
@@ -126,19 +72,20 @@ export interface ShortcutListItem {
   group: ShortcutSettingsGroup
   keybinding: (typeof REGISTERED_KEYBINDINGS)[number]
   preference: ResolvedShortcut
-  preferenceValue: PreferenceShortcutType
   defaultPreference: ResolvedShortcut
-  defaultPreferenceValue: PreferenceShortcutType
 }
 
 export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, PreferenceShortcutType> => {
   return REGISTERED_KEYBINDINGS.reduce(
     (acc, rule) => {
-      const defaultPreference = getCommandDefaultFullPreference(rule.command)
+      const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
       if (!defaultPreference) {
         return acc
       }
-      acc[rule.preferenceKey] = defaultPreference
+      acc[rule.preferenceKey] = {
+        binding: defaultPreference.binding,
+        enabled: defaultPreference.enabled
+      }
       return acc
     },
     {} as Record<CommandShortcutKey, PreferenceShortcutType>
@@ -149,7 +96,6 @@ export const useCommandShortcuts = () => {
   const { t } = useTranslation()
   const context = useCommandContextReader()
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
-  const currentPlatform = platform as SupportedPlatform | undefined
 
   const updatePreference = useCallback(
     async (key: CommandShortcutKey, patch: Partial<PreferenceShortcutType>) => {
@@ -158,11 +104,10 @@ export const useCommandShortcuts = () => {
       const currentValue = values[rule.command] as PreferenceShortcutType | undefined
       const state = resolveCommandShortcutPreference(rule.command, currentValue, currentPlatform)
       if (!state) return
-      const defaultValue = getCommandDefaultFullPreference(rule.command)
-      const nextValue = buildNextPreference(state, currentValue, defaultValue, patch)
+      const nextValue = buildNextPreference(state, currentValue, patch)
       await setValues({ [rule.command]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
     },
-    [currentPlatform, setValues, values]
+    [setValues, values]
   )
 
   const shortcuts = useMemo(
@@ -185,11 +130,9 @@ export const useCommandShortcuts = () => {
         const rawValue = values[rule.command] as PreferenceShortcutType | undefined
         const preference = resolveCommandShortcutPreference(rule.command, rawValue, currentPlatform)
         const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
-        const defaultPreferenceValue = getCommandDefaultFullPreference(rule.command)
-        if (!preference || !defaultPreference || !defaultPreferenceValue) {
+        if (!preference || !defaultPreference) {
           return []
         }
-        const preferenceValue = rawValue ? normalizeShortcutPreference(rawValue) : defaultPreferenceValue
 
         return [
           {
@@ -202,13 +145,11 @@ export const useCommandShortcuts = () => {
               binding: preference.binding,
               enabled: preference.enabled && preference.binding.length > 0
             },
-            preferenceValue,
-            defaultPreference,
-            defaultPreferenceValue
+            defaultPreference
           }
         ]
       }),
-    [context, currentPlatform, t, values]
+    [context, t, values]
   )
 
   return { shortcuts, updatePreference }

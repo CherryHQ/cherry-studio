@@ -34,21 +34,19 @@ afterEach(() => {
 })
 
 describe('useCommandShortcuts', () => {
-  it('preserves platform-specific defaults when collecting reset preferences', () => {
+  it('collects reset preferences using the current platform default', () => {
     expect(getAllShortcutDefaultPreferences()['shortcut.tab.next']).toEqual({
-      binding: ['CommandOrControl', 'Tab'],
-      enabled: true,
-      platformBindings: { darwin: ['Ctrl', 'Tab'] }
+      binding: ['Ctrl', 'Tab'],
+      enabled: true
     })
 
     expect(getAllShortcutDefaultPreferences()['shortcut.tab.prev']).toEqual({
-      binding: ['CommandOrControl', 'Shift', 'Tab'],
-      enabled: true,
-      platformBindings: { darwin: ['Ctrl', 'Shift', 'Tab'] }
+      binding: ['Ctrl', 'Shift', 'Tab'],
+      enabled: true
     })
   })
 
-  it('preserves platform-specific defaults when only toggling enabled', async () => {
+  it('keeps the platform default binding when only toggling enabled', async () => {
     const { result } = renderHook(() => useCommandShortcuts())
 
     await act(async () => {
@@ -57,14 +55,13 @@ describe('useCommandShortcuts', () => {
 
     expect(mocks.setValues).toHaveBeenCalledWith({
       'tab.next': {
-        binding: ['CommandOrControl', 'Tab'],
-        enabled: false,
-        platformBindings: { darwin: ['Ctrl', 'Tab'] }
+        binding: ['Ctrl', 'Tab'],
+        enabled: false
       }
     })
   })
 
-  it('clears platform-specific bindings when the user records a custom binding', async () => {
+  it('persists a user-recorded binding verbatim', async () => {
     const { result } = renderHook(() => useCommandShortcuts())
 
     await act(async () => {

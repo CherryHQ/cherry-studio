@@ -23,13 +23,8 @@ export type PreferenceUpdateOptions = {
   optimistic: boolean
 }
 
-type PreferenceShortcutPlatformBindings = Partial<
-  Record<Extract<NodeJS.Platform, 'darwin' | 'win32' | 'linux'>, ShortcutBinding>
->
-
 export type PreferenceShortcutType = {
   binding: ShortcutBinding
-  platformBindings?: PreferenceShortcutPlatformBindings
   enabled: boolean
 }
 

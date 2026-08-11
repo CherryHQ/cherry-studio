@@ -243,7 +243,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', 'Tab']
+      // macOS reserves Cmd+Tab for the system app switcher.
+      defaultBinding: { default: ['CommandOrControl', 'Tab'], darwin: ['Ctrl', 'Tab'] }
     }
   }),
   defineCommand({
@@ -252,7 +253,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', 'Shift', 'Tab']
+      defaultBinding: { default: ['CommandOrControl', 'Shift', 'Tab'], darwin: ['Ctrl', 'Shift', 'Tab'] }
     }
   })
 ] as const satisfies readonly CommandDefinition[]

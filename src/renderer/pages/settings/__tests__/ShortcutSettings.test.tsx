@@ -132,22 +132,14 @@ const makeShortcut = ({
   command = 'app.search',
   binding = [],
   enabled = binding.length > 0,
-  defaultPreference = { binding: [], enabled: false },
-  preferenceValue,
-  defaultPreferenceValue = defaultPreference
+  defaultPreference = { binding: [], enabled: false }
 }: {
   command?: CommandId
   binding?: ShortcutBinding
   enabled?: boolean
   defaultPreference?: PreferenceShortcutType
-  preferenceValue?: PreferenceShortcutType
-  defaultPreferenceValue?: PreferenceShortcutType
 } = {}): ShortcutListItem => {
   const key = commandShortcutPreferenceKey(command)
-  const preference = {
-    binding,
-    enabled
-  }
 
   return {
     command,
@@ -160,10 +152,11 @@ const makeShortcut = ({
       preferenceKey: key,
       defaultBinding: ['CommandOrControl', 'Shift', 'F']
     },
-    preference,
-    preferenceValue: preferenceValue ?? preference,
-    defaultPreference,
-    defaultPreferenceValue
+    preference: {
+      binding,
+      enabled
+    },
+    defaultPreference
   }
 }
 
@@ -242,26 +235,14 @@ describe('ShortcutSettings shortcut recorder', () => {
     expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
   })
 
-  it('resets a platform-specific default shortcut without dropping platform bindings', async () => {
-    const defaultPreferenceValue: PreferenceShortcutType = {
-      binding: ['CommandOrControl', 'Tab'],
-      enabled: true,
-      platformBindings: { darwin: ['Ctrl', 'Tab'] }
-    }
+  it('resets a shortcut to the platform-resolved default binding', async () => {
+    const defaultPreference: PreferenceShortcutType = { binding: ['Ctrl', 'Tab'], enabled: true }
     shortcutsMock.shortcuts = [
       makeShortcut({
         command: 'tab.next',
         binding: ['CommandOrControl', 'Alt', 'Tab'],
         enabled: true,
-        defaultPreference: {
-          binding: ['Ctrl', 'Tab'],
-          enabled: true
-        },
-        preferenceValue: {
-          binding: ['CommandOrControl', 'Alt', 'Tab'],
-          enabled: true
-        },
-        defaultPreferenceValue
+        defaultPreference
       })
     ]
 
@@ -272,30 +253,17 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.click(resetButton as Element)
 
     await waitFor(() => {
-      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', defaultPreferenceValue)
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', defaultPreference)
     })
   })
 
-  it('bulk toggles shortcuts using the full persisted preference shape', async () => {
+  it('bulk toggles shortcuts using the platform-resolved binding', async () => {
     shortcutsMock.shortcuts = [
       makeShortcut({
         command: 'tab.next',
         binding: ['Ctrl', 'Tab'],
         enabled: true,
-        defaultPreference: {
-          binding: ['Ctrl', 'Tab'],
-          enabled: true
-        },
-        preferenceValue: {
-          binding: ['CommandOrControl', 'Tab'],
-          enabled: true,
-          platformBindings: { darwin: ['Ctrl', 'Tab'] }
-        },
-        defaultPreferenceValue: {
-          binding: ['CommandOrControl', 'Tab'],
-          enabled: true,
-          platformBindings: { darwin: ['Ctrl', 'Tab'] }
-        }
+        defaultPreference: { binding: ['Ctrl', 'Tab'], enabled: true }
       })
     ]
 
@@ -305,11 +273,7 @@ describe('ShortcutSettings shortcut recorder', () => {
 
     await waitFor(() => {
       expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
-        'shortcut.tab.next': {
-          binding: ['CommandOrControl', 'Tab'],
-          enabled: false,
-          platformBindings: { darwin: ['Ctrl', 'Tab'] }
-        }
+        'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
       })
     })
   })
