@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Bắt đầu một phiên Cherry Assistant riêng với kỹ năng phản hồi đã được chọn sẵn.",
-          "title": "Hỏi Cherry Assistant"
+          "description": "Bắt đầu một phiên riêng với Trợ lý Cherry và kỹ năng phản hồi đã được chọn sẵn.",
+          "title": "Hỏi Trợ lý Cherry"
         },
-        "agent_error": "Không thể mở Cherry Assistant để gửi phản hồi. Vui lòng thử lại.",
+        "agent_error": "Không thể mở Trợ lý Cherry để gửi phản hồi. Vui lòng thử lại.",
         "button": "Phản hồi",
         "diagnostics": {
           "description": "Xem lại thông tin chẩn đoán gần đây rồi tải lên ẩn danh chỉ trong một bước.",

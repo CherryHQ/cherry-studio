@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Pornește o sesiune Cherry Assistant separată, cu skill-ul de feedback pregătit.",
-          "title": "Întreabă Cherry Assistant"
+          "description": "Pornește o sesiune separată cu Asistentul Cherry și skill-ul de feedback pregătit.",
+          "title": "Întreabă Asistentul Cherry"
         },
-        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Încearcă din nou.",
+        "agent_error": "Asistentul Cherry nu poate fi deschis pentru feedback. Încearcă din nou.",
         "button": "Feedback",
         "diagnostics": {
           "description": "Verifică informațiile recente de diagnosticare, apoi încarcă-le anonim într-un singur pas.",

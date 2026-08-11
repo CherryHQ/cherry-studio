@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "建立獨立的 Cherry Assistant 工作階段，並預先選取回饋 Skill。",
-          "title": "詢問 Cherry Assistant"
+          "description": "建立獨立的 Cherry 小助手工作階段，並預先選取回饋 Skill。",
+          "title": "詢問 Cherry 小助手"
         },
-        "agent_error": "無法開啟 Cherry Assistant 以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟 Cherry 小助手以提供意見回饋。請再試一次。",
         "button": "回饋",
         "diagnostics": {
           "description": "確認最近的診斷資訊後，一鍵匿名上傳。",

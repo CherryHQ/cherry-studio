@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Inicia una sesión independiente de Cherry Assistant con la habilidad de comentarios preparada.",
-          "title": "Preguntar a Cherry Assistant"
+          "description": "Inicia una sesión independiente con el Asistente de Cherry y la habilidad de comentarios preparada.",
+          "title": "Preguntar al Asistente de Cherry"
         },
-        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Inténtalo de nuevo.",
+        "agent_error": "No se puede abrir el Asistente de Cherry para enviar comentarios. Inténtalo de nuevo.",
         "button": "Enviar feedback",
         "diagnostics": {
           "description": "Revisa la información de diagnóstico reciente y súbela de forma anónima en un solo paso.",

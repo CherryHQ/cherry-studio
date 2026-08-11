@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "フィードバック Skill が選択済みの専用 Cherry Assistant セッションを開始します。",
-          "title": "Cherry Assistant に質問"
+          "description": "フィードバック Skill が選択済みの専用 Cherry アシスタントセッションを開始します。",
+          "title": "Cherry アシスタントに質問"
         },
-        "agent_error": "フィードバック用のCherry Assistantを開けません。もう一度お試しください。",
+        "agent_error": "フィードバック用の Cherry アシスタントを開けません。もう一度お試しください。",
         "button": "フィードバック",
         "diagnostics": {
           "description": "最近の診断情報を確認し、ワンクリックで匿名アップロードします。",

@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Starten Sie eine separate Cherry-Assistant-Sitzung mit vorbereitetem Feedback-Skill.",
-          "title": "Cherry Assistant fragen"
+          "description": "Starten Sie eine separate Sitzung mit dem Cherry-Assistenten und vorbereitetem Feedback-Skill.",
+          "title": "Cherry-Assistenten fragen"
         },
-        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+        "agent_error": "Der Cherry-Assistent konnte für Feedback nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
         "diagnostics": {
           "description": "Prüfen Sie die aktuellen Diagnoseinformationen und laden Sie sie anschließend in einem Schritt anonym hoch.",

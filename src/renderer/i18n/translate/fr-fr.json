@@ -5981,10 +5981,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Démarrez une session Cherry Assistant distincte avec le skill de feedback déjà sélectionné.",
-          "title": "Demander à Cherry Assistant"
+          "description": "Démarrez une session distincte avec l'Assistant Cherry et le skill de feedback déjà sélectionné.",
+          "title": "Demander à l'Assistant Cherry"
         },
-        "agent_error": "Impossible d'ouvrir Cherry Assistant pour envoyer un commentaire. Veuillez réessayer.",
+        "agent_error": "Impossible d'ouvrir l'Assistant Cherry pour envoyer un commentaire. Veuillez réessayer.",
         "button": "Faire un retour",
         "diagnostics": {
           "description": "Vérifiez les informations de diagnostic récentes, puis envoyez-les anonymement en une seule étape.",
