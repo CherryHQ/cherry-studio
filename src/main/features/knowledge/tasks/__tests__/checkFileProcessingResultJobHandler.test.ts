@@ -226,6 +226,45 @@ describe('check-file-processing-result job handler', () => {
     expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
   })
 
+  it('recognises a local background file-processing job as its own child', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        type: 'file-processing.background-local',
+        status: 'completed',
+        input: {
+          feature: 'document_to_markdown',
+          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+          context: { dataId: FILE_ITEM_ID },
+          processorId: 'local-document'
+        },
+        output: {
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        }
+      })
+    )
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
+    expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
+  })
+
+  it('marks the item failed when the linked job has an unrelated job type', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ type: 'knowledge.index-item' }))
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: 'Invalid file processing job for knowledge item: fp-job-1'
+    })
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
+  })
+
   it('marks the item failed when the linked job is not the expected file-processing job', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
