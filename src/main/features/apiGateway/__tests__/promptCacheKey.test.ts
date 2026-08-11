@@ -83,8 +83,8 @@ describe('applyAgentPromptCacheKey', () => {
   // produces must reach the wire as `prompt_cache_key`. Catches both a wrong
   // namespace on our side and an SDK upgrade that stops serializing the field.
   it('is serialized as prompt_cache_key on the OpenAI Responses wire', async () => {
-    const fetchMock = vi.fn(
-      async (_url: unknown, _init?: RequestInit) =>
+    const fetchMock = vi.fn<typeof fetch>(
+      async () =>
         new Response(
           JSON.stringify({
             id: 'resp_1',
