@@ -32,7 +32,9 @@ export function nextFreeKnowledgeRelativePath(
   for (let suffix = 0; ; suffix += 1) {
     const suffixText = suffix === 0 ? '' : `_${suffix}`
     const candidateStem = fileStem.slice(0, Math.max(0, FILE_NAME_MAX_LENGTH - ext.length - suffixText.length))
-    const candidateExt = ext.slice(0, FILE_NAME_MAX_LENGTH - candidateStem.length - suffixText.length)
+    const candidateExt = ext
+      .slice(0, FILE_NAME_MAX_LENGTH - candidateStem.length - suffixText.length)
+      .replace(/[\s.]+$/, '')
     const candidate = `${directory}${candidateStem}${suffixText}${candidateExt}`
     if (isFree(candidate)) {
       return candidate

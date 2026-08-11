@@ -50,6 +50,15 @@ describe('nextFreeKnowledgeRelativePath', () => {
     expect(result).toHaveLength(255)
   })
 
+  it('removes a Windows-invalid ending exposed by truncating an extension', () => {
+    const relativePath = `a.${'x'.repeat(251)} y`
+
+    const result = nextFreeKnowledgeRelativePath(relativePath, free([relativePath]))
+
+    expect(result).toBe(`_1.${'x'.repeat(251)}`)
+    expect(result).not.toMatch(/[\s.]$/)
+  })
+
   it('appends the suffix after a dotted name when splitExtension is false', () => {
     // A directory prefix is not a filename: `report.v2` must dedupe to `report.v2_1`,
     // not `report_1.v2` (which would split a meaningful name on a non-extension dot).
