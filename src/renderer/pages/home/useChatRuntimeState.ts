@@ -232,8 +232,10 @@ export function useChatRuntimeState({
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
-  // the only approve/deny UI. The bridge just delivers the decision to main;
-  // the card hides optimistically and the live stream pushes the continuation.
+  // the only approve/deny UI. The bridge delivers each queue-head decision to
+  // main; MessageService publishes every committed change so the next card
+  // comes from refreshed DB state, then Main starts the continuation after
+  // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

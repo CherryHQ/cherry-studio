@@ -1,3 +1,4 @@
+import { type Canvas, createCanvas } from '@napi-rs/canvas'
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +16,8 @@ import {
   getImageBlobFromSource,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
-  prepareEntityImageBytes
+  prepareEntityImageBytes,
+  transformImageToPng
 } from '../image'
 
 // mock 依赖
@@ -45,6 +47,80 @@ beforeEach(() => {
 })
 
 describe('utils/image', () => {
+  describe('transformImageToPng', () => {
+    const sourcePixels = [
+      ['A', [255, 0, 0, 255]],
+      ['B', [0, 255, 0, 255]],
+      ['C', [0, 0, 255, 255]],
+      ['D', [255, 255, 0, 255]],
+      ['E', [255, 0, 255, 255]],
+      ['F', [0, 255, 255, 255]]
+    ] as const
+    const labelByRgb = new Map(sourcePixels.map(([label, [red, green, blue]]) => [`${red},${green},${blue}`, label]))
+    let closeBitmap: ReturnType<typeof vi.fn>
+    let outputCanvas: Canvas
+
+    beforeEach(() => {
+      const sourceCanvas = createCanvas(2, 3)
+      const sourceContext = sourceCanvas.getContext('2d')
+      const sourceImageData = sourceContext.createImageData(2, 3)
+      sourceImageData.data.set(sourcePixels.flatMap(([, rgba]) => rgba))
+      sourceContext.putImageData(sourceImageData, 0, 0)
+      closeBitmap = vi.fn()
+      Object.assign(sourceCanvas, { close: closeBitmap })
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(sourceCanvas))
+
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+        if (tagName !== 'canvas') {
+          return createElement(tagName, options)
+        }
+
+        outputCanvas = createCanvas(1, 1)
+        Object.assign(outputCanvas, {
+          toBlob: (callback: BlobCallback, type?: string) => callback(new Blob(['png'], { type }))
+        })
+        return outputCanvas as unknown as HTMLCanvasElement
+      }) as typeof document.createElement)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it.each([
+      ['rotation=90', { flipX: false, flipY: false, rotation: 90 }, 3, 2, ['E', 'C', 'A', 'F', 'D', 'B']],
+      ['rotation=180', { flipX: false, flipY: false, rotation: 180 }, 2, 3, ['F', 'E', 'D', 'C', 'B', 'A']],
+      ['rotation=270', { flipX: false, flipY: false, rotation: 270 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['rotation=-90', { flipX: false, flipY: false, rotation: -90 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['flipX', { flipX: true, flipY: false, rotation: 0 }, 2, 3, ['B', 'A', 'D', 'C', 'F', 'E']],
+      ['flipY', { flipX: false, flipY: true, rotation: 0 }, 2, 3, ['E', 'F', 'C', 'D', 'A', 'B']]
+    ])('bakes $0 into the output dimensions and pixels', async (_name, transform, width, height, expectedPixels) => {
+      const result = await transformImageToPng(new Blob(['source'], { type: 'image/png' }), transform)
+      const imageData = outputCanvas.getContext('2d').getImageData(0, 0, outputCanvas.width, outputCanvas.height)
+      const actualPixels = Array.from({ length: outputCanvas.width * outputCanvas.height }, (_, index) => {
+        const offset = index * 4
+        return labelByRgb.get(`${imageData.data[offset]},${imageData.data[offset + 1]},${imageData.data[offset + 2]}`)
+      })
+
+      expect(result.type).toBe('image/png')
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([width, height])
+      expect(actualPixels).toEqual(expectedPixels)
+      expect(closeBitmap).toHaveBeenCalledOnce()
+    })
+
+    it('expands the output canvas to preserve image corners at an arbitrary angle', async () => {
+      await transformImageToPng(new Blob(['source'], { type: 'image/png' }), {
+        flipX: false,
+        flipY: false,
+        rotation: 45
+      })
+
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([4, 4])
+    })
+  })
+
   describe('convertToBase64', () => {
     it('should convert file to base64 string', async () => {
       const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
