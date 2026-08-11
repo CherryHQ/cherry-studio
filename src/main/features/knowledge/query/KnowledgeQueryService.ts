@@ -15,7 +15,12 @@ import { embedKnowledgeQuery } from '../pipeline/indexing/embed'
 import { rerankKnowledgeSearchResults } from '../pipeline/indexing/rerank'
 import { extractFtsTokens } from '../pipeline/vectorstore/indexStore/ftsQuery'
 import type { KnowledgeIndexSearchMatch } from '../pipeline/vectorstore/indexStore/model'
-import { toKnowledgeBaseId, toKnowledgeItemId } from '../types'
+import {
+  type KnowledgeBaseDiscoveryOptions,
+  type KnowledgeBaseDiscoveryPage,
+  toKnowledgeBaseId,
+  toKnowledgeItemId
+} from '../types'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './search'
 import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
@@ -31,8 +36,18 @@ const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 
-/** Read side of the knowledge feature: index search (with visibility filtering + rerank) and chunk/item listing. */
+/** Read side of the knowledge feature: base discovery, index search, and chunk/item listing. */
 export class KnowledgeQueryService {
+  listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
+    return knowledgeBaseService.listForDiscovery({
+      limit: options.limit,
+      ...(options.cursor ? { cursor: options.cursor } : {}),
+      ...(options.query ? { query: options.query } : {}),
+      ...(options.groupId ? { groupId: options.groupId } : {}),
+      ...(options.scope.kind === 'restricted' ? { restrictedIds: options.scope.baseIds } : {})
+    })
+  }
+
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     const base = assertBaseCanRunRuntimeOperation(baseId, 'search')
