@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Удаление этой рабочей директории также приведёт к удалению всех задач в ней. Удаляются только записи в базе данных; фактическая папка на диске не будет удалена.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Не удалось удалить рабочий каталог"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Удалить рабочий каталог",
           "trigger": "Удалить рабочий каталог"
         },
@@ -2548,6 +2566,7 @@
       "503": "Серверная ошибка. Пожалуйста, попробуйте позже",
       "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Последняя ошибка",
     "maxEmbeddingsPerCall": "Максимум эмбеддингов за вызов",
     "message": "Сообщение об ошибке",
@@ -3196,7 +3215,6 @@
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
-    "not_set": "Не задано",
     "provider_not_found": "Провайдер не найден",
     "rag": {
       "chunk_overlap": "Размер перекрытия",
@@ -3211,12 +3229,13 @@
       "chunking": "Разбиение на блоки",
       "default_separator": "Авто (рекомендуется)",
       "document_count": "Количество документов",
-      "download_local_embedding": "Загрузить локальную модель",
       "download_local_embedding_failed": "Не удалось загрузить локальную модель эмбеддингов",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Модель эмбеддингов",
       "embedding_model_select": "Выбор модели",
       "file_processing": "Обработка файлов",
       "file_processing_hint": "Обработка файлов выполняется автоматически при импорте документа. Правильный выбор провайдера может повысить качество разбора документов.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
         "chunk_separator": "Разделитель, по которому разбивается текст, в экранированной форме. При включённом интеллектуальном разбиении он добавляет точку разрыва; при выключенном текст разбивается только по этому разделителю.",
@@ -3230,6 +3249,8 @@
       },
       "processor": "Провайдер обработки",
       "processor_not_configured": "Не настроено",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Отключено",
       "rerank_model": "Модель реранжирования",
       "reset_action": "Восстановить значения по умолчанию",
@@ -4626,6 +4647,8 @@
         "font_size_medium": "Средний",
         "font_size_small": "маленький",
         "font_title": "Настройки шрифта",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Шрифт с засечками",
         "show_table_of_contents": "Показать оглавление",
         "show_table_of_contents_description": "Показать боковую панель оглавления для удобной навигации по документу",
@@ -5393,6 +5416,7 @@
         "insertRowBefore": "Вставьте выше"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Вставьте математические формулы",
@@ -8244,6 +8268,10 @@
           "doc2x": {
             "description": "Продвинутый механизм восстановления файлов.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) работает внутри процесса — полностью автономно и без API-ключа. Распознавание выполняется в фоновом потоке, поэтому интерфейс остаётся отзывчивым. Перед первым использованием загрузите модель (~140 МБ) в разделе «Зависимости среды».",

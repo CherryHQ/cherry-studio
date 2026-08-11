@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "刪除此工作資料夾也會刪除其下所有任務。只會移除資料庫記錄，磁碟上的實際資料夾不會被刪除。",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "刪除工作目錄失敗"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "刪除工作目錄",
           "trigger": "刪除工作目錄"
         },
@@ -2548,6 +2566,7 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
@@ -3196,7 +3215,6 @@
       "updated_at": "更新於 {{time}}"
     },
     "name_required": "知識庫名稱為必填欄位",
-    "not_set": "未設定",
     "provider_not_found": "未找到供應商",
     "rag": {
       "chunk_overlap": "重疊大小",
@@ -3211,12 +3229,13 @@
       "chunking": "分段",
       "default_separator": "自動（推薦）",
       "document_count": "Top K",
-      "download_local_embedding": "下載本機模型",
       "download_local_embedding_failed": "本機嵌入模型下載失敗",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
       "file_processing": "檔案處理",
       "file_processing_hint": "匯入檔案時會自動進行預處理；選擇合適的處理供應商，可改善檔案解析品質。",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "相鄰文件片段之間保留的重疊 Token 數，有助於減少語意中斷。",
         "chunk_separator": "切分文字所用的分隔符號（跳脫形式）。開啟智慧分段時作為額外切分點；關閉後僅按此分隔符號切分。",
@@ -3230,6 +3249,8 @@
       },
       "processor": "處理供應商",
       "processor_not_configured": "未設定",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "不使用",
       "rerank_model": "重新排序模型",
       "reset_action": "還原預設",
@@ -4626,6 +4647,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字型設定",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "襯線字型",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便在檔案內導覽",
@@ -5393,6 +5416,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "插入數學公式",
@@ -8244,6 +8268,10 @@
           "doc2x": {
             "description": "進階檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "在處理程序內執行的 PaddleOCR（PP-OCRv6 中型模型），可完全離線使用，無需 API Key。辨識作業會在背景執行緒中進行，不會阻塞使用者介面。首次使用前，請先在「環境相依套件」下載模型（約 140 MB）。",

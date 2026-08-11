@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Η διαγραφή αυτού του φακέλου εργασίας θα διαγράψει επίσης όλες τις εργασίες που βρίσκονται κάτω από αυτόν. Διαγράφονται μόνο οι εγγραφές της βάσης δεδομένων· ο πραγματικός φάκελος στον δίσκο δεν θα διαγραφεί.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Αποτυχία διαγραφής του καταλόγου εργασίας"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Διαγραφή καταλόγου εργασίας",
           "trigger": "Διαγραφή καταλόγου εργασίας"
         },
@@ -2548,6 +2566,7 @@
       "503": "Η υπηρεσία δεν είναι διαθέσιμη, παρακαλώ δοκιμάστε ξανά",
       "504": "Υπερχρονισμός φάρων, παρακαλώ δοκιμάστε ξανά"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Τελευταίο σφάλμα",
     "maxEmbeddingsPerCall": "Μέγιστες ενσωματώσεις ανά κλήση",
     "message": "Μήνυμα σφάλματος",
@@ -3196,7 +3215,6 @@
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
-    "not_set": "Μη ορισμένο",
     "provider_not_found": "Δεν βρέθηκε ο πάροχος",
     "rag": {
       "chunk_overlap": "Μέγεθος Επικάλυψης",
@@ -3211,12 +3229,13 @@
       "chunking": "Κατάτμηση",
       "default_separator": "Αυτόματη (συνιστάται)",
       "document_count": "Καταμέτρηση Εγγράφων",
-      "download_local_embedding": "Λήψη Τοπικού Μοντέλου",
       "download_local_embedding_failed": "Αποτυχία λήψης του τοπικού μοντέλου ενσωμάτωσης",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Μοντέλο ενσωματώσεων",
       "embedding_model_select": "Επιλογή Μοντέλου",
       "file_processing": "Επεξεργασία Αρχείων",
       "file_processing_hint": "Η επεξεργασία αρχείων εκτελείται αυτόματα κατά την εισαγωγή εγγράφων. Η επιλογή του κατάλληλου παρόχου μπορεί να βελτιώσει την ποιότητα ανάλυσης των εγγράφων.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
         "chunk_separator": "Διαχωριστικό στο οποίο σπάει το κείμενο, σε διαφυγμένη μορφή. Με την έξυπνη κατάτμηση ενεργοποιημένη προσθέτει σημείο διακοπής· με απενεργοποιημένη, το κείμενο χωρίζεται μόνο από αυτό το διαχωριστικό.",
@@ -3230,6 +3249,8 @@
       },
       "processor": "Πάροχος Επεξεργασίας",
       "processor_not_configured": "Δεν έχει ρυθμιστεί",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο ανακατάταξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -4626,6 +4647,8 @@
         "font_size_medium": "Μεσαίο",
         "font_size_small": "μικρό",
         "font_title": "ρυθμίσεις γραμματοσειράς",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "σειρά γραμματοσειρών",
         "show_table_of_contents": "Εμφάνιση περιεχομένων καταλόγου",
         "show_table_of_contents_description": "Εμφάνιση πλευρικής στήλης περιεχομένων για εύκολη πλοήγηση στο έγγραφο",
@@ -5393,6 +5416,7 @@
         "insertRowBefore": "Εισάγετε παραπάνω"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Εισαγωγή μαθηματικού τύπου",
@@ -8244,6 +8268,10 @@
           "doc2x": {
             "description": "Προηγμένη μηχανή αποκατάστασης αρχείων.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) που εκτελείται εντός της διεργασίας — πλήρως εκτός σύνδεσης, χωρίς κλειδί API, με αναγνώριση σε νήμα παρασκηνίου ώστε το UI να παραμένει ανταποκρινόμενο. Κατεβάστε το μοντέλο (~140MB) στις Εξαρτήσεις Περιβάλλοντος πριν την πρώτη χρήση.",
