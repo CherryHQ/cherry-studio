@@ -719,7 +719,7 @@ function setTopicDraft(topicId: string, text: string) {
 
 function clearTopicDraftCache(...topicIds: string[]) {
   for (const topicId of topicIds) {
-    cacheService.delete(getChatDraftCacheKey(topicId))
+    cacheService.deleteShared(getChatDraftCacheKey(topicId))
   }
 }
 

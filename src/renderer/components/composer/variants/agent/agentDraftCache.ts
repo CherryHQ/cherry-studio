@@ -77,7 +77,9 @@ export function readAgentDraftCache(
   cacheKey: AgentComposerDraftCacheKey,
   scope: AgentDraftCacheScope
 ): RestoredAgentComposerDraftCache {
-  const cached = cacheService.get(cacheKey)
+  // Shared tier: drafts must survive dragging the tab out into a sub-window
+  // (a fresh renderer process reads the other window's memory cache as empty).
+  const cached = cacheService.getShared(cacheKey)
   if (!isRecord(cached)) {
     return {
       ...EMPTY_DRAFT_CACHE,
@@ -120,7 +122,7 @@ export function readAgentDraftCache(
 
 export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
   const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
-  cacheService.set(
+  cacheService.setShared(
     cacheKey,
     {
       ...cacheableDraft,

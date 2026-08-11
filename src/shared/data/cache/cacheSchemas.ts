@@ -273,6 +273,11 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  // Per-topic composer draft — cross-window so a tab dragged out into a sub-window
+  // keeps its unsent input (was renderer-memory-only; drafts vanished on detach).
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
+  // Per-session agent composer draft — cross-window for the same detach reason.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   // Runtime-only opt-out shared across windows; resets when the app exits.
@@ -323,6 +328,22 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'agent.model_switch_confirmation.skipped': false,

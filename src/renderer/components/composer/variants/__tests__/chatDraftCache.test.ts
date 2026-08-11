@@ -12,8 +12,8 @@ import {
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
-    get: vi.fn(),
-    set: vi.fn()
+    getShared: vi.fn(),
+    setShared: vi.fn()
   }
 }))
 
@@ -47,8 +47,8 @@ const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.p
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
-    vi.mocked(cacheService.get).mockReset()
-    vi.mocked(cacheService.set).mockReset()
+    vi.mocked(cacheService.getShared).mockReset()
+    vi.mocked(cacheService.setShared).mockReset()
   })
 
   it('uses a separate cache key for each topic', () => {
@@ -57,7 +57,7 @@ describe('chatDraftCache', () => {
   })
 
   it('reads an empty draft from a missing topic cache entry', () => {
-    vi.mocked(cacheService.get).mockReturnValue(undefined)
+    vi.mocked(cacheService.getShared).mockReturnValue(undefined)
     expect(readChatDraftCache('topic-a')).toEqual({
       text: '',
       tokens: [],
@@ -66,18 +66,18 @@ describe('chatDraftCache', () => {
       mentionedModelIds: [],
       modelMultiSelectMode: false
     })
-    expect(cacheService.get).toHaveBeenCalledWith('chat.composer_draft.topic-a')
+    expect(cacheService.getShared).toHaveBeenCalledWith('chat.composer_draft.topic-a')
   })
 
   it('degrades malformed fields independently', () => {
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared).mockReturnValue({
       text: 42,
       tokens: 'invalid',
       files: [file],
       knowledgeBaseIds: ['base-1', 42],
       mentionedModelIds: ['provider::model-a', 'invalid'],
       modelMultiSelectMode: 'invalid'
-    })
+    } as never)
 
     expect(readChatDraftCache('topic-a')).toEqual({
       text: '',
@@ -101,9 +101,9 @@ describe('chatDraftCache', () => {
 
     writeChatDraftCache('topic-a', draft)
 
-    expect(cacheService.set).toHaveBeenCalledWith('chat.composer_draft.topic-a', draft, expect.any(Number))
-    const written = vi.mocked(cacheService.set).mock.calls[0][1]
-    vi.mocked(cacheService.get).mockReturnValue(written)
+    expect(cacheService.setShared).toHaveBeenCalledWith('chat.composer_draft.topic-a', draft, expect.any(Number))
+    const written = vi.mocked(cacheService.setShared).mock.calls[0][1]
+    vi.mocked(cacheService.getShared).mockReturnValue(written)
     expect(readChatDraftCache('topic-a')).toEqual(draft)
   })
 

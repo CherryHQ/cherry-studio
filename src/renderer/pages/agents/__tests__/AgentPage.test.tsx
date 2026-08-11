@@ -787,7 +787,7 @@ describe('AgentPage', () => {
       search: { sessionId: 'session-feedback' },
       replace: true
     })
-    expect(cacheService.has(getAgentDraftCacheKey('session-feedback'))).toBe(false)
+    expect(cacheService.hasShared(getAgentDraftCacheKey('session-feedback'))).toBe(false)
 
     agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
     view.unmount()
