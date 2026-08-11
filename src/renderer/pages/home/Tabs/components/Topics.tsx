@@ -49,6 +49,7 @@ import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
@@ -203,6 +204,12 @@ function AssistantGroupMoreMenu({
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const {
+    assistantFavoriteIds: sidebarAssistantFavoriteIds,
+    toggleAssistant: toggleSidebarAssistant,
+    removeAssistant: removeSidebarAssistant
+  } = useSidebarFavorites()
+  const sidebarPinned = sidebarAssistantFavoriteIds.includes(assistantId)
   const actionContext: AssistantGroupActionContext = {
     assistantId,
     assistantIconType,
@@ -216,7 +223,12 @@ function AssistantGroupMoreMenu({
     onSetAssistantIconType,
     onToggleGrouping,
     onTogglePin,
+    onToggleSidebar: (id) => {
+      if (sidebarPinned) removeSidebarAssistant(id)
+      else toggleSidebarAssistant(id)
+    },
     pinned,
+    sidebarPinned,
     t
   }
   const actions = resolveAssistantGroupActions(actionContext)
@@ -320,6 +332,22 @@ export function Topics({
   } = usePins('assistant', { enabled: dataEnabled })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
+  const {
+    assistantFavoriteIds: sidebarAssistantFavoriteIds,
+    toggleAssistant: toggleSidebarAssistant,
+    removeAssistant: removeSidebarAssistant
+  } = useSidebarFavorites()
+  const sidebarAssistantFavoriteIdSet = useMemo(
+    () => new Set(sidebarAssistantFavoriteIds),
+    [sidebarAssistantFavoriteIds]
+  )
+  const handleToggleAssistantSidebar = useCallback(
+    (assistantId: string) => {
+      if (sidebarAssistantFavoriteIdSet.has(assistantId)) removeSidebarAssistant(assistantId)
+      else toggleSidebarAssistant(assistantId)
+    },
+    [removeSidebarAssistant, sidebarAssistantFavoriteIdSet, toggleSidebarAssistant]
+  )
   const {
     topics: apiTopics,
     orderSignature,
@@ -1052,7 +1080,9 @@ export function Topics({
         onSetAssistantIconType: setAssistantIconType,
         onToggleGrouping: () => setAssistantSortType(isGroupGrouping ? 'list' : 'tags'),
         onTogglePin: handleToggleAssistantPin,
+        onToggleSidebar: handleToggleAssistantSidebar,
         pinned: assistantPinnedIdSet.has(assistantId),
+        sidebarPinned: sidebarAssistantFavoriteIdSet.has(assistantId),
         t
       }
       const actions = resolveAssistantGroupActions(actionContext)
@@ -1072,11 +1102,13 @@ export function Topics({
       handleDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
+      handleToggleAssistantSidebar,
       isAssistantPinActionDisabled,
       isGroupGrouping,
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAssistantFavoriteIdSet,
       t
     ]
   )

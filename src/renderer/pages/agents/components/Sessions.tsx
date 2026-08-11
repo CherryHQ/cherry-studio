@@ -37,6 +37,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
@@ -172,6 +173,12 @@ function AgentGroupMoreMenu({
   onTogglePin: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const {
+    agentFavoriteIds: sidebarAgentFavoriteIds,
+    toggleAgent: toggleSidebarAgent,
+    removeAgent: removeSidebarAgent
+  } = useSidebarFavorites()
+  const sidebarPinned = sidebarAgentFavoriteIds.includes(agentId)
   const actionContext: AgentGroupActionContext = {
     agentId,
     assistantIconType,
@@ -181,8 +188,13 @@ function AgentGroupMoreMenu({
     onEdit,
     onSetAgentIconType,
     onTogglePin,
+    onToggleSidebar: (id) => {
+      if (sidebarPinned) removeSidebarAgent(id)
+      else toggleSidebarAgent(id)
+    },
     pinDisabled,
     pinned,
+    sidebarPinned,
     t
   }
   const actions = resolveAgentGroupActions(actionContext)
@@ -518,6 +530,19 @@ const Sessions = ({
   const { updateSession } = useUpdateSession()
 
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
+  const {
+    agentFavoriteIds: sidebarAgentFavoriteIds,
+    toggleAgent: toggleSidebarAgent,
+    removeAgent: removeSidebarAgent
+  } = useSidebarFavorites()
+  const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
+  const handleToggleAgentSidebar = useCallback(
+    (agentId: string) => {
+      if (sidebarAgentFavoriteIdSet.has(agentId)) removeSidebarAgent(agentId)
+      else toggleSidebarAgent(agentId)
+    },
+    [removeSidebarAgent, sidebarAgentFavoriteIdSet, toggleSidebarAgent]
+  )
   const agentsForDisplay = useMemo(() => {
     if (!optimisticAgentOrderIds) return agents
 
@@ -1791,8 +1816,10 @@ const Sessions = ({
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
+          onToggleSidebar: handleToggleAgentSidebar,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
+          sidebarPinned: sidebarAgentFavoriteIdSet.has(agentId),
           t
         }
         const actions = resolveAgentGroupActions(actionContext)
@@ -1837,10 +1864,12 @@ const Sessions = ({
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
       handleToggleAgentPin,
+      handleToggleAgentSidebar,
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
       setAssistantIconType,
+      sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
     ]
