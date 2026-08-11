@@ -22390,15 +22390,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.054945
+          "perMillionTokens": 0.053298
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6512
+          "perMillionTokens": 0.63168
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.3024
+          "perMillionTokens": 1.26336
         }
       },
       "providerId": "openrouter",
@@ -24186,15 +24186,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.11
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.2
         }
       },
       "providerId": "openrouter",
@@ -37500,5 +37500,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "12598f8ae72c454f"
+  "version": "7ac55ee329fed10d"
 }

@@ -14678,10 +14678,10 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
       "contextWindow": 1048576,
       "id": "kimi-latest",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video"],
       "metadata": {},
       "name": "MoonshotAI Kimi Latest",
       "outputModalities": ["text"],
@@ -22951,5 +22951,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f2212c9b607e5ecc"
+  "version": "222ecc2d8841247f"
 }
