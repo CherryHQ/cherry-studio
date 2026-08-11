@@ -369,6 +369,44 @@
           "]"
         ]
       }
+    },
+    {
+      "id": "tab.next",
+      "titleKey": "settings.shortcuts.next_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "Tab"
+          ],
+          "darwin": [
+            "Ctrl",
+            "Tab"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tab.prev",
+      "titleKey": "settings.shortcuts.prev_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "Shift",
+            "Tab"
+          ],
+          "darwin": [
+            "Ctrl",
+            "Shift",
+            "Tab"
+          ]
+        }
+      }
     }
   ],
   "providers": {
