@@ -1564,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "文件",
+          "resources": "文件和文件夹",
           "skills": "Skills"
         },
         "description": "从文件、Agents 或 Skills 中选择",
+        "load_failed": "加载工作区资源失败",
         "loading": "加载中...",
-        "no_file_found": {
-          "description": "当前工作区没有可搜索的文件",
-          "label": "未找到文件"
-        },
         "no_items_found": {
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "文件与会话"
+        "no_resources_found": {
+          "description": "当前工作区没有可搜索的文件或文件夹",
+          "label": "未找到资源"
+        },
+        "title": "资源与会话"
       },
       "restore": "还原",
       "send": "发送",

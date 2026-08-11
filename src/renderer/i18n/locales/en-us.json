@@ -1564,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Files",
+          "resources": "Files & Folders",
           "skills": "Skills"
         },
         "description": "Select from files, agents, or skills",
+        "load_failed": "Failed to load workspace resources",
         "loading": "Loading...",
-        "no_file_found": {
-          "description": "No searchable files in the current workspace",
-          "label": "No File Found"
-        },
         "no_items_found": {
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Files & Sessions"
+        "no_resources_found": {
+          "description": "No searchable files or folders in the current workspace",
+          "label": "No Resources Found"
+        },
+        "title": "Resources & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
