@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -322,9 +322,9 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
 
     // First copy fails (e.g. transient download error) — the dedup mark must be rolled back.
     vi.spyOn(adapter, 'processMessage').mockRejectedValueOnce(new Error('download failed'))
-    await expect(
-      adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
-    ).rejects.toThrow('download failed')
+    await expect(adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))).rejects.toThrow(
+      'download failed'
+    )
 
     // Twin AT event arrives — the mark was rolled back, so this copy processes.
     await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
