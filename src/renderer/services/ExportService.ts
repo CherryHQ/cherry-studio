@@ -1,6 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { Client } from '@notionhq/client'
+import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -27,12 +27,28 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
-import { markdownToBlocks } from '@tryfabric/martian'
+import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
-import { appendBlocks } from 'notion-helper'
+import type { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('ExportService')
+
+let notionDependenciesPromise: Promise<{
+  Client: typeof Client
+  markdownToBlocks: typeof markdownToBlocks
+  appendBlocks: typeof appendBlocks
+}> | null = null
+
+const loadNotionDependencies = () => {
+  notionDependenciesPromise ??= Promise.all([
+    import('@notionhq/client'),
+    import('@tryfabric/martian'),
+    import('notion-helper')
+  ]).then(([{ Client }, { markdownToBlocks }, { appendBlocks }]) => ({ Client, markdownToBlocks, appendBlocks }))
+
+  return notionDependenciesPromise
+}
 
 // Single export-in-progress mutex shared by every exporter below
 // (markdown / Notion / Yuque / Obsidian / Joplin / Siyuan): a second export
@@ -492,6 +508,7 @@ export const exportMessageAsMarkdown = async (
 }
 
 const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
+  const { markdownToBlocks } = await loadNotionDependencies()
   return markdownToBlocks(markdown)
 }
 
@@ -501,6 +518,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 
   try {
+    const { markdownToBlocks } = await loadNotionDependencies()
     // 预处理思维链内容：将HTML的<br>标签转换为真正的换行符
     const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
 
@@ -600,6 +618,7 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
   }
 
   try {
+    const { Client, appendBlocks } = await loadNotionDependencies()
     const notion = new Client({ auth: notionApiKey })
 
     const responsePromise = notion.pages.create({
