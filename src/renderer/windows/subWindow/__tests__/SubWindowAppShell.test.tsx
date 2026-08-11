@@ -16,6 +16,8 @@ type ShellTab = {
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
 const ipcListeners = new Map<string, (value: boolean) => void>()
+let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
+let resolveInitialFullscreen: ((value: boolean) => void) | undefined
 
 async function renderSubWindowAppShell({
   init = null,
@@ -26,12 +28,20 @@ async function renderSubWindowAppShell({
 } = {}) {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac, isWin: false, isLinux: false }))
-  vi.doMock('@renderer/ipc', () => ({
-    ipcApi: { request: vi.fn().mockResolvedValue(false) },
-    useIpcOn: (event: string, handler: (value: boolean) => void) => {
-      ipcListeners.set(event, handler)
+  vi.doMock('@renderer/ipc', () => {
+    ipcRequest = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInitialFullscreen = resolve
+        })
+    )
+    return {
+      ipcApi: { request: ipcRequest },
+      useIpcOn: (event: string, handler: (value: boolean) => void) => {
+        ipcListeners.set(event, handler)
+      }
     }
-  }))
+  })
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
   }))
@@ -92,6 +102,8 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
   ipcListeners.clear()
+  ipcRequest = vi.fn()
+  resolveInitialFullscreen = undefined
 })
 
 describe('SubWindowAppShell', () => {
@@ -138,6 +150,20 @@ describe('SubWindowAppShell', () => {
 
     act(() => {
       ipcListeners.get('window.fullscreen_changed')?.(true)
+    })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
+  })
+
+  it('queries the initial fullscreen state on mount (macOS)', async () => {
+    await renderSubWindowAppShell({ isMac: true })
+
+    expect(ipcRequest).toHaveBeenCalledWith('window.is_full_screen')
+
+    // Async act flushes the request's microtask so the mount-time update lands
+    // inside the act scope.
+    await act(async () => {
+      resolveInitialFullscreen?.(true)
     })
 
     expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
