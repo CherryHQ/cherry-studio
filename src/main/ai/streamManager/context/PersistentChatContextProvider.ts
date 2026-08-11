@@ -282,16 +282,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
-        reservedMessages: [toReservedUIMessage(userMessage)],
-        isMultiModel: false
+        reservedMessages: [toReservedUIMessage(userMessage)]
       }
     }
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
-    const isMultiModel = models.length > 1
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
+    let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
       fastMode: req.fastMode === true
@@ -310,11 +309,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         throw new Error('Live reply-group target does not belong to the requested topic/user anchor')
       }
       const sourceExecution = ctx.activeExecutions?.find(
-        (execution) => execution.anchorMessageId === liveGroupAppendMessageId
+        (execution) =>
+          execution.anchorMessageId !== undefined &&
+          (target.siblingsGroupId > 0
+            ? execution.siblingsGroupId === target.siblingsGroupId
+            : execution.anchorMessageId === target.id)
       )
-      if (!sourceExecution) {
+      if (!sourceExecution?.anchorMessageId) {
         throw new Error("The selected assistant is not part of this topic's live reply group")
       }
+      liveGroupSourceAnchorMessageId = sourceExecution.anchorMessageId
       if (ctx.activeExecutions?.some((execution) => execution.modelId === models[0].id)) {
         throw new Error(`Model ${models[0].id} is already part of this live reply group`)
       }
@@ -456,11 +460,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        liveExecutionChange: liveGroupAppendMessageId
-          ? { mode: 'append', groupAnchorMessageId: liveGroupAppendMessageId, activateFallback: true }
+        liveExecutionChange: liveGroupSourceAnchorMessageId
+          ? { mode: 'append', groupAnchorMessageId: liveGroupSourceAnchorMessageId, activateFallback: true }
           : undefined,
-        preserveActiveNode: Boolean(liveGroupAppendMessageId),
-        isMultiModel: isMultiModel || Boolean(liveGroupAppendMessageId)
+        preserveActiveNode: Boolean(liveGroupAppendMessageId)
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -490,17 +493,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error('In-place retry cannot change the assistant model')
     }
     const [model] = resolveModels([targetModelId], targetModelId)
-    const compatibleGroupAnchorMessageIds = messageService
-      .getChildrenByParentId(parent.id)
-      .filter(
-        (candidate) =>
-          candidate.role === 'assistant' &&
-          target.siblingsGroupId > 0 &&
-          candidate.siblingsGroupId === target.siblingsGroupId
-      )
-      .map((candidate) => candidate.id)
+    const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
     const manager = application.get('AiStreamManager')
-    await manager.awaitExecutionRetry(req.topicId, targetModelId, target.id, compatibleGroupAnchorMessageIds)
+    await manager.awaitExecutionRetry(req.topicId, targetModelId, target.id, compatibleSiblingsGroupId)
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
@@ -543,7 +538,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.topicId,
         targetModelId,
         target.id,
-        compatibleGroupAnchorMessageIds
+        compatibleSiblingsGroupId
       )
 
       // Reset only after all async context preparation and the final admission succeed. This atomic
@@ -578,8 +573,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             : admission.mode === 'append-live'
               ? { mode: 'append', groupAnchorMessageId: admission.groupAnchorMessageId, activateFallback: false }
               : undefined,
-        preserveActiveNode: true,
-        isMultiModel: false
+        preserveActiveNode: true
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -673,8 +667,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        siblingsGroupId: undefined,
-        isMultiModel: false
+        siblingsGroupId: undefined
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -772,8 +765,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        reservedMessages: [toReservedUIMessage(placeholder)],
-        isMultiModel: false
+        reservedMessages: [toReservedUIMessage(placeholder)]
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)

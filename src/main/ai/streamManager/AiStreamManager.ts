@@ -817,7 +817,7 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     anchorMessageId: string,
-    compatibleGroupAnchorMessageIds: readonly string[] = []
+    compatibleSiblingsGroupId?: number
   ): Promise<ExecutionRetryAdmission> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { mode: 'start-new' }
@@ -825,13 +825,15 @@ export class AiStreamManager extends BaseService {
     const execution = stream.executions.get(modelId)
     if (!execution || execution.anchorMessageId !== anchorMessageId) {
       if (isLiveStatus(stream.status)) {
-        const compatibleAnchors = new Set(compatibleGroupAnchorMessageIds)
-        const compatibleExecution = [...stream.executions.values()].find(
-          (candidate) =>
-            candidate.anchorMessageId !== anchorMessageId &&
-            candidate.anchorMessageId !== undefined &&
-            compatibleAnchors.has(candidate.anchorMessageId)
-        )
+        const compatibleExecution =
+          compatibleSiblingsGroupId !== undefined
+            ? [...stream.executions.values()].find(
+                (candidate) =>
+                  candidate.anchorMessageId !== anchorMessageId &&
+                  candidate.anchorMessageId !== undefined &&
+                  candidate.siblingsGroupId === compatibleSiblingsGroupId
+              )
+            : undefined
         if (!stream.executions.has(modelId) && compatibleExecution?.anchorMessageId) {
           return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
         }

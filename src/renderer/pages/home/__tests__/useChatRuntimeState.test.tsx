@@ -1,3 +1,4 @@
+import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -12,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   seedMessagesCache: vi.fn(async () => undefined),
   rollbackBranch: vi.fn(),
   activeExecutions: [] as ActiveExecution[],
-  overlayExecutions: [] as ActiveExecution[]
+  overlayExecutions: [] as ActiveExecution[],
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
 }))
 
 vi.mock('@logger', () => ({
@@ -80,8 +82,14 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (_topicId: string, executions: ActiveExecution[]) => {
+  useExecutionOverlay: (
+    _topicId: string,
+    executions: ActiveExecution[],
+    _messages: CherryUIMessage[],
+    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+  ) => {
     mocks.overlayExecutions = executions
+    mocks.overlayOnFinish = options?.onFinish ?? null
     return {
       overlay: {},
       liveAssistants: [],
@@ -167,6 +175,7 @@ describe('useChatRuntimeState', () => {
     mocks.seedMessagesCache.mockResolvedValue(undefined)
     mocks.activeExecutions = []
     mocks.overlayExecutions = []
+    mocks.overlayOnFinish = null
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
@@ -248,5 +257,49 @@ describe('useChatRuntimeState', () => {
     expect(mocks.overlayExecutions).toEqual([
       expect.objectContaining({ attemptId: 'attempt-2', attemptVersion: 2, seedFromEmpty: true })
     ])
+  })
+
+  it('does not restore a completed old attempt after its newer replacement settles', async () => {
+    const staleAttempt: ActiveExecution = {
+      executionId: 'provider::model',
+      anchorMessageId: 'reserved-1',
+      attemptId: 'attempt-1',
+      attemptVersion: 1
+    }
+    const view = render(<RuntimeHost topicId="topic-1" />)
+
+    await act(async () => {
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], [staleAttempt])
+    })
+
+    mocks.activeExecutions = [
+      {
+        executionId: 'provider::model',
+        anchorMessageId: 'reserved-1',
+        attemptId: 'attempt-2',
+        attemptVersion: 2
+      }
+    ]
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    const completedMessage = {
+      ...reservedMessage,
+      parts: [{ type: 'text', text: 'old attempt completed' }]
+    } as CherryUIMessage
+    await act(async () => {
+      mocks.overlayOnFinish?.('provider::model', {
+        attemptId: 'attempt-1',
+        message: completedMessage,
+        isAbort: false,
+        isError: false
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    mocks.activeExecutions = []
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(mocks.overlayExecutions).toEqual([])
   })
 })

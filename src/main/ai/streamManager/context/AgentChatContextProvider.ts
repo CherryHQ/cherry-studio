@@ -138,8 +138,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber],
-        isMultiModel: false
+        listeners: [subscriber]
       }
     }
 
@@ -251,8 +250,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ],
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
-      listeners: [subscriber, ...runtime.listeners],
-      isMultiModel: false
+      listeners: [subscriber, ...runtime.listeners]
     }
   }
 }

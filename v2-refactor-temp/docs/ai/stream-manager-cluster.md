@@ -59,7 +59,7 @@ interface ChatContextProvider {
 }
 ```
 
-`PreparedDispatch` carries `{ models, listeners, reservedMessages?, siblingsGroupId?, liveExecutionChange?, isMultiModel, lifecycle? }`.
+`PreparedDispatch` carries `{ models, listeners, reservedMessages?, siblingsGroupId?, liveExecutionChange?, lifecycle? }`.
 The dispatcher reads `manager.activeStreams.get(topicId)` to set
 `DispatchContext.hasLiveStream` so providers can shortcut persistence on
 the inject path.

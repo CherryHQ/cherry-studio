@@ -833,7 +833,6 @@ interface PreparedDispatch {
     | { mode: 'replace' }
     | { mode: 'append'; groupAnchorMessageId: string; activateFallback: boolean }
   preserveActiveNode?: boolean
-  isMultiModel: boolean
   lifecycle?: StreamLifecycle
 }
 

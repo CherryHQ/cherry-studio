@@ -696,12 +696,13 @@ describe('AiStreamManager', () => {
         siblingsGroupId: 7
       })
 
-      await expect(
-        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', ['assistant-a', 'assistant-b'])
-      ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
-      await expect(
-        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', ['assistant-a', 'assistant-b'])
-      ).rejects.toThrow("not part of this topic's live reply group")
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 7)).resolves.toEqual({
+        mode: 'append-live',
+        groupAnchorMessageId: 'assistant-a'
+      })
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 7)).rejects.toThrow(
+        "not part of this topic's live reply group"
+      )
       await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b')).rejects.toThrow(
         "not part of this topic's live reply group"
       )

@@ -54,8 +54,6 @@ export interface PreparedDispatch {
   liveExecutionChange?: PreparedLiveExecutionChange
   /** Reservation intentionally did not move the topic's active node. */
   preserveActiveNode?: boolean
-  /** True when this dispatch owns multiple assistant placeholders. */
-  isMultiModel: boolean
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
 }
@@ -71,7 +69,7 @@ export interface DispatchContext {
   activeExecutions?: ReadonlyArray<{
     modelId: UniqueModelId
     anchorMessageId?: string
-    status: 'streaming' | 'done' | 'error' | 'aborted'
+    siblingsGroupId?: number
   }>
 }
 

@@ -507,9 +507,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { hasLiveStream: false }
     )
 
-    // Shared sibling group + multi-model flag.
+    // Shared sibling group.
     expect(prepared.siblingsGroupId).toBe(42)
-    expect(prepared.isMultiModel).toBe(true)
 
     // One execution per model, in mention order, each carrying its own root span.
     expect(prepared.models.map((m) => m.modelId)).toEqual([MODEL_A, MODEL_B])
@@ -550,20 +549,33 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(callB[3]).toBe(containerTraceId)
   })
 
-  it('appends an @-selected model to the live reply group without changing the active node', async () => {
+  it('appends an @-selected model through another sibling in the live reply group', async () => {
     const appendedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
-    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    const settledSiblingModelId = createUniqueModelId('openai', 'gpt-4.1')
+    const [providerKey, modelKey, settledSiblingModelKey] = generateOrderKeySequence(3)
     await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: providerKey })
-    await dbh.db.insert(userModelTable).values({
-      id: appendedModelId,
-      providerId: 'anthropic',
-      modelId: 'claude-sonnet-4-5',
-      presetModelId: 'claude-sonnet-4-5',
-      name: 'Claude Sonnet 4.5',
-      isEnabled: true,
-      isHidden: false,
-      orderKey: modelKey
-    })
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: appendedModelId,
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        presetModelId: 'claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: modelKey
+      },
+      {
+        id: settledSiblingModelId,
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        presetModelId: 'gpt-4.1',
+        name: 'GPT-4.1',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: settledSiblingModelKey
+      }
+    ])
     vi.mocked(resolveModels).mockReturnValueOnce([
       {
         id: appendedModelId,
@@ -573,7 +585,19 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       }
     ] as ReturnType<typeof resolveModels>)
     vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
-    const userSelectedBranch = messageService.reserveBranch('a1', true)
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'u1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'settled sibling' }] },
+      status: 'success',
+      siblingsGroupId: 1,
+      modelId: settledSiblingModelId,
+      createdAt: 250,
+      updatedAt: 250
+    })
+    const userSelectedBranch = messageService.reserveBranch('a2', true)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -581,12 +605,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
         parentAnchorId: 'u1',
-        appendToLiveGroupMessageId: 'a1',
+        appendToLiveGroupMessageId: 'a2',
         mentionedModelIds: [appendedModelId]
       },
       {
         hasLiveStream: true,
-        activeExecutions: [{ modelId: MODEL_ID, anchorMessageId: 'a1', status: 'streaming' }]
+        activeExecutions: [{ modelId: MODEL_ID, anchorMessageId: 'a1', siblingsGroupId: 1 }]
       }
     )
 
@@ -596,12 +620,51 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(prepared).toMatchObject({
       liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'a1', activateFallback: true },
       preserveActiveNode: true,
-      siblingsGroupId: 1,
-      isMultiModel: true
+      siblingsGroupId: 1
     })
     expect(prepared.models[0].request.messageId).toBe(appended?.id)
-    expect(messageService.getById(userSelectedBranch.id).parentId).toBe('a1')
+    expect(messageService.getById(userSelectedBranch.id).parentId).toBe('a2')
     expect(topicService.getById('topic-1')?.activeNodeId).toBe(userSelectedBranch.id)
+  })
+
+  it('rejects an @-selected model when only another reply group is live', async () => {
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'u1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'different group' }] },
+      status: 'success',
+      siblingsGroupId: 2,
+      modelId: MODEL_ID,
+      createdAt: 250,
+      updatedAt: 250
+    })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1',
+          appendToLiveGroupMessageId: 'a2',
+          mentionedModelIds: [MODEL_ID]
+        },
+        {
+          hasLiveStream: true,
+          activeExecutions: [
+            {
+              modelId: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
+              anchorMessageId: 'a1',
+              siblingsGroupId: 1
+            }
+          ]
+        }
+      )
+    ).rejects.toThrow("The selected assistant is not part of this topic's live reply group")
+
+    expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
   })
 })
 
@@ -781,7 +844,6 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(resolveModels).toHaveBeenCalledWith([ANCHOR_MODEL_ID], ANCHOR_MODEL_ID)
 
     // Single model, no sibling group, anchored back on the assistant row.
-    expect(prepared.isMultiModel).toBe(false)
     expect(prepared.siblingsGroupId).toBeUndefined()
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)

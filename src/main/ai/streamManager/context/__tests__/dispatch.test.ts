@@ -74,7 +74,6 @@ function wirePrepare(
       topicId,
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
-      isMultiModel: false,
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
       pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
@@ -184,12 +183,12 @@ describe('dispatchStreamRequest — steer', () => {
         { modelId: 'p::m2', request: {} }
       ],
       listeners: [] as StreamListener[],
-      isMultiModel: true
+      reservedMessages: [{ id: 'assistant-1', role: 'assistant', parts: [] }]
     })
     const manager = makeManager(false)
 
     await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-3'))).rejects.toThrow(
-      'Multi-model dispatch produced 1 placeholderIds for 2 models'
+      'Multi-model dispatch produced 1 assistant reservations for 2 models'
     )
     expect(manager.send).not.toHaveBeenCalled()
   })
@@ -201,8 +200,7 @@ describe('dispatchStreamRequest — steer', () => {
       listeners: [] as StreamListener[],
       reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
       liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-1', activateFallback: true },
-      preserveActiveNode: true,
-      isMultiModel: true
+      preserveActiveNode: true
     })
     const manager = makeManager(true)
     vi.mocked(manager.hasLiveStream).mockReturnValueOnce(true).mockReturnValueOnce(false)

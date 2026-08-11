@@ -100,20 +100,6 @@ function executionAttemptKey(execution: ActiveExecution): string {
   return execution.attemptId ?? JSON.stringify([execution.executionId, execution.anchorMessageId ?? null])
 }
 
-function getReservedActiveExecutions(messages: CherryUIMessage[]): ActiveExecution[] {
-  const executions: ActiveExecution[] = []
-  const seen = new Set<string>()
-
-  for (const message of messages) {
-    const executionId = message.role === 'assistant' ? message.metadata?.modelId : undefined
-    if (!executionId || seen.has(executionId)) continue
-    seen.add(executionId)
-    executions.push({ executionId: executionId as ActiveExecution['executionId'], anchorMessageId: message.id })
-  }
-
-  return executions
-}
-
 export function useChatRuntimeState({
   topic,
   isHistoryLoading,
@@ -160,7 +146,7 @@ export function useChatRuntimeState({
     previousActiveNodeId: string | null
     activeNodeId: string
   } | null>(null)
-  const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
+  const finishedBranchExecutionKeysRef = useRef<Set<string>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged topic.id, and the fresh [] literals would defeat React's
@@ -169,7 +155,7 @@ export function useChatRuntimeState({
   useEffect(() => {
     if (branchLiveResetTopicIdRef.current === topic.id) return
     branchLiveResetTopicIdRef.current = topic.id
-    finishedBranchExecutionIdsRef.current.clear()
+    finishedBranchExecutionKeysRef.current.clear()
     runtimeBranchLiveStatePublishedRef.current = false
     setBranchLiveMessages([])
     setBranchLiveExecutions([])
@@ -207,6 +193,14 @@ export function useChatRuntimeState({
   )
   const branchActiveExecutionsRef = useRef(branchActiveExecutions)
   branchActiveExecutionsRef.current = branchActiveExecutions
+  useEffect(() => {
+    const activeKeys = new Set(branchActiveExecutions.map(executionAttemptKey))
+    for (const key of finishedBranchExecutionKeysRef.current) {
+      if (!activeKeys.has(key)) {
+        finishedBranchExecutionKeysRef.current.delete(key)
+      }
+    }
+  }, [branchActiveExecutions])
 
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
   const {
@@ -276,10 +270,10 @@ export function useChatRuntimeState({
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], openedExecutions?: ActiveExecution[], preserveActiveNode?: boolean) => {
       if (reservedMessages.length > 0) {
-        const reservedExecutions = openedExecutions ?? getReservedActiveExecutions(reservedMessages)
+        const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
           for (const execution of reservedExecutions) {
-            finishedBranchExecutionIdsRef.current.delete(executionAttemptKey(execution))
+            finishedBranchExecutionKeysRef.current.delete(executionAttemptKey(execution))
           }
           setBranchLiveExecutions((current) => mergeActiveExecutions(current, reservedExecutions))
         }
@@ -410,19 +404,19 @@ export function useChatRuntimeState({
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
         } finally {
-          finishedBranchExecutionIdsRef.current.add(finishedKey)
+          finishedBranchExecutionKeysRef.current.add(finishedKey)
           const replacementIsLive = branchActiveExecutionsRef.current.some(
             (execution) =>
               execution.executionId === executionId &&
               execution.anchorMessageId === message.id &&
               executionAttemptKey(execution) !== finishedKey
           )
+          setBranchLiveExecutions((current) =>
+            current.filter((execution) => executionAttemptKey(execution) !== finishedKey)
+          )
           if (!replacementIsLive) {
-            setBranchLiveExecutions((current) =>
-              current.filter((execution) => executionAttemptKey(execution) !== finishedKey)
-            )
             const hasRemainingExecutions = branchActiveExecutionsRef.current.some(
-              (execution) => !finishedBranchExecutionIdsRef.current.has(executionAttemptKey(execution))
+              (execution) => !finishedBranchExecutionKeysRef.current.has(executionAttemptKey(execution))
             )
             if (hasRemainingExecutions) {
               if (!isError && message.parts?.length) {

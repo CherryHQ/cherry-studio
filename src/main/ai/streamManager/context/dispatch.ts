@@ -151,16 +151,12 @@ export async function dispatchStreamRequest(
       ?.filter((message) => message.role === 'assistant')
       .map((message) => message.id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
-  const fallbackPlaceholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-  const placeholderIds = reservedAssistantIds.length > 0 ? reservedAssistantIds : fallbackPlaceholderIds
 
   // Multi-model topics are persistent-only with a placeholder per model. Keep
   // those reservations aligned with the executions the manager will launch.
-  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
+  if (prepared.models.length > 1 && reservedAssistantIds.length !== prepared.models.length) {
     throw new Error(
-      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
+      `Multi-model dispatch produced ${reservedAssistantIds.length} assistant reservations for ${prepared.models.length} models (topicId=${prepared.topicId})`
     )
   }
 
@@ -171,7 +167,7 @@ export async function dispatchStreamRequest(
   const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
   let preserveActiveNode = prepared.preserveActiveNode
   if (preparedChange?.mode === 'append' && !canAppendToLiveStream && preparedChange.activateFallback) {
-    const fallbackActiveNodeId = placeholderIds.at(-1)
+    const fallbackActiveNodeId = reservedAssistantIds.at(-1)
     if (!fallbackActiveNodeId) {
       throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
     }
