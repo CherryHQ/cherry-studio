@@ -191,6 +191,8 @@ function isForwardCompatibleSidebarFavoriteItem(favorite: SidebarFavoriteItem): 
     typeof item.type === 'string' &&
     item.type !== 'app' &&
     item.type !== 'mini_app' &&
+    item.type !== 'agent' &&
+    item.type !== 'assistant' &&
     typeof item.id === 'string' &&
     item.id.length > 0
   )
@@ -232,6 +234,9 @@ function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFav
     case 'app':
       return isSidebarAppId(favorite.id) ? { ...favorite } : undefined
     case 'mini_app':
+      return favorite.id ? { ...favorite } : undefined
+    case 'agent':
+    case 'assistant':
       return favorite.id ? { ...favorite } : undefined
     default: {
       // Untrusted storage boundary: an unknown type (corrupt or written by a newer
@@ -392,6 +397,42 @@ export function removeSidebarMiniApp(
   return preserveForwardCompatibleSidebarFavoriteItems(
     favorites,
     getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === 'mini_app' && item.id === id))
+  )
+}
+
+/**
+ * Toggle a pinned user entity (agent / assistant) favorite, preserving
+ * everything else in place. Adding appends to the end of the whole list,
+ * removing filters the target out — mirrors {@link toggleSidebarMiniApp}.
+ */
+export function toggleSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+  const isTarget = (item: SidebarFavoriteItem) => item.type === type && item.id === id
+
+  if (items.some(isTarget)) {
+    return preserveForwardCompatibleSidebarFavoriteItems(
+      favorites,
+      items.filter((item) => !isTarget(item))
+    )
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+}
+
+/** Remove a pinned user entity (agent / assistant) favorite, preserving everything else in place. */
+export function removeSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+  return preserveForwardCompatibleSidebarFavoriteItems(
+    favorites,
+    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === type && item.id === id))
   )
 }
 

@@ -462,6 +462,9 @@ export class AgentSessionService {
    * by `orderKey ASC` (creation/manual order, newest-created first), so a
    * recently-active session is not guaranteed to be on it. This
    * `lastActivityAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   *
+   * An optional `agentId` narrows the scan to one agent's sessions — used by
+   * per-agent sidebar entries to resume that agent's last conversation.
    */
   getLatestActive(query: LatestAgentSessionQuery = {}): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()

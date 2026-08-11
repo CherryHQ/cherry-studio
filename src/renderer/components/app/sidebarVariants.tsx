@@ -1,6 +1,10 @@
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import type { Assistant } from '@renderer/types/assistant'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarFavoriteKey, getSidebarMenuPath, isSidebarAppId } from '@renderer/utils/sidebar'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -21,11 +25,17 @@ export interface SidebarVariantContext {
   t: (key: string) => string
   defaultPaintingProvider: string
   installedMiniApps: Map<string, MiniApp>
+  installedAgents: Map<string, AgentEntity>
+  installedAssistants: Map<string, Assistant>
   isRequiredApp: (id: SidebarAppId) => boolean
   openApp: (id: SidebarAppId) => void
   openMiniApp: (id: string) => void
+  openAgent: (id: string) => void
+  openAssistant: (id: string) => void
   removeApp: (id: SidebarAppId) => void
   removeMiniApp: (id: string) => void
+  removeAgent: (id: string) => void
+  removeAssistant: (id: string) => void
 }
 
 /**
@@ -100,6 +110,60 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
   }
 }
 
+const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 'agent' }>> = {
+  resolve: (item, ctx) => {
+    const agent = ctx.installedAgents.get(item.id)
+    // Stale agent (deleted) is dropped from the list but stays in the preference.
+    if (!agent) return null
+
+    const emoji = getAgentAvatarFromConfiguration(agent.configuration)
+    return {
+      key: getSidebarFavoriteKey(item),
+      label: agent.name,
+      renderIcon: (size) => <EmojiIcon emoji={emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />,
+      // Active-state highlight stays on the built-in agents app entry; this row
+      // only navigates the conversation the interceptor resolves.
+      isActive: () => false,
+      onOpen: () => ctx.openAgent(agent.id),
+      contextMenuItems: [
+        {
+          type: 'item',
+          id: `sidebar.remove-agent.${agent.id}`,
+          label: ctx.t('launchpad.unpin_from_sidebar'),
+          onSelect: () => ctx.removeAgent(agent.id)
+        }
+      ]
+    }
+  }
+}
+
+const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 'assistant' }>> = {
+  resolve: (item, ctx) => {
+    const assistant = ctx.installedAssistants.get(item.id)
+    // Stale assistant (deleted) is dropped from the list but stays in the preference.
+    if (!assistant) return null
+
+    return {
+      key: getSidebarFavoriteKey(item),
+      label: assistant.name,
+      renderIcon: (size) => (
+        <EmojiIcon emoji={assistant.emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />
+      ),
+      // Active-state highlight stays on the built-in assistants app entry.
+      isActive: () => false,
+      onOpen: () => ctx.openAssistant(assistant.id),
+      contextMenuItems: [
+        {
+          type: 'item',
+          id: `sidebar.remove-assistant.${assistant.id}`,
+          label: ctx.t('launchpad.unpin_from_sidebar'),
+          onSelect: () => ctx.removeAssistant(assistant.id)
+        }
+      ]
+    }
+  }
+}
+
 /**
  * Resolve one stored favorite into a rendered row via its variant descriptor, or
  * `null` when it is not renderable. The single dispatch here is the only place
@@ -116,6 +180,10 @@ export function resolveSidebarEntry(
       return appVariant.resolve(favorite, ctx)
     case 'mini_app':
       return miniAppVariant.resolve(favorite, ctx)
+    case 'agent':
+      return agentVariant.resolve(favorite, ctx)
+    case 'assistant':
+      return assistantVariant.resolve(favorite, ctx)
     default:
       return assertNever(favorite)
   }
