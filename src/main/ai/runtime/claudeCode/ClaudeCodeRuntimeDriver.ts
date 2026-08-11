@@ -737,6 +737,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,

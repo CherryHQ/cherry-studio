@@ -1189,6 +1189,59 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it('flushes a trailing reminder-marker prefix before throwing on error results', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'comparison <' }
+      })
+    )
+
+    expect(() =>
+      adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['boom']
+        })
+      )
+    ).toThrow('boom')
+
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe('comparison <')
+    expect(parts.findIndex((part) => part.type === 'text-end')).toBeLessThan(
+      parts.findIndex((part) => part.type === 'message-metadata')
+    )
+  })
+
+  it('flushes a trailing reminder-marker prefix when open text parts are finalized', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'comparison <' }
+      })
+    )
+    adapter.finalizeOpenTextParts()
+
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe('comparison <')
+    expect(parts.at(-1)?.type).toBe('text-end')
+  })
+
   it('emits truncation fallback from buffered text', () => {
     const { adapter, parts } = createAdapter()
     const text = 'x'.repeat(600)

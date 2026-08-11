@@ -685,6 +685,12 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
+  /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
+  finalizeOpenTextParts(): void {
+    this.closeActiveTextPart(this.ctx)
+    for (const flow of this.flowContexts) this.closeActiveTextPart(flow.stream)
+  }
+
   handleTruncationError(error: unknown): boolean {
     if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
     this.turnActive = false
@@ -693,13 +699,14 @@ export class ClaudeCodeStreamAdapter {
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
     )
     if (this.ctx.textPartId) {
-      this.ctx.sink.enqueue({ type: 'text-end', id: this.ctx.textPartId })
+      this.closeActiveTextPart(this.ctx)
     } else if (this.ctx.accumulatedText && !this.ctx.textStreamedViaContentBlock) {
       const fallbackTextId = generateId()
       this.ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
       this.ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: this.ctx.accumulatedText })
       this.ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
     }
+    this.finalizeOpenTextParts()
 
     this.finalizeToolCalls(this.ctx)
     this.ctx.sink.enqueue({
@@ -1243,6 +1250,7 @@ export class ClaudeCodeStreamAdapter {
 
     const resultError = createClaudeCodeResultError(message)
     if (resultError) {
+      this.finalizeOpenTextParts()
       // Error results still carry token totals useful to the live message. The driver only calls
       // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
       // BEFORE throwing. Per-invocation records are captured independently by the driver.
