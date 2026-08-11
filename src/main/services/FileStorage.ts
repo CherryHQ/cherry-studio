@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { toAsarUnpackedPath } from '@main/utils'
+import { resolveBundledRipgrepPath } from '@main/utils/bundledBinaries'
 import {
   checkName,
   getFilesDir,
@@ -36,16 +36,7 @@ const logger = loggerService.withContext('FileStorage')
 // Get ripgrep binary path
 const getRipgrepBinaryPath = (): string | null => {
   try {
-    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-    const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
-    let ripgrepBinaryPath = path.join(
-      __dirname,
-      '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
-      `${arch}-${platform}`,
-      process.platform === 'win32' ? 'rg.exe' : 'rg'
-    )
-
-    ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
+    const ripgrepBinaryPath = resolveBundledRipgrepPath()
 
     if (fs.existsSync(ripgrepBinaryPath)) {
       return ripgrepBinaryPath

@@ -298,16 +298,9 @@
         "button": "清除自訂路徑"
       },
       "customPath": "使用自訂路徑：{{path}}",
-      "error": {
-        "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
-        "recheck": "重新偵測 Git Bash 安裝",
-        "required": "在 Windows 上需要設定 Git Bash 路徑",
-        "title": "需要 Git Bash"
-      },
       "found": {
         "title": "已設定 Git Bash"
       },
-      "notFound": "找不到 Git Bash。請先安裝。",
       "pick": {
         "button": "選擇 Git Bash 路徑",
         "failed": "設定 Git Bash 路徑失敗",
@@ -316,7 +309,7 @@
       },
       "placeholder": "選擇 bash.exe 路徑",
       "success": "成功偵測到 Git Bash！",
-      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
+      "tooltip": "Git Bash 在 Windows 上是選用設定；若未設定或無法使用，Agent 將使用 PowerShell。"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "讀取並顯示 Jupyter notebook 內容"
+        },
+        "PowerShell": {
+          "description": "在你的環境中執行 PowerShell 命令"
         },
         "Read": {
           "description": "讀取檔案內容"
@@ -2507,6 +2503,7 @@
         "mcpServerTool": "MCP 伺服器工具",
         "multiEdit": "批次編輯",
         "notebookEdit": "筆記本編輯",
+        "powerShell": "PowerShell",
         "readFile": "讀取檔案",
         "search": "搜尋",
         "skill": "技能",

@@ -1,5 +1,7 @@
 import type { Tool } from '@types'
 
+export const POWERSHELL_TOOL_ID = 'PowerShell'
+
 // https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude
 export const builtinTools: Tool[] = [
   {
@@ -51,6 +53,13 @@ export const builtinTools: Tool[] = [
     requirePermissions: false,
     type: 'builtin'
   },
+  {
+    id: POWERSHELL_TOOL_ID,
+    name: 'PowerShell',
+    description: 'Executes PowerShell commands in your environment',
+    requirePermissions: true,
+    type: 'builtin'
+  },
   { id: 'Read', name: 'Read', description: 'Reads the contents of files', requirePermissions: false, type: 'builtin' },
   {
     id: 'Task',
@@ -82,3 +91,24 @@ export const builtinTools: Tool[] = [
   },
   { id: 'Write', name: 'Write', description: 'Creates or overwrites files', requirePermissions: true, type: 'builtin' }
 ]
+
+export const getExposedBuiltinTools = (platform: NodeJS.Platform = process.platform): Tool[] =>
+  platform === 'win32' ? builtinTools : builtinTools.filter((tool) => tool.id !== POWERSHELL_TOOL_ID)
+
+/**
+ * Build a runtime-only copy of persisted allowed tool IDs.
+ *
+ * PowerShell remains an opaque, round-trippable persisted ID on every platform,
+ * but it must not become executable through either Claude runtime authorization
+ * channel outside Windows.
+ */
+export const getRuntimeAllowedTools = (
+  allowedTools: readonly string[] | undefined,
+  platform: NodeJS.Platform = process.platform
+): string[] | undefined => {
+  if (!allowedTools) {
+    return undefined
+  }
+
+  return platform === 'win32' ? [...allowedTools] : allowedTools.filter((toolId) => toolId !== POWERSHELL_TOOL_ID)
+}

@@ -134,6 +134,7 @@ describe('MessageAgentTools', () => {
   // Mock translations for tools
   const mockTranslations: Record<string, string> = {
     'message.tools.labels.bash': 'Bash',
+    'message.tools.labels.powerShell': 'PowerShell',
     'message.tools.labels.readFile': 'Read File',
     'message.tools.labels.todoWrite': 'Todo Write',
     'message.tools.labels.edit': 'Edit',
@@ -154,6 +155,7 @@ describe('MessageAgentTools', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'message.tools.truncated': 'Output truncated',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -203,6 +205,7 @@ describe('MessageAgentTools', () => {
     it('should return true for valid tool types', () => {
       expect(isValidAgentToolsType('Read')).toBe(true)
       expect(isValidAgentToolsType('Bash')).toBe(true)
+      expect(isValidAgentToolsType('PowerShell')).toBe(true)
     })
 
     it('should return false for invalid tool types', () => {
@@ -366,6 +369,59 @@ describe('MessageAgentTools', () => {
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')
+    })
+
+    it('should preserve Bash command, output, and truncation behavior', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'pnpm test', description: 'Run tests' },
+        response: `${'x'.repeat(50000)}TAIL`
+      })
+
+      render(<MessageAgentTools toolResponse={toolResponse} />)
+
+      const container = screen.getByTestId('collapse-content-Bash')
+      expect(container.textContent).toContain('pnpm test')
+      expect(container.textContent).not.toContain('TAIL')
+      expect(screen.getByText('Output truncated')).toBeInTheDocument()
+    })
+  })
+
+  describe('PowerShell rendering', () => {
+    it('should render the dedicated terminal card with command, output, label, and icon', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'PowerShell', name: 'PowerShell', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'Get-ChildItem', description: 'List files' },
+        response: 'Directory: C:\\workspace'
+      })
+
+      render(<MessageAgentTools toolResponse={toolResponse} />)
+
+      expect(screen.getByText('PowerShell')).toBeInTheDocument()
+      expect(screen.getByTestId('terminal-icon')).toBeInTheDocument()
+      const container = screen.getByTestId('collapse-content-PowerShell')
+      expect(container.textContent).toContain('Get-ChildItem')
+      expect(container.textContent).toContain('Directory: C:\\workspace')
+    })
+  })
+
+  describe('unknown provider rendering', () => {
+    it('should use the generic renderer for an unknown future provider tool', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'FutureTool', name: 'FutureTool', description: 'Future provider tool', type: 'provider' },
+        status: 'done',
+        arguments: { query: 'future input' },
+        response: 'future output'
+      })
+
+      render(<MessageAgentTools toolResponse={toolResponse} />)
+
+      expect(screen.getByText('FutureTool')).toBeInTheDocument()
+      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument()
+      expect(screen.getByText('future input')).toBeInTheDocument()
+      expect(screen.getByText('future output')).toBeInTheDocument()
     })
   })
 })

@@ -298,16 +298,9 @@
         "button": "Xóa đường dẫn tùy chỉnh"
       },
       "customPath": "Sử dụng đường dẫn tùy chỉnh: {{path}}",
-      "error": {
-        "description": "Git Bash là bắt buộc để chạy agent trên Windows. Agent không thể hoạt động nếu thiếu nó. Vui lòng cài đặt Git for Windows từ",
-        "recheck": "Kiểm tra lại việc cài đặt Git Bash",
-        "required": "Đường dẫn Git Bash là bắt buộc trên Windows",
-        "title": "Cần có Git Bash"
-      },
       "found": {
         "title": "Git Bash đã được cấu hình"
       },
-      "notFound": "Không tìm thấy Git Bash. Vui lòng cài đặt trước.",
       "pick": {
         "button": "Chọn đường dẫn Git Bash",
         "failed": "Không thể thiết lập đường dẫn Git Bash",
@@ -316,7 +309,7 @@
       },
       "placeholder": "Chọn đường dẫn bash.exe",
       "success": "Git Bash đã được phát hiện thành công!",
-      "tooltip": "Git Bash là bắt buộc để chạy các agent trên Windows. Cài đặt từ git-scm.com nếu chưa có."
+      "tooltip": "Git Bash là tùy chọn trên Windows. Nếu chưa được cấu hình hoặc không khả dụng, agent sẽ sử dụng PowerShell."
     },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Đọc và hiển thị nội dung Jupyter notebook"
+        },
+        "PowerShell": {
+          "description": "Thực thi các lệnh PowerShell trong môi trường của bạn"
         },
         "Read": {
           "description": "Đọc nội dung của các tệp"
@@ -2506,6 +2502,7 @@
         "mcpServerTool": "Công cụ Máy chủ MCP",
         "multiEdit": "Chỉnh sửa đa nhiệm",
         "notebookEdit": "Chỉnh sửa Sổ tay",
+        "powerShell": "PowerShell",
         "readFile": "Đọc Tệp",
         "search": "Tìm kiếm",
         "skill": "Kỹ năng",

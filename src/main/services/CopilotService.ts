@@ -90,7 +90,7 @@ class CopilotService {
    */
   private updateHeaders = (headers?: Record<string, string>): void => {
     if (headers && Object.keys(headers).length > 0) {
-      this.headers = { ...headers }
+      this.headers = { ...this.headers, ...headers }
     }
   }
 

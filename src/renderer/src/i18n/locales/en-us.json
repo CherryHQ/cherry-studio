@@ -298,16 +298,9 @@
         "button": "Clear custom path"
       },
       "customPath": "Using custom path: {{path}}",
-      "error": {
-        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
-        "recheck": "Recheck Git Bash Installation",
-        "required": "Git Bash path is required on Windows",
-        "title": "Git Bash Required"
-      },
       "found": {
         "title": "Git Bash configured"
       },
-      "notFound": "Git Bash not found. Please install it first.",
       "pick": {
         "button": "Select Git Bash Path",
         "failed": "Failed to set Git Bash path",
@@ -316,7 +309,7 @@
       },
       "placeholder": "Select bash.exe path",
       "success": "Git Bash detected successfully!",
-      "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Git Bash is optional on Windows. If it is not configured or unavailable, the Agent uses PowerShell."
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Reads and displays Jupyter notebook contents"
+        },
+        "PowerShell": {
+          "description": "Executes PowerShell commands in your environment"
         },
         "Read": {
           "description": "Reads the contents of files"
@@ -2507,6 +2503,7 @@
         "mcpServerTool": "MCP Server Tool",
         "multiEdit": "MultiEdit",
         "notebookEdit": "NotebookEdit",
+        "powerShell": "PowerShell",
         "readFile": "Read File",
         "search": "Search",
         "skill": "Skill",

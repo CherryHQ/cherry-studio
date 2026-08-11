@@ -20,6 +20,7 @@ import {
   SettingsItem,
   SettingsTitle
 } from '../shared'
+import { sanitizeAllowedToolIds } from './toolSelection'
 
 const cardStyles: CardProps['styles'] = {
   header: {
@@ -47,6 +48,7 @@ const useBuiltinToolDescription = () => {
       MultiEdit: t('agent.tools.builtin.MultiEdit.description'),
       NotebookEdit: t('agent.tools.builtin.NotebookEdit.description'),
       NotebookRead: t('agent.tools.builtin.NotebookRead.description'),
+      PowerShell: t('agent.tools.builtin.PowerShell.description'),
       Read: t('agent.tools.builtin.Read.description'),
       Task: t('agent.tools.builtin.Task.description'),
       TodoWrite: t('agent.tools.builtin.TodoWrite.description'),
@@ -75,7 +77,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
     const allowed = agentBase?.allowed_tools ?? []
-    const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+    const sanitized = sanitizeAllowedToolIds(allowed, availableTools)
     const merged = uniq([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
@@ -112,7 +114,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
       }
       setIsUpdatingTools(true)
       const next = isApproved ? [...approvedToolIds, toolId] : approvedToolIds.filter((id) => id !== toolId)
-      const sanitized = uniq(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
+      const sanitized = uniq(sanitizeAllowedToolIds(next, availableTools).concat(autoToolIds))
       try {
         await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
       } finally {
@@ -170,7 +172,8 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
             filteredTools.map((tool) => {
               const isAuto = autoToolIds.includes(tool.id)
               const isApproved = approvedToolIds.includes(tool.id)
-              const toolDescription = tool.type === 'builtin' ? getBuiltinToolDescription(tool.id) : tool.description
+              const toolDescription =
+                tool.type === 'builtin' ? (getBuiltinToolDescription(tool.id) ?? tool.description) : tool.description
               return (
                 <Card
                   key={tool.id}

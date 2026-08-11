@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import type {
+  AgentConfiguration,
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -27,6 +28,7 @@ import {
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
+import { type AgentDataRepair, normalizeAgentDataRow } from './agentDataNormalization'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentIds'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
@@ -132,18 +134,78 @@ export class AgentService extends BaseService {
     return result[0]
   }
 
+  /** Parse a raw agent `configuration` column (JSON string) into a config object. */
+  private parseConfiguration(configuration: string | null): AgentConfiguration {
+    if (!configuration) return {} as AgentConfiguration
+    try {
+      const parsed = JSON.parse(configuration)
+      return parsed && typeof parsed === 'object' ? (parsed as AgentConfiguration) : ({} as AgentConfiguration)
+    } catch (error) {
+      logger.warn('Failed to parse agent configuration JSON', error as Error)
+      return {} as AgentConfiguration
+    }
+  }
+
   async getAgent(id: string): Promise<GetAgentResponse | null> {
     const row = await this.findAgentRow(id)
     if (!row) {
       return null
     }
 
-    const agent = this.deserializeJsonFields(row) as GetAgentResponse
+    const normalization = normalizeAgentDataRow(row, new Date().toISOString())
+    const database = await this.getDatabase()
+    await this.persistAgentRepairs(database, normalization.repair ? [normalization.repair] : [])
+
+    const agent = this.deserializeJsonFields(normalization.normalizedRow) as GetAgentResponse
     const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
     agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
 
     return agent
+  }
+
+  private async persistAgentRepairs(database: AgentDatabase, repairs: AgentDataRepair[]): Promise<void> {
+    if (repairs.length === 0) {
+      return
+    }
+
+    try {
+      await database.transaction(async (tx) => {
+        for (const repair of repairs) {
+          const conditions = [eq(agentsTable.id, repair.id)]
+
+          if (repair.updates.created_at !== undefined) {
+            conditions.push(eq(agentsTable.created_at, repair.original.created_at))
+          }
+          if (repair.updates.updated_at !== undefined) {
+            conditions.push(eq(agentsTable.updated_at, repair.original.updated_at))
+          }
+          if (repair.updates.mcps !== undefined) {
+            const originalMcps = repair.original.mcps
+            conditions.push(originalMcps === null ? isNull(agentsTable.mcps) : eq(agentsTable.mcps, originalMcps))
+          }
+
+          await tx
+            .update(agentsTable)
+            .set(repair.updates)
+            .where(and(...conditions))
+        }
+      })
+
+      logger.warn('Repaired invalid agent fields', {
+        count: repairs.length,
+        repairs: repairs.map((repair) => ({
+          id: repair.id,
+          fields: Object.keys(repair.updates)
+        }))
+      })
+    } catch (error) {
+      logger.warn('Failed to persist repaired agent fields', {
+        count: repairs.length,
+        agentIds: repairs.map((repair) => repair.id),
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
@@ -175,7 +237,15 @@ export class AgentService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
+    const fallbackTimestamp = new Date().toISOString()
+    const normalizedResults = result.map((row) => normalizeAgentDataRow(row, fallbackTimestamp))
+    const repairs = normalizedResults.flatMap(({ repair }) => (repair ? [repair] : []))
+
+    await this.persistAgentRepairs(database, repairs)
+
+    const agents = normalizedResults.map(({ normalizedRow }) =>
+      this.deserializeJsonFields(normalizedRow)
+    ) as GetAgentResponse[]
 
     await Promise.all(
       agents.map(async (agent) => {
@@ -223,10 +293,18 @@ export class AgentService extends BaseService {
         const resolvedPaths = this.resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-        if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-          const updateData: UpdateAgentRequest = {}
-          if (agentConfig.description) updateData.description = agentConfig.description
-          if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+        const updateData: UpdateAgentRequest = {}
+        if (agentConfig?.description) updateData.description = agentConfig.description
+        if (agentConfig?.instructions) updateData.instructions = agentConfig.instructions
+        // Backfill builtin_role for built-in agents created before role-based tool
+        // injection existed (issue #17726). Without it the runtime never injects the
+        // assistant's diagnose/navigate MCP tools. Routing through updateAgent()
+        // propagates the field to already-created sessions via syncSettingsToSessions().
+        const existingConfig = this.parseConfiguration(existing.configuration)
+        if (existingConfig.builtin_role !== builtinRole) {
+          updateData.configuration = { ...existingConfig, builtin_role: builtinRole }
+        }
+        if (Object.keys(updateData).length > 0) {
           await this.updateAgent(id, updateData)
         }
         return { agentId: id }
@@ -251,7 +329,11 @@ export class AgentService extends BaseService {
         permission_mode: 'default',
         max_turns: 100,
         env_vars: {},
-        ...agentConfig?.configuration
+        ...agentConfig?.configuration,
+        // Stamp the role so the runtime can inject role-specific tools (e.g. the
+        // assistant's diagnose/navigate MCP servers). Forced last so it stays
+        // authoritative even if a template's agent.json omits it (issue #17726).
+        builtin_role: builtinRole
       }
 
       const req: CreateAgentRequest = {

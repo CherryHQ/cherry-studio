@@ -16,6 +16,7 @@ import {
   SettingsItem,
   SettingsTitle
 } from '../shared'
+import { sanitizeAllowedToolIds } from './toolSelection'
 
 const FULL_AUTO_MODE_COLOR = '#ff7a45'
 
@@ -32,7 +33,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
     const allowed = agentBase?.allowed_tools ?? []
-    const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+    const sanitized = sanitizeAllowedToolIds(allowed, availableTools)
     const merged = uniq([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])

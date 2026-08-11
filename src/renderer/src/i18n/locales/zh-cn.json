@@ -298,16 +298,9 @@
         "button": "清除自定义路径"
       },
       "customPath": "使用自定义路径：{{path}}",
-      "error": {
-        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
-        "recheck": "重新检测 Git Bash 安装",
-        "required": "在 Windows 上需要配置 Git Bash 路径",
-        "title": "需要 Git Bash"
-      },
       "found": {
         "title": "已配置 Git Bash"
       },
-      "notFound": "未找到 Git Bash。请先安装。",
       "pick": {
         "button": "选择 Git Bash 路径",
         "failed": "设置 Git Bash 路径失败",
@@ -316,7 +309,7 @@
       },
       "placeholder": "选择 bash.exe 路径",
       "success": "成功检测到 Git Bash！",
-      "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
+      "tooltip": "Git Bash 在 Windows 上是可选配置；如果未配置或不可用，智能体将使用 PowerShell。"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "读取并显示 Jupyter notebook 内容"
+        },
+        "PowerShell": {
+          "description": "在你的环境中执行 PowerShell 命令"
         },
         "Read": {
           "description": "读取文件内容"
@@ -2507,6 +2503,7 @@
         "mcpServerTool": "MCP 服务器工具",
         "multiEdit": "批量编辑",
         "notebookEdit": "笔记本编辑",
+        "powerShell": "PowerShell",
         "readFile": "读取文件",
         "search": "搜索",
         "skill": "技能",

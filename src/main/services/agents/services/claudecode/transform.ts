@@ -615,6 +615,7 @@ function handleContentBlockStart(
         type: 'tool-input-start',
         id: block.toolCallId,
         toolName: block.toolName,
+        providerExecuted: true,
         providerMetadata
       })
       break

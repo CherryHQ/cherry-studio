@@ -298,16 +298,9 @@
         "button": "Benutzerdefinierten Pfad löschen"
       },
       "customPath": "Benutzerdefinierter Pfad: {{path}}",
-      "error": {
-        "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
-        "recheck": "Überprüfe die Git Bash-Installation erneut",
-        "required": "Git Bash-Pfad ist unter Windows erforderlich",
-        "title": "Git Bash erforderlich"
-      },
       "found": {
         "title": "Git Bash konfiguriert"
       },
-      "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
       "pick": {
         "button": "Git Bash Pfad auswählen",
         "failed": "Git Bash Pfad konnte nicht gesetzt werden",
@@ -316,7 +309,7 @@
       },
       "placeholder": "Wählen Sie den Pfad zu bash.exe",
       "success": "Git Bash erfolgreich erkannt!",
-      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
+      "tooltip": "Git Bash ist unter Windows optional. Wenn es nicht konfiguriert oder nicht verfügbar ist, verwendet der Agent PowerShell."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an"
+        },
+        "PowerShell": {
+          "description": "Führt PowerShell-Befehle in Ihrer Umgebung aus"
         },
         "Read": {
           "description": "Liest die Inhalte von Dateien"
@@ -2506,6 +2502,7 @@
         "mcpServerTool": "MCP-Server-Tool",
         "multiEdit": "MultiEdit",
         "notebookEdit": "NotizbuchBearbeiten",
+        "powerShell": "PowerShell",
         "readFile": "Datei lesen",
         "search": "Suche",
         "skill": "Fähigkeit",

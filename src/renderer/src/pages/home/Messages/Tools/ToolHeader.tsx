@@ -51,6 +51,7 @@ const getAgentToolIcon = (toolName: string): ReactNode => {
       return <Bot size={14} />
     case AgentToolsType.Bash:
     case AgentToolsType.BashOutput:
+    case AgentToolsType.PowerShell:
       return <Terminal size={14} />
     case AgentToolsType.Search:
       return <Search size={14} />
@@ -88,6 +89,8 @@ const getAgentToolLabel = (toolName: string, t: (key: string) => string): string
       return t('message.tools.labels.task')
     case AgentToolsType.Bash:
       return t('message.tools.labels.bash')
+    case AgentToolsType.PowerShell:
+      return t('message.tools.labels.powerShell')
     case AgentToolsType.BashOutput:
       return t('message.tools.labels.bashOutput')
     case AgentToolsType.Search:

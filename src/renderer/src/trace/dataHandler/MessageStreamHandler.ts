@@ -1,4 +1,5 @@
-import type { Message, MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import type { MessageStream } from '@anthropic-ai/sdk/lib/MessageStream'
+import type { Message } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'

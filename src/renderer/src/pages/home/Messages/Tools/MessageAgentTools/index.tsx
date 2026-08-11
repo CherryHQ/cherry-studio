@@ -15,7 +15,7 @@ export * from './types'
 import { AskUserQuestionCard } from '../AskUserQuestionCard'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
-import { BashTool } from './BashTool'
+import { BashTool, PowerShellTool } from './BashTool'
 import { EditTool } from './EditTool'
 import { ExitPlanModeTool } from './ExitPlanModeTool'
 import { getEffectiveStatus, StreamingContext, type ToolStatus, ToolStatusIndicator } from './GenericTools'
@@ -41,6 +41,7 @@ export const toolRenderers = {
   [AgentToolsType.Read]: ReadTool,
   [AgentToolsType.Task]: TaskTool,
   [AgentToolsType.Bash]: BashTool,
+  [AgentToolsType.PowerShell]: PowerShellTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
   [AgentToolsType.WebSearch]: WebSearchTool,

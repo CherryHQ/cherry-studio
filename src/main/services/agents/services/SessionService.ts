@@ -26,9 +26,12 @@ import {
   taskRunLogsTable
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
+import { type AgentDataRepair, normalizeAgentDataRow } from './agentDataNormalization'
 import { builtinSlashCommands } from './claudecode/commands'
 
 const logger = loggerService.withContext('SessionService')
+
+type SessionDatabase = Awaited<ReturnType<BaseService['getDatabase']>>
 
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
@@ -204,7 +207,10 @@ export class SessionService extends BaseService {
       return null
     }
 
-    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    const normalization = normalizeAgentDataRow(result[0], new Date().toISOString())
+    await this.persistSessionRepairs(database, normalization.repair ? [normalization.repair] : [])
+
+    const session = this.deserializeJsonFields(normalization.normalizedRow) as GetAgentSessionResponse
     const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
     session.tools = tools
     session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
@@ -216,6 +222,50 @@ export class SessionService extends BaseService {
     }
 
     return session
+  }
+
+  private async persistSessionRepairs(database: SessionDatabase, repairs: AgentDataRepair[]): Promise<void> {
+    if (repairs.length === 0) {
+      return
+    }
+
+    try {
+      await database.transaction(async (tx) => {
+        for (const repair of repairs) {
+          const conditions = [eq(sessionsTable.id, repair.id)]
+
+          if (repair.updates.created_at !== undefined) {
+            conditions.push(eq(sessionsTable.created_at, repair.original.created_at))
+          }
+          if (repair.updates.updated_at !== undefined) {
+            conditions.push(eq(sessionsTable.updated_at, repair.original.updated_at))
+          }
+          if (repair.updates.mcps !== undefined) {
+            const originalMcps = repair.original.mcps
+            conditions.push(originalMcps === null ? isNull(sessionsTable.mcps) : eq(sessionsTable.mcps, originalMcps))
+          }
+
+          await tx
+            .update(sessionsTable)
+            .set(repair.updates)
+            .where(and(...conditions))
+        }
+      })
+
+      logger.warn('Repaired invalid session fields', {
+        count: repairs.length,
+        repairs: repairs.map((repair) => ({
+          id: repair.id,
+          fields: Object.keys(repair.updates)
+        }))
+      })
+    } catch (error) {
+      logger.warn('Failed to persist repaired session fields', {
+        count: repairs.length,
+        sessionIds: repairs.map((repair) => repair.id),
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   async listSessions(
@@ -255,7 +305,15 @@ export class SessionService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
+    const fallbackTimestamp = new Date().toISOString()
+    const normalizedResults = result.map((row) => normalizeAgentDataRow(row, fallbackTimestamp))
+    const repairs = normalizedResults.flatMap(({ repair }) => (repair ? [repair] : []))
+
+    await this.persistSessionRepairs(database, repairs)
+
+    const sessions = normalizedResults.map(({ normalizedRow }) =>
+      this.deserializeJsonFields(normalizedRow)
+    ) as GetAgentSessionResponse[]
 
     await Promise.all(
       sessions.map(async (session) => {

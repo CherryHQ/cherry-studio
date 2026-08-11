@@ -9,6 +9,14 @@ const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
 const packages = [
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64',
+  '@anthropic-ai/claude-agent-sdk-darwin-x64',
+  '@anthropic-ai/claude-agent-sdk-linux-arm64',
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl',
+  '@anthropic-ai/claude-agent-sdk-linux-x64',
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
+  '@anthropic-ai/claude-agent-sdk-win32-arm64',
+  '@anthropic-ai/claude-agent-sdk-win32-x64',
   '@img/sharp-darwin-arm64',
   '@img/sharp-darwin-x64',
   '@img/sharp-libvips-darwin-arm64',
@@ -51,6 +59,31 @@ const platformToArch = {
   linux: 'linux',
   linuxmusl: 'linuxmusl'
 }
+
+const ripgrepTargets = ['arm64-darwin', 'arm64-linux', 'arm64-win32', 'x64-darwin', 'x64-linux', 'x64-win32']
+const rtkTargets = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
+
+function getTargetPackageFilters({ platform, arch }, packageNames = packages) {
+  const keepPackages = packageNames.filter(
+    (packageName) => packageName.includes(arch) && packageName.includes(platform)
+  )
+  const excludePackageFilters = packageNames
+    .filter((packageName) => !keepPackages.includes(packageName))
+    .map((packageName) => '!node_modules/' + packageName + '/**')
+
+  const excludeRipgrepFilters = ripgrepTargets
+    .filter((target) => target !== `${arch}-${platform}`)
+    .map((target) => '!node_modules/@cherrystudio/ripgrep/vendor/ripgrep/' + target + '/**')
+
+  const currentPlatformKey = `${platform}-${arch}`
+  const excludeRtkFilters = rtkTargets
+    .filter((target) => target !== currentPlatformKey)
+    .map((target) => '!resources/binaries/' + target + '/**')
+
+  return [...excludePackageFilters, ...excludeRipgrepFilters, ...excludeRtkFilters]
+}
+
+exports.getTargetPackageFilters = getTargetPackageFilters
 
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
@@ -114,36 +147,5 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = packages.filter((p) => p.includes('arm64') && p.includes(platform))
-  const arm64ExcludePackages = packages
-    .filter((p) => !arm64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const x64KeepPackages = packages.filter((p) => p.includes('x64') && p.includes(platform))
-  const x64ExcludePackages = packages
-    .filter((p) => !x64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
-    .filter((f) => {
-      // On Windows ARM64, also keep x64-win32 for emulation compatibility
-      if (platform === 'win32' && context.arch === Arch.arm64 && f === 'x64-win32') {
-        return false
-      }
-      return f !== `${arch}-${platform}`
-    })
-    .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
-
-  // Exclude rtk binaries for other platform-arch combinations
-  const currentPlatformKey = `${platform}-${arch}`
-  const allRtkPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
-  const excludeRtkFilters = allRtkPlatforms
-    .filter((p) => p !== currentPlatformKey)
-    .map((p) => '!resources/binaries/' + p + '/**')
-
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
-  }
+  await excludePackages(getTargetPackageFilters({ platform, arch }))
 }
