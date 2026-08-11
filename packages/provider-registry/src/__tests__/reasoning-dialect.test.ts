@@ -52,7 +52,6 @@ describe('native-protocol reasoning dialect', () => {
     // reporting its effort control; see the sibling assertion below.
     ['gemini-3-1-flash-image', 'effort'],
     ['gemini-3-1-flash-lite-image', 'effort'],
-    ['gemini-3-pro-preview', 'effort'],
     ['gemini-flash-latest', 'effort'],
     ['claude-opus-4-5', 'budget'],
     ['claude-haiku-4-5', 'budget'],
