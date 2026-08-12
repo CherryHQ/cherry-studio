@@ -8443,7 +8443,7 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -8503,6 +8503,54 @@
                   "value": {
                     "source": "literal",
                     "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "high",
+                "low": "high",
+                "medium": "high",
+                "minimal": "high",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "effortMap": {
+                "low": "high",
+                "medium": "high",
+                "minimal": "high",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
                   }
                 }
               ]

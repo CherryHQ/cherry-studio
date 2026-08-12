@@ -41,15 +41,20 @@ describe('provider reasoning contracts', () => {
     })
   })
 
-  it('keeps DeepSeek V4 Pro low efforts mapped to high', () => {
-    const wire = override('deepseek', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.wire
-    expect(wire?.effort?.effortMap).toEqual({
-      minimal: 'high',
-      low: 'high',
-      medium: 'high',
-      xhigh: 'max'
-    })
-  })
+  // Both Pro endpoints must lift the low efforts the same way; a Responses contract copied from
+  // Flash would silently give Pro a weaker thinking level than its Chat Completions route.
+  it.each(['openai-chat-completions', 'openai-responses'] as const)(
+    'keeps DeepSeek V4 Pro low efforts mapped to high on %s',
+    (endpointType) => {
+      const wire = override('deepseek', 'deepseek-v4-pro').reasoningContracts?.[endpointType]?.wire
+      expect(wire?.effort?.effortMap).toEqual({
+        minimal: 'high',
+        low: 'high',
+        medium: 'high',
+        xhigh: 'max'
+      })
+    }
+  )
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
   // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type

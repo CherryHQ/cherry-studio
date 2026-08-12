@@ -50,7 +50,7 @@ const proChatEffortWire = {
   }
 }
 
-const responsesEffortWire = {
+const flashResponsesEffortWire = {
   off: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
   },
@@ -61,6 +61,20 @@ const responsesEffortWire = {
   effort: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
     effortMap: flashEffortMap
+  }
+}
+
+const proResponsesEffortWire = {
+  off: {
+    operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
+  },
+  auto: {
+    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
+    effortMap: { auto: 'high' as const, ...proEffortMap }
+  },
+  effort: {
+    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
+    effortMap: proEffortMap
   }
 }
 
@@ -98,7 +112,7 @@ export default defineProvider({
     {
       id: 'web-search',
       modelScope: 'model-dependent',
-      modelIdPrefixes: ['deepseek-v4-flash'],
+      modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
       endpointTypes: ['openai-responses']
     }
   ],
@@ -121,14 +135,15 @@ export default defineProvider({
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
         'openai-chat-completions': { wire: flashChatEffortWire },
-        'openai-responses': { wire: responsesEffortWire }
+        'openai-responses': { wire: flashResponsesEffortWire }
       }
     },
     {
       modelId: 'deepseek-v4-pro',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { wire: proChatEffortWire }
+        'openai-chat-completions': { wire: proChatEffortWire },
+        'openai-responses': { wire: proResponsesEffortWire }
       }
     }
   ]
