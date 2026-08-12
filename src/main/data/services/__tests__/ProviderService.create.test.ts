@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 // Stub the registry loader so the preset lookup returns a minimal CherryIN row
-// (its gemini / openai-chat endpoints tagged `cherryin`) without reading the
+// (its gemini / OpenAI endpoints tagged `cherryin`) without reading the
 // shipped providers.json, whose path is mocked away in the test harness.
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
@@ -19,6 +19,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           id: 'cherryin',
           endpointConfigs: {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+            'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions'
@@ -56,7 +57,6 @@ describe('ProviderService.create — endpoint config overrides', () => {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://express-ent-admin.cherryin.ai' },
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://express-ent-admin.cherryin.ai/v1beta' },
-        // openai-responses is NOT declared by the cherryin preset → endpoint-type default.
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://express-ent-admin.cherryin.ai' }
       }
     })
@@ -67,8 +67,7 @@ describe('ProviderService.create — endpoint config overrides', () => {
       adapterFamily: 'cherryin'
     })
     expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('cherryin')
-    // Undeclared endpoint falls back to the endpoint-type default, not cherryin.
-    expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('openai')
+    expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('cherryin')
 
     // The row persists only the user-owned override shape — adapterFamily is
     // registry-owned and supplied at read time, never frozen into the row.

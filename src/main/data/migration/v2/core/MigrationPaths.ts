@@ -69,6 +69,16 @@ export interface MigrationPaths {
   readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
+  /** {userData}/migration_temp — renderer export staging root. */
+  readonly migrationTempDir: string
+  /** {userData}/migration_temp/redux_export — per-category Redux exports. */
+  readonly migrationReduxExportDir: string
+  /** {userData}/migration_temp/dexie_export — per-table Dexie exports. */
+  readonly migrationDexieExportDir: string
+  /** {userData}/migration_temp/localstorage_export — migration-owned localStorage export. */
+  readonly migrationLocalStorageExportDir: string
+  /** {userData}/migration_temp/localstorage_export/localStorage.json. */
+  readonly migrationLocalStorageExportFile: string
 
   // ── Derived from cherryHome ──
 
@@ -214,6 +224,8 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   }
 
   const filesDataDir = path.join(currentUserData, 'Data', 'Files')
+  const migrationTempDir = path.join(currentUserData, 'migration_temp')
+  const migrationLocalStorageExportDir = path.join(migrationTempDir, 'localstorage_export')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
@@ -229,6 +241,11 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
     agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
+    migrationTempDir,
+    migrationReduxExportDir: path.join(migrationTempDir, 'redux_export'),
+    migrationDexieExportDir: path.join(migrationTempDir, 'dexie_export'),
+    migrationLocalStorageExportDir,
+    migrationLocalStorageExportFile: path.join(migrationLocalStorageExportDir, 'localStorage.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

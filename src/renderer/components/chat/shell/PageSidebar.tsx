@@ -63,6 +63,7 @@ export function PageSidebar({
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
           aria-hidden={!open}
           inert={!open}
+          data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(

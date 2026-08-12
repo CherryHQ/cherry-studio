@@ -8,17 +8,13 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { useTabs } from './useTabs'
 
-function isSettingsTabUrl(url: string) {
-  return url === '/settings' || url.startsWith('/settings/') || url.startsWith('/settings?')
-}
-
 function useOpenSettingsRoute() {
   const { tabs, openTab, setActiveTab, updateTab } = useTabs()
   const settingsTabIdRef = useRef<string | null>(null)
   const pendingSettingsPathRef = useRef<SettingsPath | null>(null)
 
   useEffect(() => {
-    const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
+    const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsPath(tab.url))
 
     if (!settingsTab) {
       settingsTabIdRef.current = null
@@ -45,7 +41,7 @@ function useOpenSettingsRoute() {
     (path: SettingsPath) => {
       const targetPath = normalizeSettingsPath(path)
       const title = i18n.t('settings.title')
-      const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
+      const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsPath(tab.url))
 
       if (settingsTab) {
         updateTab(settingsTab.id, {

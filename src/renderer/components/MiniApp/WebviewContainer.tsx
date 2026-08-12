@@ -2,7 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
+import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -93,15 +93,23 @@ const WebviewContainer = memo(
           // Set link opening behavior for this webview
           void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
         }
+
+        if (!loadCallbackFired) {
+          loadCallbackFired = true
+          logger.debug(`Calling onLoadedCallback from dom-ready for app: ${appid}`)
+          onLoadedCallback(appid)
+        }
       }
 
-      const handleStartLoading = () => {
+      const handleStartNavigation = (event: DidStartNavigationEvent) => {
+        if (!event.isMainFrame || event.isInPlace) return
+
         clearLoadCallbackTimer()
-        // Reset callback flag when starting a new load
+        // Reset callback flag when starting a new main-frame load.
         loadCallbackFired = false
       }
 
-      webview.addEventListener('did-start-loading', handleStartLoading)
+      webview.addEventListener('did-start-navigation', handleStartNavigation)
       webview.addEventListener('dom-ready', handleDomReady)
       webview.addEventListener('did-finish-load', handleLoaded)
       webview.addEventListener('ready-to-show', handleReadyToShow)
@@ -112,7 +120,7 @@ const WebviewContainer = memo(
 
       return () => {
         clearLoadCallbackTimer()
-        webview.removeEventListener('did-start-loading', handleStartLoading)
+        webview.removeEventListener('did-start-navigation', handleStartNavigation)
         webview.removeEventListener('dom-ready', handleDomReady)
         webview.removeEventListener('did-finish-load', handleLoaded)
         webview.removeEventListener('ready-to-show', handleReadyToShow)

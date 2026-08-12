@@ -43,6 +43,15 @@ export type ResourceListGroupHeaderIconContext = {
 
 export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle' | 'none'
 
+/**
+ * What a group header IS, which decides how it reads: an `entity` names something you can open or
+ * manage (an agent, an assistant, a workdir) and looks like the content it sits above; a `bucket`
+ * only gathers rows (a time range, "pinned", "no workdir") and recedes into a label. Defaults to
+ * `entity` — a header names something unless the list says otherwise. Both kinds stay on the shared
+ * row rhythm; hierarchy comes from their visual voice rather than extra vertical spacing.
+ */
+export type ResourceListGroupHeaderKind = 'entity' | 'bucket'
+
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
   label: string
@@ -125,6 +134,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   getGroupHeaderSelected?: (group: ResourceListGroup) => boolean
   onGroupHeaderActivate?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
+  getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]

@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
+import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -41,6 +42,7 @@ const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
+const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
@@ -250,6 +252,74 @@ function ModelRow({
   )
 }
 
+function ModelSelectorFilterTags({
+  tags,
+  tagSelection,
+  onToggleTag
+}: {
+  tags: readonly ModelSelectorTag[]
+  tagSelection: Record<ModelSelectorTag, boolean>
+  onToggleTag: (tag: ModelSelectorTag) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fadeState, setFadeState] = useState({ left: false, right: false })
+
+  const updateFadeState = useCallback(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    // 容差 1px:缩放下 scrollWidth/clientWidth 有亚像素误差,精确等式会让右侧渐隐永不消失
+    const left = element.scrollLeft > 0
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+    setFadeState((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+  }, [])
+
+  useLayoutEffect(() => {
+    updateFadeState()
+  })
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+
+    const observer = new ResizeObserver(updateFadeState)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [updateFadeState])
+
+  const maskImage =
+    fadeState.left && fadeState.right
+      ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+      : fadeState.right
+        ? `linear-gradient(to right, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+        : fadeState.left
+          ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px)`
+          : undefined
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={updateFadeState}
+      style={maskImage ? { maskImage } : undefined}
+      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      data-testid="model-selector-filter-tags">
+      {tags.map((tag) => (
+        <ModelTag
+          key={`filter-${tag}`}
+          tag={tag}
+          size={FILTER_TAG_SIZE}
+          showLabel
+          inactive={!tagSelection[tag]}
+          onClick={() => onToggleTag(tag)}
+          className="h-5 shrink-0 items-center transition-colors"
+        />
+      ))}
+    </div>
+  )
+}
+
 export function ModelSelector(props: ModelSelectorProps) {
   const {
     trigger,
@@ -287,6 +357,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
+  const [hasActivatedLazyData, setHasActivatedLazyData] = useState(openProp === true && mountStrategy === 'lazy-keep')
   // 用 startTransition 包裹：滚动时虚拟列表内部可能已进入 layout lifecycle（flushSync），
   // 此时 onMouseEnter 同步 setState 会与之冲突，转为 transition 避免竞争。
   const setFocusedItemKey = useCallback((key: string) => {
@@ -299,6 +370,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
+  const hasActiveTagFilterRef = useRef(false)
+  const [renderedOpen, setRenderedOpen] = useState(false)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -323,8 +396,21 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [])
 
   const open = openProp ?? internalOpen
+  const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+
+  // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
+  // rendering the open->closed transition unmounts it in that same commit, so the closed-state
+  // effect below can never reset the tags on the stale rows.
+  if (renderedOpen !== open) {
+    setRenderedOpen(open)
+    if (!open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
+      setShellKey((key) => key + 1)
+    }
+  }
+
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const multiSelectModeRef = useRef(multiSelectMode)
+  const wasDataEnabledRef = useRef(false)
   multiSelectModeRef.current = multiSelectMode
 
   const setOpen = useCallback(
@@ -386,7 +472,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     toggleTag,
     visibleSelectedModelIdSet
   } = useModelSelectorData({
-    enabled: open,
+    enabled: dataEnabled,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -401,6 +487,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
+  hasActiveTagFilterRef.current = selectedTags.length > 0
 
   const listHeight = useMemo(
     () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
@@ -515,10 +602,12 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
-      setShellKey((key) => key + 1)
+      if (mountStrategy !== 'lazy-keep' || !hasActiveTagFilterRef.current) {
+        setShellKey((key) => key + 1)
+      }
       setOpen(false)
     },
-    [open, runPendingCloseAction, setOpen]
+    [mountStrategy, open, runPendingCloseAction, setOpen]
   )
 
   const closeBeforeSettingsNavigation = useCallback(
@@ -628,7 +717,18 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open])
 
   useEffect(() => {
-    if (!open) {
+    if (open && mountStrategy === 'lazy-keep') {
+      setHasActivatedLazyData(true)
+    }
+  }, [mountStrategy, open])
+
+  useEffect(() => {
+    const wasDataEnabled = wasDataEnabledRef.current
+    wasDataEnabledRef.current = dataEnabled
+
+    // Enabling a deferred query already triggers SWR's initial fetch. Only
+    // refresh when lazy-kept data stayed active between two openings.
+    if (!open || !wasDataEnabled) {
       return
     }
 
@@ -638,7 +738,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (showPinnedModels) {
       void refetchPinnedModels()
     }
-  }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
+  }, [dataEnabled, open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
 
   useEffect(() => {
     if (!open) {
@@ -773,23 +873,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       return undefined
     }
 
-    return (
-      <div
-        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        data-testid="model-selector-filter-tags">
-        {availableTags.map((tag) => (
-          <ModelTag
-            key={`filter-${tag}`}
-            tag={tag}
-            size={FILTER_TAG_SIZE}
-            showLabel
-            inactive={!tagSelection[tag]}
-            onClick={() => toggleTag(tag)}
-            className="h-5 shrink-0 items-center transition-colors"
-          />
-        ))}
-      </div>
-    )
+    return <ModelSelectorFilterTags tags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(
@@ -798,6 +882,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         ? {
             label: t('models.multi_select.label'),
             ariaLabel: t('models.multi_select.label'),
+            tooltip: t('models.multi_select.tooltip'),
             checked: multiSelectMode,
             placement: 'search-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,

@@ -1,6 +1,5 @@
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -225,7 +224,6 @@ export function useTabDrag({
           if (tab) {
             void ipcApi.request('tab.detach', {
               ...tab,
-              url: resolveSidebarAppTabEntryUrl(tab),
               x: e.screenX - 400,
               y: e.screenY - 20
             })

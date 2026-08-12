@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationStageCenter from '../ConversationStageCenter'
 
-const optionalPresentationState = vi.hoisted(() => ({
-  value: undefined as { presentationMaximized: boolean } | undefined
-}))
+const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
 
 interface MockStageProps {
   placement: string
@@ -30,16 +28,16 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => optionalPresentationState.value
+  useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
 }))
 
 describe('ConversationStageCenter', () => {
   beforeEach(() => {
-    optionalPresentationState.value = undefined
+    rightPanelPresentationMock.maximized = false
   })
 
   it('forwards stage content and maximized presentation state', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
+    rightPanelPresentationMock.maximized = true
 
     render(<ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />)
 
@@ -51,8 +49,6 @@ describe('ConversationStageCenter', () => {
   })
 
   it('uses effective presentation state while maximized intent is temporarily hidden', () => {
-    optionalPresentationState.value = { presentationMaximized: false }
-
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')

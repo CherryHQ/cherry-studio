@@ -1,4 +1,5 @@
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
@@ -71,16 +72,20 @@ const CodeBlock: React.FC<Props> = ({
     [actions, blockId, id]
   )
 
+  const inlinePath =
+    (language === null || language === 'text') && typeof children === 'string'
+      ? normalizeInlineFilePath(children)
+      : null
+
+  if (inlinePath && isKnownNavigationPath(inlinePath)) {
+    return <NavigateToolInline input={{ path: inlinePath }} />
+  }
+
   // A plain text fence may be the model's way to present a single generated file or directory path.
-  if (
-    !isWin &&
-    (language === null || language === 'text') &&
-    typeof children === 'string' &&
-    isInlineFilePath(children)
-  ) {
+  if (!isWin && inlinePath && isInlineFilePath(children)) {
     return (
       <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={normalizeInlineFilePath(children)} />
+        <ClickableFilePath path={inlinePath} />
       </code>
     )
   }

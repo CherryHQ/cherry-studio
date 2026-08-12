@@ -41,8 +41,8 @@ import { defineRoute } from '../define'
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
- * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
- * are deliberately absent. Outputs reuse the canonical entity schemas
+ * `AbortSignal`, `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe),
+ * and main-internal `contextOwner` are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
  * AI SDK / transport types (usage, stream responses) — the router never parses
  * `output`, and these are built by trusted main, so a field mirror buys nothing
@@ -71,6 +71,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
@@ -191,6 +197,7 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
@@ -247,6 +254,10 @@ export const aiRequestSchemas = {
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
+  }),
+  'ai.agent.feedback_session.create': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),

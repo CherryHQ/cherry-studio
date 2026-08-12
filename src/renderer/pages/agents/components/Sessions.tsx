@@ -2,14 +2,14 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
+  type ResourceListGroupHeaderKind,
   type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
+  type ResourceListPresentation,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -22,6 +22,7 @@ import { SessionResourceList } from '@renderer/components/chat/resourceList/Sess
 import { useOwnerResourceActivation } from '@renderer/components/chat/resourceList/useOwnerResourceActivation'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
@@ -33,7 +34,12 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import {
+  useAgentSessionStats,
+  useSessionMutations,
+  useSessions,
+  useUpdateSession
+} from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -98,19 +104,19 @@ import {
 } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { cn } from '@renderer/utils/style'
 import type {
   AgentSessionEntity,
   AgentSessionListItem,
   AgentSessionOwnerScope
 } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_SESSION_DELETE_MAX_IDS } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
+import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -137,18 +143,19 @@ type SessionsBaseProps = {
   agentIdFilter?: AgentSessionOwnerScope | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAgentsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAgents?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onCreateSession?: (
     defaults: CreateAgentSessionDefaults
   ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
   onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
 }
 
 type ControlledSessionsProps = SessionsBaseProps & {
@@ -177,6 +184,7 @@ function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
   deleteAgentDisabled,
+  deleteTasksOnly,
   pinDisabled,
   pinned,
   onDeleteAgent,
@@ -187,6 +195,7 @@ function AgentGroupMoreMenu({
   agentId: string
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
+  deleteTasksOnly?: boolean
   pinDisabled?: boolean
   pinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
@@ -199,6 +208,7 @@ function AgentGroupMoreMenu({
     agentId,
     assistantIconType,
     deleteAgentDisabled,
+    deleteTasksOnly,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -339,16 +349,17 @@ const Sessions = ({
   agentIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAgentsActive = false,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
+  onManageAgents,
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
   panePosition,
-  presentation = 'sidebar',
+  presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
@@ -363,7 +374,6 @@ const Sessions = ({
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
@@ -381,7 +391,8 @@ const Sessions = ({
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
-  const { loadLatestSession, stats: globalSessionStats } = agentSessionsSource
+  const { loadLatestSession, loadSessionIds, stats: globalSessionStats } = agentSessionsSource
+  const { deleteSessions: deleteSessionBatch } = useSessionMutations()
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -394,6 +405,7 @@ const Sessions = ({
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
@@ -432,7 +444,13 @@ const Sessions = ({
         ? sessionExpansionWorkdir
         : sessionExpansionTime
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged filter, and the fresh [] would wipe the user's expansion state
+  // and force a re-render on every tab switch.
+  const rightPanelExpansionFilterRef = useRef(agentIdFilter)
   useEffect(() => {
+    if (rightPanelExpansionFilterRef.current === agentIdFilter) return
+    rightPanelExpansionFilterRef.current = agentIdFilter
     if (isRightPanel) setRightPanelSessionExpansion([])
   }, [agentIdFilter, isRightPanel])
 
@@ -1099,7 +1117,7 @@ const Sessions = ({
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessionItems.find((candidate) => candidate.id === id)
+      const session = sessionItemsRef.current.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
@@ -1130,8 +1148,22 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [sessionItems, t, updateSession]
+    [t, updateSession]
   )
+  const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
+    setRenamingSessionId(session.id)
+  }, [])
+  const handleRenameSessionFromDialog = useCallback(
+    (name: string) => (renamingSessionId ? handleRenameSession(renamingSessionId, name) : undefined),
+    [handleRenameSession, renamingSessionId]
+  )
+  const renamingSession = renamingSessionId
+    ? sessionItems.find((session) => session.id === renamingSessionId)
+    : undefined
+
+  useEffect(() => {
+    if (renamingSessionId && !renamingSession) setRenamingSessionId(null)
+  }, [renamingSession, renamingSessionId])
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
@@ -1431,16 +1463,19 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
+      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
-        ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
+        ? activeSession?.id === currentActiveSessionId
+          ? activeSession
+          : sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
         : undefined
 
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t('agent.delete.title'),
-          content: t('agent.delete.content'),
+          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
+          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -1450,17 +1485,27 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-        closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        if (deleteTasksOnly) {
+          const sessionIds = await loadSessionIds(agentId)
+          for (let index = 0; index < sessionIds.length; index += AGENT_SESSION_DELETE_MAX_IDS) {
+            await deleteSessionBatch(sessionIds.slice(index, index + AGENT_SESSION_DELETE_MAX_IDS))
+          }
+        } else {
+          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        }
         if (currentActiveSession?.agentId === agentId) {
           if (onActiveAgentDeleted) {
             await onActiveAgentDeleted(agentId)
           } else {
-            const remaining = sessionItemsRef.current.find((session) => session.agentId !== agentId)
-            setActiveSessionId(remaining?.id ?? null)
+            const remaining = await loadLatestSession()
+            setControlledActiveSessionId(remaining?.id ?? null, remaining ?? null)
           }
         }
 
+        if (!deleteTasksOnly) await refetchAgents()
+        await reloadSessionViews()
+        await refetchWorkspaces()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from session group', { agentId, err })
@@ -1469,7 +1514,22 @@ const Sessions = ({
         setDeletingAgentId(null)
       }
     },
-    [closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, setActiveSessionId, t]
+    [
+      activeSession,
+      closeConversationTabs,
+      agentById,
+      deleteAgent,
+      deleteSessionBatch,
+      deletingAgentId,
+      loadLatestSession,
+      loadSessionIds,
+      onActiveAgentDeleted,
+      refetchAgents,
+      refetchWorkspaces,
+      reloadSessionViews,
+      setControlledActiveSessionId,
+      t
+    ]
   )
 
   const handleDeleteWorkdirGroup = useCallback(
@@ -1847,6 +1907,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
+                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1881,7 +1942,7 @@ const Sessions = ({
                   event.stopPropagation()
                   void resolveSessionCreationDefaultsForGroup(group.id).then(requestCreateSessionFromDefaults)
                 }}>
-                <SquarePen className="block" />
+                <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )}
@@ -1939,7 +2000,7 @@ const Sessions = ({
                 requestCreateSessionFromDefaults
               )
             }}>
-            <SquarePen className="block" />
+            <NewConversationIcon className="block" />
           </ResourceList.GroupHeaderActionButton>
         </Tooltip>
       )
@@ -1961,14 +2022,9 @@ const Sessions = ({
 
       if (displayMode === 'workdir') {
         if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_SYSTEM_WORKSPACE_GROUP_ID) return null
-        if (!context.collapsed) return <FolderOpen size={13} />
-
-        return (
-          <span className="flex size-4 items-center justify-center text-muted-foreground group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
-            <Folder size={13} className="block group-hover/resource-list-group:hidden" />
-            <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
-          </span>
-        )
+        // Open vs closed is the group's state, not a hover affordance — swapping it under the pointer
+        // said "expanded" about a collapsed folder. The chevron is what answers "can I open this".
+        return context.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />
       }
 
       if (displayMode !== 'agent') return undefined
@@ -1980,6 +2036,21 @@ const Sessions = ({
     },
     [agentById, assistantIconType, defaultModelId, displayMode]
   )
+  // Which headers name a task's owner (an agent, a folder) and which merely gather rows. Declared by
+  // id rather than inferred from "does this header happen to have buttons": a group that is still
+  // loading, or one that legitimately has no actions, is not thereby a bucket.
+  // Pinned, time, missing-owner and no-workspace groups all use the recessed bucket voice while
+  // staying on the shared row rhythm.
+  const getGroupHeaderKind = useCallback((group: ResourceListGroup): ResourceListGroupHeaderKind => {
+    return group.id === SESSION_UNLINKED_AGENT_GROUP_ID ||
+      group.id === SESSION_PINNED_GROUP_ID ||
+      group.id === SESSION_SYSTEM_WORKSPACE_GROUP_ID ||
+      group.id === SESSION_NO_WORKDIR_GROUP_ID ||
+      group.id === SESSION_ORDINARY_GROUP_ID
+      ? 'bucket'
+      : 'entity'
+  }, [])
+
   const isGroupHeaderIconVisible = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return false
@@ -2005,17 +2076,14 @@ const Sessions = ({
     [agentById, displayMode]
   )
 
+  // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about
+  // dragging fired on every hover, covering the row next to it to say something you find by trying.
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
-      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
-      if (group.id === SESSION_UNLINKED_AGENT_GROUP_ID) return t('agent.session.group.unknown_agent_tip')
-
-      const agentId = getAgentIdFromSessionGroupId(group.id)
-      if (!agentId || !agentById.has(agentId)) return undefined
-
-      return t('agent.session.group.drag_hint')
+      if (displayMode !== 'agent') return undefined
+      return group.id === SESSION_UNLINKED_AGENT_GROUP_ID ? t('agent.session.group.unknown_agent_tip') : undefined
     },
-    [agentById, displayMode, t]
+    [displayMode, t]
   )
 
   const getGroupHeaderContextMenu = useCallback(
@@ -2030,6 +2098,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
+          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
@@ -2171,8 +2240,7 @@ const Sessions = ({
     ordinarySessionsSource.error,
     pinnedSessionsSource.error
   ])
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
   const activeSessionAgentId =
     activeSession?.agentId ?? sessionItems.find((session) => session.id === activeSessionId)?.agentId
   const getSessionGroupHeaderClickBehavior = useCallback(
@@ -2206,7 +2274,6 @@ const Sessions = ({
     },
     [activateOwnerResource, agentById, t]
   )
-  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
     displayMode === 'agent'
@@ -2217,8 +2284,8 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
-      key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-sidebar'}
-      className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
+      key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
+      presentation={presentation}
       items={visibleGroupedSessions}
       status={listStatus}
       groupSeeds={sessionGroupSeeds}
@@ -2237,6 +2304,7 @@ const Sessions = ({
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
+      getGroupHeaderKind={getGroupHeaderKind}
       groupHeaderClickBehavior={getSessionGroupHeaderClickBehavior}
       getGroupHeaderSelected={getSessionGroupHeaderSelected}
       onGroupHeaderActivate={handleActivateAgentGroup}
@@ -2255,13 +2323,11 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={displayMode === 'time' ? undefined : handleSessionCollapsedStateChange}>
-      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
+      <ResourceList.Header>
         {isRightPanel ? (
           <ResourceList.Search
             aria-label={t('agent.session.search.title')}
-            className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
             placeholder={t('agent.session.search.placeholder')}
-            wrapperClassName="pt-1"
           />
         ) : (
           <>
@@ -2270,16 +2336,16 @@ const Sessions = ({
               command={displayMode === 'agent' ? undefined : 'topic.create'}
               aria-label={headerCreateLabel}
               disabled={headerCreateDisabled}
-              icon={displayMode === 'agent' ? <Plus /> : <SquarePen />}
+              icon={displayMode === 'agent' ? <Plus /> : <NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
                 <SessionListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAgentsActive={manageAgentsMenuItem?.active}
+                  manageAgentsActive={manageAgentsActive}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-                  onManageAgents={manageAgentsMenuItem?.onSelect}
+                  onManageAgents={onManageAgents}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={
                     displayMode === 'agent'
@@ -2301,19 +2367,28 @@ const Sessions = ({
         displayMode={displayMode}
         error={listError}
         isDraggable={!isRightPanel && (groupDragReady || itemDragReady)}
-        isRightPanel={isRightPanel}
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onEndReached={displayMode === 'time' ? handleSessionEndReached : undefined}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
+        onOpenRenameDialog={handleOpenRenameSessionDialog}
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
         onTogglePin={toggleSessionPin}
         panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
         sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
+      />
+      <EditNameDialog
+        open={!!renamingSession}
+        title={t('agent.session.edit.title')}
+        initialName={renamingSession?.name ?? ''}
+        onSubmit={handleRenameSessionFromDialog}
+        onOpenChange={(open) => {
+          if (!open) setRenamingSessionId(null)
+        }}
       />
       <EditNameDialog
         open={!!renamingWorkspaceGroup}
@@ -2351,13 +2426,13 @@ interface SessionListBodyProps {
   displayMode: AgentSessionDisplayMode
   error?: unknown
   isDraggable: boolean
-  isRightPanel: boolean
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
   onEndReached?: () => void
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
+  onOpenRenameDialog: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
@@ -2372,13 +2447,13 @@ function SessionListBody({
   displayMode,
   error,
   isDraggable,
-  isRightPanel,
   isValidating,
   listRef,
   onDeleteSession,
   onEndReached,
   onOpenInNewTab,
   onOpenInNewWindow,
+  onOpenRenameDialog,
   onRetry,
   onSetPanePosition,
   onTogglePin,
@@ -2396,13 +2471,16 @@ function SessionListBody({
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
+        // The slot exists to line a row up under its group's icon. A pinned row is lifted out to the
+        // pinned section, where there is no such icon above it, so it indents against nothing.
         reserveLeadingIconSlot={
-          displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
+          !session.pinned && displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
+        onOpenRenameDialog={onOpenRenameDialog}
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
         onPress={setActiveSessionId}
@@ -2416,6 +2494,7 @@ function SessionListBody({
       onDeleteSession,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onOpenRenameDialog,
       onSetPanePosition,
       onTogglePin,
       panePosition,
@@ -2429,7 +2508,6 @@ function SessionListBody({
       listRef={listRef}
       draggable={isDraggable}
       onEndReached={onEndReached}
-      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={
         <ResourceList.ErrorState>
           <div className="flex flex-col gap-2">

@@ -116,16 +116,42 @@ vi.mock('electron', () => {
   }
 })
 
-import { nativeTheme } from 'electron'
+import { application } from '@application'
+import { BrowserWindow, nativeTheme } from 'electron'
 import { beforeEach } from 'vitest'
 
 import { CdpBrowserController } from '../browser'
+
+// WindowManager stub: hands out instances of the mocked BrowserWindow class
+// above, mirroring open()/getWindow()/close() used by the controller.
+const managedWindows = new Map<string, BrowserWindow>()
+let windowSeq = 0
+const wmOpen = vi.fn(() => {
+  const id = `mcp-browser-${++windowSeq}`
+  managedWindows.set(id, new BrowserWindow())
+  return id
+})
+const wmGetWindow = vi.fn((id: string) => managedWindows.get(id))
+const wmClose = vi.fn((id: string) => {
+  const win = managedWindows.get(id)
+  if (!win) return false
+  win.destroy()
+  managedWindows.delete(id)
+  return true
+})
 
 describe('CdpBrowserController', () => {
   // Reset mock state before each test to prevent state leakage
   beforeEach(() => {
     // Clear mock call history
     vi.clearAllMocks()
+    managedWindows.clear()
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'WindowManager') {
+        return { open: wmOpen, getWindow: wmGetWindow, close: wmClose } as never
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
   })
 
   it('executes single-line code via Runtime.evaluate', async () => {

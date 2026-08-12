@@ -15,6 +15,7 @@ import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
@@ -25,7 +26,7 @@ const logger = loggerService.withContext('MainApp')
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification / useTopicNamingErrorNotification are
 // intentionally main-only (update events only reach the main window; the storage warning and
 // topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
 // they depend on React-visible
@@ -50,6 +51,7 @@ function MainWindowRuntime(): null {
   }, [])
 
   useAppUpdateHandler()
+  useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
 

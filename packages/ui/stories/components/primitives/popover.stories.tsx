@@ -115,7 +115,7 @@ export const CompactMenu: Story = {
     docs: {
       description: {
         story:
-          'Compact action menu pattern (DESIGN.md › Popover › Compact menu popovers). Width follows content via `w-fit` with a 128px floor (`min-w-32`) — short labels stay tight, long labels grow naturally. Compose with `MenuList` + `MenuItem`.'
+          'Compact action menu pattern. Width follows content via `w-fit` with a 128px floor (`min-w-32`) — short labels stay tight, long labels grow naturally. Compose with `MenuList` + `MenuItem`.'
       }
     }
   },

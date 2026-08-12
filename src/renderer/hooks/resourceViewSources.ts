@@ -1,5 +1,5 @@
 import { dataApiService } from '@renderer/data/DataApiService'
-import type { AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_SESSION_DELETE_MAX_IDS, type AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
 import { createContext, use, useCallback } from 'react'
 
 import { useAgentSessionStats } from './agent/useSession'
@@ -57,6 +57,27 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
     })
     return result.sessions
   }, [])
+  const loadSessionIds = useCallback(async (agentId: string) => {
+    const ids: string[] = []
+
+    for (const pinned of [true, false] as const) {
+      let cursor: string | undefined
+      do {
+        const page = await dataApiService.get('/agent-sessions', {
+          query: {
+            agentId,
+            pinned,
+            limit: AGENT_SESSION_DELETE_MAX_IDS,
+            ...(cursor ? { cursor } : {})
+          }
+        })
+        ids.push(...page.items.map((session) => session.id))
+        cursor = page.nextCursor
+      } while (cursor)
+    }
+
+    return ids
+  }, [])
 
   return {
     stats: statsSource.stats,
@@ -65,7 +86,8 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
     refetchStats: statsSource.refetch,
     loadSession,
     loadLatestSession,
-    loadReusableSessions
+    loadReusableSessions,
+    loadSessionIds
   }
 }
 

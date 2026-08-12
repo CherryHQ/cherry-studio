@@ -314,6 +314,7 @@ export function ChatAppShell({
           <div className="relative flex min-w-0 flex-1 flex-col">
             <motion.div
               ref={centerRef}
+              data-ui="part:conversation-main"
               data-chat-app-shell-center
               id={centerId}
               layout

@@ -63,6 +63,7 @@ interface ScopeOverrides {
   contextSettings?: RequestScope['contextSettings']
   compressionModel?: RequestScope['compressionModel']
   model?: Partial<RequestScope['model']>
+  request?: Partial<RequestScope['request']>
   requestContext?: Partial<RequestScope['requestContext']>
 }
 
@@ -70,7 +71,7 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
   return {
     registry: { getAll: () => overrides.entries ?? [] },
     model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
-    request: {},
+    request: { ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
     compressionModel: overrides.compressionModel ?? null
@@ -127,21 +128,6 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
   ]
 }
 
-/**
- * Expected shape after always-on `compact: { reasoning: 'before-last-message' }`
- * runs: the stale reasoning part on the (non-final) assistant message is
- * dropped. Everything else — system content, tool-call inputs, part- and
- * message-level providerOptions, the json tool output — must still round-trip
- * losslessly through the context module's fromAISDK/toAISDK adapter. This helper lets the
- * round-trip assertions stay strict on the adapter while accounting for the
- * compaction step the feature now configures.
- */
-function compacted(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
-  return prompt.map((m) =>
-    m.role === 'assistant' ? { ...m, content: m.content.filter((p) => p.type !== 'reasoning') } : m
-  )
-}
-
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
   const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
@@ -191,21 +177,25 @@ describe('buildContextOptions → createMiddleware', () => {
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
   })
 
-  it('round-trips a prompt under the threshold losslessly (modulo compacted reasoning)', async () => {
+  it('round-trips a user-ending prompt under the threshold losslessly, including historical reasoning', async () => {
     // Deep equality over the WHOLE prompt: system string content, tool-call
-    // input, part-level and message-level providerOptions, the json output.
-    // The stale reasoning part is intentionally dropped by the always-on
-    // `compact` step (see compacted()); everything else must survive. If the
-    // surviving fields differ, the bug is in the context module's fromAISDK/toAISDK
+    // input, historical reasoning, part-level and message-level providerOptions,
+    // and the json output. If any field differs, the bug is in the context module's fromAISDK/toAISDK
     // adapter — STOP and fix it there (packages/aiCore/src/core/context), do
     // not paper over it here.
     const out = await runTransform(makePrompt('web__fetch', 100), makeScope())
-    expect(out).toEqual(compacted(makePrompt('web__fetch', 100)))
+    expect(out).toEqual(makePrompt('web__fetch', 100))
   })
 
-  it('leaves non-truncated portions of an oversized prompt untouched (modulo compacted reasoning)', async () => {
+  it('round-trips a tool-ending prompt under the threshold losslessly, including assistant reasoning', async () => {
+    const prompt = makePrompt('web__fetch', 100).slice(0, -1)
+    const out = await runTransform(prompt, makeScope())
+    expect(out).toEqual(prompt)
+  })
+
+  it('leaves non-truncated portions of an oversized prompt untouched, including reasoning', async () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
-    const reference = compacted(makePrompt('mcp__srv__dump', BIG))
+    const reference = makePrompt('mcp__srv__dump', BIG)
     expect(out.filter((m) => m.role !== 'tool')).toEqual(reference.filter((m) => m.role !== 'tool'))
   })
 })
@@ -286,6 +276,19 @@ describe('contextBuildFeature', () => {
     await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
     expect(ctx.middlewares).toBeUndefined()
   })
+
+  it('does not register context middleware for caller-owned requests', async () => {
+    const scope = makeScope({ request: { contextOwner: 'caller' } })
+    expect(contextBuildFeature.applies!(scope)).toBe(false)
+    expect(buildContextOptions(scope)).toBeNull()
+
+    const plugins = contextBuildFeature.contributeModelAdapters!(scope)
+    const ctx = { middlewares: undefined as LanguageModelMiddleware[] | undefined }
+    await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
+    expect(ctx.middlewares).toBeUndefined()
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(adapterFactoryMock).not.toHaveBeenCalled()
+  })
 })
 
 // The persist lane keeps a plain character threshold (it guards DB size and
@@ -359,7 +362,7 @@ describe('buildContextOptions — compression wiring', () => {
     const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS })
     const opts = buildContextOptions(scope)!
     expect(opts).not.toBeNull()
-    expect(opts.compact).toEqual({ reasoning: 'before-last-message', emptyMessages: 'remove' })
+    expect(opts.compact).toEqual({ reasoning: 'none', emptyMessages: 'remove' })
     // In-flight threshold is window-relative: min(setting, window share).
     expect(opts.truncate?.threshold).toBe(
       resolveInFlightTruncateThreshold(DEFAULT_CONTEXT_SETTINGS.truncateThreshold, 200_000)

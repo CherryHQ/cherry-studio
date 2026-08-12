@@ -149,6 +149,63 @@ describe('useImageTools', () => {
     expect(container.style.cursor).toBe('default')
   })
 
+  it('consumes modifier-wheel zoom before it reaches a scroll parent', () => {
+    const { container, svg, containerRef } = createImageFixture()
+    const scrollParent = document.createElement('div')
+    const handleParentWheel = vi.fn()
+    scrollParent.addEventListener('wheel', handleParentWheel)
+    scrollParent.appendChild(container)
+    document.body.appendChild(scrollParent)
+
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        enableWheelZoom: true
+      })
+    )
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -1,
+      metaKey: true
+    })
+
+    svg.dispatchEvent(wheelEvent)
+
+    expect(result.current.getCurrentTransform().scale).toBe(1.1)
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(handleParentWheel).not.toHaveBeenCalled()
+  })
+
+  it('leaves unmodified wheel input to the scroll parent', () => {
+    const { container, svg, containerRef } = createImageFixture()
+    const scrollParent = document.createElement('div')
+    const handleParentWheel = vi.fn()
+    scrollParent.addEventListener('wheel', handleParentWheel)
+    scrollParent.appendChild(container)
+    document.body.appendChild(scrollParent)
+
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        enableWheelZoom: true
+      })
+    )
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -1
+    })
+
+    svg.dispatchEvent(wheelEvent)
+
+    expect(result.current.getCurrentTransform().scale).toBe(1)
+    expect(wheelEvent.defaultPrevented).toBe(false)
+    expect(handleParentWheel).toHaveBeenCalledOnce()
+  })
+
   it('copies a clean PNG representation to the clipboard', async () => {
     const { svg, containerRef } = createImageFixture()
     const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'diagram', imgSelector: 'svg' }))

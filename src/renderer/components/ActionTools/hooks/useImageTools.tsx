@@ -190,13 +190,15 @@ export const useImageTools = (
       if ((e.ctrlKey || e.metaKey) && e.target) {
         // 确认事件发生在容器内部
         if (container.contains(e.target as Node)) {
+          e.preventDefault()
+          e.stopPropagation()
           const delta = e.deltaY < 0 ? 0.1 : -0.1
           zoom(delta)
         }
       }
     }
 
-    container.addEventListener('wheel', handleWheel, { passive: true })
+    container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
   }, [containerRef, zoom, enableWheelZoom])
 

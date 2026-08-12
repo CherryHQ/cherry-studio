@@ -193,7 +193,7 @@ describe('SubWindowService', () => {
       expect(args.options).not.toHaveProperty('titleBarOverlay')
     })
 
-    it('threads initData shape for both route and pinned tabs', () => {
+    it('threads initData shape for a pinned webview tab', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
@@ -202,12 +202,7 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true,
-        metadata: {
-          instanceAppId: 'agents',
-          instanceKey: 'session-1',
-          internalOnly: 'drop-me'
-        }
+        isPinned: true
       })
 
       const { args } = lastOpenCall()
@@ -216,11 +211,7 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true,
-        metadata: {
-          instanceAppId: 'agents',
-          instanceKey: 'session-1'
-        }
+        isPinned: true
       })
     })
 
@@ -247,28 +238,6 @@ describe('SubWindowService', () => {
 
       const { args } = lastOpenCall()
       expect(args.initData).not.toHaveProperty('icon')
-    })
-
-    it('drops malformed tab metadata from initData', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({
-        id: 'tab-bad-metadata',
-        url: 'cherry://agent',
-        metadata: {
-          instanceAppId: 'agents',
-          instanceKey: 123
-        }
-      })
-
-      const { args } = lastOpenCall()
-      expect(args.initData).toMatchObject({
-        tabId: 'tab-bad-metadata',
-        url: 'cherry://agent',
-        type: 'route'
-      })
-      expect(args.initData).not.toHaveProperty('metadata')
     })
 
     it('coerces unknown tab type to "route" in initData (renderer relies on the narrow union)', () => {

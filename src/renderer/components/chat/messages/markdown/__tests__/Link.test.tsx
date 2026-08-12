@@ -1,29 +1,39 @@
 import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Link from '../Link'
 
-const mocks = vi.hoisted(() => ({
-  findCitationInChildren: vi.fn(),
-  Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
-    <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
-  ),
-  CitationTooltip: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="citation-tooltip">{children}</div>
-  ),
-  Hyperlink: ({ children, href }: { children: React.ReactNode; href: string }) => (
-    <div data-testid="hyperlink" data-href={href}>
-      {children}
-    </div>
-  )
-}))
+const mocks = vi.hoisted(() => {
+  const navigateToRoute = vi.fn()
+
+  return {
+    navigateToRoute,
+    messageListActions: { navigateToRoute },
+    findCitationInChildren: vi.fn(),
+    Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
+      <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
+    ),
+    CitationTooltip: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="citation-tooltip">{children}</div>
+    ),
+    Hyperlink: ({ children, href }: { children: React.ReactNode; href: string }) => (
+      <div data-testid="hyperlink" data-href={href}>
+        {children}
+      </div>
+    )
+  }
+})
 
 vi.mock('@renderer/utils/markdown', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
 vi.mock('../CitationTooltip', () => ({ default: mocks.CitationTooltip }))
 vi.mock('../Hyperlink', () => ({ default: mocks.Hyperlink }))
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageListActions: () => mocks.messageListActions
+}))
 
 const supNode = { children: [{ tagName: 'sup' }] } as never
 const CitationSup = ({ children }: { children?: React.ReactNode }) => <sup>{children}</sup>
@@ -42,6 +52,18 @@ describe('Link', () => {
     expect(container.querySelector('span.link')).not.toBeNull()
     expect(container.querySelector('a')).toBeNull()
     expect(screen.getByText('Go to section')).toBeInTheDocument()
+  })
+
+  it('renders a Cherry Studio route link as an in-app navigation entry', async () => {
+    const user = userEvent.setup()
+    render(<Link href="/app/paintings?source=assistant">打开画图功能</Link>)
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button'))
+    expect(mocks.navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/paintings',
+      query: { source: 'assistant' }
+    })
   })
 
   it('uses trusted registry data when the opaque id and href agree', () => {

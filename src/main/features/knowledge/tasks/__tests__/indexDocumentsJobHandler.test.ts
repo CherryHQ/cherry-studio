@@ -1,9 +1,10 @@
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import { hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'
+import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'
 import {
   captureNoteSnapshotFileMock,
   captureUrlSnapshotFileMock,
@@ -47,8 +48,11 @@ function manyChunksText(): string {
   return Array.from({ length: 2000 }, (_, i) => `word${i}`).join(' ')
 }
 
-function lastRebuildInput(): RebuildMaterialInput {
-  return rebuildMaterialMock.mock.calls[0][1] as RebuildMaterialInput
+function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMaterialEmbeddingInput[] } {
+  const input = rebuildMaterialMock.mock.calls[0][1] as RebuildMaterialInput
+  // The contract type is Iterable (a streaming caller feeds batches lazily); the indexing job
+  // passes a plain array, but materialize either way so array assertions keep working.
+  return { ...input, embeddings: [...input.embeddings] }
 }
 
 describe('index-documents job handler', () => {
@@ -343,7 +347,7 @@ describe('index-documents job handler', () => {
   it('uses the processed-artifact path (indexedRelativePath) as the material relative path', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     const fileItem = createFileItem(FILE_ITEM_ID)
-    fileItem.data.indexedRelativePath = 'source.md'
+    fileItem.data.indexedRelativePath = 'source.md' as PosixRelativeFilePath
     knowledgeItemGetByIdMock.mockReturnValue(fileItem)
     knowledgeItemUpdateStatusMock.mockReturnValue(fileItem)
 
@@ -436,7 +440,10 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith('url-1', 'url', 'example-page.md')
     // The reader receives the item carrying the freshly captured snapshot path.
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'url-1', data: expect.objectContaining({ relativePath: 'example-page.md' }) })
+      expect.objectContaining({
+        id: 'url-1',
+        data: expect.objectContaining({ relativePath: 'example-page.md' as PosixRelativeFilePath })
+      })
     )
     // The material's relative_path is the real snapshot path under `raw/`, not the
     // item-id virtual placeholder — so it points at the bytes captureUrlSnapshotFile
@@ -451,7 +458,7 @@ describe('index-documents job handler', () => {
 
   it('does not fetch a URL that already has a captured snapshot', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1', 'cached.md'))
+    knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1', 'cached.md' as PosixRelativeFilePath))
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
 
@@ -459,7 +466,7 @@ describe('index-documents job handler', () => {
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'cached.md' }) })
+      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'cached.md' as PosixRelativeFilePath }) })
     )
   })
 
@@ -468,7 +475,7 @@ describe('index-documents job handler', () => {
     // Load sees no snapshot; the in-lock re-read sees one a concurrent job wrote.
     knowledgeItemGetByIdMock
       .mockReturnValueOnce(createUrlItem('url-1'))
-      .mockReturnValueOnce(createUrlItem('url-1', 'raced.md'))
+      .mockReturnValueOnce(createUrlItem('url-1', 'raced.md' as PosixRelativeFilePath))
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
 
@@ -477,7 +484,7 @@ describe('index-documents job handler', () => {
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced.md' }) })
+      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced.md' as PosixRelativeFilePath }) })
     )
     // The material is stamped with the raced snapshot path too — the concurrently
     // captured file, not the item-id placeholder.
@@ -522,7 +529,10 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'note', 'My note.md')
     // The reader receives the item carrying the freshly captured snapshot path.
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: NOTE_ITEM_ID, data: expect.objectContaining({ relativePath: 'My note.md' }) })
+      expect.objectContaining({
+        id: NOTE_ITEM_ID,
+        data: expect.objectContaining({ relativePath: 'My note.md' as PosixRelativeFilePath })
+      })
     )
     // The material's relative_path is the real snapshot path under `raw/`, not the
     // item-id virtual placeholder — so it points at the bytes captureNoteSnapshotFile wrote.
@@ -531,14 +541,18 @@ describe('index-documents job handler', () => {
 
   it('does not capture a note that already has a snapshot', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, null, 'processing', 'cached-note.md'))
+    knowledgeItemGetByIdMock.mockReturnValue(
+      createNoteItem(NOTE_ITEM_ID, null, 'processing', 'cached-note.md' as PosixRelativeFilePath)
+    )
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'cached-note.md' }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ relativePath: 'cached-note.md' as PosixRelativeFilePath })
+      })
     )
   })
 
@@ -548,14 +562,16 @@ describe('index-documents job handler', () => {
     const noSnapshotNote = { ...createNoteItem(NOTE_ITEM_ID), data: { source: 'My note', content: 'note body' } }
     knowledgeItemGetByIdMock
       .mockReturnValueOnce(noSnapshotNote)
-      .mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'processing', 'raced-note.md'))
+      .mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'processing', 'raced-note.md' as PosixRelativeFilePath))
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced-note.md' }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ relativePath: 'raced-note.md' as PosixRelativeFilePath })
+      })
     )
     expect(lastRebuildInput().material.relativePath).toBe('raced-note.md')
   })

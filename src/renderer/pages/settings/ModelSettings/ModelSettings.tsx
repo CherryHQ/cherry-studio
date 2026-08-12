@@ -1,8 +1,7 @@
-import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -18,17 +17,25 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { ComponentProps, FC, ReactNode } from 'react'
+import {
+  ChevronDown,
+  Languages,
+  MessageSquareMore,
+  Palette,
+  RefreshCcw,
+  Rocket,
+  RotateCcw,
+  Settings2
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DefaultModelSelector } from './DefaultModelSelector'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
@@ -68,18 +75,6 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, c
   </SettingRow>
 )
 
-interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
-  model?: Model
-  providers: Provider[]
-  placeholder: string
-  compact?: boolean
-}
-
-interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
-  filter: (model: Model) => boolean
-  onSelect: (model: Model | undefined) => void
-}
-
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
@@ -87,66 +82,6 @@ const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
-
-const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
-
-const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
-  model,
-  providers,
-  placeholder,
-  compact,
-  className,
-  ...props
-}) => {
-  const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
-  const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = useIcon(model ? getModelLogoRef(model) : undefined)
-
-  return (
-    <Button
-      {...props}
-      type="button"
-      variant="outline"
-      size={compact ? 'lg' : 'default'}
-      className={cn(
-        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
-        compact ? 'h-9' : 'h-7.5',
-        className
-      )}>
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        {model && icon ? (
-          <icon.Avatar size={20} />
-        ) : model ? (
-          <Avatar size="sm">
-            <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
-          </Avatar>
-        ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
-        {providerName && <span className="max-w-[32%] truncate text-muted-foreground text-xs">{providerName}</span>}
-      </span>
-      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-    </Button>
-  )
-}
-
-const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
-  model,
-  providers,
-  placeholder,
-  compact,
-  filter,
-  onSelect
-}) => (
-  <ModelSelector
-    multiple={false}
-    value={model}
-    onSelect={onSelect}
-    filter={filter}
-    trigger={
-      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
-    }
-  />
-)
 
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
@@ -175,6 +110,10 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { t } = useTranslation()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
+  const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
+  const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
+  const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -343,6 +282,82 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   compact={compact}
                   onSelect={onSelectPainting}
                   placeholder={t('settings.models.empty')}
+                />
+              </ModelSettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <ModelSettingRow
+            compact={compact}
+            icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={
+              <>
+                {t('settings.models.retry.label')}
+                <InfoTooltip content={t('settings.models.retry.tooltip')} />
+              </>
+            }
+            description={showDescription ? t('settings.models.retry.description') : undefined}>
+            <Switch
+              checked={retryEnabled}
+              onCheckedChange={(checked) => void setRetryEnabled(checked)}
+              aria-label={t('settings.models.retry.label')}
+            />
+          </ModelSettingRow>
+          {retryEnabled && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.max_attempts')}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  className="w-24"
+                  aria-label={t('settings.models.retry.max_attempts')}
+                  value={retryMaxAttempts}
+                  // Clamp on change: an empty field gives Number('') === 0, which a
+                  // range guard would reject — trapping the edit. Clamp instead.
+                  onChange={(e) =>
+                    void setRetryMaxAttempts(Math.min(10, Math.max(1, Math.trunc(Number(e.target.value)) || 1)))
+                  }
+                />
+              </ModelSettingRow>
+              <SettingDivider />
+              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.backoff')}>
+                <Switch
+                  checked={retryBackoffEnabled}
+                  onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
+                  aria-label={t('settings.models.retry.backoff')}
+                />
+              </ModelSettingRow>
+              <SettingDivider />
+              <ModelSettingRow
+                compact={compact}
+                icon={null}
+                title={t('settings.models.retry.fallback_models')}
+                description={showDescription ? t('settings.models.retry.fallback_models_description') : undefined}>
+                <ModelSelector
+                  multiple={true}
+                  selectionType="id"
+                  value={retryFallbackModelIds}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  filter={chatModelFilter}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size={compact ? 'lg' : 'default'}
+                      className={cn(
+                        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+                        compact ? 'h-9' : 'h-7.5'
+                      )}>
+                      <span className="min-w-0 flex-1 truncate">
+                        {retryFallbackModelIds.length > 0
+                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
+                          : t('settings.models.empty')}
+                      </span>
+                      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                    </Button>
+                  }
                 />
               </ModelSettingRow>
             </>

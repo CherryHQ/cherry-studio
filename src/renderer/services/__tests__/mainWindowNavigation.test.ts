@@ -46,6 +46,18 @@ describe('openRoute', () => {
     window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
   })
 
+  it('serializes route query parameters before dispatching the tab navigation event', () => {
+    const handler = vi.fn((event: Event) => event.preventDefault())
+    window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+
+    openRoute('/app/paintings', { source: 'assistant', prompt: 'red cherry' })
+
+    const event = handler.mock.calls[0][0] as OpenMainRouteEvent
+    expect(event.detail).toEqual({ path: '/app/paintings?source=assistant&prompt=red+cherry' })
+
+    window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+  })
+
   it('falls back to the open_route_in_main IPC when the event is unhandled', () => {
     openRoute('/knowledge?base=1')
 

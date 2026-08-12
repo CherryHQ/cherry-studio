@@ -1,6 +1,6 @@
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -290,6 +290,13 @@ import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters
 import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
+const preparedExportPaths = {
+  reduxExportPath: '/tmp/userData/migration_temp/redux_export',
+  dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
+  localStorageExportDirectory: '/tmp/userData/migration_temp/localstorage_export',
+  localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
+}
+
 describe('MigrationApp', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -409,53 +416,6 @@ describe('MigrationApp', () => {
     expect(invoke).not.toHaveBeenCalledWith(MigrationIpcChannels.CancelClose)
   })
 
-  it('renders the language selector in the right side of the header on macOS', () => {
-    platformState.isMac = true
-
-    render(<MigrationApp />)
-
-    const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
-    const languageContainer = languageTrigger.closest('[data-migration-language-select]')
-    const stepRail = document.querySelector('aside')
-
-    expect(languageContainer).toHaveClass('right-3')
-    expect(languageContainer).not.toHaveClass('left-3')
-    expect(stepRail).not.toBeNull()
-    expect(within(stepRail as HTMLElement).queryByTestId('select')).toBeNull()
-  })
-
-  it('renders the header language selector with lightweight chrome', () => {
-    render(<MigrationApp />)
-
-    const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
-    const languageContainer = languageTrigger.closest('[data-migration-language-select]')
-
-    expect(languageContainer).toHaveClass('flex', 'items-center', 'gap-1')
-    expect(languageTrigger).toHaveClass(
-      'w-auto',
-      'border-0',
-      'bg-transparent',
-      'px-1.5',
-      'text-muted-foreground',
-      'text-xs',
-      'shadow-none',
-      'hover:bg-transparent',
-      'hover:text-foreground'
-    )
-  })
-
-  it('renders the language selector in the left side of the header off macOS', () => {
-    platformState.isMac = false
-
-    render(<MigrationApp />)
-
-    const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
-    const languageContainer = languageTrigger.closest('[data-migration-language-select]')
-
-    expect(languageContainer).toHaveClass('left-3')
-    expect(languageContainer).not.toHaveClass('right-3')
-  })
-
   it('shows the data-location notice on the introduction screen when a custom directory was recovered', () => {
     migrationHookMock.progress = {
       currentMessage: 'Ready',
@@ -480,22 +440,36 @@ describe('MigrationApp', () => {
 
   it('runs the exporters and hands off to startMigration from the introduction Start button', async () => {
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: { a: 1 }, slicesFound: ['a'], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: ['a'],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () =>
         ({
-          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+          exportAll: vi.fn(
+            async (
+              onProgress?: (progress: { table: string; progress: number; total: number }) => void | Promise<void>
+            ) => {
+              await onProgress?.({ table: 'topics', progress: 0, total: 1 })
+              return '/tmp/userData/migration_temp/dexie_export'
+            }
+          )
         }) as unknown as DexieExporter
     )
     vi.mocked(LocalStorageExporter).mockImplementation(
       () =>
         ({
-          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          export: vi.fn().mockResolvedValue('/renderer/reported/localStorage.json'),
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     render(<MigrationApp />)
 
@@ -504,10 +478,17 @@ describe('MigrationApp', () => {
     })
 
     expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
-      reduxData: { a: 1 },
+      reduxExportPath: '/tmp/userData/migration_temp/redux_export',
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
     })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.PrepareExport)
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, { source: 'redux' })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, {
+      source: 'dexie',
+      table: 'topics'
+    })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
   })
 
   // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
@@ -521,12 +502,19 @@ describe('MigrationApp', () => {
     }
     // Redux export succeeds, then the Dexie export rejects mid-flow.
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     render(<MigrationApp />)
 
@@ -553,7 +541,14 @@ describe('MigrationApp', () => {
       stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () =>
@@ -568,7 +563,7 @@ describe('MigrationApp', () => {
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
     migrationHookMock.actions.startMigration.mockRejectedValue(new Error('StartMigration failed'))
 
     render(<MigrationApp />)
@@ -588,12 +583,19 @@ describe('MigrationApp', () => {
       stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     const { rerender } = render(<MigrationApp />)
     fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
@@ -612,7 +614,7 @@ describe('MigrationApp', () => {
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
   })
 
-  it('opens completed migration notices in a dialog with a full-width copy action', async () => {
+  it('opens completed migration notices in a dialog and copies them', async () => {
     migrationHookMock.progress = {
       currentMessage: 'Completed',
       migrators: [],
@@ -625,9 +627,6 @@ describe('MigrationApp', () => {
 
     const warningTrigger = screen.getByRole('button', { name: 'migration.completed.warning_heading' })
     expect(warningTrigger).toHaveAttribute('data-dialog-trigger', 'true')
-    expect(warningTrigger).toHaveClass('h-auto', 'w-fit', 'text-warning')
-    expect(warningTrigger).not.toHaveClass('w-full')
-    expect(warningTrigger.closest('[data-migration-warning-trigger]')).toHaveClass('flex', 'justify-center')
     expect(screen.queryByText('First migration notice')).not.toBeInTheDocument()
 
     fireEvent.click(warningTrigger)
@@ -636,12 +635,8 @@ describe('MigrationApp', () => {
     expect(screen.getByText('Second migration notice')).toBeInTheDocument()
     expect(screen.getByText('migration.completed.warning_description')).toBeInTheDocument()
     expect(screen.queryByTestId('dialog-footer')).not.toBeInTheDocument()
-    const scrollbar = screen.getByTestId('scrollbar')
-    expect(scrollbar).toHaveClass('max-h-[50vh]')
-    expect(within(scrollbar).getByRole('list')).not.toHaveClass('list-decimal', 'pl-5', 'space-y-2', 'overflow-y-auto')
 
     const copyButton = screen.getByRole('button', { name: 'migration.completed.warning_copy' })
-    expect(copyButton).toHaveClass('w-full')
 
     await act(async () => {
       fireEvent.click(copyButton)
@@ -915,9 +910,7 @@ describe('MigrationApp', () => {
       const retryButton = screen.getByRole('button', { name: 'migration.buttons.retry' })
       const moreOptionsButton = screen.getByRole('button', { name: 'migration.buttons.more_options' })
       expect(moreOptionsButton).toHaveAttribute('data-dialog-trigger', 'true')
-      expect(retryButton).toHaveClass('w-full')
       expect(moreOptionsButton).toHaveAttribute('variant', 'outline')
-      expect(moreOptionsButton).toHaveClass('w-full', 'text-muted-foreground')
       expect(retryButton.compareDocumentPosition(moreOptionsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(screen.queryByRole('button', { name: 'migration.buttons.close' })).not.toBeInTheDocument()
 

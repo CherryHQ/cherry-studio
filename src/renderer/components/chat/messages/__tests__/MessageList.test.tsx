@@ -19,6 +19,7 @@ const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const scrollToElement = vi.fn()
+const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -27,6 +28,13 @@ const messageVirtualListMocks = vi.hoisted(() => ({
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const messageListSearchMock = vi.hoisted(() => ({
+  props: null as {
+    messages: MessageListItem[]
+    excludedMessageIds: ReadonlySet<string>
+    isStreaming: boolean
+  } | null
+}))
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
   setForceWideLayout: () => {},
@@ -166,6 +174,13 @@ vi.mock('../list/MessageNavigation', () => ({
   default: () => null
 }))
 
+vi.mock('../list/MessageListSearch', () => ({
+  MessageListSearch: (props: NonNullable<typeof messageListSearchMock.props>) => {
+    messageListSearchMock.props = props
+    return <div data-testid="message-list-search" />
+  }
+}))
+
 vi.mock('../list/SelectionBox', () => ({
   __esModule: true,
   default: () => null
@@ -193,6 +208,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToTop,
           scrollToKey,
           scrollToElement,
+          scrollToRange,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -274,6 +290,7 @@ describe('MessageList', () => {
     scrollToTop.mockClear()
     scrollToKey.mockClear()
     scrollToElement.mockClear()
+    scrollToRange.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -282,6 +299,7 @@ describe('MessageList', () => {
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
     messageGroupMountCounts.clear()
+    messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
   })
 
@@ -289,6 +307,39 @@ describe('MessageList', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('keeps search disabled for embedded lists unless explicitly enabled', () => {
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
+  })
+
+  it('keeps search mounted while excluding pending and live message content', () => {
+    const completed = createMessage('assistant-completed', 'assistant')
+    const pending = createMessage('assistant-pending', 'assistant', 'pending')
+    const live = createMessage('assistant-live', 'assistant')
+
+    render(
+      <MessageListProvider
+        value={createValue([completed, pending, live], {
+          streamingLayers: {
+            historyPartsByMessageId: {},
+            liveMessageIds: [live.id]
+          }
+        })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('message-list-search')).toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([
+      completed.id,
+      pending.id,
+      live.id
+    ])
+    expect(messageListSearchMock.props?.excludedMessageIds.has(live.id)).toBe(true)
+    expect(messageListSearchMock.props?.isStreaming).toBe(true)
   })
 
   it('pads the message column with the rail gutter from the chat layout context', () => {

@@ -6,6 +6,7 @@ export type {
   AiStreamRequest,
   AiTransportOptions,
   CallOverrides,
+  ContextOwner,
   InProcessUsageContext,
   ListModelsRequest
 } from './requests'

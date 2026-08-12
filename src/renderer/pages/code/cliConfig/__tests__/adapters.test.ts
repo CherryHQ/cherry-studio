@@ -22,7 +22,7 @@ const REQUIRED_METHODS = [
   'extractConfig'
 ] as const satisfies readonly (keyof CliConfigAdapter)[]
 
-// Own-login exposes a config panel for every file tool except OpenCode.
+// Own-login exposes a config panel only when the tool has managed settings beyond provider/model selection.
 const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
   CodeCli.CLAUDE_CODE,
   CodeCli.OPENAI_CODEX,

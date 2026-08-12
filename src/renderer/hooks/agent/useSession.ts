@@ -23,9 +23,11 @@ import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
+  AgentSessionListItem,
   AgentSessionSearchScope,
   AgentSessionSortBy,
   AgentSessionStatsQuery,
@@ -36,7 +38,8 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useMemo, useState } from 'react'
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useSession')
@@ -63,6 +66,33 @@ type UseSessionsOptions = {
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
+
+/**
+ * Preserve entity identity across list refreshes when DataApi returns an
+ * equivalent object graph. Order changes still publish a new array, while
+ * unchanged rows retain their references for memoized consumers.
+ */
+function useStructurallySharedSessions(sessions: AgentSessionListItem[]): AgentSessionListItem[] {
+  const previousSessionsRef = useRef<AgentSessionListItem[]>([])
+
+  return useMemo(() => {
+    const previousSessions = previousSessionsRef.current
+    const previousById = new Map(previousSessions.map((session) => [session.id, session] as const))
+    let arrayChanged = previousSessions.length !== sessions.length
+
+    const nextSessions = sessions.map((session, index) => {
+      const previous = previousById.get(session.id)
+      const next = previous && isEqual(previous, session) ? previous : session
+      if (next !== previousSessions[index]) {
+        arrayChanged = true
+      }
+      return next
+    })
+    const sharedSessions = arrayChanged ? nextSessions : previousSessions
+    previousSessionsRef.current = sharedSessions
+    return sharedSessions
+  }, [sessions])
+}
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -132,27 +162,43 @@ export interface UseActiveSessionOptions {
   activeSessionId: string | null
   /** Write back when callers select a different session. */
   setActiveSessionId: (id: string | null) => void
-  /** Optimistic session to paint before its by-id query resolves (e.g. first-entry restore). */
+  /**
+   * Optimistic session to paint before its by-id query resolves (e.g. a matching row from the
+   * already-loaded session list). This value may arrive after mount; the by-id query remains
+   * canonical and a not-found response disables this fallback.
+   */
   initialSession?: AgentSessionEntity | null
 }
 
 /**
  * Resolves the active session (query-backed, with an optimistic fallback) and owns the pending
  * session itself — mirroring {@link import('@renderer/hooks/useTopic').useActiveTopic}. Callers pass
- * only `activeSessionId` + `setActiveSessionId` and drive selection through `setActiveSession` /
- * `selectSession` / `clearActiveSession`; the hook keeps pending in `useState` so a stale optimistic
- * session is ignored via the id match rather than eagerly nulled at every call site.
+ * `activeSessionId` + `setActiveSessionId`, may provide a list-backed `initialSession`, and drive
+ * selection through `setActiveSession` / `selectSession` / `clearActiveSession`; the hook keeps
+ * explicitly selected pending entities in `useState` so stale optimistic state is ignored via the
+ * id match rather than eagerly nulled at every call site.
  */
 export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialSession }: UseActiveSessionOptions) => {
   const result = useSession(activeSessionId)
-  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(() => initialSession ?? null)
+  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(null)
 
-  const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  // NOT_FOUND is authoritative even if SWR still exposes cached data or the caller has an
+  // optimistic entity. Otherwise a concurrently deleted session can be resurrected indefinitely.
+  const isNotFound = isDataApiNotFoundError(result.error)
+  const querySession =
+    !isNotFound && activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
   // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
   // returned, never counted as the source), so no path has to null it out to stay correct.
-  const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
-  const session = querySession ?? resolvedPendingSession
-  const sessionSource: AgentSessionSource = querySession ? 'query' : resolvedPendingSession ? 'pending' : 'none'
+  const resolvedPendingSession =
+    !isNotFound && activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
+  // Unlike an explicitly selected pending entity, a list-backed fallback is caller-owned and may
+  // arrive after this hook mounts. Resolve it directly instead of copying it into state. A
+  // not-found response proves the list snapshot is stale; transient failures do not.
+  const resolvedInitialSession =
+    !isNotFound && activeSessionId && initialSession?.id === activeSessionId ? initialSession : undefined
+  const fallbackSession = resolvedPendingSession ?? resolvedInitialSession
+  const session = querySession ?? fallbackSession
+  const sessionSource: AgentSessionSource = querySession ? 'query' : fallbackSession ? 'pending' : 'none'
 
   // Set the active id and its optimistic session together. `entity` may be null to move to an id
   // whose row is fetched by query (e.g. history/global-search reveal), or the id may be null to clear.
@@ -224,16 +270,19 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     query,
     limit: pageSize,
     enabled,
-    swrOptions: { revalidateAll: false }
+    swrOptions: { revalidateAll: false, revalidateFirstPage: true }
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 
-  const sessions = useInfiniteFlatItems(pages)
+  const flatSessions = useInfiniteFlatItems(pages)
+  const sessions = useStructurallySharedSessions(flatSessions)
   const pinIdBySessionId = useMemo(
     () => new Map(sessions.flatMap((session) => (session.pinId ? [[session.id, session.pinId] as const] : []))),
     [sessions]
   )
+  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
+  pinIdBySessionIdRef.current = pinIdBySessionId
   const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
@@ -339,7 +388,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   const { pin: pinTrigger, unpin: unpinTrigger } = usePinMutations('session')
   const togglePin = useCallback(
     async (sessionId: string, projectedPinId?: string | null) => {
-      const pinId = projectedPinId === undefined ? pinIdBySessionId.get(sessionId) : projectedPinId
+      const pinId = projectedPinId === undefined ? pinIdBySessionIdRef.current.get(sessionId) : projectedPinId
       try {
         if (pinId) {
           await unpinTrigger(pinId)
@@ -352,7 +401,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
         return false
       }
     },
-    [pinIdBySessionId, pinTrigger, unpinTrigger, t]
+    [pinTrigger, unpinTrigger, t]
   )
 
   return {

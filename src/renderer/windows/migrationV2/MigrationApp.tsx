@@ -25,7 +25,11 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationStage,
+  type PreparedMigrationExportPaths
+} from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
@@ -442,40 +446,50 @@ const MigrationApp: React.FC = () => {
     try {
       logger.info('Starting migration process...')
 
-      // Export Redux data
+      const exportPaths = (await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.PrepareExport
+      )) as PreparedMigrationExportPaths
+
+      // Export Redux slices to disk before opening IndexedDB. Keeping the parsed
+      // state alive through Dexie export raised the renderer's peak heap.
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'redux' })
       const reduxExporter = new ReduxExporter()
-      const reduxResult = reduxExporter.export()
+      const reduxResult = await reduxExporter.export(exportPaths.reduxExportPath)
       logger.info('Redux data exported', {
         slicesFound: reduxResult.slicesFound,
-        slicesMissing: reduxResult.slicesMissing
+        slicesMissing: reduxResult.slicesMissing,
+        exportPath: reduxResult.exportPath
       })
 
       // Export Dexie data
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
-      const dexieExportPath = `${exportBasePath}/dexie_export`
-      const dexieExporter = new DexieExporter(dexieExportPath)
+      const dexieExporter = new DexieExporter(exportPaths.dexieExportPath)
 
-      await dexieExporter.exportAll((p) => {
+      await dexieExporter.exportAll(async (p) => {
+        if (p.progress === 0) {
+          await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, {
+            source: 'dexie',
+            table: p.table
+          })
+        }
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+      logger.info('Dexie data exported', { exportPath: exportPaths.dexieExportPath })
 
       // Export localStorage data
-      const localStorageExportPath = `${exportBasePath}/localstorage_export`
-      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
-      const localStorageFilePath = await localStorageExporter.export()
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
+      const localStorageExporter = new LocalStorageExporter(exportPaths.localStorageExportDirectory)
+      await localStorageExporter.export()
       logger.info('localStorage data exported', {
         entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
+        filePath: exportPaths.localStorageExportPath
       })
 
       // Start migration with exported data
       await actions.startMigration({
-        reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        reduxExportPath: reduxResult.exportPath,
+        dexieExportPath: exportPaths.dexieExportPath,
+        localStorageExportPath: exportPaths.localStorageExportPath
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)

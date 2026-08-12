@@ -11,15 +11,17 @@ import type {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
-  type ConversationResourceMenuItem,
+  buildResourceListGroupDropAnchor,
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
+  type ConversationRowStatusValue,
   renderAssistantEntityIcon,
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
   ResourceList,
   type ResourceListGroup,
+  type ResourceListGroupHeaderKind,
   type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
+  type ResourceListPresentation,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -32,7 +34,12 @@ import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceLi
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { useOwnerResourceActivation } from '@renderer/components/chat/resourceList/useOwnerResourceActivation'
 import { CommandPopupMenu } from '@renderer/components/command'
+import {
+  readChatDraftPresence,
+  subscribeChatDraftCache
+} from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -40,7 +47,7 @@ import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hook
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePinMutations, usePins } from '@renderer/hooks/usePins'
@@ -84,9 +91,9 @@ import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transpor
 import type { TopicListItem as ApiTopicListItem } from '@shared/data/api/schemas/topics'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, Unlink, XIcon } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -121,7 +128,6 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
   joplin: 'data.export.menus.joplin',
   markdown: 'data.export.menus.markdown',
   markdown_reason: 'data.export.menus.markdown_reason',
-  notes: 'data.export.menus.notes',
   notion: 'data.export.menus.notion',
   obsidian: 'data.export.menus.obsidian',
   plain_text: 'data.export.menus.plain_text',
@@ -148,17 +154,18 @@ interface Props {
   assistantIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAssistantsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onClearActiveTopic?: () => void
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicWithReusePayload) => Topic | null | void | Promise<Topic | null | void>
   onOpenHistoryRecords?: () => void
+  onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -172,6 +179,13 @@ function resolveAssistantIdForTopicGroup(
   }
 
   return assistantId
+}
+
+function getAssistantGroupIdFromTopicSectionId(sectionId: string) {
+  if (!sectionId.startsWith(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX)) return null
+
+  const groupId = sectionId.slice(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX.length)
+  return groupId && groupId !== 'ungrouped' ? groupId : null
 }
 
 function AssistantGroupMoreMenu({
@@ -243,17 +257,18 @@ export function Topics({
   assistantIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAssistantsActive = false,
   onActiveAssistantDeleted,
   onAddAssistant,
   onClearActiveTopic,
   onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
+  onManageAssistants,
   onSetPanePosition,
   panePosition,
-  presentation = 'sidebar',
+  presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -363,6 +378,7 @@ export function Topics({
     error: assistantGroupsError,
     refetch: refetchAssistantGroups
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -1087,8 +1103,7 @@ export function Topics({
     ordinaryTopicsSource.error,
     pinnedTopicsSource.error
   ])
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const getTopicGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
       isAssistantDisplayMode && resolveAssistantIdForTopicGroup(group.id, assistantById)
@@ -1120,7 +1135,6 @@ export function Topics({
     },
     [activateOwnerResource, assistantById, t]
   )
-  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1282,7 +1296,7 @@ export function Topics({
                 event.stopPropagation()
                 void onNewTopic?.({ assistantId: assistantGroupId })
               }}>
-              <SquarePen className="block" />
+              <NewConversationIcon className="block" />
             </ResourceList.GroupHeaderActionButton>
           </Tooltip>
         </>
@@ -1368,7 +1382,7 @@ export function Topics({
         if (assistantIconType === 'none') return undefined
 
         return (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent text-muted-foreground">
+          <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle text-muted-foreground">
             <Unlink aria-hidden="true" />
           </span>
         )
@@ -1386,6 +1400,16 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
+  // See Sessions: assistants are entities; pinned, time and unlinked groups only gather rows, so
+  // they use the recessed bucket voice while staying on the shared row rhythm.
+  const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
+    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
+      group.id === TOPIC_PINNED_GROUP_ID ||
+      group.id.startsWith('topic:time:')
+      ? 'bucket'
+      : 'entity'
+  }, [])
+
   const getGroupHeaderTooltip = useCallback(
     (group: { id: string }) =>
       group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
@@ -1476,10 +1500,15 @@ export function Topics({
     (group: { id: string }) => {
       if (!isAssistantDisplayMode) return false
 
+      const assistantGroupId = getAssistantGroupIdFromTopicSectionId(group.id)
+      if (assistantGroupId) {
+        return isGroupGrouping && assistantGroupById.has(assistantGroupId)
+      }
+
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const canDropTopicGroup = useCallback(
@@ -1495,6 +1524,18 @@ export function Topics({
     }) => {
       if (!isAssistantDisplayMode) return false
 
+      const activeAssistantGroupId = getAssistantGroupIdFromTopicSectionId(activeGroupId)
+      const overAssistantGroupId = getAssistantGroupIdFromTopicSectionId(overGroupId)
+      if (activeAssistantGroupId || overAssistantGroupId) {
+        return (
+          isGroupGrouping &&
+          !!activeAssistantGroupId &&
+          !!overAssistantGroupId &&
+          assistantGroupById.has(activeAssistantGroupId) &&
+          assistantGroupById.has(overAssistantGroupId)
+        )
+      }
+
       const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
       const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
 
@@ -1506,13 +1547,36 @@ export function Topics({
 
       return !isGroupGrouping || (activeAssistant.groupId ?? null) === (overAssistant.groupId ?? null)
     },
-    [assistantById, isAssistantDisplayMode, isGroupGrouping]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const handleTopicReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
       if (payload.type === 'group') {
         if (!isAssistantDisplayMode) return
+        const activeGroupId = getAssistantGroupIdFromTopicSectionId(payload.activeGroupId)
+        const overGroupId = getAssistantGroupIdFromTopicSectionId(payload.overGroupId)
+
+        if (activeGroupId || overGroupId) {
+          if (
+            !isGroupGrouping ||
+            !activeGroupId ||
+            !overGroupId ||
+            !assistantGroupById.has(activeGroupId) ||
+            !assistantGroupById.has(overGroupId)
+          ) {
+            return
+          }
+
+          try {
+            await reorderAssistantGroup(activeGroupId, buildResourceListGroupDropAnchor(payload, overGroupId))
+          } catch (err) {
+            logger.error('Failed to reorder assistant group section', { activeGroupId, err, overGroupId })
+            toast.error(formatErrorMessageWithPrefix(err, t('assistants.reorder.error.failed')))
+          }
+
+          return
+        }
         const activeAssistantId = getAssistantIdFromTopicGroupId(payload.activeGroupId)
         const overAssistantId = getAssistantIdFromTopicGroupId(payload.overGroupId)
 
@@ -1598,10 +1662,13 @@ export function Topics({
     },
     [
       assistantById,
+      assistantGroupById,
       isAssistantDisplayMode,
+      isGroupGrouping,
       moveTopic,
       orderedAssistants,
       refreshAssistants,
+      reorderAssistantGroup,
       t,
       topicItemDragReady,
       topics
@@ -1612,8 +1679,8 @@ export function Topics({
   return (
     <>
       <TopicResourceList<TopicResourceItem>
-        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
-        className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
+        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
+        presentation={presentation}
         items={visibleFilteredTopics}
         status={listStatus}
         groupSeeds={topicGroupSeeds}
@@ -1633,6 +1700,7 @@ export function Topics({
         groupHeaderClickBehavior={getTopicGroupHeaderClickBehavior}
         getGroupHeaderSelected={getTopicGroupHeaderSelected}
         onGroupHeaderActivate={handleActivateAssistantGroup}
+        getGroupHeaderKind={getGroupHeaderKind}
         dragCapabilities={{
           groups: isAssistantDisplayMode,
           items: topicItemDragReady,
@@ -1648,13 +1716,11 @@ export function Topics({
         onRenameItem={handleRenameTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={isAssistantDisplayMode ? handleTopicCollapsedStateChange : undefined}>
-        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
+        <ResourceList.Header>
           {isRightPanel ? (
             <ResourceList.Search
               aria-label={t('chat.topics.search.title')}
-              className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
               placeholder={t('chat.topics.search.placeholder')}
-              wrapperClassName="pt-1"
             />
           ) : showHeaderCreateItem && isAssistantDisplayMode ? (
             <ResourceList.HeaderItem
@@ -1667,10 +1733,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={topicAssistantSectionIds}
                 />
@@ -1682,16 +1748,16 @@ export function Topics({
               type="button"
               command="topic.create"
               aria-label={headerCreateLabel}
-              icon={<SquarePen />}
+              icon={<NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                 />
               }
@@ -1699,10 +1765,10 @@ export function Topics({
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsMenuItem?.active}
+              manageAssistantsActive={manageAssistantsActive}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}
-              onManageAssistants={manageAssistantsMenuItem?.onSelect}
+              onManageAssistants={onManageAssistants}
               onOpenHistoryRecords={onOpenHistoryRecords}
               sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
@@ -1724,7 +1790,6 @@ export function Topics({
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
-          isRightPanel={isRightPanel}
           isRefreshing={isPinnedTopicsRefreshing || isOrdinaryTopicsRefreshing}
           listRef={listRef}
           notesPath={notesPath}
@@ -1820,7 +1885,6 @@ interface TopicListBodyProps {
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
-  isRightPanel: boolean
   isRefreshing: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
@@ -1845,7 +1909,7 @@ interface TopicListBodyProps {
 
 type TopicRowSharedProps = Omit<
   TopicListBodyProps,
-  'activeTopic' | 'isRefreshing' | 'isRightPanel' | 'listRef' | 'onEndReached' | 'onRetry' | 'variant'
+  'activeTopic' | 'isRefreshing' | 'listRef' | 'onEndReached' | 'onRetry' | 'variant'
 >
 
 function TopicListBody(props: TopicListBodyProps) {
@@ -1858,7 +1922,6 @@ function TopicListBody(props: TopicListBodyProps) {
     exportMenuOptions,
     isNewlyRenamed,
     isRenaming,
-    isRightPanel,
     isRefreshing,
     listRef,
     notesPath,
@@ -1941,7 +2004,6 @@ function TopicListBody(props: TopicListBodyProps) {
       listRef={listRef}
       draggable={variant === 'draggable'}
       onEndReached={onEndReached}
-      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={
         <ResourceList.ErrorState>
           <div className="flex flex-col gap-2">
@@ -2022,8 +2084,16 @@ const TopicRow = memo(function TopicRow({
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
   // a badge instead of a spinner because the turn needs user action.
-  const hasTopicStreamIndicator =
-    (isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)) && !isTopicAwaitingApproval
+  const conversationRowStatus = isTopicAwaitingApproval
+    ? 'approval'
+    : isTopicStreamPending
+      ? 'pending'
+      : isTopicStreamErrored
+        ? 'error'
+        : !isActive && isTopicStreamFulfilled
+          ? 'done'
+          : null
+  const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
@@ -2074,17 +2144,15 @@ const TopicRow = memo(function TopicRow({
       />
       {!rowState.renaming && (
         <ResourceList.ItemTitle
+          fade
           title={topicName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
-            RESOURCE_LIST_TITLE_FADE_CLASS,
-            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin.
-            hasTopicStreamIndicator && 'mr-7'
+            // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+            // The draft indicator needs no yield — it stays in flow and reserves its own space.
+            hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -2093,18 +2161,12 @@ const TopicRow = memo(function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!rowState.renaming && isTopicAwaitingApproval && (
-        <span
-          data-testid="topic-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
-          {t('agent.toolPermission.pendingBadge')}
-        </span>
-      )}
-      {hasTopicStreamIndicator && (
-        <TopicStreamIndicator
-          isErrored={isTopicStreamErrored}
-          isFulfilled={isTopicStreamFulfilled}
-          isPending={isTopicStreamPending}
+      {!rowState.renaming && (
+        <TopicTrailingStatus
+          topicId={topic.id}
+          draftLabel={t('chat.topics.draft')}
+          isActive={isActive}
+          status={conversationRowStatus}
         />
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
@@ -2117,7 +2179,7 @@ const TopicRow = memo(function TopicRow({
                 event.stopPropagation()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={13} className={cn('size-3.25!', topic.pinned && '-rotate-45')} />
+              <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
@@ -2162,44 +2224,49 @@ const TopicRow = memo(function TopicRow({
   )
 })
 
-const TopicStreamIndicator = ({
-  isErrored,
-  isFulfilled,
-  isPending
+const TOPIC_DRAFT_INDICATOR_CLASS =
+  'pointer-events-none flex size-5 max-w-5 shrink-0 items-center justify-center overflow-hidden opacity-100 transition-[margin,max-width,opacity] duration-150 group-hover:-ml-1.5 group-hover:max-w-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:-ml-1.5 group-has-[[data-resource-list-item-actions][data-active=true]]:-ml-1.5 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+
+const TopicTrailingStatus = ({
+  topicId,
+  draftLabel,
+  isActive,
+  status
 }: {
-  isErrored: boolean
-  isFulfilled: boolean
-  isPending: boolean
+  topicId: string
+  draftLabel: string
+  isActive: boolean
+  status: ConversationRowStatusValue | null
 }) => {
-  const { t } = useTranslation()
+  if (status) {
+    return (
+      <ConversationRowStatus
+        status={status}
+        testId={status === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
+      />
+    )
+  }
 
-  if (!isPending && !isFulfilled && !isErrored) return null
+  // The active row's draft is the text visible in the composer right below it,
+  // so flagging it as unsent tells the user nothing.
+  if (isActive) return null
 
-  const statusLabel = isPending
-    ? t('message.tools.status.running')
-    : isErrored
-      ? t('message.tools.status.error')
-      : t('message.tools.status.done')
+  // The draft subscriber mounts only in the lowest-priority branch. Virtualized
+  // rows that are offscreen, or rows showing a higher-priority status, subscribe
+  // to no draft key at all.
+  return <TopicDraftIndicator topicId={topicId} label={draftLabel} />
+}
+
+const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: string }) => {
+  const subscribe = useCallback((listener: () => void) => subscribeChatDraftCache(topicId, listener), [topicId])
+  const getSnapshot = useCallback(() => readChatDraftPresence(topicId), [topicId])
+  const hasDraft = useSyncExternalStore(subscribe, getSnapshot, () => false)
+
+  if (!hasDraft) return null
 
   return (
-    // Absolute overlay at the actions' resting spot: it fades out on hover /
-    // focus / delete-confirm so the pin + delete buttons take its place (the
-    // dot/spinner and the actions are mutually exclusive, never side by side).
-    <span
-      aria-label={statusLabel}
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
-      data-testid="topic-stream-indicator"
-      role="img">
-      {isPending ? (
-        // A spinner reads as "running", where the old pulsing amber dot looked
-        // like a warning. Error uses a distinct icon instead of relying on
-        // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
-      ) : isErrored ? (
-        <CircleAlert aria-hidden="true" className="size-3 text-error" />
-      ) : (
-        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
-      )}
+    <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
+      <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
     </span>
   )
 }

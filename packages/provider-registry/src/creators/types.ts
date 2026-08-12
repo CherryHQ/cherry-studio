@@ -5,7 +5,6 @@
  * LIST (from its own API and/or hand-written entries), and metadata is enriched from
  * models.dev/OpenRouter. You never edit `models.json` by hand — add/override in a creator here instead.
  */
-import type { ServerTool } from '../schemas/enums'
 import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
 
 /**
@@ -16,8 +15,6 @@ import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
  */
 export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & {
   id: string
-  /** Explicit server-tool eligibility for exceptional hand-listed models. Generation-only. */
-  serverTools?: ServerTool[]
 }
 
 export interface Creator {
@@ -36,12 +33,6 @@ export interface Creator {
   families?: string[]
   /** Fallback: claim every canonical id matching these prefixes. */
   idPrefixes?: string[]
-  /**
-   * Curated provider-native tool eligibility as DATA: canonical id-prefixes of THIS creator's models
-   * that accept each server tool. Generation compiles these declarations into a small exact-model
-   * runtime table; they never become generic model capabilities.
-   */
-  serverTools?: Partial<Record<ServerTool, string[]>>
   /**
    * Canonical id-prefixes of THIS creator's models whose provider-native tools
    * coexist with function declarations in one request (e.g. Gemini 3+). Absent

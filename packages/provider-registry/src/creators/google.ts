@@ -7,6 +7,18 @@ export default defineCreator({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   reasoningFamilies: [
+    // Native-protocol dialect (google-generate-content). Gemini 2.x takes
+    // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
+    // `thinkingLevel` field, so the split is declared here rather than inferred
+    // — it does not line up with the effort/budget knob rules below (several
+    // Gemini 3 SKUs carry both knobs). Most specific first; first match wins.
+    { pattern: '^gemini-2', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
+    // Robotics-ER is a 2.x-era derivative on thinking_budget — never pinned
+    // before, so it had been silently taking the Gemini 3 level wire.
+    { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+
     { pattern: '^gemma-?4', toggle: true },
     {
       pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
@@ -37,6 +49,7 @@ export default defineCreator({
         '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
     },
     { pattern: '^gemini-omni-flash' },
+    { pattern: '^gemini-robotics' },
     { pattern: 'gemma-?4' }
   ],
   families: ['gemini', 'gemma'],
@@ -51,14 +64,6 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
-  // Grounding and URL context serve whole generations (2.x, 3.x, incl. the lite line), so key off
-  // the generation prefix like `serverToolFunctionMixing` below — a per-SKU list silently drops
-  // every new minor (3.1, 3.6 …). Image models are excluded at generation time, not here.
-  serverTools: {
-    'web-search': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest'],
-    // URL context serves the same lines as search grounding (ai.google.dev url-context).
-    'url-context': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
-  },
   // Pre-3 Gemini rejects requests mixing its native tools with function
   // declarations; Gemini 3 combines them (ai.google.dev function-calling).
   serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
@@ -95,7 +100,6 @@ export default defineCreator({
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
       capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
-      serverTools: ['web-search'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -593,7 +597,6 @@ export default defineCreator({
         'structured-output',
         'file-input'
       ],
-      serverTools: ['web-search'],
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

@@ -440,7 +440,9 @@ export class CodeCliService extends BaseService {
     const rawPathEnv = Object.fromEntries(
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
-    const env: Record<string, string> = usesCherryExecutionEnv ? mergeBinaryExecutionEnv(rawPathEnv) : {}
+    const env: Record<string, string> = usesCherryExecutionEnv
+      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
+      : {}
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.
@@ -697,12 +699,19 @@ export class CodeCliService extends BaseService {
         break
       }
       case 'linux': {
-        // Linux - Try to use common terminal emulators
+        // Linux - Prefer the XDG-configured default terminal, then try common emulators.
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
-        let foundTerminal = 'xterm' // Default to xterm
+        const linuxTerminals = [
+          'xdg-terminal-exec',
+          'gnome-terminal',
+          'konsole',
+          'deepin-terminal',
+          'x-terminal-emulator',
+          'xterm'
+        ]
+        let foundTerminal: string | undefined
 
         for (const terminal of linuxTerminals) {
           try {
@@ -725,7 +734,10 @@ export class CodeCliService extends BaseService {
           }
         }
 
-        if (foundTerminal === 'gnome-terminal') {
+        if (foundTerminal === 'xdg-terminal-exec') {
+          terminalCommand = 'xdg-terminal-exec'
+          terminalArgs = [`--dir=${directory}`, '--', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'gnome-terminal') {
           terminalCommand = 'gnome-terminal'
           terminalArgs = ['--working-directory', directory, '--', 'bash', '-c', `clear && ${command}; exec bash`]
         } else if (foundTerminal === 'konsole') {
@@ -734,6 +746,9 @@ export class CodeCliService extends BaseService {
         } else if (foundTerminal === 'deepin-terminal') {
           terminalCommand = 'deepin-terminal'
           terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'x-terminal-emulator') {
+          terminalCommand = 'x-terminal-emulator'
+          terminalArgs = ['-e', 'bash', '-c', `cd ${posixQuote(directory)} && clear && ${command}; exec bash`]
         } else {
           // Default to xterm
           terminalCommand = 'xterm'

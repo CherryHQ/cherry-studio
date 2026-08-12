@@ -67,15 +67,14 @@ type OverDropState = {
 
 type DropIndicatorPosition = 'before' | 'after'
 
-type GroupAppendIndicatorTarget = {
-  itemId?: UniqueIdentifier
+type DropIndicatorTarget<TGroup, TItem, THeader, TFooter> = {
   position: DropIndicatorPosition
-  rowType: 'group-footer' | 'group-header' | 'item'
+  row: GroupedSortableVirtualListRow<TGroup, TItem, THeader, TFooter>
 }
 
-type GroupBoundaryIndicatorTargets = {
-  after: GroupAppendIndicatorTarget
-  before: GroupAppendIndicatorTarget
+type GroupBoundaryIndicatorTargets<TGroup, TItem, THeader, TFooter> = {
+  after: DropIndicatorTarget<TGroup, TItem, THeader, TFooter>
+  before: DropIndicatorTarget<TGroup, TItem, THeader, TFooter>
 }
 
 export type GroupedSortableVirtualListItemDragPayload<TGroup, TItem> = {
@@ -162,6 +161,7 @@ export interface GroupedSortableVirtualListProps<TGroup, TItem, THeader = TGroup
   extends BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> {
   groups: readonly GroupedVirtualListGroup<TGroup, TItem, THeader, TFooter>[]
   getGroupId: (group: TGroup, groupIndex: number) => UniqueIdentifier
+  getGroupBoundaryId?: (group: TGroup, groupIndex: number) => UniqueIdentifier
   getItemId: (
     item: TItem,
     itemIndex: number,
@@ -787,6 +787,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   const {
     groups,
     getGroupId,
+    getGroupBoundaryId,
     getItemId,
     renderGroupHeader,
     renderItem,
@@ -824,6 +825,10 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     () => buildGroupedVirtualRows(groups, Boolean(renderGroupHeader), Boolean(renderGroupFooter)),
     [groups, renderGroupFooter, renderGroupHeader]
   )
+  const getEffectiveGroupBoundaryId = useCallback(
+    (group: TGroup, groupIndex: number) => getGroupBoundaryId?.(group, groupIndex) ?? getGroupId(group, groupIndex),
+    [getGroupBoundaryId, getGroupId]
+  )
 
   const sortableIds = useMemo(
     () =>
@@ -846,30 +851,26 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   )
 
   const groupAppendIndicatorTargets = useMemo(() => {
-    const targets = new Map<UniqueIdentifier, GroupAppendIndicatorTarget>()
+    const targets = new Map<UniqueIdentifier, DropIndicatorTarget<TGroup, TItem, THeader, TFooter>>()
 
     for (const row of rows) {
       const groupId = getGroupId(row.group, row.groupIndex)
 
       if (row.type === 'group-header') {
-        targets.set(groupId, { position: 'after', rowType: 'group-header' })
+        targets.set(groupId, { position: 'after', row })
         continue
       }
 
       if (row.type === 'item') {
-        targets.set(groupId, {
-          itemId: getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup),
-          position: 'after',
-          rowType: 'item'
-        })
+        targets.set(groupId, { position: 'after', row })
         continue
       }
 
-      targets.set(groupId, { position: 'before', rowType: 'group-footer' })
+      targets.set(groupId, { position: 'before', row })
     }
 
     return targets
-  }, [getGroupId, getItemId, rows])
+  }, [getGroupId, rows])
 
   const groupAppendDropTargets = useMemo(() => {
     const targets = new Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>()
@@ -897,15 +898,15 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   }, [getGroupId, getItemId, rows])
 
   const groupBoundaryIndicatorTargets = useMemo(() => {
-    const targets = new Map<UniqueIdentifier, GroupBoundaryIndicatorTargets>()
+    const targets = new Map<UniqueIdentifier, GroupBoundaryIndicatorTargets<TGroup, TItem, THeader, TFooter>>()
 
     for (const row of rows) {
-      const groupId = getGroupId(row.group, row.groupIndex)
+      const groupId = getEffectiveGroupBoundaryId(row.group, row.groupIndex)
 
       if (row.type === 'group-header') {
         targets.set(groupId, {
-          before: { position: 'before', rowType: 'group-header' },
-          after: { position: 'after', rowType: 'group-header' }
+          before: targets.get(groupId)?.before ?? { position: 'before', row },
+          after: { position: 'after', row }
         })
         continue
       }
@@ -914,19 +915,15 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       if (!groupTargets) continue
 
       if (row.type === 'item') {
-        groupTargets.after = {
-          itemId: getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup),
-          position: 'after',
-          rowType: 'item'
-        }
+        groupTargets.after = { position: 'after', row }
         continue
       }
 
-      groupTargets.after = { position: 'after', rowType: 'group-footer' }
+      groupTargets.after = { position: 'after', row }
     }
 
     return targets
-  }, [getGroupId, getItemId, rows])
+  }, [getEffectiveGroupBoundaryId, rows])
 
   const estimateRowSize = useCallback(
     (index: number) => {
@@ -1115,17 +1112,11 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       const isGroupDrag = activeDragState?.active !== undefined && !isItemDragData(activeDragState.active)
 
       if (isGroupDrag) {
-        if (overDropState.targetGroupId !== groupId) return null
+        const rowBoundaryId = getEffectiveGroupBoundaryId(row.group, row.groupIndex)
+        if (overDropState.targetGroupId !== rowBoundaryId) return null
 
-        const target = groupBoundaryIndicatorTargets.get(groupId)?.[overDropState.position]
-        if (!target || target.rowType !== row.type) return null
-
-        if (row.type === 'item') {
-          const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
-          if (target.itemId !== itemId) return null
-        }
-
-        return target.position
+        const target = groupBoundaryIndicatorTargets.get(rowBoundaryId)?.[overDropState.position]
+        return target?.row === row ? target.position : null
       }
 
       if (overDropState.rowType === 'item') {
@@ -1138,16 +1129,17 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       if (overDropState.targetGroupId !== groupId) return null
 
       const target = groupAppendIndicatorTargets.get(groupId)
-      if (!target || target.rowType !== row.type) return null
-
-      if (row.type === 'item') {
-        const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
-        if (target.itemId !== itemId) return null
-      }
-
-      return target.position
+      return target?.row === row ? target.position : null
     },
-    [activeDragState, getGroupId, getItemId, groupAppendIndicatorTargets, groupBoundaryIndicatorTargets, overDropState]
+    [
+      activeDragState,
+      getEffectiveGroupBoundaryId,
+      getGroupId,
+      getItemId,
+      groupAppendIndicatorTargets,
+      groupBoundaryIndicatorTargets,
+      overDropState
+    ]
   )
 
   const handleDragEnd = useCallback(

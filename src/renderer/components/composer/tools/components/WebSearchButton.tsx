@@ -5,7 +5,7 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -36,7 +36,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
-  const { provider: modelProvider } = useProvider(model?.providerId ?? '')
+  const { provider: modelProvider } = useProviderById(model?.providerId)
   const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
   const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
 
@@ -52,6 +52,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           clientToolsPreferred,
+          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })

@@ -35,6 +35,7 @@ import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
@@ -50,7 +51,6 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { useNavigate } from '@tanstack/react-router'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -101,7 +101,6 @@ export function useHomeMessageListProviderValue({
 }: HomeMessageListParams): MessageListProviderValue {
   const topicId = topic.id
   const assistantId = topic.assistantId
-  const navigate = useNavigate()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -497,13 +496,18 @@ export function useHomeMessageListProviderValue({
     return window.api.file.showInFolder(path)
   }, [])
 
-  const abortTool = useCallback((toolId: string) => {
-    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
-  }, [])
+  const abortTool = useCallback(
+    (toolId: string) => {
+      // Scope must match the registration in mcpTools.ts — provider call ids can
+      // collide across topics, and an unscoped abort must not hit another topic's call.
+      return ipcApi.request('mcp.tool.abort_call', { callId: toolId, scope: topicId })
+    },
+    [topicId]
+  )
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
-    ({ path, query }) => navigate({ to: path, search: query }),
-    [navigate]
+    ({ path, query }) => openRoute(path, query),
+    []
   )
 
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
@@ -701,12 +705,12 @@ export function useHomeMessageListProviderValue({
   )
 
   const deleteMessageGroup = useCallback<NonNullable<MessageListActions['deleteMessageGroup']>>(
-    (parentId) => requireChatWrite('deleteMessageGroup').deleteMessageGroup(parentId),
+    (messageIds) => requireChatWrite('deleteMessageGroup').deleteMessageGroup(messageIds),
     [requireChatWrite]
   )
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
-    async (parentId) => {
+    async (messageIds) => {
       const confirmed = await popup.confirm({
         title: t('message.group.delete.title'),
         content: t('message.group.delete.content'),
@@ -719,7 +723,7 @@ export function useHomeMessageListProviderValue({
       if (!confirmed) return
 
       try {
-        await deleteMessageGroup(parentId)
+        await deleteMessageGroup(messageIds)
       } catch (error) {
         logger.error('Failed to delete message group:', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
@@ -915,9 +919,10 @@ export function useHomeMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
+      assistantProfile: assistant ? { name: assistant.name, avatar: assistant.emoji } : undefined,
       imageExportFileName: topic.name
     }),
-    [headerCapabilities.userProfile, topic.name]
+    [assistant, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

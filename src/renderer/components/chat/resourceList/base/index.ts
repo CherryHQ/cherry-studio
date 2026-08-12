@@ -1,7 +1,8 @@
 export {
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem
-} from './ConversationResourceMenu'
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
+  type ConversationRowStatusValue
+} from './ConversationRowStatus'
 export { resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
 export {
   buildResolvedResourceEntityMenuAction,
@@ -22,12 +23,14 @@ export type {
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
+  ResourceListGroupHeaderKind,
   ResourceListGroupReorderPayload,
   ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListItemReorderPayload,
   ResourceListMeta,
+  ResourceListPresentation,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,
@@ -51,12 +54,7 @@ export {
   useResourceListView
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
-export {
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
-  RESOURCE_LIST_SELECTED_ROW_CLASS,
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS
-} from './resourceListLayout'
+export { RESOURCE_LIST_SELECTED_ROW_CLASS, RESOURCE_LIST_TITLE_FADE_CLASS } from './resourceListLayout'
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'

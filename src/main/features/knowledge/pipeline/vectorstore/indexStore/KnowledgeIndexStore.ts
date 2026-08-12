@@ -58,16 +58,6 @@ export class KnowledgeIndexStore {
    * an insert failure rolls back without destroying the prior index (§5.2).
    */
   rebuildMaterial(materialId: string, input: RebuildMaterialInput): void {
-    // usesEmbeddings: false means a BM25-only rebuild — step 6 below writes whatever
-    // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
-    // the flag), so a caller bug that sets both would silently write orphan vectors
-    // into an index nothing ever queries or GCs. Fail loud instead.
-    if (!input.usesEmbeddings && input.embeddings.length > 0) {
-      throw new Error(
-        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied ${input.embeddings.length} embeddings`
-      )
-    }
-
     const now = Date.now()
     const contentHash = hashContentText(input.content.text)
 
@@ -159,7 +149,20 @@ export class KnowledgeIndexStore {
       }
 
       // 6. Insert missing embeddings; existing hashes are reused (decision A4).
+      //    `embeddings` may be a lazy iterable (a streaming caller reads vectors in
+      //    batches as this loop pulls them — see RebuildMaterialInput), so it is
+      //    consumed exactly once, here inside the transaction; a throw mid-iteration
+      //    rolls the whole rebuild back. usesEmbeddings: false means a BM25-only
+      //    rebuild — this step would write whatever `embeddings` yields
+      //    unconditionally (only the step 6b coverage check is gated on the flag),
+      //    so a caller bug that sets both would silently write orphan vectors into
+      //    an index nothing ever queries or GCs. Fail loud instead.
       for (const embedding of input.embeddings) {
+        if (!input.usesEmbeddings) {
+          throw new Error(
+            `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied embeddings`
+          )
+        }
         tx.execute(`INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`, [
           embedding.embeddingTextHash,
           encodeVectorBlob(embedding.vector),
