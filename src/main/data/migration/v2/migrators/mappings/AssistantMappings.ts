@@ -201,16 +201,21 @@ const V1_UNLIMITED_CONTEXT_COUNT = 100
  * `N = 2`. Mapping C→N directly would hand every migrated assistant two
  * messages less context than it had in v1.
  *
- * Sentinels: 100 (v1's slider max) meant unlimited → absent; `0` meant "no
- * history" and v1's user-start filter collapsed it to the current user alone →
- * `N = 1` (no offset — +1 would hand a whole turn back).
+ * Sentinels: 100 (v1's slider max) meant unlimited → `null`, the three-state
+ * contract's EXPLICIT unlimited, not absent. Absent means "inherit", and since
+ * the v1 default assistant migrates into a finite global, returning absent here
+ * would quietly re-limit an assistant the user had set to unlimited. `0` meant
+ * "no history" and v1's user-start filter collapsed it to the current user
+ * alone → `N = 1` (no offset — +1 would hand a whole turn back). Unusable input
+ * → `undefined`, which really is "nothing to say, inherit".
  *
  * Shared with the default-assistant → global-preference mapping so both sides
  * of the migration convert identically.
  */
-export function contextCountToMaxMessages(raw: unknown): number | undefined {
+export function contextCountToMaxMessages(raw: unknown): number | null | undefined {
   if (typeof raw !== 'number' || !Number.isInteger(raw)) return undefined
-  if (raw < 0 || raw >= V1_UNLIMITED_CONTEXT_COUNT) return undefined
+  if (raw < 0) return undefined
+  if (raw >= V1_UNLIMITED_CONTEXT_COUNT) return null
   return raw === 0 ? 1 : raw + 1
 }
 

@@ -1,5 +1,7 @@
+import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it } from 'vitest'
 
 import { transformAssistant } from '../AssistantMappings'
@@ -234,6 +236,20 @@ describe('AssistantMappings', () => {
 
     // v1 took `contextCount + 2` then dropped leading non-user rows; v2 extends
     // backward instead, so the same history needs N = C + 1.
+    // The regression this guards: v1's default assistant of 5 migrates the
+    // GLOBAL limit to 6, so an assistant the user had explicitly set to v1's
+    // "unlimited" must not come back inheriting 6.
+    it('keeps a v1 unlimited assistant unlimited under a limited migrated global', () => {
+      const migrated = transformAssistant({ id: 'ast-19', settings: { contextCount: 100 } as never })
+
+      const effective = resolveContextSettings({
+        globals: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 6 },
+        assistant: migrated.assistant.settings.contextSettings
+      })
+
+      expect(effective.maxMessages).toBeNull()
+    })
+
     it('maps v1 contextCount to contextSettings.maxMessages with the +1 offset', () => {
       const maxMessagesOf = (contextCount: unknown) =>
         transformAssistant({ id: 'ast-16', settings: { contextCount } as never }).assistant.settings.contextSettings
@@ -245,10 +261,10 @@ describe('AssistantMappings', () => {
       // C=0 meant "no history": v1's user-start filter left only the current
       // user message, which is N=1 (no offset — +1 would add a turn back).
       expect(maxMessagesOf(0)).toBe(1)
-      // MAX_CONTEXT_COUNT (100) meant unlimited → no override written.
-      expect(
-        transformAssistant({ id: 'ast-17', settings: { contextCount: 100 } as never }).assistant.settings
-      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+      // MAX_CONTEXT_COUNT (100) meant unlimited → the three-state contract's
+      // EXPLICIT null, not absent: absent means "inherit", and the v1 default
+      // assistant migrates into a finite global that would then re-limit it.
+      expect(maxMessagesOf(100)).toBeNull()
       // Garbage stays out.
       expect(
         transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } as never }).assistant.settings

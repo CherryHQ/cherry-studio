@@ -122,8 +122,9 @@ function transformV1CustomCss(sources: Record<string, unknown>): TransformResult
  */
 function transformDefaultAssistantContextCount(sources: Record<string, unknown>): TransformResult {
   const maxMessages = contextCountToMaxMessages(sources.contextCount)
-  // Absent (unlimited or unusable) leaves the generated default of `null`.
-  return maxMessages === undefined ? {} : { 'chat.context_settings.max_messages': maxMessages }
+  // The global layer has no "inherit": unusable input and v1's unlimited both
+  // leave the generated default, which is already `null`.
+  return maxMessages == null ? {} : { 'chat.context_settings.max_messages': maxMessages }
 }
 
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
