@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
         "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+        "mentionOnlyHint": "开启后机器人只在被 @ 时回复。关闭后可在 QQ 开放平台开启「接收所有消息」，让机器人处理群内每一条消息。",
+        "mentionOnlyLabel": "仅 @ 消息",
         "title": "QQ",
         "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
       },
@@ -1562,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "文件",
+          "resources": "文件和文件夹",
           "skills": "Skills"
         },
         "description": "从文件、Agents 或 Skills 中选择",
+        "load_failed": "加载工作区资源失败",
         "loading": "加载中...",
-        "no_file_found": {
-          "description": "当前工作区没有可搜索的文件",
-          "label": "未找到文件"
-        },
         "no_items_found": {
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "文件与会话"
+        "no_resources_found": {
+          "description": "当前工作区没有可搜索的文件或文件夹",
+          "label": "未找到资源"
+        },
+        "title": "资源与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -6693,6 +6696,10 @@
       "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本地嵌入和 OCR 推理。",
+          "label": "硬件加速"
+        },
         "cancel": "取消",
         "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
         "download": "下载",

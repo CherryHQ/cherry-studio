@@ -139,6 +139,9 @@ export interface IMessageConverter<TInputParams = unknown> {
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
 
+  /** Wire-safe (normalized) name for a client tool name; identity when already compatible. */
+  toProviderToolName?(toolName: string): string
+
   /**
    * Extract stream/generation options from input params
    * Maps format-specific parameters to AI SDK common options

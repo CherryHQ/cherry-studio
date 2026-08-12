@@ -102,7 +102,7 @@ const ManageModelRow = memo(function ManageModelRow({
         <div className={modelSyncClasses.manageRowTitleLine}>
           {/* Friendly names can collide, so the raw id must stay reachable without a mouse: the title
               is focusable (opening the tooltip on focus) and described by an off-screen copy of it. */}
-          <Tooltip content={apiModelId} placement="top">
+          <Tooltip content={apiModelId} placement="top" classNames={{ placeholder: 'min-w-0' }}>
             <p tabIndex={0} aria-describedby={apiModelIdId} className={modelSyncClasses.manageRowTitle}>
               {model.name || apiModelId}
             </p>
