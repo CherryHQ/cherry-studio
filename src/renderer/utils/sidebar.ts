@@ -171,10 +171,6 @@ function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
   return { type: 'app', id }
 }
 
-function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
-  return { type: 'mini_app', id }
-}
-
 /**
  * Stable identity for a favorite — its react key and reorder-matching key.
  *
@@ -370,22 +366,44 @@ export function setSidebarAppPinned(
   return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarAppFavorite(id)])
 }
 
+type SidebarLeafFavoriteType = 'mini_app' | 'agent' | 'assistant'
+
+// LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+const isSidebarLeafFavorite = (item: SidebarFavoriteItem, type: SidebarLeafFavoriteType, id: string) =>
+  item.type === type && item.id === id
+
+/** Toggle a leaf favorite in place: present → filtered out, absent → appended to the end. */
+function toggleSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+
+  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
+    return removeSidebarLeafFavorite(favorites, type, id)
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+}
+
+/** Remove a leaf favorite, preserving everything else in place. */
+function removeSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  return preserveForwardCompatibleSidebarFavoriteItems(
+    favorites,
+    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !isSidebarLeafFavorite(item, type, id))
+  )
+}
+
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
 export function toggleSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const isTarget = (item: SidebarFavoriteItem) => item.type === 'mini_app' && item.id === id
-
-  if (items.some(isTarget)) {
-    return preserveForwardCompatibleSidebarFavoriteItems(
-      favorites,
-      items.filter((item) => !isTarget(item))
-    )
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarMiniAppFavorite(id)])
+  return toggleSidebarLeafFavorite(favorites, 'mini_app', id)
 }
 
 /** Remove a mini app favorite, preserving everything else in place. */
@@ -393,11 +411,7 @@ export function removeSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === 'mini_app' && item.id === id))
-  )
+  return removeSidebarLeafFavorite(favorites, 'mini_app', id)
 }
 
 /**
@@ -410,17 +424,7 @@ export function toggleSidebarEntityFavorite(
   type: 'agent' | 'assistant',
   id: string
 ): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const isTarget = (item: SidebarFavoriteItem) => item.type === type && item.id === id
-
-  if (items.some(isTarget)) {
-    return preserveForwardCompatibleSidebarFavoriteItems(
-      favorites,
-      items.filter((item) => !isTarget(item))
-    )
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+  return toggleSidebarLeafFavorite(favorites, type, id)
 }
 
 /** Remove a pinned user entity (agent / assistant) favorite, preserving everything else in place. */
@@ -429,11 +433,7 @@ export function removeSidebarEntityFavorite(
   type: 'agent' | 'assistant',
   id: string
 ): SidebarFavoriteItem[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === type && item.id === id))
-  )
+  return removeSidebarLeafFavorite(favorites, type, id)
 }
 
 // --- Launchpad app order --------------------------------------------------

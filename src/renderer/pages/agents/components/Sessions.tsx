@@ -159,7 +159,9 @@ function AgentGroupMoreMenu({
   onDeleteAgent,
   onEdit,
   onSetAgentIconType,
-  onTogglePin
+  onTogglePin,
+  onToggleSidebar,
+  sidebarPinned
 }: {
   agentId: string
   assistantIconType: AssistantIconType
@@ -167,18 +169,14 @@ function AgentGroupMoreMenu({
   deleteTasksOnly?: boolean
   pinDisabled?: boolean
   pinned: boolean
+  sidebarPinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
+  onToggleSidebar: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const {
-    agentFavoriteIds: sidebarAgentFavoriteIds,
-    toggleAgent: toggleSidebarAgent,
-    removeAgent: removeSidebarAgent
-  } = useSidebarFavorites()
-  const sidebarPinned = sidebarAgentFavoriteIds.includes(agentId)
   const actionContext: AgentGroupActionContext = {
     agentId,
     assistantIconType,
@@ -188,10 +186,7 @@ function AgentGroupMoreMenu({
     onEdit,
     onSetAgentIconType,
     onTogglePin,
-    onToggleSidebar: (id) => {
-      if (sidebarPinned) removeSidebarAgent(id)
-      else toggleSidebarAgent(id)
-    },
+    onToggleSidebar,
     pinDisabled,
     pinned,
     sidebarPinned,
@@ -1653,6 +1648,8 @@ const Sessions = ({
                 onEdit={openAgentEditor}
                 onSetAgentIconType={setAssistantIconType}
                 onTogglePin={handleToggleAgentPin}
+                onToggleSidebar={handleToggleAgentSidebar}
+                sidebarPinned={sidebarAgentFavoriteIdSet.has(agentGroupId)}
               />
             </Tooltip>
           )}
@@ -1700,6 +1697,7 @@ const Sessions = ({
       createSessionSeedIndex,
       handleDeleteAgent,
       handleToggleAgentPin,
+      handleToggleAgentSidebar,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
@@ -1710,6 +1708,7 @@ const Sessions = ({
       onShowMissingAgentSelection,
       requestCreateSessionFromSeed,
       setAssistantIconType,
+      sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
     ]

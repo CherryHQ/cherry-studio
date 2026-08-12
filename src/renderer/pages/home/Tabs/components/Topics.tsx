@@ -182,12 +182,14 @@ function AssistantGroupMoreMenu({
   disabled,
   isGroupGrouping,
   pinned,
+  sidebarPinned,
   onDeleteAssistant,
   onDeleteAllTopics,
   onEdit,
   onSetAssistantIconType,
   onToggleGrouping,
-  onTogglePin
+  onTogglePin,
+  onToggleSidebar
 }: {
   assistantId: string
   assistantIconType: AssistantIconType
@@ -196,20 +198,16 @@ function AssistantGroupMoreMenu({
   disabled?: boolean
   isGroupGrouping: boolean
   pinned: boolean
+  sidebarPinned: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
   onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
+  onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const {
-    assistantFavoriteIds: sidebarAssistantFavoriteIds,
-    toggleAssistant: toggleSidebarAssistant,
-    removeAssistant: removeSidebarAssistant
-  } = useSidebarFavorites()
-  const sidebarPinned = sidebarAssistantFavoriteIds.includes(assistantId)
   const actionContext: AssistantGroupActionContext = {
     assistantId,
     assistantIconType,
@@ -223,10 +221,7 @@ function AssistantGroupMoreMenu({
     onSetAssistantIconType,
     onToggleGrouping,
     onTogglePin,
-    onToggleSidebar: (id) => {
-      if (sidebarPinned) removeSidebarAssistant(id)
-      else toggleSidebarAssistant(id)
-    },
+    onToggleSidebar,
     pinned,
     sidebarPinned,
     t
@@ -1020,6 +1015,8 @@ export function Topics({
                 onSetAssistantIconType={setAssistantIconType}
                 onToggleGrouping={() => setAssistantSortType(isGroupGrouping ? 'list' : 'tags')}
                 onTogglePin={handleToggleAssistantPin}
+                onToggleSidebar={handleToggleAssistantSidebar}
+                sidebarPinned={sidebarAssistantFavoriteIdSet.has(assistantGroupId)}
               />
             </Tooltip>
           )}
@@ -1049,12 +1046,14 @@ export function Topics({
       handleDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
+      handleToggleAssistantSidebar,
       isAssistantPinActionDisabled,
       isGroupGrouping,
       onNewTopic,
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAssistantFavoriteIdSet,
       t
     ]
   )

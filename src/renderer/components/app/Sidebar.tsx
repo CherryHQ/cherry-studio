@@ -46,6 +46,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const {
     favorites,
     miniAppFavoriteIds,
+    agentFavoriteIds,
     assistantFavoriteIds,
     setAppPinned,
     removeMiniApp,
@@ -55,9 +56,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   } = useSidebarFavorites()
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
-  // Agents are few and cheap; assistants are loaded only when pinned ones exist
-  // (the list can be large, mirroring the mini app gating above).
-  const { agents } = useAgents()
+  const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
   const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
