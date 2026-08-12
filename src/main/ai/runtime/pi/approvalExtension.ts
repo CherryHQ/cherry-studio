@@ -27,6 +27,7 @@ import path from 'node:path'
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { rtkRewrite } from '@main/utils/rtk'
+import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -39,10 +40,14 @@ const logger = loggerService.withContext('PiApprovalExtension')
 
 /** pi built-in read-only tools — auto-approved in every permission mode when their `path` resolves
  *  inside the session workspace or current agent data directory. */
-const READ_ONLY_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
+const READ_ONLY_TOOLS = new Set<string>(
+  PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
+)
 /** pi built-in edit-class tools — auto-approved in `acceptEdits` (still gated in `default`), same
  *  allowed-root scoping as the read-only set. */
-const EDIT_TOOLS = new Set(['edit', 'write'])
+const EDIT_TOOLS = new Set<string>(
+  PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
+)
 
 /** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
  *  containment matches pi's own `resolveToCwd`). */
@@ -70,6 +75,8 @@ export interface PiApprovalContext {
    *  for the session's lifetime; empty when soul mode is off. The `isDisabled` block still hard-blocks
    *  them (disabled beats auto-allow). */
   autoApprovedTools: ReadonlySet<string>
+  /** Runtime-neutral Cherry/Assistant tools that always require a live per-call decision. */
+  approvalRequiredTools: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
@@ -108,9 +115,19 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       // (4) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
       // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-      if (ctx.autoApprovedTools.has(toolName)) return
       const mode = ctx.getPermissionMode() ?? 'default'
-      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath))) return
+      if (ctx.autoApprovedTools.has(toolName) && !ctx.approvalRequiredTools.has(toolName)) return
+      if (
+        !(await requiresApproval(
+          mode,
+          toolName,
+          input,
+          ctx.workspacePath,
+          ctx.agentDataPath,
+          ctx.approvalRequiredTools.has(toolName)
+        ))
+      )
+        return
 
       const interactionState = ctx.getInteractionState()
       if (interactionState.userResponse === 'unavailable') {
@@ -165,8 +182,10 @@ async function requiresApproval(
   toolName: string,
   input: Record<string, unknown>,
   workspacePath: string,
-  agentDataPath: string
+  agentDataPath: string,
+  alwaysPrompt: boolean
 ): Promise<boolean> {
+  if (alwaysPrompt) return true
   if (mode === 'bypassPermissions') return false
   // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
   // inside an allowed root; any other read/write falls through to a normal prompt so a

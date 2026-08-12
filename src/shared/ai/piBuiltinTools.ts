@@ -8,18 +8,19 @@ export type PiBuiltinToolDescriptor = {
   /** Catalog default: read-only tools are auto-approved, mutating/side-effecting tools prompt.
    *  The authoritative per-turn gate is the pi approval extension. */
   approval: 'auto' | 'prompt'
+  permissionClass: 'read' | 'edit' | 'shell'
 }
 
 // Single source for pi's 7 built-ins, shared by PiRuntimeDriver/PiRuntimeConnection and the
 // edit-dialog catalog so runtime ids and the UI cannot drift.
 export const PI_BUILTIN_TOOLS = [
-  { name: 'read', category: 'file', approval: 'auto' },
-  { name: 'grep', category: 'search', approval: 'auto' },
-  { name: 'find', category: 'search', approval: 'auto' },
-  { name: 'ls', category: 'search', approval: 'auto' },
-  { name: 'bash', category: 'shell', approval: 'prompt' },
-  { name: 'edit', category: 'file', approval: 'prompt' },
-  { name: 'write', category: 'file', approval: 'prompt' }
+  { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
+  { name: 'grep', category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: 'find', category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: 'ls', category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: 'bash', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
+  { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 
 export const PI_BUILTIN_TOOL_CATEGORIES = [

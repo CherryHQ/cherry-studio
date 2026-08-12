@@ -80,7 +80,10 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     }
   }
 
-  if (isAgentTool(toolName) || CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName)) {
+  if (
+    isAgentTool(toolName) ||
+    (toolResponse.tool.type === 'provider' && CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName))
+  ) {
     return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
   return null

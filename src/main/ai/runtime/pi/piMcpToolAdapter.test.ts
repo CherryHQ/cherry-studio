@@ -23,7 +23,7 @@ vi.mock('@application', () => ({
   application: { get: () => ({ refreshTools: mocks.refreshTools }) }
 }))
 
-const { buildMcpToolDefinitions, warmMcpToolCatalogs } = await import('./piMcpToolAdapter')
+const { buildMcpToolDefinitions, buildPiMcpToolName, warmMcpToolCatalogs } = await import('./piMcpToolAdapter')
 
 function createServer(
   tools: Tool[],
@@ -69,6 +69,24 @@ describe('warmMcpToolCatalogs', () => {
 })
 
 describe('buildMcpToolDefinitions', () => {
+  it('keeps long same-prefix tool identities distinct within the provider limit', () => {
+    const prefix = 'tool_with_a_shared_prefix_'.repeat(4)
+    const first = buildPiMcpToolName('server', `${prefix}first`)
+    const second = buildPiMcpToolName('server', `${prefix}second`)
+
+    expect(first).not.toBe(second)
+    expect(first.length).toBeLessThanOrEqual(63)
+    expect(second.length).toBeLessThanOrEqual(63)
+  })
+
+  it('fails a server closed when its tool snapshot contains duplicate wire identities', async () => {
+    const duplicate = createServer([tool('same'), tool('same')], async () => ({ content: [] }))
+    const bridge = await buildMcpToolDefinitions({ duplicate: { name: 'duplicate', instance: duplicate } })
+
+    expect(bridge.tools).toEqual([])
+    await bridge.close()
+  })
+
   it('adapts every supplied MCP server instead of filtering by server origin', async () => {
     const external = createServer([tool('search_issues')], async () => ({
       content: [{ type: 'text', text: 'external' }]

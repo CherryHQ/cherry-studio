@@ -1,15 +1,17 @@
+import { createHash } from 'node:crypto'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
-import type { NeutralToolContent } from '@main/ai/agents/tools/types'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 const logger = loggerService.withContext('PiMcpToolAdapter')
+type PiToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
 
 export interface PiMcpToolBridge {
   tools: ToolDefinition[]
@@ -19,7 +21,12 @@ export interface PiMcpToolBridge {
 /** Preserve MCP wire names when provider-safe; sanitize only names that cannot be sent as functions. */
 export function buildPiMcpToolName(serverName: string, toolName: string): string {
   const wireName = `mcp__${serverName}__${toolName}`
-  return /^[A-Za-z_][A-Za-z0-9_-]{0,62}$/.test(wireName) ? wireName : buildFunctionCallToolName(serverName, toolName)
+  if (/^[A-Za-z_][A-Za-z0-9_-]{0,62}$/.test(wireName)) return wireName
+
+  const prefix = `mcp__${toCamelCase(serverName)}__${toCamelCase(toolName)}`.replace(/[^A-Za-z0-9_-]/g, '')
+  const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 12)
+  const safePrefix = /^[A-Za-z_]/.test(prefix) ? prefix : `mcp_${prefix}`
+  return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
 /** Warm user-configured MCP catalogs before their in-process bridge takes its initial tool snapshot. */
@@ -49,8 +56,17 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
       await server.instance.connect(serverTransport)
       await client.connect(clientTransport)
       const result = await client.listTools()
+      const serverTools = result.tools.map((tool) => toPiToolDefinition(server.name, tool, client))
+      const existingNames = new Set(tools.map((tool) => tool.name))
+      const serverNames = new Set<string>()
+      for (const tool of serverTools) {
+        if (existingNames.has(tool.name) || serverNames.has(tool.name)) {
+          throw new Error(`Duplicate Pi MCP tool name: ${tool.name}`)
+        }
+        serverNames.add(tool.name)
+      }
       clients.push(client)
-      tools.push(...result.tools.map((tool) => toPiToolDefinition(server.name, tool, client)))
+      tools.push(...serverTools)
     } catch (error) {
       await client.close().catch(() => undefined)
       logger.warn('Skipping unavailable MCP server for Pi session', { serverId, error })
@@ -86,7 +102,7 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): Too
   }
 }
 
-function toPiContent(part: ContentBlock): NeutralToolContent {
+function toPiContent(part: ContentBlock): PiToolContent {
   switch (part.type) {
     case 'text':
       return { type: 'text', text: part.text }

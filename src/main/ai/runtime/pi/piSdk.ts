@@ -28,6 +28,10 @@ export function loadPiAi() {
   return import('@earendil-works/pi-ai')
 }
 
+export function loadPiAiCompat() {
+  return import('@earendil-works/pi-ai/compat')
+}
+
 export function loadPiOpenAiResponsesApi() {
   return import('@earendil-works/pi-ai/api/openai-responses')
 }

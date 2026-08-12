@@ -19,6 +19,7 @@ import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
 
 import type { ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import type { loadPiAi, loadPiOpenAiResponsesApi } from './piSdk'
+import { loadPiAi as loadPiAiRuntime, loadPiOpenAiResponsesApi as loadPiOpenAiResponsesApiRuntime } from './piSdk'
 
 type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
 type PiStreamOnPayload = NonNullable<NonNullable<Parameters<PiStreamSimple>[2]>['onPayload']>
@@ -27,6 +28,11 @@ type PiStreamOnPayload = NonNullable<NonNullable<Parameters<PiStreamSimple>[2]>[
 export interface PiAiStreamFns {
   lazyStream: Awaited<ReturnType<typeof loadPiAi>>['lazyStream']
   apiStreamSimple: Awaited<ReturnType<typeof loadPiOpenAiResponsesApi>>['streamSimple']
+}
+
+export async function loadPiAiStreamFns(): Promise<PiAiStreamFns> {
+  const [piAi, responsesApi] = await Promise.all([loadPiAiRuntime(), loadPiOpenAiResponsesApiRuntime()])
+  return { lazyStream: piAi.lazyStream, apiStreamSimple: responsesApi.streamSimple }
 }
 
 /**

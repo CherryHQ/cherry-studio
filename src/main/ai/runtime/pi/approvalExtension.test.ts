@@ -48,6 +48,7 @@ function buildGate(
     getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
+    approvalRequiredTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
@@ -61,6 +62,7 @@ function buildGate(
     getInteractionState: () => ({ userResponse: 'stream' }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
+    approvalRequiredTools: new Set(),
     ...overrides
   })
   void factory({
@@ -139,6 +141,19 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
     await expect(handler(toolEvent('bash', { command: 'rm -rf x' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
+  })
+
+  it('keeps runtime-neutral approval-required tools gated under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__kb_manage'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      approvalRequiredTools: new Set([toolName])
+    })
+    const pending = handler(toolEvent(toolName, {}), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
   })
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {

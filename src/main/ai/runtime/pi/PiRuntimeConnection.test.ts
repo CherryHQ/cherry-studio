@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
+  loadPiAiCompat: vi.fn(),
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   listChannels: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
+  buildConnectionSignature: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
   warmMcpToolCatalogs: vi.fn(),
@@ -104,9 +106,17 @@ vi.mock('./piMcpToolAdapter', () => ({
   buildMcpToolDefinitions: mocks.buildMcpToolDefinitions,
   buildPiMcpToolName: (serverName: string, toolName: string) => `mcp__${serverName}__${toolName}`
 }))
-vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
+vi.mock('./modelInjection', () => ({
+  resolvePiProviderInjection: mocks.resolveInjection,
+  materializePiProviderStream: async (injection: any) => ({
+    providerConfig: injection.providerConfig,
+    streamSimple: mocks.providerStreamSimple
+  })
+}))
+vi.mock('./piConnectionSignature', () => ({ buildPiConnectionSignature: mocks.buildConnectionSignature }))
 vi.mock('./piSdk', () => ({
   loadPiSdk: mocks.loadPiSdk,
+  loadPiAiCompat: mocks.loadPiAiCompat,
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
@@ -220,8 +230,6 @@ beforeEach(() => {
   mocks.sessionId = SESSION_ID
   mocks.sessionFile = SESSION_FILE
   mocks.readdirSync.mockReturnValue([])
-  delete process.env.PI_CODING_AGENT_DIR
-  delete process.env.PI_CODING_AGENT_SESSION_DIR
 
   mocks.getById.mockReturnValue({
     id: 'sess-1',
@@ -233,6 +241,18 @@ beforeEach(() => {
   mocks.listChannels.mockReturnValue([])
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
+  mocks.buildConnectionSignature.mockImplementation(
+    async (_sessionId: string, agent: any, modelId: string, knowledgeBaseIds?: readonly string[]) =>
+      JSON.stringify({
+        agent: {
+          ...agent,
+          updatedAt: undefined,
+          configuration: { ...agent.configuration, permission_mode: undefined }
+        },
+        modelId,
+        knowledgeBaseIds: [...(knowledgeBaseIds ?? [])]
+      })
+  )
   mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
   mocks.buildAgentMcpServers.mockReturnValue({ 'cherry-tools': { name: 'cherry-tools', instance: {} } })
   mocks.warmMcpToolCatalogs.mockResolvedValue(undefined)
@@ -244,6 +264,7 @@ beforeEach(() => {
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.resolveInjection.mockResolvedValue({
     providerName: 'p',
+    api: 'anthropic-messages',
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
     apiKey: 'real-key',
     modelId: 'm',
@@ -258,6 +279,7 @@ beforeEach(() => {
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
   mocks.loadPiSdk.mockResolvedValue(fakePi)
+  mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: vi.fn() })
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
   mocks.providerResult = {
     role: 'assistant',
@@ -287,11 +309,12 @@ describe('PiRuntimeConnection', () => {
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
-    expect(process.env.PI_CODING_AGENT_DIR).toBe(PI_ROOT)
-    expect(process.env.PI_CODING_AGENT_SESSION_DIR).toBe(PI_SESSIONS)
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)
-    expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith('p', 'real-key')
-    expect(mocks.registerProvider).toHaveBeenCalledWith('p', expect.objectContaining({ apiKey: 'placeholder' }))
+    expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith(`p:${SESSION_ID}`, 'real-key')
+    expect(mocks.registerProvider).toHaveBeenCalledWith(
+      `p:${SESSION_ID}`,
+      expect.objectContaining({ apiKey: 'placeholder', api: `cherry-${SESSION_ID}-anthropic-messages` })
+    )
     expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
     // Disk SYSTEM/APPEND_SYSTEM discovery is suppressed while Cherry context and instructions append
@@ -302,6 +325,19 @@ describe('PiRuntimeConnection', () => {
     expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual([
       'AGENT PROMPT\n\nBe helpful.'
     ])
+  })
+
+  it('uses a connection-scoped api namespace so same-family sessions cannot overwrite each other', async () => {
+    await new PiRuntimeConnection(input).start()
+    await new PiRuntimeConnection({ ...input, sessionId: 'sess-2' }).start()
+
+    const first = mocks.registerProvider.mock.calls[0]
+    const second = mocks.registerProvider.mock.calls[1]
+    expect(first[0]).toBe('p:sess-1')
+    expect(second[0]).toBe('p:sess-2')
+    expect(first[1].api).toBe('cherry-sess-1-anthropic-messages')
+    expect(second[1].api).toBe('cherry-sess-2-anthropic-messages')
+    expect(first[1].api).not.toBe(second[1].api)
   })
 
   it('reopens the session file by scanning for the resume session id', async () => {
@@ -774,6 +810,28 @@ describe('PiRuntimeConnection', () => {
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
     const events = await collectUntilTerminal(conn.events)
     expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+  })
+
+  it('waits for session.prompt to settle after an agent_end that starts auto-compaction', async () => {
+    let settlePrompt!: () => void
+    mocks.prompt.mockImplementationOnce(() => new Promise<void>((resolve) => (settlePrompt = resolve)))
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('compact after this'))
+
+    const cb = mocks.subscribeCb!
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    cb({ type: 'compaction_start', reason: 'threshold' } as unknown as AgentSessionEvent)
+    const beforeSettle = [await nextEventWithin(conn.events), await nextEventWithin(conn.events)]
+    expect(beforeSettle).toContainEqual(expect.objectContaining({ type: 'compaction-start' }))
+    expect(beforeSettle.some((event) => event?.type === 'turn-complete' || event?.type === 'error')).toBe(false)
+    expect(await nextEventWithin(conn.events)).toBeUndefined()
+
+    cb({ type: 'compaction_end', result: { summary: 'done' } } as unknown as AgentSessionEvent)
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    settlePrompt()
+    await expect(collectUntilTerminal(conn.events)).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'turn-complete' })])
+    )
   })
 
   it('surfaces an errored turn as a runtime error event', async () => {

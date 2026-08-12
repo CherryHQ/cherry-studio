@@ -20,8 +20,11 @@ import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import {
+  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -36,7 +39,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -51,23 +54,16 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
-import { resolvePiProviderInjection } from './modelInjection'
+import { materializePiProviderStream, resolvePiProviderInjection } from './modelInjection'
+import { buildPiConnectionSignature } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
   type PiMcpToolBridge,
   warmMcpToolCatalogs
 } from './piMcpToolAdapter'
-import {
-  loadPiAi,
-  loadPiAnthropicMessagesApi,
-  loadPiApiStreamSimple,
-  loadPiOpenAiResponsesApi,
-  loadPiSdk
-} from './piSdk'
+import { loadPiAiCompat, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
-import { withCherryInThinkingReplay } from './piThinkingReplay'
-import { type PiAiStreamFns, withTransportStream } from './piTransportStream'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -83,6 +79,11 @@ const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
   buildPiMcpToolName('skills', 'search_skills'),
   ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
   ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
+])
+const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
+  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
+  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
+  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
 ])
 /** Agent persona assembler, shared across pi connections (mtime-cached reads). */
 const promptBuilder = new PromptBuilder()
@@ -100,6 +101,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private unsubscribe?: () => void
   private resumeToken?: string
   private lastStopReason?: string
+  private lastAgentError?: string
   private closed = false
   /** Injected model id (pi `apiModelId`), stamped on context-usage so the renderer's
    *  per-model usage filter matches the composer's model candidates. */
@@ -110,6 +112,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   private _usageCapture?: AgentSessionUsageCapture
+  private apiProviderSourceId?: string
+  private promptRunActive = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -142,47 +146,40 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    this.connectionSignature = buildPiConnectionSignature(agent, this.input.modelId, this.input.knowledgeBaseIds)
-
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
-    // Belt: force pi's global discovery away from the user's ~/.pi/agent. The
-    // explicit `agentDir`/session-dir passed to the SDK objects below are the
-    // suspenders (plan D9).
-    process.env.PI_CODING_AGENT_DIR = agentDir
-    process.env.PI_CODING_AGENT_SESSION_DIR = sessionDir
-
     const pi = await loadPiSdk()
 
-    // App-managed-OAuth providers register a `streamSimple` that injects a fresh
-    // OAuth token + provider headers + payload rewrite per call (the placeholder
-    // key is never used for auth). pi's api-family stream functions must be
-    // in-hand before the sync `streamSimple` is invoked, so load them here.
-    const routedProviderConfig = injection.transportAdapter
-      ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
-      : injection.providerName === 'cherryin' && injection.providerConfig.api === 'anthropic-messages'
-        ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
-        : injection.providerConfig
+    const materializedProvider = await materializePiProviderStream(injection)
     const providerConfig = withPiInvocationCapture(
-      routedProviderConfig,
-      routedProviderConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api)),
+      materializedProvider.providerConfig,
+      withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
       (message) => this.recordProviderInvocation(message)
     )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
     // global auth.json/models.json. The real key is a runtime override; the
     // registered provider config carries only the placeholder (plan D1).
+    const runtimeProviderName = `${injection.providerName}:${this.input.sessionId}`
+    const runtimeApi = `cherry-${this.input.sessionId}-${injection.api}` as NonNullable<ProviderConfig['api']>
+    const isolatedProviderConfig: ProviderConfig = {
+      ...providerConfig,
+      api: runtimeApi,
+      models: providerConfig.models?.map((model) => ({ ...model, api: runtimeApi }))
+    }
     const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(injection.providerName, injection.apiKey)
+    authStorage.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
     const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
-    modelRegistry.registerProvider(injection.providerName, providerConfig)
-    const model = modelRegistry.find(injection.providerName, injection.modelId)
+    modelRegistry.registerProvider(runtimeProviderName, isolatedProviderConfig)
+    this.apiProviderSourceId = `provider:${runtimeProviderName}`
+    const model = modelRegistry.find(runtimeProviderName, injection.modelId)
     if (!model) {
-      throw new Error(`pi model ${injection.providerName}/${injection.modelId} could not be resolved after injection`)
+      await this.unregisterApiProvider()
+      throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
     }
 
     // The workspace is always trusted: the user picked it by hand in Cherry, so there is
@@ -233,7 +230,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       noContextFiles: false,
       additionalSkillPaths,
       extensionFactories: [
-        createPiProviderExtension(injection.providerName, providerConfig),
+        createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
         createPiApprovalExtension({
           sessionId: this.input.sessionId,
           workspacePath,
@@ -245,7 +242,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           isDisabled: (toolName) => this.disabledTools.has(toolName),
           // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
           // disabledTools hard-blocks every class at fire-time.
-          autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS
+          autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
+          approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
         })
       ],
       // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
@@ -274,6 +272,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       )
     )
     const customTools = this.mcpBridge.tools
+    this.connectionSignature = await buildPiConnectionSignature(
+      this.input.sessionId,
+      agent,
+      this.input.modelId,
+      this.input.knowledgeBaseIds
+    )
 
     let piSession: AgentSession
     try {
@@ -297,6 +301,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       await this.mcpBridge.close()
       this.mcpBridge = undefined
+      await this.unregisterApiProvider()
       throw error
     }
 
@@ -364,11 +369,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
-    void session.prompt(content, options).catch((error) => {
-      if (this.closed) return
-      logger.error('pi prompt failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
-    })
+    this.promptRunActive = true
+    void session.prompt(content, options).then(
+      () => this.finishPromptRun(),
+      (error) => this.finishPromptRun(error)
+    )
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -414,7 +419,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (buildPiConnectionSignature(agent, input.modelId, input.knowledgeBaseIds) !== this.connectionSignature) {
+    if (
+      (await buildPiConnectionSignature(this.input.sessionId, agent, input.modelId, input.knowledgeBaseIds)) !==
+      this.connectionSignature
+    ) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'
@@ -451,6 +459,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.session?.dispose()
     this.session = undefined
+    await this.unregisterApiProvider()
     await this.mcpBridge?.close()
     this.mcpBridge = undefined
     this.eventQueue.close()
@@ -488,26 +497,44 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // turn_end's `error` and mislabeled as a failed turn.
       if (event.willRetry) {
         this.lastStopReason = undefined
+        this.lastAgentError = undefined
         return
       }
-      this.maybeEmitResumeToken()
-      const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
-      if (undelivered.length > 0) {
-        // pi does NOT drain its steering queue when a turn ends (its error path especially leaves the
-        // queue intact), so the un-delivered steer would re-inject into the NEXT run and the model
-        // would see it twice. Drop pi's queue here — the host re-queues these steers as the next turn.
-        this.session?.clearQueue()
-        this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
-      }
-      if (this.lastStopReason === 'error') {
-        const message = lastErrorMessage(event.messages)
-        this.eventQueue.push({ type: 'error', error: new Error(message ?? 'pi agent turn failed') })
-      } else {
-        this.emitContextUsage()
-        this.eventQueue.push({ type: 'turn-complete' })
-      }
-      this.lastStopReason = undefined
+      this.lastAgentError = lastErrorMessage(event.messages)
+      // Defensive compatibility for SDK-originated runs not started through send(). Normal Cherry
+      // turns settle from session.prompt(), after retry/compaction continuation has fully drained.
+      if (!this.promptRunActive) this.finishPromptRun()
     }
+  }
+
+  private finishPromptRun(error?: unknown): void {
+    if (this.closed) return
+    this.promptRunActive = false
+    this.maybeEmitResumeToken()
+    const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
+    if (undelivered.length > 0) {
+      // pi does not drain its steering queue when a run ends. The host owns re-queuing.
+      this.session?.clearQueue()
+      this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+    }
+    if (error || this.lastStopReason === 'error') {
+      const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
+      logger.error('pi prompt failed', failure)
+      this.eventQueue.push({ type: 'error', error: failure })
+    } else {
+      this.emitContextUsage()
+      this.eventQueue.push({ type: 'turn-complete' })
+    }
+    this.lastStopReason = undefined
+    this.lastAgentError = undefined
+  }
+
+  private async unregisterApiProvider(): Promise<void> {
+    const sourceId = this.apiProviderSourceId
+    if (!sourceId) return
+    this.apiProviderSourceId = undefined
+    const compat = await loadPiAiCompat()
+    compat.unregisterApiProviders(sourceId)
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
@@ -615,11 +642,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
  * surface, so only that family is loaded (simplification ceiling: map by
  * `providerConfig.api` if a non-responses adapter provider is ever added).
  */
-async function loadPiAiStreamFns(): Promise<PiAiStreamFns> {
-  const [piAi, responsesApi] = await Promise.all([loadPiAi(), loadPiOpenAiResponsesApi()])
-  return { lazyStream: piAi.lazyStream, apiStreamSimple: responsesApi.streamSimple }
-}
-
 /**
  * Resolve the agent's ENABLED managed skills to their absolute on-disk directories,
  * reusing the SAME store the claude driver reads (`skillService.list({ agentId })`,
@@ -677,6 +699,15 @@ function withPiInvocationCapture(
   }
 }
 
+function withPiRequestEnvironment(
+  streamSimple: NonNullable<ProviderConfig['streamSimple']>,
+  environment: Record<string, string> | undefined
+): NonNullable<ProviderConfig['streamSimple']> {
+  if (!environment) return streamSimple
+  return (model, context, options) =>
+    streamSimple(model, context, { ...options, env: { ...options?.env, ...environment } })
+}
+
 function finiteTokenCount(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
@@ -691,21 +722,6 @@ function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
-}
-
-/** Spawn-frozen Pi inputs, intentionally excluding the approval gate's live permission mode. */
-function buildPiConnectionSignature(
-  agent: AgentEntity,
-  modelId: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
-): string {
-  const agentFacts = { ...agent, updatedAt: undefined }
-  const configurationFacts = { ...agent.configuration, permission_mode: undefined }
-  return JSON.stringify({
-    agent: { ...agentFacts, configuration: configurationFacts },
-    modelId,
-    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
-  })
 }
 
 /**

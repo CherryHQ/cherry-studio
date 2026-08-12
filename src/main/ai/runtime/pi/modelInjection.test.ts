@@ -1,12 +1,35 @@
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const serviceMocks = vi.hoisted(() => ({
+  getByProviderId: vi.fn(),
+  getApiKeys: vi.fn(),
+  resolveApiKey: vi.fn(),
+  getByKey: vi.fn(),
+  hasToken: vi.fn()
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: serviceMocks.getByProviderId,
+    getApiKeys: serviceMocks.getApiKeys,
+    resolveApiKey: serviceMocks.resolveApiKey
+  }
+}))
+vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: serviceMocks.getByKey } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ OAuthRuntimeService: { hasToken: serviceMocks.hasToken } } as never)
+})
 
 import {
+  assertPiProviderUsable,
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
-  PiUnsupportedProviderError
+  PiUnsupportedProviderError,
+  resolvePiProviderInjection
 } from './modelInjection'
 
 const REAL_KEY = 'sk-cherry-secret-key'
@@ -139,6 +162,40 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://x.openai.azure.com')
   })
 
+  it('preserves provider headers and Azure API version request configuration', () => {
+    const provider = makeProvider({
+      id: 'azure-openai',
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': { adapterFamily: 'azure-responses', baseUrl: 'https://x.openai.azure.com' }
+      },
+      settings: { extraHeaders: { 'x-tenant': 'tenant-1' }, apiVersion: '2025-04-01-preview' }
+    })
+    const injection = buildPiProviderInjection(provider, makeModel({ endpointTypes: ['openai-responses'] }), REAL_KEY)
+
+    expect(injection.providerConfig.headers).toEqual({ 'x-tenant': 'tenant-1' })
+    expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
+  })
+
+  it('uses the gateway per-model route for both API family and base URL', () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'aihubmix', baseUrl: 'https://aihubmix.com/v1' },
+        'anthropic-messages': { adapterFamily: 'aihubmix', baseUrl: 'https://aihubmix.com' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ id: 'aihubmix::claude-sonnet-4', apiModelId: 'claude-sonnet-4' }),
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.api).toBe('anthropic-messages')
+    expect(injection.providerConfig.baseUrl).toBe('https://aihubmix.com')
+  })
+
   it('returns the real key separately and only a placeholder in the config', () => {
     const provider = makeProvider({
       id: 'anthropic',
@@ -257,5 +314,90 @@ describe('buildPiProviderInjection', () => {
     })
 
     expect(() => buildPiProviderInjection(provider, makeModel({}), '')).toThrow(PiUnsupportedProviderError)
+  })
+})
+
+function stubGrokCliServices(): void {
+  serviceMocks.getByProviderId.mockResolvedValue({
+    id: 'grok-cli',
+    name: 'Grok CLI',
+    authMethods: ['oauth'],
+    defaultChatEndpoint: 'openai-responses',
+    endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
+  })
+  serviceMocks.getByKey.mockResolvedValue({
+    id: 'grok-cli::grok-build',
+    providerId: 'grok-cli',
+    name: 'M',
+    capabilities: []
+  })
+}
+
+describe('modelInjection service resolution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    serviceMocks.getByProviderId.mockResolvedValue({
+      id: 'p',
+      name: 'P',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    serviceMocks.getByKey.mockResolvedValue({ id: 'p::m', providerId: 'p', name: 'M', capabilities: [] })
+    serviceMocks.getApiKeys.mockReturnValue([{ id: 'k1', key: 'sk-test', isEnabled: true }])
+  })
+
+  it('validates compatibility without consuming rotated API keys', async () => {
+    await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
+    expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing credentials and unsupported providers', async () => {
+    serviceMocks.getApiKeys.mockReturnValueOnce([{ id: 'k1', key: '   ', isEnabled: true }])
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingApiKeyError)
+
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: 'p',
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
+    })
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
+  it('validates app-managed OAuth through its live session', async () => {
+    stubGrokCliServices()
+    serviceMocks.hasToken.mockResolvedValueOnce(true)
+    await expect(assertPiProviderUsable('grok-cli::grok-build')).resolves.toBeUndefined()
+    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
+
+    serviceMocks.hasToken.mockResolvedValueOnce(false)
+    await expect(assertPiProviderUsable('grok-cli::grok-build')).rejects.toThrow(PiMissingApiKeyError)
+  })
+
+  it('resolves OAuth without key rotation and plain providers with rotation', async () => {
+    stubGrokCliServices()
+    const oauth = await resolvePiProviderInjection('grok-cli::grok-build')
+    expect(oauth.transportAdapter).toBeDefined()
+    expect(oauth.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+
+    serviceMocks.getByProviderId.mockResolvedValue({
+      id: 'p',
+      name: 'P',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    serviceMocks.getByKey.mockResolvedValue({ id: 'p::m', providerId: 'p', name: 'M', capabilities: [] })
+    serviceMocks.resolveApiKey.mockReturnValue({
+      value: 'sk-rotated',
+      apiKeySelection: { attribution: 'matched', id: 'k1', masked: 'sk-****' }
+    })
+    const plain = await resolvePiProviderInjection('p::m')
+    expect(plain.apiKey).toBe('sk-rotated')
+    expect(plain.usageCapture.credentialReceipt).toEqual({
+      attribution: 'matched',
+      id: 'k1',
+      masked: 'sk-****'
+    })
   })
 })

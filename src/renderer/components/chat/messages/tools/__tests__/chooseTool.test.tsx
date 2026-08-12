@@ -74,8 +74,9 @@ describe('chooseTool', () => {
   })
 
   it('routes pi runtime built-ins to the generic agent card', () => {
-    expect(testIdOf(chooseTool(resp('read', 'builtin')))).toBe('agent-card')
-    expect(testIdOf(chooseTool(resp('bash', 'builtin')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('read', 'provider')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('bash', 'provider')))).toBe('agent-card')
+    expect(chooseTool(resp('read', 'builtin'))).toBeNull()
   })
 
   it('returns null for an unknown non-Cherry tool', () => {

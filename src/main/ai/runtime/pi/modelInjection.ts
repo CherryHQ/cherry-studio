@@ -16,7 +16,8 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { type PiApi, resolvePiApi } from '@shared/ai/piModelCompatibility'
+import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
   MODALITY,
   type Model,
@@ -25,10 +26,14 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import type { AgentSessionUsageCapture } from '../types'
+import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
+import { withCherryInThinkingReplay } from './piThinkingReplay'
+import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
 
 /**
  * Non-secret placeholder written into the `registerProvider` config. pi
@@ -82,8 +87,26 @@ export interface PiProviderInjection {
    * from this adapter; `apiKey` is then only the placeholder (no real app-side key).
    */
   transportAdapter?: ProviderTransportAdapter
+  /** Provider-specific environment consumed by pi-ai's request implementation. */
+  requestEnvironment?: Record<string, string>
   /** Frozen attribution selected together with the credential used by this connection. */
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
+}
+
+/** Materialize provider-specific stream compatibility before the connection consumes it. */
+export async function materializePiProviderStream(injection: PiProviderInjection): Promise<{
+  providerConfig: ProviderConfig
+  streamSimple: NonNullable<ProviderConfig['streamSimple']>
+}> {
+  const providerConfig = injection.transportAdapter
+    ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
+    : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
+      ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
+      : injection.providerConfig
+  return {
+    providerConfig,
+    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+  }
 }
 
 /**
@@ -101,7 +124,14 @@ export function buildPiProviderInjection(
 ): PiProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
-  const api = resolvePiApi(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const adapterFamily = resolvedEndpoint.endpointType
+    ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
+    : undefined
+  const api =
+    isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
+      ? undefined
+      : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
@@ -111,7 +141,7 @@ export function buildPiProviderInjection(
   const transportAdapter = getProviderTransportAdapter(provider.id)
   if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
-  const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+  const { baseUrl } = resolvedEndpoint
   const modelId = model.apiModelId ?? model.id
   const modelConfig = buildPiModelConfig(provider, model, modelId, api)
 
@@ -120,6 +150,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
+    headers: provider.settings?.extraHeaders,
     models: [modelConfig]
   }
 
@@ -145,7 +176,10 @@ export function buildPiProviderInjection(
         }
       ]
     },
-    ...(transportAdapter ? { transportAdapter } : {})
+    ...(transportAdapter ? { transportAdapter } : {}),
+    ...(api === 'azure-openai-responses' && provider.settings?.apiVersion?.trim()
+      ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
+      : {})
   }
 }
 
@@ -189,7 +223,16 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting
   // "missing API key" for it would misdiagnose an unsupported provider.
-  if (!resolvePiApi(provider, model)) throw new PiUnsupportedProviderError(providerId)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const adapterFamily = resolvedEndpoint.endpointType
+    ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
+    : undefined
+  if (
+    (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) ||
+    !mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+  ) {
+    throw new PiUnsupportedProviderError(providerId)
+  }
 
   // Transport-adapter providers validate the OAuth session (cheap `hasToken`),
   // not app-side keys; a signed-out provider is surfaced as a missing credential.
