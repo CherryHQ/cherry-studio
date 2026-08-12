@@ -104,6 +104,12 @@
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
+  },
   "openclaw": {
     "errors": {
       "binary_incompatible": "The OpenClaw binary used by Cherry Studio is incompatible with the generated configuration. Upgrade OpenClaw.{{details}}",

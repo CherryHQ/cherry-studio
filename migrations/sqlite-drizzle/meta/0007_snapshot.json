@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c3386de7-b3b9-43bd-8cd6-15d761748480",
+  "id": "0f5fea5a-c909-4d37-b8ba-6d1f61856523",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -543,6 +543,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -567,6 +574,11 @@
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_last_activity_at_idx": {
+          "name": "agent_session_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "agent_session_updated_at_idx": {
@@ -3872,89 +3884,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "prompt_binding": {
-      "name": "prompt_binding",
-      "columns": {
-        "prompt_id": {
-          "name": "prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "prompt_binding_target_idx": {
-          "name": "prompt_binding_target_idx",
-          "columns": ["target_type", "target_id", "prompt_id"],
-          "isUnique": false
-        },
-        "prompt_binding_target_order_key_idx": {
-          "name": "prompt_binding_target_order_key_idx",
-          "columns": ["target_type", "target_id", "order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "prompt_binding_prompt_id_prompt_id_fk": {
-          "name": "prompt_binding_prompt_id_prompt_id_fk",
-          "tableFrom": "prompt_binding",
-          "tableTo": "prompt",
-          "columnsFrom": ["prompt_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "prompt_binding_prompt_id_target_type_target_id_pk": {
-          "columns": ["prompt_id", "target_type", "target_id"],
-          "name": "prompt_binding_prompt_id_target_type_target_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_binding_target_type_check": {
-          "name": "prompt_binding_target_type_check",
-          "value": "\"prompt_binding\".\"target_type\" IN ('assistant', 'agent')"
-        }
-      }
-    },
     "prompt": {
       "name": "prompt",
       "columns": {
@@ -3974,13 +3903,6 @@
         },
         "content": {
           "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "visibility": {
-          "name": "visibility",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4018,12 +3940,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_visibility_check": {
-          "name": "prompt_visibility_check",
-          "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
-        }
-      }
+      "checkConstraints": {}
     },
     "entity_tag": {
       "name": "entity_tag",
@@ -4196,6 +4113,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -4219,6 +4143,11 @@
         }
       },
       "indexes": {
+        "topic_last_activity_at_idx": {
+          "name": "topic_last_activity_at_idx",
+          "columns": ["last_activity_at"],
+          "isUnique": false
+        },
         "topic_updated_at_idx": {
           "name": "topic_updated_at_idx",
           "columns": ["updated_at"],

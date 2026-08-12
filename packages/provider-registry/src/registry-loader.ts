@@ -205,6 +205,9 @@ export class RegistryLoader {
     if (colonVariantTagToHyphen(modelId) !== modelId) {
       return this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true })) ?? null
     }
+    // Prefer the size-preserving key before the family key so distinct catalog sizes keep their metadata.
+    const sizedHit = this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true }))
+    if (sizedHit) return sizedHit
     return this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
   }
 
