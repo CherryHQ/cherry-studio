@@ -5,11 +5,9 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * Fast source-level Pi SDK smoke.
+ * Phase 0 bundling spike (GO/NO-GO gate).
  *
- * Covers SDK construction without a provider key or network. The separate
- * `pnpm test:package:pi` CI gate builds electron-vite output, packages app.asar,
- * and imports this ESM-only SDK from the packaged Electron runtime.
+ * Proves the in-process SDK path is viable without a provider key or network:
  * 1. `@earendil-works/pi-coding-agent` (ESM-only, `type: module`) is importable
  *    from Cherry's main process via dynamic `import()`. Static `import`/`require()`
  *    is NOT viable — pi's `exports` map defines only the `import`/`types`
