@@ -591,6 +591,44 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
+  it('preserves a whole-snapshot thinking block as reasoning when nothing was streamed', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'thinking', thinking: 'plan' }] }
+    } as any)
+
+    expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+    expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: 'plan' })
+    expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
+  })
+
+  it('does not duplicate thinking that a whole-snapshot assistant message re-delivers after streaming', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'plan' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'thinking', thinking: 'plan' }] }
+    } as any)
+
+    expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+    expect(parts.filter((part) => part.type === 'reasoning-delta')).toHaveLength(1)
+  })
+
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 

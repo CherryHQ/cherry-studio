@@ -218,6 +218,11 @@ interface RenderGroupedEntryOptions {
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
+  /**
+   * Agent sessions: a `text` part folded into a process group is the model's
+   * narration/reasoning, so render it as a collapsible thinking block.
+   */
+  narrationAsThinking?: boolean
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
@@ -557,6 +562,11 @@ function renderPart(
     }
 
     case 'text': {
+      if (options?.narrationAsThinking) {
+        // Folded agent-session narration (text that precedes a tool call) reads
+        // like reasoning — present it as a collapsible thinking block.
+        return <ThinkingBlock key={partId} id={partId} content={part.text || ''} isStreaming={isStreaming} />
+      }
       const cherryMeta = getCherryMeta(part)
       const references = cherryMeta?.references as ContentReference[] | undefined
       let converted = references ? referenceCitationsCache.get(references) : undefined
@@ -864,9 +874,12 @@ function renderGroupedEntry(
   const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
   if (!rendered) return null
 
+  const isNarrationText = options?.narrationAsThinking && (entry.part.type as string) === 'text'
   const wrapperClassName =
     entry.part.type === 'text'
-      ? 'text-foreground'
+      ? isNarrationText
+        ? 'message-thought-wrapper'
+        : 'text-foreground'
       : isReasoningMessagePart(entry.part)
         ? 'message-thought-wrapper'
         : undefined
@@ -876,7 +889,7 @@ function renderGroupedEntry(
       key={partId}
       enableAnimation={enableAnimation}
       className={wrapperClassName}
-      messagePartId={entry.part.type === 'text' ? partId : undefined}>
+      messagePartId={entry.part.type === 'text' && !isNarrationText ? partId : undefined}>
       {rendered}
     </AnimatedBlockWrapper>
   )
@@ -893,7 +906,14 @@ type NestedHistoryItem =
   | { kind: 'process'; key: number; entries: PartEntry[] }
   | { kind: 'content'; key: number; entry: GroupedEntry }
 
-function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistoryItem[] {
+/** Agent-session topic ids are `agent-session:<sessionId>` (see `buildAgentSessionTopicId`). */
+const AGENT_SESSION_TOPIC_PREFIX = 'agent-session:'
+
+function isAgentSessionTopicId(topicId: string): boolean {
+  return topicId.startsWith(AGENT_SESSION_TOPIC_PREFIX)
+}
+
+function groupNestedHistoryEntries(entries: readonly PartEntry[], foldNarration = false): NestedHistoryItem[] {
   const result: NestedHistoryItem[] = []
   let contentEntries: PartEntry[] = []
   let processEntries: PartEntry[] = []
@@ -923,9 +943,21 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
       continue
     }
 
-    if ((entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
-      flushContent()
+    const isProcessPart = (entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)
+
+    if (isProcessPart) {
+      if (foldNarration && contentEntries.length > 0) {
+        // Agent sessions: fold the pending narration text into the process group
+        // so it renders inside the tool disclosure instead of standalone body text.
+        processEntries.push(...contentEntries)
+        contentEntries = []
+      } else {
+        flushContent()
+      }
       processEntries.push(entry)
+    } else if (foldNarration && processEntries.length > 0) {
+      // Text after a process part stays pending; it folds into the next one.
+      contentEntries.push(entry)
     } else {
       flushProcess()
       contentEntries.push(entry)
@@ -942,9 +974,10 @@ function renderNestedHistory(
   message: MessageListItem,
   isTranslationOverlayActive: boolean,
   options: RenderGroupedEntryOptions,
-  liveProcessMode?: 'last' | 'settled'
+  liveProcessMode?: 'last' | 'settled',
+  foldNarration = false
 ): React.ReactNode {
-  const nestedItems = groupNestedHistoryEntries(entries)
+  const nestedItems = groupNestedHistoryEntries(entries, foldNarration)
   let lastProcessIndex = -1
   if (liveProcessMode === 'last') {
     for (let index = nestedItems.length - 1; index >= 0; index--) {
@@ -964,7 +997,10 @@ function renderNestedHistory(
       return (
         <React.Fragment key={`process-${message.id}-${item.key}`}>
           {groupPartEntries(item.entries).map((entry) =>
-            renderGroupedEntry(entry, message, false, isTranslationOverlayActive, options)
+            renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
+              ...options,
+              narrationAsThinking: foldNarration
+            })
           )}
         </React.Fragment>
       )
@@ -978,7 +1014,8 @@ function renderNestedHistory(
             renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
               ...options,
               enableAnimation: false,
-              reasoningDisplay: 'disclosure'
+              reasoningDisplay: 'disclosure',
+              narrationAsThinking: foldNarration
             })
           )}
         </React.Fragment>
@@ -1004,7 +1041,8 @@ function renderNestedHistory(
                 ...options,
                 enableAnimation: false,
                 reasoningDisplay: 'disclosure',
-                toolDisplay: 'content'
+                toolDisplay: 'content',
+                narrationAsThinking: foldNarration
               })
             )}
           </div>
@@ -1136,7 +1174,8 @@ const ActiveMessageProcess = React.memo(
                   settleStreamingReasoning: !isStreamLive,
                   toolDisplay: 'disclosure'
                 },
-                isLastProcess && !hasResultContent ? 'last' : 'settled'
+                isLastProcess && !hasResultContent ? 'last' : 'settled',
+                isAgentSessionTopicId(message.topicId)
               )}
             </React.Fragment>
           )
@@ -1265,7 +1304,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
                 ...completedRenderOptions,
                 reasoningDisplay: 'disclosure',
                 toolDisplay: 'content'
-              }
+              },
+          undefined,
+          isAgentSessionTopicId(message.topicId)
         )
       : null
   const completedResult = groupPartEntries(completedLayout.resultEntries).map((entry) => {

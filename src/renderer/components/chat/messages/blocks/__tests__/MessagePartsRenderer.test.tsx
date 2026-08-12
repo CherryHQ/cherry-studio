@@ -1986,4 +1986,40 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
   })
+
+  describe('agent-session narration folding', () => {
+    it('renders pre-tool narration text as a collapsible thinking block in agent sessions', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'Narration before the tool', state: 'done' },
+          toolPart('bash'),
+          { type: 'text', text: 'Final answer', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg({ topicId: 'agent-session:session-1' })
+      )
+
+      fireEvent.click(screen.getByTestId('completed-process-trigger'))
+      expandCollapsedChildToolGroups()
+
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Narration before the tool')
+      // The narration is folded into the process disclosure, not standalone body text.
+      expect(latestMainTextProps(0)).toBeUndefined()
+      expect(screen.getByText('Final answer')).toBeInTheDocument()
+    })
+
+    it('keeps pre-tool text as body text outside agent sessions', () => {
+      renderParts([
+        { type: 'text', text: 'Narration before the tool', state: 'done' },
+        toolPart('bash'),
+        { type: 'text', text: 'Final answer', state: 'done' }
+      ] as unknown as CherryMessagePart[])
+
+      fireEvent.click(screen.getByTestId('completed-process-trigger'))
+      expandCollapsedChildToolGroups()
+
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      expect(latestMainTextProps(0)).toBeDefined()
+      expect(screen.getByText('Final answer')).toBeInTheDocument()
+    })
+  })
 })

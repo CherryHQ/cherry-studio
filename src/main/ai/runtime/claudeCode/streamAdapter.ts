@@ -140,6 +140,7 @@ type StreamContext = {
   textPartId: string | undefined
   accumulatedText: string
   streamedTextLength: number
+  streamedReasoningLength: number
   usage: LanguageModelV3Usage
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
@@ -542,6 +543,7 @@ export class ClaudeCodeStreamAdapter {
       textPartId: undefined,
       accumulatedText: '',
       streamedTextLength: 0,
+      streamedReasoningLength: 0,
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
@@ -961,6 +963,7 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex) ?? ctx.currentReasoningPartId
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: thinking })
+      ctx.streamedReasoningLength += thinking.length
     }
   }
 
@@ -1044,6 +1047,12 @@ export class ClaudeCodeStreamAdapter {
 
     if (text) {
       this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    }
+
+    const thinking = content.map((c: BetaContentBlock) => (c.type === 'thinking' ? c.thinking : '')).join('')
+
+    if (thinking) {
+      this.handleAssistantReasoning(thinking, sdkParentToolUseId, ctx)
     }
   }
 
@@ -1141,6 +1150,35 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /**
+   * Whole-snapshot mirror of {@link handleAssistantText} for `thinking` blocks.
+   * The streamed path already tagged thinking as reasoning; only the unstreamed
+   * remainder is emitted so a snapshot never drops or duplicates reasoning.
+   */
+  private handleAssistantReasoning(thinking: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+    const reasoningLength = ctx.streamedReasoningLength
+    const deltaReasoning = ctx.hasReceivedStreamEvents
+      ? thinking.length > reasoningLength
+        ? thinking.slice(reasoningLength)
+        : ''
+      : thinking
+    ctx.streamedReasoningLength = ctx.hasReceivedStreamEvents ? thinking.length : reasoningLength + thinking.length
+
+    if (!deltaReasoning) return
+
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    if (!ctx.currentReasoningPartId) {
+      const partId = generateId()
+      ctx.currentReasoningPartId = partId
+      ctx.sink.enqueue({ type: 'reasoning-start', id: partId, providerMetadata })
+      ctx.sink.enqueue({ type: 'reasoning-delta', id: partId, delta: deltaReasoning })
+      ctx.sink.enqueue({ type: 'reasoning-end', id: partId })
+      ctx.currentReasoningPartId = undefined
+    } else {
+      ctx.sink.enqueue({ type: 'reasoning-delta', id: ctx.currentReasoningPartId, delta: deltaReasoning })
+    }
+  }
+
   private handleUserMessage(message: SDKUserMessage, ctx: StreamContext): void {
     if (!message.message?.content) return
 
@@ -1156,6 +1194,9 @@ export class ClaudeCodeStreamAdapter {
       ctx.accumulatedText = ''
       ctx.streamedTextLength = 0
     }
+    // Reasoning length is reset at every message boundary (a turn can run many
+    // assistant messages without opening a text part, e.g. `thinking` + `tool_use`).
+    ctx.streamedReasoningLength = 0
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
