@@ -307,6 +307,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -327,6 +328,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -412,6 +414,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
