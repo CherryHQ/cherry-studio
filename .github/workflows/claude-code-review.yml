@@ -1,6 +1,12 @@
 name: Claude Code Review
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review"
+        required: true
+        type: string
   pull_request:
     types: [opened, ready_for_review, reopened]
     # Optional: Only run on specific file changes
@@ -14,7 +20,7 @@ on:
 
 jobs:
   claude-review:
-    # Automatically review same-repository PRs, or manually review when a trusted user comments @claude review.
+    # Automatically review same-repository PRs, or manually review through Actions or @claude review.
     # https://github.com/anthropics/claude-code-action/issues/542
     if: |
       (
@@ -26,6 +32,8 @@ jobs:
         (github.event.issue.pull_request != null) &&
         contains(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      ) || (
+        github.event_name == 'workflow_dispatch'
       )
     runs-on: ubuntu-latest
     permissions:
@@ -34,10 +42,36 @@ jobs:
       id-token: write
 
     steps:
+      - name: Resolve manually requested PR
+        if: github.event_name == 'workflow_dispatch'
+        id: manual-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$REQUESTED_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR number must be a positive integer"
+            exit 1
+          fi
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$REQUESTED_PR_NUMBER")"
+          if [[ "$(jq -r '.state' <<< "$pr_json")" != "open" ]]; then
+            echo "::error::PR #$REQUESTED_PR_NUMBER is not open"
+            exit 1
+          fi
+
+          {
+            echo "number=$(jq -r '.number' <<< "$pr_json")"
+            echo "head_sha=$(jq -r '.head.sha' <<< "$pr_json")"
+            echo "base_ref=$(jq -r '.base.ref' <<< "$pr_json")"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', github.event.issue.number) }}
+          ref: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || format('refs/pull/{0}/head', github.event.issue.number) }}
           fetch-depth: 1
 
       - name: Run Claude Code Review
@@ -51,9 +85,9 @@ jobs:
             You are performing a read-only, evidence-based review of the pull request below. Do not modify files, create commits, or change repository state.
 
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-            EVENT HEAD SHA: ${{ github.event.pull_request.head.sha || 'MANUAL_TRIGGER' }}
-            BASE BRANCH: ${{ github.event.pull_request.base.ref || 'resolve with gh pr view' }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || steps.manual-pr.outputs.number }}
+            EVENT HEAD SHA: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || 'MANUAL_TRIGGER' }}
+            BASE BRANCH: ${{ github.event.pull_request.base.ref || steps.manual-pr.outputs.base_ref || 'resolve with gh pr view' }}
 
             ## Plan and execute the review
 
