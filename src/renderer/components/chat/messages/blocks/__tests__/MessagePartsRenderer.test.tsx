@@ -1074,7 +1074,7 @@ describe('MessagePartsRenderer', () => {
       })
     })
 
-    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+    it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -1106,17 +1106,28 @@ describe('MessagePartsRenderer', () => {
         input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
         output: {}
       } as unknown as CherryMessagePart
+      const sessionPart = {
+        ...toolPart('create-session', 'output-available', 'session_create'),
+        input: { title: 'Research session' },
+        output: {
+          content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      } as unknown as CherryMessagePart
       const initialParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: 'A', state: 'streaming' }
       ] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       const finalText = `A${'b'.repeat(100)}`
       const finalParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: finalText, state: 'done' }
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
@@ -1126,10 +1137,12 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       act(() => tick(50))
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.getByTestId('session-result-cards')).toBeInTheDocument()
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
@@ -1549,7 +1562,10 @@ describe('MessagePartsRenderer', () => {
           {
             ...toolPart('create-session', 'output-available', 'session_create'),
             input: { title: 'Research session' },
-            output: JSON.stringify({ ok: true, sessionId: 'session-research' })
+            output: {
+              content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
           },
           { type: 'text', text: 'The new session is ready.' }
         ] as unknown as CherryMessagePart[],

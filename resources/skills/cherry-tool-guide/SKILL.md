@@ -38,7 +38,8 @@ parameter names, enums, and required fields. Read it before every call.
   that a raw shell command skips. Shell is fine for *inspection* (e.g. `command -v` to
   probe PATH) — just not to perform the owned mutation.
 - **Honor approval.** `mcp__cherry-tools__kb_manage`, `mcp__cherry-tools__cli_install`,
-  `mcp__cherry-tools__session_send`, and `mcp__skills__install_skill` are gated by the
+  `mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`, and
+  `mcp__skills__install_skill` are gated by the
   session's approval mode. Call them only once the user's intent is clear; if approval is
   declined, stop and report — do not retry the same effect through another route.
 - **Intent still gates auto-approved effects.** Memory writes, schedule changes,

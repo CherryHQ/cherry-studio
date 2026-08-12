@@ -4,7 +4,6 @@ import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
-import { useIsStreaming } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { getSessionDeliveryStatus } from './sessionDeliveryStatus'
@@ -31,14 +30,15 @@ function getInput(input: ToolInput | Record<string, unknown> | undefined): Sessi
 export function SessionSendTool({
   input,
   output,
-  hasError = false
+  hasError = false,
+  isStreaming = false
 }: {
   input?: ToolInput | Record<string, unknown>
   output?: ToolOutput
   hasError?: boolean
+  isStreaming?: boolean
 }): ToolDisclosureItem {
   const { t } = useTranslation()
-  const isStreaming = useIsStreaming()
   const sessionInput = getInput(input)
   const result = parseSessionSendResult(output)
   const targetSessionId = result?.delivery?.receiver?.sessionId ?? sessionInput.targetSessionId

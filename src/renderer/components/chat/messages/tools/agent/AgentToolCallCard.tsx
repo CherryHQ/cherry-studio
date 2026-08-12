@@ -51,6 +51,7 @@ export function AgentToolCallCard({
   isStreaming = false,
   status,
   hasError = false,
+  isCherrySessionTool = false,
   openFlowOnClick = false,
   showInlineDetails = true
 }: {
@@ -61,15 +62,18 @@ export function AgentToolCallCard({
   isStreaming?: boolean
   status?: ToolStatus
   hasError?: boolean
+  isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
   const renderedItem =
-    toolName === SESSION_CREATE_TOOL_NAME || toolName?.endsWith(`__${SESSION_CREATE_TOOL_NAME}`)
-      ? SessionCreateTool({ input, output, hasError })
-      : toolName === SESSION_SEND_TOOL_NAME || toolName?.endsWith(`__${SESSION_SEND_TOOL_NAME}`)
-        ? SessionSendTool({ input, output, hasError })
+    isCherrySessionTool &&
+    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+      ? SessionCreateTool({ input, output, hasError, isStreaming })
+      : isCherrySessionTool &&
+          (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
+        ? SessionSendTool({ input, output, hasError, isStreaming })
         : isValidAgentToolsType(toolName)
           ? renderTool(toolName, input ?? {}, output, hasError)
           : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME

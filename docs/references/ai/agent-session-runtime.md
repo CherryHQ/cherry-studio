@@ -20,6 +20,7 @@ queue, and `resume` handling are driver internals.
 | Owner | Responsibility |
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
+| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, quiescing, and deletion coordination. |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `redirect` (mid-turn steer) and `applyPolicyUpdate`, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
@@ -95,8 +96,8 @@ steering is only valid after that turn's stream is `open`.
 Agent Sessions communicate through the same host-owned message and runtime path; provider
 processes never connect to one another. A delivery is an ordinary `agent_session_message` in the
 receiver Session plus Main-authored routing and lifecycle metadata. The database records work still
-owed; `pendingTurns` only accelerates execution in the current process and is rebuilt from durable
-rows after restart.
+owed. `AgentSessionDeliveryService` schedules directly from durable `accepted` rows; delivery never
+enters the runtime's process-local follow-up queue.
 
 ### Tool contract
 
@@ -111,8 +112,7 @@ and exposes five tools:
   hits instead of overloading an empty message-match list;
 - `session_create` — atomically create a same-Agent Session plus its first completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
-- `session_deliveries` — inspect incoming and outgoing request/result state, replacing the
-  incoming-only `session_inbox` surface.
+- `session_deliveries` — inspect incoming and outgoing request/result state.
 
 `session_send` has one asynchronous contract:
 
@@ -564,7 +564,8 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - recovery of a completion request while the target Session is busy cannot bind another turn's
   terminal output;
 - write quiesce and target-busy gates leave delivery `accepted` until their explicit wake event;
-- a duplicate result with the same `delivery_in_reply_to` is rejected by SQLite;
+- repeated finalization returns the existing result, while the unique `delivery_in_reply_to` index
+  prevents a second result row;
 - deleting a target Session first creates failure results for pending completion requests;
 - deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
 - a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;

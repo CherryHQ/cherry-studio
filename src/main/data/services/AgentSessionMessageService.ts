@@ -1015,13 +1015,15 @@ export class AgentSessionMessageService {
     }).entity
   }
 
-  listRecoverableSessionDeliveries(): AgentSessionMessageEntity[] {
+  listRecoverableSessionDeliveries(sessionId?: string): AgentSessionMessageEntity[] {
+    const filters = [inArray(sessionMessagesTable.deliveryStatus, [...AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES])]
+    if (sessionId) filters.push(eq(sessionMessagesTable.sessionId, sessionId))
     return application
       .get('DbService')
       .getDb()
       .select()
       .from(sessionMessagesTable)
-      .where(inArray(sessionMessagesTable.deliveryStatus, [...AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES]))
+      .where(and(...filters))
       .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
       .all()
       .map((row) => this.rowToEntity(row))

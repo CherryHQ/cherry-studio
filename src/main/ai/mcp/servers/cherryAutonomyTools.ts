@@ -543,7 +543,10 @@ export class CherryAutonomyTools {
     this.assertCurrentSessionIdentity()
     this.assertSessionToolsAuthorized()
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
-    const direction = args.direction === 'outgoing' ? 'outgoing' : 'incoming'
+    if (args.direction !== undefined && args.direction !== 'incoming' && args.direction !== 'outgoing') {
+      throw new McpError(ErrorCode.InvalidParams, "invalid 'direction'")
+    }
+    const direction = args.direction ?? 'incoming'
     const requestId = typeof args.request_id === 'string' ? args.request_id.trim() : undefined
     const statusResult = args.status === undefined ? undefined : AgentSessionDeliveryStatusSchema.safeParse(args.status)
     if (statusResult && !statusResult.success) throw new McpError(ErrorCode.InvalidParams, "invalid 'status'")

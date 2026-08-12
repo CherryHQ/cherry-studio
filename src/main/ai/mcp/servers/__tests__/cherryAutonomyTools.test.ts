@@ -204,6 +204,14 @@ describe('CherryAutonomyTools', () => {
       }
     )
 
+    it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
+      const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("invalid 'direction'")
+      expect(mockListSessionDeliveries).not.toHaveBeenCalled()
+    })
+
     it('discovers active Session addresses without exposing workspace data', async () => {
       mockListSessions.mockReturnValue({
         items: [

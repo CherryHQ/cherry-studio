@@ -119,6 +119,9 @@ describe('AgentSessionMessageService', () => {
         sameAgent.id,
         crossAgent.id
       ])
+      expect(
+        agentSessionMessageService.listRecoverableSessionDeliveries('same-target').map((message) => message.id)
+      ).toEqual([sameAgent.id])
     })
 
     it('atomically creates a same-Agent Session with its first delivery', async () => {

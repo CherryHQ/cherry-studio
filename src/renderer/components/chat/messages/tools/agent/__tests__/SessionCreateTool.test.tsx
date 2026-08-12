@@ -31,10 +31,6 @@ vi.mock('../../../MessageListProvider', () => ({
 vi.mock('@renderer/hooks/useTemporaryValue', () => ({
   useTemporaryValue: () => [false, mocks.setCopied]
 }))
-vi.mock('../../shared/GenericTools', () => ({
-  useIsStreaming: () => false
-}))
-
 import { SessionCreateTool } from '../SessionCreateTool'
 
 function Harness(props: Parameters<typeof SessionCreateTool>[0]) {
@@ -102,5 +98,12 @@ describe('SessionCreateTool', () => {
 
     expect(mocks.copyText).toHaveBeenCalledWith('session-copy', { successMessage: 'Copied' })
     expect(mocks.setCopied).toHaveBeenCalledWith(true)
+  })
+
+  it('uses the streaming state supplied by the tool card', () => {
+    render(<Harness isStreaming input={{ title: 'Research pricing', message: 'Compare plans.' }} />)
+
+    expect(screen.getByText('message.tools.sessionCreate.creating')).toBeInTheDocument()
+    expect(screen.queryByText('Started a new session')).toBeNull()
   })
 })

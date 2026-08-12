@@ -40,27 +40,26 @@ optional Agent filter is applied before ranking and limiting.
 
 For `session_send`, choose the delivery contract by intent:
 
-- **One-way update** — use `reply: none`. `mode: auto` may redirect an eligible active
-  turn and otherwise queues FIFO; `mode: queue` always waits for a later turn.
-- **Delegated task with a result** — use `reply: completion`. It always owns an
-  independent queued turn so its terminal output can be attributed to that request.
+- **One-way update** — use `reply: none`.
+- **Delegated task with a result** — use `reply: completion`. Every delivery owns an
+  independent FIFO turn so its terminal output can be attributed to that request.
   The call returns a `requestId` immediately; the runtime later delivers one durable,
   frozen result back to the caller Session. Do not keep the tool call open or poll for
   the answer.
 
-`session_send` always requires a live per-call user approval because it can make another
-Agent execute tools. If approval is declined, stop. Headless, scheduled, channel, and
-delivery-triggered turns cannot use it, so unattended multi-hop delegation is not
-available. `session_create` remains auto-approved because it creates a same-Agent
-Session.
+`session_send` and `session_create` always require a live per-call user approval because
+they start another Agent Session turn. If approval is declined, stop. Headless, scheduled,
+channel, and delivery-triggered turns cannot use them, so unattended multi-hop delegation
+is not available.
 
 ## Inspect delivery state
 
 Use **`session_deliveries`** to audit or recover durable requests and results, not as a
-busy-wait loop. Select incoming or outgoing direction, and narrow by request ID or
-status when known.
+busy-wait loop. Select incoming or outgoing direction and narrow by status when known.
+When a request ID is supplied, the tool returns that request and its correlated result
+regardless of direction.
 
-The lifecycle is `accepted` → `queued` / `delivering` → `consumed`, or `failed` for a
+The lifecycle is `accepted` → `delivering` → `consumed`, or `failed` for a
 terminal routing/execution failure. A completion result correlates to its request ID.
 Accepted intent and terminal results are durable across ordinary restarts, but a crash
 during external tool execution cannot make arbitrary side effects exactly-once.

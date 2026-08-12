@@ -1509,7 +1509,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         renderOptions={renderOptions}
       />
       {isActiveTurnProcessing && activeTurnStatus?.(null)}
-      {sessionTargets.length > 0 && (
+      {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards targets={sessionTargets} />
         </AnimatedBlockWrapper>

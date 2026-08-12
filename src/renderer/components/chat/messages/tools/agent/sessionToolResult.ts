@@ -13,8 +13,24 @@ export interface SessionCreateResult {
 export interface SessionToolTarget {
   agentName?: string
   kind: 'create' | 'send'
+  renderKey: string
   sessionId: string
   sessionName: string
+}
+
+function isSessionCreateToolName(toolName: string | undefined): boolean {
+  return toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+}
+
+function isSessionSendToolName(toolName: string | undefined): boolean {
+  return toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`
+}
+
+export function isCherrySessionToolResponse(toolResponse: ToolResponseLike): boolean {
+  const { tool } = toolResponse
+  const isSessionTool = isSessionCreateToolName(tool.name) || isSessionSendToolName(tool.name)
+  if (!isSessionTool) return false
+  return tool.type !== 'mcp' || ('serverId' in tool && tool.serverId === 'cherry-tools')
 }
 
 export interface SessionSendResult {
@@ -92,28 +108,31 @@ export function parseSessionSendResult(value: unknown): SessionSendResult | unde
 }
 
 export function getSessionToolTarget(toolResponse: ToolResponseLike): SessionToolTarget | undefined {
+  if (!isCherrySessionToolResponse(toolResponse)) return undefined
   const toolName = toolResponse.tool.name
   const args = toolResponse.arguments
   const input = isRecord(args) ? args : undefined
 
-  if (toolName === SESSION_CREATE_TOOL_NAME || toolName.endsWith(`__${SESSION_CREATE_TOOL_NAME}`)) {
+  if (isSessionCreateToolName(toolName)) {
     const result = parseSessionCreateResult(toolResponse.response)
     if (!result) return undefined
     const title = typeof input?.title === 'string' ? input.title.trim() : ''
     return {
       kind: 'create',
+      renderKey: toolResponse.toolCallId ?? toolResponse.id,
       sessionId: result.sessionId,
-      sessionName: title || result.sessionId
+      sessionName: title
     }
   }
 
-  if (toolName !== SESSION_SEND_TOOL_NAME && !toolName.endsWith(`__${SESSION_SEND_TOOL_NAME}`)) return undefined
+  if (!isSessionSendToolName(toolName)) return undefined
   const result = parseSessionSendResult(toolResponse.response)
   const sessionId = result?.delivery?.receiver?.sessionId
   if (!sessionId) return undefined
   return {
     agentName: result.delivery?.receiverSnapshot?.agentName?.trim() || undefined,
     kind: 'send',
+    renderKey: toolResponse.toolCallId ?? toolResponse.id,
     sessionId,
     sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || sessionId
   }

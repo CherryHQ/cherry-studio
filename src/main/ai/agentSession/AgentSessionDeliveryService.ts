@@ -97,24 +97,6 @@ export class AgentSessionDeliveryService extends BaseService {
     return created
   }
 
-  cancelDelivery(sessionId: string, messageId: string): boolean {
-    this.assertWritesAvailable()
-    let message: AgentSessionMessageEntity
-    try {
-      message = agentSessionMessageService.getSessionMessage(sessionId, messageId)
-    } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return false
-      throw error
-    }
-    if (message.delivery?.status !== 'accepted') return false
-    const result = agentSessionMessageService.failSessionDelivery(message, {
-      code: 'CANCELLED',
-      message: 'Session delivery was cancelled'
-    })
-    if (result) this.kick(result.sessionId)
-    return true
-  }
-
   deleteSessions(ids: string[]): Promise<{ deletedIds: string[] }> {
     const uniqueIds = [...new Set(ids)]
     const work = this.deleteSessionsInternal(uniqueIds)
@@ -292,6 +274,7 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async runSessionQueue(sessionId: string): Promise<void> {
     while (!this.isShuttingDown && !this.isWriteQuiesced) {
+      if (this.reconcileCompletedDelivery(sessionId)) return
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
       if (!next) return
       const outcome = await this.dispatchOne(next)
@@ -474,6 +457,38 @@ export class AgentSessionDeliveryService extends BaseService {
       outcome: event.status === 'success' ? 'success' : event.status === 'paused' ? 'interrupted' : 'failed'
     })
     if (result) this.kick(result.sessionId)
+  }
+
+  private reconcileCompletedDelivery(sessionId: string): boolean {
+    const delivering = agentSessionMessageService
+      .listRecoverableSessionDeliveries(sessionId)
+      .find((message) => message.delivery?.status === 'delivering')
+    if (!delivering?.delivery?.turnRef) return false
+
+    let assistant: AgentSessionMessageEntity
+    try {
+      assistant = agentSessionMessageService.getSessionMessage(sessionId, delivering.delivery.turnRef)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        const result = agentSessionMessageService.failSessionDelivery(delivering, {
+          code: 'DELIVERY_TURN_DELETED',
+          message: 'The delivery turn was deleted before it could be finalized'
+        })
+        if (result) this.kick(result.sessionId)
+        return false
+      }
+      throw error
+    }
+    if (assistant.status === 'pending') return true
+
+    const result = agentSessionMessageService.finalizeSessionDelivery({
+      requestSessionId: sessionId,
+      requestMessageId: delivering.id,
+      assistantMessageId: assistant.id,
+      outcome: assistant.status === 'success' ? 'success' : assistant.status === 'paused' ? 'interrupted' : 'failed'
+    })
+    if (result) this.kick(result.sessionId)
+    return false
   }
 
   private recoverDeliveries(): void {

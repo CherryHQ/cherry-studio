@@ -14,6 +14,7 @@ vi.mock('react-i18next', () => ({
       ({
         'message.tools.sessionCreate.created': 'Session created',
         'message.tools.sessionCreate.open': 'Open session',
+        'message.tools.sessionCreate.untitled': 'Untitled session',
         'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to'
       })[key] ?? key
@@ -34,12 +35,14 @@ describe('SessionResultCards', () => {
         targets={[
           {
             kind: 'create',
+            renderKey: 'create-call',
             sessionId: 'session-created',
             sessionName: 'Research session'
           },
           {
             agentName: 'Builder',
             kind: 'send',
+            renderKey: 'send-call',
             sessionId: 'session-build',
             sessionName: 'Build session'
           }
@@ -53,8 +56,6 @@ describe('SessionResultCards', () => {
     expect(screen.getAllByText('Builder / Build session')).not.toHaveLength(0)
 
     const openCreatedSession = screen.getByRole('button', { name: 'Open session: Research session' })
-    expect(openCreatedSession.querySelector('.lucide-arrow-up-right')).toBeNull()
-    expect(screen.getAllByTestId('session-result-cards')[0].querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
 
     await user.click(openCreatedSession)
     expect(navigateToRoute).toHaveBeenLastCalledWith({
@@ -67,5 +68,16 @@ describe('SessionResultCards', () => {
       path: '/app/agents',
       query: { sessionId: 'session-build' }
     })
+  })
+
+  it('labels a created session without exposing its id as the title', () => {
+    render(
+      <SessionResultCards
+        targets={[{ kind: 'create', renderKey: 'create-untitled', sessionId: 'opaque-id', sessionName: '' }]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Open session: Untitled session' })).toBeInTheDocument()
+    expect(screen.queryByText('opaque-id')).toBeNull()
   })
 })

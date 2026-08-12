@@ -12,10 +12,6 @@ vi.mock('react-i18next', () => ({
       })[key] ?? key
   })
 }))
-vi.mock('../../shared/GenericTools', () => ({
-  useIsStreaming: () => false
-}))
-
 import { SessionSendTool } from '../SessionSendTool'
 
 function Harness(props: Parameters<typeof SessionSendTool>[0]) {
@@ -56,5 +52,12 @@ describe('SessionSendTool', () => {
     expect(screen.getAllByText('Builder / Build session')).toHaveLength(2)
     expect(screen.getByText('Implement the reviewed plan.')).toBeInTheDocument()
     expect(screen.getByText('Accepted')).toBeInTheDocument()
+  })
+
+  it('uses the streaming state supplied by the tool card', () => {
+    render(<Harness isStreaming input={{ target_session_id: 'session-build', message: 'Implement it.' }} />)
+
+    expect(screen.getByText('message.tools.sessionSend.sending')).toBeInTheDocument()
+    expect(screen.queryByText('Sent to')).toBeNull()
   })
 })

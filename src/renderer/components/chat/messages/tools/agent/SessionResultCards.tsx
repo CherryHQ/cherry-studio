@@ -22,11 +22,12 @@ export const SessionResultCards = React.memo(function SessionResultCards({
         const isCreate = target.kind === 'create'
         const label = t(isCreate ? 'message.tools.sessionCreate.created' : 'message.tools.sessionSend.sent')
         const openLabel = t(isCreate ? 'message.tools.sessionCreate.open' : 'message.tools.sessionSend.open')
-        const targetLabel = [target.agentName, target.sessionName].filter(Boolean).join(' / ')
+        const sessionName = target.sessionName || t('message.tools.sessionCreate.untitled')
+        const targetLabel = [target.agentName, sessionName].filter(Boolean).join(' / ')
 
         return (
           <div
-            key={`${target.kind}:${target.sessionId}`}
+            key={target.renderKey}
             className="flex min-h-14 w-full min-w-0 items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
               <MousePointerClick aria-hidden="true" size={16} strokeWidth={1.8} />

@@ -242,6 +242,25 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
+  it('reconciles a persisted terminal delivery when runtime closes before the terminal event', async () => {
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    const completedAssistant = { ...assistant, status: 'success' }
+    mocks.getMessage.mockReturnValue(completedAssistant)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'success'
+    })
+  })
+
   it('keeps a delivery owned when send throws after installing a live stream', async () => {
     mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
     mocks.send.mockImplementation(() => {
