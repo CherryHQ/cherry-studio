@@ -7663,7 +7663,7 @@
         "editDescription": "[to be translated]:Choose which prompts are linked to {{target}}.",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
-        "remove": "[to be translated]:Remove quick phrase",
+        "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
         "tabTitle": "[to be translated]:Quick Phrases"
       },

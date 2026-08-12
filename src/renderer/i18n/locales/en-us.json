@@ -7665,7 +7665,7 @@
         "bind": "Bind prompt",
         "noLinked": "No prompts linked",
         "noMore": "No more prompts available",
-        "remove": "Remove prompt",
+        "remove": "Remove prompt {{title}}",
         "search": "Search prompts",
         "tabTitle": "Prompts"
       },

@@ -7663,7 +7663,7 @@
         "editDescription": "選擇與{{target}}關聯的提示詞。",
         "noLinked": "暫未關聯快捷提示詞",
         "noMore": "沒有更多可用的提示詞",
-        "remove": "移除快捷提示詞",
+        "remove": "移除快捷提示詞「{{title}}」",
         "search": "搜尋提示詞",
         "tabTitle": "快捷提示詞"
       },

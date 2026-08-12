@@ -309,7 +309,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, fallback?: string) =>
+      t: (key: string, fallback?: string | { title?: string }) =>
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
@@ -476,7 +476,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.binding.bind': 'Bind prompt',
           'settings.prompts.binding.noLinked': 'No prompts linked',
           'settings.prompts.binding.noMore': 'No more prompts available',
-          'settings.prompts.binding.remove': 'Remove prompt',
+          'settings.prompts.binding.remove':
+            `Remove prompt ${typeof fallback === 'object' ? fallback.title : ''}`.trim(),
           'settings.prompts.binding.search': 'Search prompts',
           'settings.prompts.binding.tabTitle': 'Prompts',
           'settings.prompts.contentLabel': 'Content',
@@ -783,7 +784,7 @@ describe('edit dialogs', () => {
 
     selectTab('Prompts')
     expect(screen.getByText('Reusable prompt')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove prompt Reusable prompt' }))
 
     await waitFor(() =>
       expect(unbindPromptMock).toHaveBeenCalledWith({

@@ -225,7 +225,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
                   size="icon-sm"
                   disabled={isBinding || isReordering}
                   onClick={() => void handleBindingChange(prompt.id, false)}
-                  aria-label={t('settings.prompts.binding.remove')}
+                  aria-label={t('settings.prompts.binding.remove', { title: prompt.title })}
                   className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-0 group-hover:opacity-100">
                   <Unlink size={10} />
                 </Button>

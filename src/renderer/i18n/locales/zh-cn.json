@@ -7665,7 +7665,7 @@
         "bind": "绑定提示词",
         "noLinked": "暂未关联提示词",
         "noMore": "没有更多可用的提示词",
-        "remove": "移除提示词",
+        "remove": "移除提示词“{{title}}”",
         "search": "搜索提示词",
         "tabTitle": "提示词"
       },
