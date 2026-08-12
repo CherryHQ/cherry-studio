@@ -58,6 +58,20 @@ function makeSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobSchedule
   }
 }
 
+/**
+ * What the v1→v2 migration actually writes for an agent heartbeat: the reserved
+ * prompt survives verbatim, the `heartbeat` name does not — `job_schedule` is
+ * UNIQUE on (type, name), so every agent past the first is renamed `task_<v1Id>`.
+ */
+function makeHeartbeatSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobScheduleSnapshot {
+  return makeSnapshot({
+    name: 'task_v1-7',
+    jobInputTemplate: { agentId: AGENT_ID, prompt: '__heartbeat__', timeoutMinutes: 2, workspace: taskWorkspace },
+    metadata: { migratedFrom: 'v1.agentTask', v1Id: 'v1-7' },
+    ...overrides
+  })
+}
+
 function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
   return {
     id: 'job-1',
@@ -210,7 +224,7 @@ describe('AgentTaskService (read side)', () => {
           name: 'b',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        makeHeartbeatSnapshot({ id: 's3' })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID)
@@ -220,10 +234,18 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks[0].id).toBe('s1')
     })
 
+    it('lists a user task that merely happens to be named heartbeat', () => {
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([makeSnapshot({ id: 's1', name: 'heartbeat' })])
+
+      const result = agentTaskService.listTasks(AGENT_ID)
+
+      expect(result.tasks.map((t) => t.id)).toEqual(['s1'])
+    })
+
     it('returns heartbeat tasks when includeHeartbeat=true', () => {
       vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
         makeSnapshot({ id: 's1', name: 'a' }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        makeHeartbeatSnapshot({ id: 's3' })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID, { includeHeartbeat: true })
@@ -241,7 +263,7 @@ describe('AgentTaskService (read side)', () => {
           createdAt: '2026-05-22T00:00:00.000Z',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 'heartbeat', name: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
+        makeHeartbeatSnapshot({ id: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
       ])
 
       const result = agentTaskService.listAllTasks({ limit: 1, offset: 0 })

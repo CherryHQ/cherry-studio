@@ -25,7 +25,15 @@ import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/
 import type { ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-const HEARTBEAT_TASK_NAME = 'heartbeat'
+
+/**
+ * Reserved prompt marking a schedule as an agent heartbeat rather than a
+ * user-authored task. It is the only heartbeat marker that survives the v1→v2
+ * migration intact — the schedule name does not, because `job_schedule` is
+ * UNIQUE on (type, name) while v1 gave every agent its own `heartbeat` row, so
+ * all but the first are renamed to `task_<v1Id>`.
+ */
+export const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -208,7 +216,7 @@ export class AgentTaskService {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
       if (!template) return false
       if (agentId !== undefined && template.agentId !== agentId) return false
-      if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
+      if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
     })
 
