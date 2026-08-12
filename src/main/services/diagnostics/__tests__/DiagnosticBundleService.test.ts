@@ -99,10 +99,12 @@ describe('DiagnosticBundleService', () => {
     const oldLog = `${JSON.stringify({ message: 'old', timestamp: new Date(now - 2 * 86_400_000).toISOString() })}\n`
     await writeFile(path.join(logsDir, logFileName), `${oldLog}${recentLog}`)
 
-    const topicDir = path.join(tracesDir, 'topic:private')
+    // `:` and `*` exercise archive-name sanitisation but are unwriteable on Windows.
+    const isWin = process.platform === 'win32'
+    const topicDir = path.join(tracesDir, isWin ? 'topic-private' : 'topic:private')
     await mkdir(topicDir)
     const traceLine = `${JSON.stringify({ id: 'span', startTime: now - 2_000, value: 'raw trace' })}\n`
-    await writeFile(path.join(topicDir, 'trace*one'), traceLine)
+    await writeFile(path.join(topicDir, isWin ? 'trace-one' : 'trace*one'), traceLine)
     await writeFile(path.join(crashDumpsDir, 'private-crash-name.dmp'), 'dump')
 
     const service = new DiagnosticBundleService()
