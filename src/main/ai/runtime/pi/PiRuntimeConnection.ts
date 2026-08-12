@@ -19,13 +19,13 @@ import { PromptBuilder } from '@main/ai/agents/prompt'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { skillService } from '@main/ai/skills/SkillService'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
 import {
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
   ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+import { skillService } from '@main/ai/skills/SkillService'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
