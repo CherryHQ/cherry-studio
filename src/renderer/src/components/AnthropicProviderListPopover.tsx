@@ -23,6 +23,8 @@ interface AnthropicProviderListPopoverProps {
   placement?: PopoverProps['placement']
   /** Custom filter function for providers, defaults to getClaudeSupportedProviders */
   filterProviders?: (providers: Provider[]) => Provider[]
+  /** Optional item rendered at the top of the provider list (e.g. docs link) */
+  extraTopItem?: ReactNode
 }
 
 const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
@@ -30,7 +32,8 @@ const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
   useWindowNavigate = false,
   children,
   placement = 'right',
-  filterProviders = getClaudeSupportedProviders
+  filterProviders = getClaudeSupportedProviders,
+  extraTopItem
 }) => {
   const { t } = useTranslation()
   const allProviders = useAllProviders()
@@ -69,6 +72,7 @@ const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
     <PopoverContent>
       <PopoverTitle>{t('code.supported_providers')}</PopoverTitle>
       <ProviderListContainer>
+        {extraTopItem}
         {providers.map((provider) =>
           useWindowNavigate ? (
             <ProviderItem key={provider.id} onClick={() => handleClick(provider.id)}>
