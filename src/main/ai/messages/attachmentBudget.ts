@@ -18,6 +18,7 @@ import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/foot
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet, UIMessage } from 'ai'
@@ -76,7 +77,7 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
 export function allocateInlineCaps(bodies: readonly string[], budget: AttachmentBudget): number[] {
   const sizes = bodies.map((body) => budget.tokenizer.count(body))
   const allocated = allocateAttachmentBudget(sizes, budget.tokens)
-  return bodies.map((body, index) => charCapFor(body, sizes[index], allocated[index]))
+  return bodies.map((body, index) => charCapFor(body, sizes[index], allocated[index], budget.tokenizer))
 }
 
 /**
@@ -103,10 +104,28 @@ export function allocateAttachmentBudget(sizes: readonly number[], total: number
   return allocated
 }
 
-/** Token cap back to a cut point, using this text's own measured ratio. */
-function charCapFor(body: string, tokens: number, tokenCap: number): number {
-  if (tokenCap >= tokens || tokens <= 0) return body.length
-  return Math.floor(tokenCap * (body.length / tokens))
+/**
+ * Largest prefix of `body` that really costs at most `tokenCap`.
+ *
+ * Measured, not scaled: token density varies WITHIN one attachment (a CJK head
+ * over an ASCII tail, prose over a code block), so converting by the whole
+ * body's average chars-per-token overshoots on a dense head — 50 tokens of
+ * budget became a 107-token prefix, and the request-level ceiling this pool
+ * exists to enforce stopped holding for mixed-language files.
+ */
+function charCapFor(body: string, tokens: number, tokenCap: number, tokenizer: TextTokenizer): number {
+  if (tokenCap >= tokens) return body.length
+  if (tokenCap <= 0) return 0
+  let lo = 0
+  let hi = body.length
+  while (lo < hi) {
+    // `ceil` keeps mid > lo, so each round strictly narrows and this terminates.
+    const mid = Math.ceil((lo + hi) / 2)
+    if (tokenizer.count(body.slice(0, mid)) <= tokenCap) lo = mid
+    else hi = mid - 1
+  }
+  // Backing off a surrogate pair only removes a character, never adds tokens.
+  return surrogateSafeEnd(body, lo)
 }
 
 /**

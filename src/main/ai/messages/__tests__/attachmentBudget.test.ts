@@ -52,6 +52,38 @@ describe('allocateInlineCaps', () => {
     expect(cap).toBe(20)
   })
 
+  // Density is not uniform inside one attachment. Scaling by the body's average
+  // chars-per-token overshot on a dense head: a 100-CJK/400-ASCII body averages
+  // 2.5 chars/token, so a 50-token cap kept 125 chars — really 107 tokens. The
+  // pool's ceiling then failed to hold for mixed-language and code attachments.
+  it('cuts by measured prefix cost, not by the body average density', () => {
+    const mixed = {
+      id: 'mixed',
+      count: (t: string) => Math.ceil([...t].reduce((n, c) => n + (c > '\u007f' ? 1 : 0.25), 0))
+    }
+    const body = '一'.repeat(100) + 'a'.repeat(400)
+
+    const [cap] = allocateInlineCaps([body], { tokens: 50, tokenizer: mixed })
+
+    expect(mixed.count(body.slice(0, cap))).toBeLessThanOrEqual(50)
+  })
+
+  // The property the whole pool exists for: whatever the scripts involved, the
+  // sum of what is actually inlined stays inside the budget.
+  it('keeps the total inlined cost within the pool for mixed-density bodies', () => {
+    const mixed = {
+      id: 'mixed',
+      count: (t: string) => Math.ceil([...t].reduce((n, c) => n + (c > '\u007f' ? 1 : 0.25), 0))
+    }
+    const bodies = ['一'.repeat(200) + 'b'.repeat(800), 'c'.repeat(2_000), '文'.repeat(300)]
+    const pool = 120
+
+    const caps = allocateInlineCaps(bodies, { tokens: pool, tokenizer: mixed })
+    const spent = bodies.reduce((sum, body, i) => sum + mixed.count(body.slice(0, caps[i])), 0)
+
+    expect(spent).toBeLessThanOrEqual(pool)
+  })
+
   it('does not cut a body that fits', () => {
     expect(allocateInlineCaps(['short'], budgetOf(1_000))).toEqual([5])
   })
