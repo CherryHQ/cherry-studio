@@ -5,7 +5,7 @@ import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/r
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, Plus, Trash2, Zap } from 'lucide-react'
+import { GripVertical, Plus, Unlink, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -208,7 +208,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
                   <GripVertical size={12} />
                 </button>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]" title={prompt.title}>
+                  <div className="truncate text-sm" title={prompt.title}>
                     {prompt.title}
                   </div>
                   {prompt.content ? (
@@ -226,8 +226,8 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
                   disabled={isBinding || isReordering}
                   onClick={() => void handleBindingChange(prompt.id, false)}
                   aria-label={t('settings.prompts.binding.remove')}
-                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-destructive hover:text-destructive-foreground focus-visible:opacity-100 focus-visible:ring-0 group-hover:opacity-100">
-                  <Trash2 size={10} />
+                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-0 group-hover:opacity-100">
+                  <Unlink size={10} />
                 </Button>
               </div>
             )}

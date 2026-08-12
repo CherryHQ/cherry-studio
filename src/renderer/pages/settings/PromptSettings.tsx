@@ -289,12 +289,7 @@ function PromptRow({
         <div className="truncate font-medium text-foreground text-sm leading-5">{prompt.title}</div>
         <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</div>
       </div>
-      <Badge
-        className={
-          prompt.visibility === 'global'
-            ? 'border-info-border bg-info-subtle text-info-subtle-foreground'
-            : 'border-border bg-muted text-muted-foreground'
-        }>
+      <Badge variant="secondary" className="border-0 font-normal text-muted-foreground">
         {t(
           prompt.visibility === 'global'
             ? 'settings.prompts.visibility.global.badge'
