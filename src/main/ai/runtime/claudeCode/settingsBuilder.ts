@@ -758,6 +758,9 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ...proxyEnvironment,
     CLAUDE_CODE_USE_BEDROCK: '0',
     CLAUDE_CODE_USE_VERTEX: '0',
+    // Umbrella opt-out (telemetry, error reporting, autoupdater, /bug). Not blocked below, so an
+    // agent env_var of '' re-enables it. https://code.claude.com/docs/en/env-vars
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,

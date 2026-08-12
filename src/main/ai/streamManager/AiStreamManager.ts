@@ -171,6 +171,13 @@ function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMes
   return undefined
 }
 
+/** The AI SDK `error` chunk carries only `error.message`, so rebuilding from it drops the
+ *  `statusCode`/`responseBody` that classification and the error block need. Prefer the
+ *  thrown error whenever it still carries them. */
+function hasHttpMetadata(error: SerializedError): boolean {
+  return error.statusCode != null || error.responseBody != null
+}
+
 /**
  * Append this turn's compaction anchors to an accumulated snapshot.
  *
@@ -1560,10 +1567,11 @@ export class AiStreamManager extends BaseService {
       } else {
         logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
       }
+      const fromThrow = serializeError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted
+        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
           ? errorFromStreamChunk(result.streamErrorText)
-          : serializeError(result.threw.error)
+          : fromThrow
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }
