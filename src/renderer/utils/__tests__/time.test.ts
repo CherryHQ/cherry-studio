@@ -35,6 +35,16 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime('2024-04-22T12:00:00Z', 'en-US', NOW)).toBe('2 years ago')
   })
 
+  it('picks the same unit for equal distances in either direction', () => {
+    // Math.round breaks ties toward +infinity, so a signed threshold put -11.5 months on `month` and
+    // +11.5 months on `year`.
+    const days = (n: number) => n * 86400000
+    expect(formatRelativeTime(new Date(NOW - days(345)).toISOString(), 'en-US', NOW)).toBe('last year')
+    expect(formatRelativeTime(new Date(NOW + days(345)).toISOString(), 'en-US', NOW)).toBe('next year')
+    expect(formatRelativeTime(new Date(NOW - days(29.5)).toISOString(), 'en-US', NOW)).toBe('last month')
+    expect(formatRelativeTime(new Date(NOW + days(29.5)).toISOString(), 'en-US', NOW)).toBe('next month')
+  })
+
   it('leaves no gap between the day, month and year units', () => {
     const daysAgo = (days: number) => new Date(NOW - days * 86400000).toISOString()
     // 29 days is still day-level; 30 must already read as a month, never "30 days ago".
