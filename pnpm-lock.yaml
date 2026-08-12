@@ -75,6 +75,7 @@ patchedDependencies:
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   ollama-ai-provider-v2@3.3.1: 8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb
   onnxruntime-node@1.24.3: 71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4
+  ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
 importers:
@@ -155,7 +156,7 @@ importers:
         version: 5.4.296
       ppu-paddle-ocr:
         specifier: 6.0.0
-        version: 6.0.0
+        version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -25916,7 +25917,7 @@ snapshots:
       '@napi-rs/canvas': 0.1.97
       '@techstark/opencv-js': 4.10.0-release.1
 
-  ppu-paddle-ocr@6.0.0:
+  ppu-paddle-ocr@6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096):
     dependencies:
       ppu-ocv: 3.3.0
     optionalDependencies:
