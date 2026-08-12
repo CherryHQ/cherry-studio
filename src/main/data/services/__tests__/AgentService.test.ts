@@ -206,7 +206,7 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('places newly created agents by default orderKey sort', async () => {
+    it('places newly created agents first by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
@@ -217,7 +217,7 @@ describe('AgentService', () => {
       })
 
       const { agents } = agentService.listAgents()
-      expect(agents.at(-1)?.id).toBe(created.id)
+      expect(agents[0]?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
@@ -286,6 +286,17 @@ describe('AgentService', () => {
         }
       })
       expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('keeps a newly created built-in assistant after existing agents', () => {
+      const ordinary = createAgentForTest({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+      const builtin = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
