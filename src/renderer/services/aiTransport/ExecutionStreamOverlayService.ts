@@ -1,6 +1,6 @@
 /**
  * Window-level owner of streaming overlay state shared by topic and agent-session
- * consumers (execution readers, live snapshots, rAF-batched flushes). Extracted
+ * consumers (execution readers, live snapshots, interval-batched flushes). Extracted
  * from `useExecutionOverlay` so the overlay's lifetime is keyed by the transport
  * `topicId` routing scope instead of a component instance: while a stream is
  * running, route/tab/conversation switches release their view (refcount)
@@ -108,7 +108,10 @@ interface Entry {
    *  can retire a handle before its async loop reaches `finally`. */
   liveReaderCount: number
   epoch: number
-  frameId: number | null
+  commitTimer: number | null
+  commitDeadline: number | null
+  /** performance.now() of the last snapshot commit — enforces commitIntervalMs(). */
+  lastCommitAt: number
   listeners: Set<() => void>
   finishListeners: Set<FinishListener>
   lastActiveAt: number
@@ -121,6 +124,23 @@ interface Entry {
 }
 
 const MAX_ENTRIES = 32
+/** Commit cadence floor/ceiling. Each commit re-runs O(message size) render work (content
+ *  transforms + markdown re-lex), so the interval scales with snapshot size to keep the
+ *  per-second work bounded — a fixed cadence still melts the renderer as the message grows. */
+const MIN_COMMIT_INTERVAL_MS = 100
+const MAX_COMMIT_INTERVAL_MS = 3000
+const COMMIT_CHARS_PER_MS = 2000
+
+function commitIntervalMs(pending: Iterable<PendingSnapshot>): number {
+  let chars = 0
+  for (const item of pending) {
+    for (const part of item.snapshot.parts ?? []) {
+      const text = (part as { text?: unknown }).text
+      if (typeof text === 'string') chars += text.length
+    }
+  }
+  return Math.min(MAX_COMMIT_INTERVAL_MS, Math.max(MIN_COMMIT_INTERVAL_MS, chars / COMMIT_CHARS_PER_MS))
+}
 // Frozen: its reference identity is what keeps useSyncExternalStore stable,
 // so a consumer mutation would silently poison every topic in the window.
 const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
@@ -229,7 +249,7 @@ export class ExecutionStreamOverlayService {
     const entry = this.#getOrCreate(topicId)
     entry.refCount += 1
     entry.lastActiveAt = Date.now()
-    // A hidden window's rAF may have stalled with frames pending; materialize
+    // A hidden window's commit timer may be delayed with snapshots pending; materialize
     // them so the re-acquiring consumer's first read sees the latest state.
     this.#flushPending(entry, entry.epoch)
   }
@@ -428,7 +448,9 @@ export class ExecutionStreamOverlayService {
       settledKeys: new Set(),
       liveReaderCount: 0,
       epoch: 0,
-      frameId: null,
+      commitTimer: null,
+      commitDeadline: null,
+      lastCommitAt: 0,
       listeners: new Set(),
       finishListeners: new Set(),
       lastActiveAt: Date.now(),
@@ -619,7 +641,7 @@ export class ExecutionStreamOverlayService {
           } else {
             // Terminal frames must be visible before the overlay handoff. This
             // and the acquire()-time stall flush are the intentional commits
-            // outside the animation-frame cadence.
+            // outside the interval cadence.
             this.#flushPending(entry, readerEpoch)
             const t = terminal ?? { isAbort: false, isError: false }
             const isError = t.isError || readerFailed
@@ -657,12 +679,19 @@ export class ExecutionStreamOverlayService {
     if (epoch !== entry.epoch || entry.readerVersions.get(executionId) !== readerVersion) return
 
     entry.pendingSnapshots.set(executionId, { epoch, readerVersion, snapshot })
-    if (entry.frameId !== null) return
+    const deadline = entry.lastCommitAt + commitIntervalMs(entry.pendingSnapshots.values())
+    if (entry.commitTimer !== null) {
+      if (entry.commitDeadline !== null && deadline <= entry.commitDeadline) return
+      this.#cancelFrame(entry)
+    }
 
-    entry.frameId = window.requestAnimationFrame(() => {
-      entry.frameId = null
+    entry.commitDeadline = deadline
+    const delay = Math.max(0, deadline - performance.now())
+    entry.commitTimer = window.setTimeout(() => {
+      entry.commitTimer = null
+      entry.commitDeadline = null
       this.#flushPending(entry, epoch)
-    })
+    }, delay)
   }
 
   #flushPending(entry: Entry, expectedEpoch: number): void {
@@ -686,6 +715,7 @@ export class ExecutionStreamOverlayService {
 
   #commitSnapshots(entry: Entry, next: Record<string, CherryUIMessage>): void {
     if (next === entry.snapshots) return
+    entry.lastCommitAt = performance.now()
     entry.snapshots = next
     entry.view = computeView(next)
     entry.lastActiveAt = Date.now()
@@ -705,9 +735,9 @@ export class ExecutionStreamOverlayService {
   }
 
   #cancelFrame(entry: Entry): void {
-    if (entry.frameId === null) return
-    window.cancelAnimationFrame(entry.frameId)
-    entry.frameId = null
+    if (entry.commitTimer !== null) window.clearTimeout(entry.commitTimer)
+    entry.commitTimer = null
+    entry.commitDeadline = null
   }
 }
 

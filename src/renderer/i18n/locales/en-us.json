@@ -8421,7 +8421,7 @@
           "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
           "firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "Search service for AI apps with web retrieval results.",
+          "querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
           "tavily": "Search engine optimized for LLMs.",
           "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."

@@ -274,8 +274,8 @@ function textOf(parts: CherryUIMessage['parts'] | undefined): string {
     .join('')
 }
 
-// Reader loops need macrotask turns to drain queued chunks + close; rAF is
-// left untouched so frame-flush behavior stays observable via nextFrame().
+// Reader loops need macrotask turns to drain queued chunks + close; commit
+// timers are left untouched so flush behavior stays observable via nextCommit().
 async function drainStreamMicrotasks(): Promise<void> {
   for (let round = 0; round < 3; round++) {
     for (let index = 0; index < 24; index++) {
@@ -285,9 +285,10 @@ async function drainStreamMicrotasks(): Promise<void> {
   }
 }
 
-async function nextFrame(): Promise<void> {
+// Waits past the MIN_COMMIT_INTERVAL_MS floor so the pending snapshot commit fires.
+async function nextCommit(): Promise<void> {
   await drainStreamMicrotasks()
-  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+  await new Promise<void>((resolve) => setTimeout(resolve, 110))
 }
 
 const TOPIC = 'topic-1'
@@ -296,6 +297,7 @@ const getSeed = () => seedRows
 
 beforeEach(() => mocks.subs.clear())
 afterEach(() => {
+  vi.useRealTimers()
   mocks.subs.clear()
   vi.restoreAllMocks()
 })
@@ -318,7 +320,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     sub.emit(A, { type: 'text-start', id: 'retry-text' } as CherryUIMessageChunk, 'anchor-a', 2)
     sub.emit(A, { type: 'text-delta', id: 'retry-text', delta: 'new response' } as CherryUIMessageChunk, 'anchor-a', 2)
-    await nextFrame()
+    await nextCommit()
 
     const parts = service.getView(TOPIC).overlay['anchor-a']
     expect(textOf(parts)).toBe('new response')
@@ -333,7 +335,7 @@ describe('ExecutionStreamOverlayService', () => {
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'before-release')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('before-release')
 
     service.release(TOPIC, consumer)
@@ -341,7 +343,7 @@ describe('ExecutionStreamOverlayService', () => {
     // No consumer mounted: the reader must survive and keep assembling.
     sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a')
     sub.emit(A, { type: 'text-delta', id: 't2', delta: ' after-release' } as CherryUIMessageChunk, 'anchor-a')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('before-release after-release')
     expect(sub.disposed).toBe(false)
 
@@ -358,7 +360,7 @@ describe('ExecutionStreamOverlayService', () => {
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'text')
-    await nextFrame()
+    await nextCommit()
     service.release(TOPIC, consumer)
     expect(sub.disposed).toBe(false)
 
@@ -440,7 +442,7 @@ describe('ExecutionStreamOverlayService', () => {
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
 
     service.release(TOPIC, consumer)
@@ -471,7 +473,7 @@ describe('ExecutionStreamOverlayService', () => {
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('finished')
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
 
@@ -481,7 +483,7 @@ describe('ExecutionStreamOverlayService', () => {
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
 
     sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
   })
 
@@ -494,7 +496,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     sub.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk, 'anchor-a')
     sub.emit(A, { type: 'text-delta', id: 't1', delta: 'live' } as CherryUIMessageChunk, 'anchor-a')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('live')
 
     service.clear(TOPIC)
@@ -502,7 +504,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     // Frames from the (stopped) stream after clear must stay dropped.
     sub.emit(A, { type: 'text-delta', id: 't1', delta: '-stale' } as CherryUIMessageChunk, 'anchor-a')
-    await nextFrame()
+    await nextCommit()
     expect(service.getView(TOPIC).overlay).toEqual({})
   })
 
@@ -518,7 +520,7 @@ describe('ExecutionStreamOverlayService', () => {
     streamText(sub, A, 't1', 'finished-while-away')
     sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     sub.emit(B, { type: 'text-delta', id: 't2', delta: 'still-live' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
 
     service.release(TOPIC, consumer)
     // A terminates while no consumer is mounted — the status edge that would
@@ -548,7 +550,7 @@ describe('ExecutionStreamOverlayService', () => {
     streamText(sub, A, 't1', 'first')
     sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
     service.release(TOPIC, consumer)
 
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
@@ -568,7 +570,7 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
     expect(sub.branches.size).toBe(1)
     sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
   })
 
@@ -581,7 +583,7 @@ describe('ExecutionStreamOverlayService', () => {
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'first')
-    await nextFrame()
+    await nextCommit()
     service.release(TOPIC, consumer)
 
     // Production order: Main broadcasts A done(false), waits for listeners,
@@ -598,7 +600,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-b')], seed)
-    await nextFrame()
+    await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('second')
   })
 
@@ -611,7 +613,7 @@ describe('ExecutionStreamOverlayService', () => {
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'first')
-    await nextFrame()
+    await nextCommit()
     service.release(TOPIC, consumer)
 
     sub.terminal(A, { isAbort: false, isError: false, isTopicDone: false }, 'anchor-a')
@@ -635,7 +637,7 @@ describe('ExecutionStreamOverlayService', () => {
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'first')
-    await nextFrame()
+    await nextCommit()
     service.release(TOPIC, consumer)
 
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
@@ -648,7 +650,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    await nextFrame()
+    await nextCommit()
 
     // Fresh transport evidence overrides the tombstone and replays the queue.
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('second')
@@ -680,22 +682,69 @@ describe('ExecutionStreamOverlayService', () => {
     expect(onFinish1.mock.calls[0][1].isAbort).toBe(true)
   })
 
-  it('flushes stalled pending snapshots on acquire (hidden-window rAF stall)', async () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+  it('extends the shared commit deadline when a larger execution joins the pending batch', async () => {
+    vi.useFakeTimers()
+    const B = 'anthropic::claude' as UniqueModelId
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+    const onChange = vi.fn()
+    service.subscribe(TOPIC, onChange)
+
+    streamText(sub, A, 'initial', 'initial')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initial')
+    onChange.mockClear()
+
+    streamText(sub, A, 'small', 'small')
+    await vi.advanceTimersByTimeAsync(0)
+    streamText(sub, B, 'large', 'x'.repeat(600_000), 'anchor-b')
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(service.getView(TOPIC).overlay['anchor-b']).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(201)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toHaveLength(600_000)
+
+    sub.emit(A, { type: 'text-start', id: 'terminal' } as CherryUIMessageChunk, 'anchor-a')
+    sub.emit(A, { type: 'text-delta', id: 'terminal', delta: '-terminal' } as CherryUIMessageChunk, 'anchor-a')
+    await vi.advanceTimersByTimeAsync(0)
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initialsmall-terminal')
+  })
+
+  it('flushes stalled pending snapshots on acquire (hidden-window timer stall)', async () => {
     const service = new ExecutionStreamOverlayService()
     const consumer = {}
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
     const sub = mocks.subs.get(TOPIC)!
 
-    streamText(sub, A, 't1', 'stalled')
+    // Two quick commits so lastCommitAt is fresh when the third snapshot queues,
+    // pinning its commit timer behind the interval floor.
+    streamText(sub, A, 't1', 'committed')
+    await nextCommit()
+    streamText(sub, A, 't2', '-flushed')
     await drainStreamMicrotasks()
-    // Frame never fired — the view is stale…
-    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed')
+
+    streamText(sub, A, 't3', '-stalled')
+    await drainStreamMicrotasks()
+    // Commit timer still pending — the view is stale…
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed')
 
     // …until a consumer re-acquires, which materializes pending frames.
     service.acquire(TOPIC)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('stalled')
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed-stalled')
   })
 
   it('evicts the oldest refCount-0 entry past MAX_ENTRIES as a leak backstop', async () => {
