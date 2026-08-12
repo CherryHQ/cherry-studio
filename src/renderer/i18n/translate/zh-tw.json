@@ -4096,6 +4096,9 @@
       "failed": "還原失敗",
       "success": "還原成功"
     },
+    "retry": {
+      "status": "正在使用 {{model}} 重試 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "儲存成功"
@@ -7525,6 +7528,16 @@
         "setting_title": "快速模型設定",
         "tooltip": "請選擇輕量模型，並避免使用推理模型。"
       },
+      "retry": {
+        "backoff": "指數退避",
+        "description": "重試聊天、嵌入與重新排序的呼叫；聊天失敗時可回退到其他模型",
+        "fallback_models": "備用模型",
+        "fallback_models_count": "已選擇 {{count}} 個模型",
+        "fallback_models_description": "當主要模型失敗時依序嘗試的模型",
+        "label": "模型呼叫重試",
+        "max_attempts": "最大重試次數",
+        "tooltip": "重試和回退機制僅在模型開始串流內容之前適用"
+      },
       "toolbar": {
         "custom_add": "自訂",
         "filter_close": "關閉篩選",
@@ -8112,10 +8125,12 @@
       "label": "按鍵",
       "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增對話",
+      "next_tab": "下一個分頁",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式佔用",
       "open_tab_in_new_window": "在新視窗中開啟分頁",
       "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
+      "prev_tab": "上一個分頁",
       "print": "列印",
       "quick_assistant": "快速助理",
       "rename_topic": "重新命名對話",

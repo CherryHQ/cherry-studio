@@ -193,7 +193,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: provider.settings.summaryText
   })
-  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, {
+    endpointType,
+    aiSdkProviderId,
+    runtimeProviderId
+  })
 
   // Resolved before the tool context so fs_read's per-call cap can follow the
   // effective persist threshold instead of the compile-time default.
@@ -396,7 +400,7 @@ export async function resolveTools(
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
-  const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
+  const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )

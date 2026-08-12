@@ -35,13 +35,13 @@ import {
   provisionBuiltinAgent
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
+import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
-import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -107,6 +107,34 @@ import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolAppro
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
+/**
+ * Slack between the SDK's local token estimate and the provider's own count.
+ * Widen it if 400s reappear while the reported input sits just under budget.
+ */
+const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
+// The CLI's per-request `max_tokens` ceiling and the value it requests when
+// `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Both measured against the bundled CLI and undocumented,
+// so re-measure them on SDK upgrades.
+const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
+const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+/**
+ * Percentage of the auto-compact window at which compaction triggers, passed
+ * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
+ *
+ * The knob only ever lowers the threshold — the CLI ignores values above its own
+ * default (https://code.claude.com/docs/en/env-vars). So this is a ceiling, not a
+ * setting: compaction starts at 80% of the window *or earlier*, never later. That
+ * one-way behavior is what makes a flat default safe to ship for every model.
+ *
+ * Left at the CLI's default, compaction starts late enough that a turn whose tool
+ * results land in one burst can jump the remaining headroom and fail outright —
+ * and a failed turn cannot compact its way out, because compaction replays the
+ * same oversized history. 80 keeps roughly a fifth of the window as landing room.
+ *
+ * Deliberate ceiling: one flat percentage for every model. Make it per-model if
+ * agents on small windows start compacting too eagerly to make progress.
+ */
+const AUTO_COMPACT_TRIGGER_PCT = 80
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
@@ -131,7 +159,9 @@ ${instructions}
 </agent_instructions>`
 }
 
-function resolveAutoCompactWindow(contextWindow: number | undefined): number | undefined {
+// Providers bill `input + max_tokens` against the context limit, so history can only occupy
+// `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
+function resolveAutoCompactWindow(contextWindow: number | undefined, requestedOutput: number): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
     !Number.isInteger(contextWindow) ||
@@ -139,8 +169,35 @@ function resolveAutoCompactWindow(contextWindow: number | undefined): number | u
   ) {
     return undefined
   }
-  return Math.min(contextWindow, MAX_AUTO_COMPACT_WINDOW)
+  const budget = Math.floor((contextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
+
+// The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
+// 128,000 — so their real limit has to come from the catalog. Derived from the primary only: the
+// pin is process-wide, but plan and small fall back to the primary unless explicitly changed.
+function resolveRequestedOutputTokens(
+  contextWindow: number | undefined,
+  maxOutputTokens: number | undefined,
+  override: string | undefined
+): number {
+  const parsedOverride = Number(override)
+  if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
+    return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
+  }
+  const declared =
+    typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
+      ? maxOutputTokens
+      : DEFAULT_REQUESTED_OUTPUT_TOKENS
+  // A floored budget still has to leave room for the request; the bound never drops below the CLI's
+  // own default, which at the inclusive window floor would otherwise pin a single token.
+  const inputRoom =
+    typeof contextWindow === 'number' && Number.isInteger(contextWindow)
+      ? Math.max(contextWindow - MIN_AUTO_COMPACT_WINDOW, DEFAULT_REQUESTED_OUTPUT_TOKENS)
+      : Number.POSITIVE_INFINITY
+  return Math.min(declared, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom)
+}
+
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 const HEADLESS_INTERACTIVE_TOOLS = [
@@ -354,6 +411,9 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
+  maxOutputTokens?: number
+  /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -512,9 +572,30 @@ export async function buildClaudeCodeSessionSettings(
   const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
-  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
-  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
-    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  const declaredContextWindow = options?.contextWindow
+  const requestedOutputTokens = resolveRequestedOutputTokens(
+    declaredContextWindow,
+    options?.maxOutputTokens,
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  )
+  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens)
+  // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
+  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
+  }
+  // Undocumented, and the only way to declare a third-party model's window — without it every
+  // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
+  if (
+    autoCompactWindow !== undefined &&
+    declaredContextWindow !== undefined &&
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined
+  ) {
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
+  }
+  // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
+  // declare no usable context window. An explicit agent `env_vars` entry still wins.
+  if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
   const settings: ClaudeCodeSettings = {
     cwd,
@@ -1451,7 +1532,7 @@ export function buildMcpServers(
         if (mcpServerSnapshots && !serverSnapshot) {
           throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
         }
-        const sdkServer = createSdkMcpServerInstance(mcpId, serverSnapshot)
+        const sdkServer = createMcpBridgeServer(mcpId, serverSnapshot)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

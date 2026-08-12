@@ -192,6 +192,15 @@ const NotesSettings: FC = () => {
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.display.line_breaks')}</SettingRowTitle>
+          <Switch
+            checked={settings.lineBreaks}
+            onCheckedChange={(checked) => updateSettings({ lineBreaks: checked })}
+          />
+        </SettingRow>
+        <SettingHelpText>{t('notes.settings.display.line_breaks_description')}</SettingHelpText>
       </SettingGroup>
     </SettingContainer>
   )

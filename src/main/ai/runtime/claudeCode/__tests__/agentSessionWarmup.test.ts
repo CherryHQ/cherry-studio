@@ -1,5 +1,5 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,8 +108,15 @@ vi.mock('../settingsBuilder', () => ({
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 
-function resolveTestEffectiveEndpoint(provider: Provider, model: Model) {
+function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
+  const preferred =
+    preferredEndpointType &&
+    model.endpointTypes?.includes(preferredEndpointType) &&
+    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
+      ? preferredEndpointType
+      : undefined
   const endpointType =
+    preferred ??
     model.endpointTypes?.[0] ??
     provider.defaultChatEndpoint ??
     (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
@@ -559,6 +566,64 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_MODEL: 'opencode:deepseek-v4-pro'
     })
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {
+    // DeepSeek V4 Flash lists `openai-responses` first (in-app chat's default) and `anthropic-messages`
+    // third. The Agent SDK speaks Messages natively, so it must not take the translating gateway hop.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-flash',
+      apiModelId: 'deepseek-v4-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('deepseek-v4-flash')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+      ANTHROPIC_MODEL: 'deepseek-v4-flash'
+    })
+  })
+
+  it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
+    // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
+    // effective host would post Messages bodies at an OpenAI-compatible endpoint.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'relay-model',
+      apiModelId: 'relay-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'custom:relay-model'
+    })
   })
 
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
