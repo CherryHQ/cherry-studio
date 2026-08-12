@@ -28,7 +28,7 @@ const XlsxAnchorSchema = z.object({
 
 const DocxAnchorSchema = z.object({
   format: z.literal('docx'),
-  /** Zero-based ordinal of the `w:p` element in document.xml body order. */
+  /** Zero-based ordinal among body-level paragraphs (direct `w:body` children; paragraphs inside tables are not counted). */
   paragraph: z.number().int().nonnegative(),
   charRange: CharRangeSchema.optional()
 })
@@ -85,9 +85,6 @@ export const SelectionReferenceSchema = z.object({
 })
 
 export type SelectionReference = z.infer<typeof SelectionReferenceSchema>
-
-/** Fence language tag identifying a serialized reference inside message text. */
-export const SELECTION_REFERENCE_FENCE = 'selection-ref'
 
 export function parseSelectionReference(value: unknown): SelectionReference | null {
   const parsed = SelectionReferenceSchema.safeParse(value)
