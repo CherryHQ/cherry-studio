@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyHint": "When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
@@ -1590,20 +1592,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Files",
+          "resources": "Files & Folders",
           "skills": "Skills"
         },
         "description": "Select from files, agents, or skills",
+        "load_failed": "Failed to load workspace resources",
         "loading": "Loading...",
-        "no_file_found": {
-          "description": "No searchable files in the current workspace",
-          "label": "No File Found"
-        },
         "no_items_found": {
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Files & Sessions"
+        "no_resources_found": {
+          "description": "No searchable files or folders in the current workspace",
+          "label": "No Resources Found"
+        },
+        "title": "Resources & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -6729,6 +6732,10 @@
       "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "Hardware acceleration"
+        },
         "cancel": "Cancel",
         "description": "Models that run locally on your device — download once, then use offline with no API key.",
         "download": "Download",
