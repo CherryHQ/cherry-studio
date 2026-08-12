@@ -5,6 +5,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { foldKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
@@ -628,7 +629,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   ): void {
     const items = knowledgeItemService.getItemsByBaseId(baseId)
     const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
-    if (reserved.has(relativePath)) {
+    // Folded: a slot differing only in case is the same slot once the base is restored onto
+    // a case-insensitive filesystem, and this guard is what keeps two rows off one file.
+    const target = foldKnowledgeRelativePath(relativePath)
+    if ([...reserved].some((candidate) => foldKnowledgeRelativePath(candidate) === target)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }
   }

@@ -176,6 +176,27 @@ describe('pathStorage relative-path safety', () => {
       expect(reserved.has('report_1.md')).toBe(true)
       expect(reserved.has('report.md')).toBe(true)
     })
+
+    it('treats a name differing only in case as taken, keeping the original capitalization', () => {
+      // Case-sensitive here, one file on APFS/NTFS — so the second row would serve the
+      // first row's bytes after a restore. The stored name keeps the user's capitalization;
+      // only the occupancy test folds.
+      const reserved = new Set<string>(['Report.pdf'])
+      expect(reserveImportedFileRelativePath('report.pdf', false, reserved)).toBe('report_1.pdf')
+    })
+
+    it('treats a name differing only in Unicode normalization as taken', () => {
+      // macOS hands back NFD from readdir where Linux stores NFC; both are the same file.
+      const reserved = new Set<string>(['café.pdf'.normalize('NFC')])
+      expect(reserveImportedFileRelativePath('café.pdf'.normalize('NFD'), false, reserved)).toBe(
+        `${'café'.normalize('NFD')}_1.pdf`
+      )
+    })
+
+    it('folds the processed-markdown sibling too', () => {
+      const reserved = new Set<string>(['Brief.md'])
+      expect(reserveImportedFileRelativePath('brief.pdf', true, reserved)).toBe('brief_1.pdf')
+    })
   })
 
   describe('needsProcessedArtifactReservation', () => {

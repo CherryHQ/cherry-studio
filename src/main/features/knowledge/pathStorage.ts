@@ -4,7 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
-import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { foldKnowledgeRelativePath, nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -153,11 +153,17 @@ export function reserveImportedFileRelativePath(
   reserveProcessedArtifact: boolean,
   reservedPaths: Set<string>
 ): PosixRelativeFilePath {
+  // `reservedPaths` stays literal — `deleteKnowledgeItemFiles` reads the same collector's
+  // output as real paths to unlink — so occupancy is tested against a folded copy instead.
+  // Rebuilt per reservation, which each caller follows with a file copy; the I/O dominates.
+  const occupied = new Set([...reservedPaths].map(foldKnowledgeRelativePath))
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
-    if (reservedPaths.has(candidate)) {
+    if (occupied.has(foldKnowledgeRelativePath(candidate))) {
       return false
     }
-    return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
+    return (
+      !reserveProcessedArtifact || !occupied.has(foldKnowledgeRelativePath(getProcessedMarkdownRelativePath(candidate)))
+    )
   })
 
   // `nextFreeKnowledgeRelativePath` derives the suffixed name itself, so the

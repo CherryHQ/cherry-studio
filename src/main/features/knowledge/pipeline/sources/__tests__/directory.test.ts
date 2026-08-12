@@ -117,6 +117,16 @@ describe('chooseDirectoryPathPrefix', () => {
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a_b')
   })
 
+  it('dedupes against a reserved namespace differing only in case', () => {
+    // `reservedTopLevelNames` holds folded keys, so `Docs` and `docs` are one namespace —
+    // claiming the second would bury the first once the base lands on APFS or NTFS.
+    vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
+    vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
+    vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
+
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/Docs'), new Set(['docs']))).toBe('Docs_1')
+  })
+
   it('rejects the reserved .cherry prefix before it can be persisted', () => {
     expect(() => chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/.cherry'), new Set())).toThrow(
       'Knowledge relative path is reserved: .cherry'
@@ -205,6 +215,30 @@ describe('expandDirectoryOwnerToTree', () => {
         ]
       })
     )
+  })
+
+  it('keeps both files when sanitizing maps two scanned names onto one slot', async () => {
+    // Not reachable through a case-only pair (`a.md`/`A.md`): a case-insensitive dev machine
+    // cannot create both, so the collision is provoked the platform-independent way. The copy
+    // overwrites, so before dedup the second file simply replaced the first.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a<b.md'), '# first')
+    realFs.writeFileSync(path.join(rootDir, 'a>b.md'), '# second')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = children.map((child) => (child.type === 'file' ? child.data.relativePath : null))
+    expect(stored).toHaveLength(2)
+    expect(new Set(stored)).toEqual(new Set(['notes/a_b.md', 'notes/a_b_1.md']))
   })
 
   it('skips empty nested directories while preserving non-empty directory hierarchy', async () => {

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { foldKnowledgeRelativePath, nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts, sanitizeFilename } from '@shared/utils/file'
 
@@ -78,7 +78,8 @@ async function expandDirectoryNode(
   pathPrefix: string,
   node: DirectoryEntryNode,
   signal: AbortSignal,
-  onFileCopied: () => void
+  onFileCopied: () => void,
+  claimedPaths: Set<string>
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
@@ -97,10 +98,19 @@ async function expandDirectoryNode(
       .split('/')
       .map((segment) => sanitizeFilename(segment))
       .join('/')
+    // Two scanned files can want one slot even though the scan found them under distinct
+    // names: sanitizing maps `a<b.md` and `a>b.md` onto `a_b.md`, and a case-sensitive
+    // source directory can hold both `a.md` and `A.md`, which are one file wherever the
+    // backup is restored. The copy below overwrites, so an unclaimed collision loses a
+    // file silently.
+    const materialPath = nextFreeKnowledgeRelativePath(
+      `${pathPrefix}/${subtreePath}`,
+      (candidate) => !claimedPaths.has(foldKnowledgeRelativePath(candidate))
+    )
+    claimedPaths.add(foldKnowledgeRelativePath(materialPath))
     // Both halves were guarded on their own (`pathPrefix` in expandDirectory,
     // `treePath` by the tree layer), but the join is a new path — assert it here,
     // which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
-    const materialPath = `${pathPrefix}/${subtreePath}`
     assertSafeKnowledgeRelativePath(materialPath)
     // Thread the abort signal so a hung single-file copy can be interrupted, and allow
     // overwrite so a retry after a mid-scan abort re-copies over its own leftover files
@@ -124,7 +134,7 @@ async function expandDirectoryNode(
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied, claimedPaths)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -166,7 +176,9 @@ export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevel
   const sourceName = sanitizeFilename(path.basename(resolvedPath)) || rootName || 'root'
   const pathPrefix = nextFreeKnowledgeRelativePath(
     sourceName,
-    (candidate) => !reservedTopLevelNames.has(candidate),
+    // `reservedTopLevelNames` holds folded keys — `docs` and `Docs` are one namespace on a
+    // case-insensitive host, so claiming the second would bury the first on restore.
+    (candidate) => !reservedTopLevelNames.has(foldKnowledgeRelativePath(candidate)),
     false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
   assertSafeKnowledgeRelativePath(pathPrefix)
@@ -205,9 +217,13 @@ export async function expandDirectoryOwnerToTree(
     copiedFiles += 1
     onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
   }
+  // Scoped to this expansion: everything it writes lives under `pathPrefix`, which the
+  // caller already claimed against the rest of the base, and a retry reclaims the whole
+  // prefix before rescanning — so there is nothing outside to collide with.
+  const claimedPaths = new Set<string>()
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied, claimedPaths)
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }
