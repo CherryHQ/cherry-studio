@@ -1,3 +1,5 @@
+import type * as NodePathModule from 'node:path'
+
 import { createMockApplication } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -296,7 +298,7 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
 // has to join them the same way regardless of host.
 function stubPath() {
   vi.doMock('node:path', async () => {
-    const actual = await vi.importActual<typeof import('node:path')>('node:path')
+    const actual: typeof NodePathModule = await vi.importActual('node:path')
     return { __esModule: true, default: actual.posix, ...actual.posix }
   })
 }
