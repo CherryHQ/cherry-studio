@@ -43,7 +43,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { AsyncEventQueue } from '../asyncEventQueue'
+import { AsyncEventQueue } from '../AsyncEventQueue'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
