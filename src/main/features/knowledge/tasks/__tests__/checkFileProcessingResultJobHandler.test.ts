@@ -312,13 +312,14 @@ describe('check-file-processing-result job handler', () => {
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
-  it('marks the item failed when file processing fails', async () => {
+  it('marks an over-limit PDF failed with manual split guidance and does not index it', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    const pageLimitError = '该 PDF 超过当前文档解析服务的 1000 页上限，请手动拆分 PDF 后重新添加。'
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
         status: 'failed',
-        error: { code: 'FAILED', message: 'processor failed', retryable: false }
+        error: { code: 'FAILED', message: pageLimitError, retryable: false }
       })
     )
 
@@ -326,8 +327,9 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 failed: processor failed'
+      error: `File processing job fp-job-1 failed: ${pageLimitError}`
     })
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
     expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
