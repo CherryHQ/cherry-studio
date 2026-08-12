@@ -31,13 +31,11 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
       return new AnydocReader(() => new DocxReader())
     case '.epub':
       return new AnydocReader(() => new EpubReader(), true)
-    // These binary containers use TextFileReader as the fallback when anydoc is
-    // unavailable or cannot convert them.
     case '.ppt':
     case '.pptx':
     case '.xls':
     case '.xlsx':
-      return new AnydocReader(() => new TextFileReader())
+      return new AnydocReader()
     case '.html':
     case '.htm':
       return new HTMLReader()

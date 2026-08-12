@@ -1,3 +1,4 @@
+import { getKnowledgeItemConflictKey, getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../../../pathStorage'
@@ -42,6 +43,45 @@ describe('deriveNoteSnapshotSlug', () => {
 
   it('falls back to "note" when the title sanitizes to nothing usable', () => {
     expect(deriveNoteSnapshotSlug('   ')).toBe('note')
+  })
+
+  it('names a multi-line source by its first line', () => {
+    // Newlines are control characters, so sanitizing the whole source would fold the body into the
+    // name (`Meeting notes__- item one`) instead of titling the note.
+    expect(deriveNoteSnapshotSlug('Meeting notes\n\n- item one')).toBe('Meeting notes')
+  })
+
+  it('drops a separator the length cap lands on', () => {
+    // Sanitizing turns the tab into `_`, which the trailing-whitespace strip can no longer remove.
+    expect(deriveNoteSnapshotSlug(`${'a'.repeat(79)}\tmore`)).toBe('a'.repeat(79))
+  })
+})
+
+describe('note canonical name', () => {
+  // The v1 migrator sets `source = content` for a legacy note with no sourceUrl, so a multi-line
+  // source is a legitimate shape. Detection has to predict the captured name before capture
+  // happens, so all three views of the name have to agree or a re-add silently misses.
+  it('keeps the pre-capture key, the captured snapshot name, and the post-capture key identical', async () => {
+    writeFileIntoKnowledgeBaseAtMock.mockClear()
+    writeFileIntoKnowledgeBaseAtMock.mockImplementation(async (_baseId: string, relativePath: string) => relativePath)
+    const source = 'Meeting notes\n\n- item one'
+
+    const preCaptureKey = getKnowledgeItemConflictKey({ type: 'note', data: { source, content: source } })
+    // Go through the real capture rather than the slug alone, so the post-capture key is read back
+    // off the path the note is actually stored under.
+    const relativePath = await captureNoteSnapshotFile('kb-1', source, source, new Set())
+    const postCaptureKey = getKnowledgeItemConflictKey({
+      type: 'note',
+      data: { source, content: source, relativePath }
+    })
+
+    expect(relativePath).toBe('Meeting notes.md')
+    expect(preCaptureKey).toBe('Meeting notes')
+    expect(postCaptureKey).toBe('Meeting notes')
+    // The portable snapshot titles itself the same way instead of restating the body...
+    expect(writeFileIntoKnowledgeBaseAtMock.mock.calls[0][2]).toMatch(/^---\ntype: "Note"\ntitle: "Meeting notes"\n/)
+    // ...and so does the row.
+    expect(getKnowledgeItemDisplayTitle({ type: 'note', data: { source, content: source } })).toBe('Meeting notes')
   })
 })
 

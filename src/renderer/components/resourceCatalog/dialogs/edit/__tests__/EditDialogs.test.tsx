@@ -3,6 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -16,6 +17,7 @@ const {
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
+  promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
@@ -51,6 +53,7 @@ const {
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
@@ -115,6 +118,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
+    previewValue,
     resetPreviewKey,
     minHeight,
     maxHeight
@@ -125,6 +129,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    previewValue?: string
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
@@ -142,6 +147,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
+      <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
@@ -216,6 +222,16 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+  useInfiniteQuery: () => ({
+    pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn()
+  }),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))
@@ -237,7 +253,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePromptProcessor', () => ({
-  usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
+  usePromptProcessor: promptProcessorMock
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -297,8 +313,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
@@ -327,7 +341,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.tags.hint': 'Group related assistants.',
           'library.config.basic.field.custom_params.hint': 'Extra provider parameters.',
           'library.config.basic.field.max_tokens.hint': 'Caps response length.',
-          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 100.',
+          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 1000.',
           'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
@@ -335,7 +349,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.json_invalid': 'Invalid JSON',
           'library.config.basic.max_tokens': 'Max tokens',
           'library.config.basic.max_tool_calls': 'Max tool call rounds',
-          'library.config.basic.max_tool_calls_default': 'Default (20 rounds)',
+          'library.config.basic.max_tool_calls_default': 'Default (100 rounds)',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
@@ -495,6 +509,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
   installedSkillsState.current = {
     skills: [
       {
@@ -758,25 +773,47 @@ describe('edit dialogs', () => {
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
+      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    )
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, instructions: 'Original instructions {{model_name}}' }}
+        onOpenChange={vi.fn()}
+      />
+    )
 
     selectTab('Prompt')
-    expect(screen.queryByRole('button', { name: 'System variables' })).not.toBeInTheDocument()
-    expect(screen.getByText('Instructions')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel', { name: 'Prompt' })).getByText('Prompt')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
-    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
-    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
+    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
+    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Original instructions {{model_name}}',
+      modelName: 'Old Model'
+    })
+    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
+    selectTab('Prompt')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
+    )
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Updated instructions {{model_name}}',
+      modelName: 'Updated Model'
+    })
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           model: MODEL.id,
-          instructions: 'Updated instructions'
+          instructions: 'Updated instructions {{model_name}}'
         })
       })
     )
@@ -1010,7 +1047,34 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('shows the default tool-call cap and clamps custom rounds at 100', async () => {
+  it('repairs invalid legacy max tokens when enabling the limit', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, maxTokens: 0, enableMaxTokens: false }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: {
+          settings: {
+            maxTokens: 4096,
+            enableMaxTokens: true
+          }
+        }
+      })
+    )
+  })
+
+  it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
         open
@@ -1029,24 +1093,24 @@ describe('edit dialogs', () => {
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
-    expect(screen.getByText('Default (20 rounds)')).toBeVisible()
+    expect(screen.getByText('Default (100 rounds)')).toBeVisible()
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
     expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '100')
+    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
 
     fireEvent.focus(maxToolCallsInput)
-    fireEvent.change(maxToolCallsInput, { target: { value: '101' } })
+    fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(100)
+    expect(maxToolCallsInput).toHaveValue(1000)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           settings: expect.objectContaining({
             enableMaxToolCalls: true,
-            maxToolCalls: 100
+            maxToolCalls: 1000
           })
         })
       })
@@ -1410,15 +1474,23 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
-  it('keeps the dialog open and shows an error when save fails', async () => {
+  it('shows an auto-save error and still allows the dialog to close', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
+    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Assistant' } })
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Broken Assistant')
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('keeps the dialog open after a successful auto-save', async () => {
@@ -1478,13 +1550,16 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('prompts without closing or retrying an unchanged failed assistant save', async () => {
+  it('allows discarding an unchanged failed assistant save without retrying it', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
+    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Closing Edit')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Save failed')
@@ -1492,13 +1567,12 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     await new Promise((resolve) => setTimeout(resolve, 700))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
@@ -1582,7 +1656,7 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('prompts without closing or retrying an unchanged failed agent save', async () => {
+  it('allows discarding an unchanged failed agent save without retrying it', async () => {
     updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
@@ -1602,8 +1676,21 @@ describe('edit dialogs', () => {
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('retries saving the agent when the form changes after a failed close', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
 
     fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))

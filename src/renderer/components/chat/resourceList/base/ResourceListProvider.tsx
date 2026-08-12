@@ -32,7 +32,7 @@ import {
   type ResourceListViewGroup,
   type ResourceListViewSection
 } from './ResourceListContext'
-import { RESOURCE_LIST_DEFAULT_ROW_SIZE } from './resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 import { ResourceListUiService } from './ResourceListUiService'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
@@ -40,7 +40,7 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const EMPTY_GROUP_SEEDS: readonly ResourceListGroupSeed[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
+const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 

@@ -332,6 +332,11 @@
   --color-error-subtle: var(--error-subtle);
   --color-error-subtle-foreground: var(--error-subtle-foreground);
   --color-error-border: var(--error-border);
+  --color-resource-list-row-hover: var(--resource-list-row-hover);
+  --color-resource-list-row-active: var(--resource-list-row-active);
+  --color-resource-list-row-active-foreground: var(--resource-list-row-active-foreground);
+  --color-resource-list-row-selected: var(--resource-list-row-selected);
+  --color-resource-list-row-selected-foreground: var(--resource-list-row-selected-foreground);
 
   /* ==================== */
   /* Compatibility: Existing Semantic Colors */

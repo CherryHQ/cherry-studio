@@ -1,4 +1,4 @@
-import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
+import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer, { type AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
@@ -42,10 +42,7 @@ function AgentComposerSlot({
   composerContext,
   composerLaunchOptions
 }: AgentComposerSlotProps) {
-  const rightPanelState = useOptionalRightPanelState()
-  const compactWhenSingleLine = Boolean(
-    rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
-  )
+  const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer

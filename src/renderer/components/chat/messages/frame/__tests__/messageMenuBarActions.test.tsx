@@ -753,7 +753,7 @@ describe('messageMenuBarActions', () => {
     ])
   })
 
-  it('shows disabled new branch with a reason in the latest message menu', () => {
+  it('enables new branch in the latest message menu', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
@@ -772,8 +772,7 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select'])
     expect(menuActions[0]?.availability).toEqual({
       visible: true,
-      enabled: false,
-      reason: 'chat.message.new.branch.disabled.latest'
+      enabled: true
     })
   })
 

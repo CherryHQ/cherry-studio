@@ -84,7 +84,7 @@ Before the migration window is created, the gate validates the upgrade
 path using `core/versionPolicy.ts`. This catches manual installs that
 bypass the auto-updater's version filtering.
 
-**Required upgrade path**: `v1.old → v1.last (≥1.9.12) → v2.0.0 → v2.x`
+**Required upgrade path**: `v1.old → v1.last (≥1.9.12) → v2.0.x → v2.1+`
 
 ### Blocking rules
 
@@ -92,18 +92,18 @@ bypass the auto-updater's version filtering.
 |------|-----------|--------|
 | no_version_log | Legacy data exists but `version.log` is missing | User never ran a v1 version with VersionService (embedded since v1.7) |
 | v1_too_old | `previousVersion < V1_REQUIRED_VERSION` | Data not in final v1 form |
-| v2_gateway_skipped | `previousVersion < 2.0.0 && coerce(currentVersion) > 2.0.0` | Skipped the v2.0.0 migration gateway |
+| v2_gateway_skipped | `previousVersion < 2.0.0 && coerce(currentVersion) >= 2.1.0` | Skipped the v2.0.x migration line |
 
 ### Pre-release versions
 
 v2.0.0 pre-releases (alpha/beta/rc) are treated as **before v2.0.0**
 in semver ordering. This means:
 - v1.last → v2.0.0-alpha is allowed (the gateway check uses coerced
-  currentVersion, so `gt('2.0.0', '2.0.0')` is false)
+  currentVersion, so `gte('2.0.0', '2.1.0')` is false)
 - Pre-release → pre-release upgrades work because migration status is
   already `completed` after the first successful run
-- v2.0.0 is strictly required as the gateway — v2.0.x patches are
-  blocked until the policy is updated in a future release
+- The complete v2.0.x line is a verified direct migration target; v2.1.0 and
+  later remain blocked until their migration compatibility is explicitly verified
 
 ### Path safety for version.log
 

@@ -259,6 +259,12 @@ describe('KnowledgeService integration', () => {
       data: { source: content.split('\n')[0], content }
     })
 
+    // A note drafted in the dialog carries a title independent of its body, so the two can differ.
+    const titledNoteInput = (title: string, content: string) => ({
+      type: 'note' as const,
+      data: { source: title, content }
+    })
+
     const baseRows = () =>
       dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
 
@@ -296,6 +302,65 @@ describe('KnowledgeService integration', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
       expect((rows[0].data as { content: string }).content).toBe('Doc A\nreplacement body')
+    })
+
+    it('does not collide when the titles differ, even though both bodies open with the same line', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [titledNoteInput('Doc B', 'Doc A\nnew body')], 'detect')
+
+      expect(result).toEqual({ status: 'added' })
+      expect(await baseRows()).toHaveLength(2)
+    })
+
+    it('replace leaves a differently-titled note alone even when both bodies open with the same line', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc B', 'Doc A\nreplacement body')],
+        'replace'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(2)
+      // The whole point: "Doc A" must survive being told to replace "Doc B".
+      expect(rows.some((row) => row.id === EXISTING_NOTE_ID)).toBe(true)
+    })
+
+    it('collides on a shared title even when the bodies open with different lines', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc A', 'a totally different opening line\nbody')],
+        'detect'
+      )
+
+      expect(result).toEqual({ status: 'conflicts', conflicts: [{ type: 'note', title: 'Doc A' }] })
+      expect(await baseRows()).toHaveLength(1)
+    })
+
+    it('replace purges the same-titled note even though the bodies open with different lines', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      // `detect` and `replace` read different halves of the resolution, so reporting the collision
+      // does not prove the purge targets the right row.
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc A', 'a totally different opening line\nreplacement body')],
+        'replace'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
     })
 
     it('defaults to rename (keep all) when no strategy is given, adding alongside the existing item', async () => {

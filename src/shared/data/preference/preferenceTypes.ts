@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
@@ -32,6 +33,8 @@ export type PreferenceShortcutType = {
 export type MenuPresentationMode = 'native' | 'cherry'
 
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
+export type RetryFallbackModelId = UniqueModelId
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -266,7 +269,6 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
@@ -278,7 +280,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'kimi-code',
   'qoder-cli',
-  'github-copilot-cli'
+  'github-copilot-cli',
+  'pi'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
@@ -336,6 +339,7 @@ export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
+  'local-document',
   'paddleocr',
   'local-paddleocr',
   'ovocr',

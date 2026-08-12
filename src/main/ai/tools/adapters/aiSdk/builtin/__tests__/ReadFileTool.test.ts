@@ -28,12 +28,8 @@ import { readFile, readFileModelOutput } from '../ReadFileTool'
 const att = (handle: string): FileAttachmentRef => ({ fileEntryId: 'e1', handle, displayName: handle })
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 
-// offset/limit are required numbers (under `strict: true`) with 0 meaning "default"; default them here.
-const input = (rest: { filename: string; offset?: number; limit?: number }): ReadFileInput => ({
-  offset: 0,
-  limit: 0,
-  ...rest
-})
+// offset/limit are plain optionals — omitting one means "use the default", so pass `rest` through.
+const input = (rest: { filename: string; offset?: number; limit?: number }): ReadFileInput => rest
 
 afterEach(() => vi.clearAllMocks())
 

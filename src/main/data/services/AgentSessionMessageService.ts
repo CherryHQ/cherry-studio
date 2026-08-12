@@ -6,6 +6,8 @@ import {
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -31,6 +33,7 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
@@ -40,6 +43,7 @@ import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
+const SQLITE_INARRAY_CHUNK = 500
 const MESSAGE_CURSOR_CONFIG = {
   fieldMessage: 'must be a valid message cursor',
   errorMessage: 'Invalid message cursor'
@@ -84,6 +88,59 @@ type SaveAgentSessionMessageOptions =
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
   dataChange: 'membership' | 'projection'
+}
+
+function replaceAgentSessionMessageFileRefsTx(
+  tx: DbOrTx,
+  messageId: string,
+  data: AgentSessionMessageEntity['data']
+): void {
+  tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
+
+  const ids = [
+    ...new Set(
+      (data.parts ?? [])
+        .filter((part) => part.type === 'file')
+        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .filter((id): id is string => Boolean(id))
+    )
+  ]
+  if (ids.length === 0) return
+
+  const existingIds = new Set<string>()
+  for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
+    const rows = tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(inArray(fileEntryTable.id, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
+      .all()
+    rows.forEach((row) => existingIds.add(row.id))
+  }
+
+  const now = Date.now()
+  const rows = ids
+    .filter((fileEntryId) => existingIds.has(fileEntryId))
+    .map((fileEntryId) => ({
+      fileEntryId,
+      sourceId: messageId,
+      role: 'attachment' as const,
+      createdAt: now,
+      updatedAt: now
+    }))
+
+  if (rows.length !== ids.length) {
+    logger.warn('Dropped agent-session message file refs without matching file_entry', {
+      messageId,
+      dropped: ids.length - rows.length,
+      total: ids.length
+    })
+  }
+
+  for (let index = 0; index < rows.length; index += SQLITE_INARRAY_CHUNK) {
+    tx.insert(agentSessionMessageFileRefTable)
+      .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
+      .run()
+  }
 }
 
 export class AgentSessionMessageService {
@@ -147,6 +204,22 @@ export class AgentSessionMessageService {
         }
       })
     })
+  }
+
+  /**
+   * Lightweight existence check used to distinguish an untouched session's
+   * initial turn without loading a potentially large message payload.
+   */
+  hasSessionMessages(sessionId: string): boolean {
+    const database = application.get('DbService').getDb()
+    return (
+      database
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .limit(1)
+        .all().length > 0
+    )
   }
 
   /**
@@ -267,6 +340,7 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, dto.data)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
@@ -281,25 +355,51 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * Ids of assistant rows still in `pending` — used by the agent-session boot reconcile to
-   * resolve turns a prior main-process crash left stuck (the runtime never reached its terminal
-   * write, and the in-memory entry map is empty after a restart, so nothing else settles them).
+   * Assistant rows still in `pending` — used by the agent-session boot reconcile to resolve turns
+   * a prior main-process crash left stuck (the runtime never reached its terminal write, and the
+   * in-memory entry map is empty after a restart, so nothing else settles them). Returns
+   * `sessionId` + `data` alongside the id so the caller can terminalize interrupted parts and
+   * invalidate the affected sessions' resume tokens.
    */
-  findPendingAssistantMessageIds(): string[] {
+  findPendingAssistantMessages(): Array<{ id: string; sessionId: string; data: AgentSessionMessageEntity['data'] }> {
     const database = application.get('DbService').getDb()
-    const rows = database
-      .select({ id: sessionMessagesTable.id })
+    return database
+      .select({
+        id: sessionMessagesTable.id,
+        sessionId: sessionMessagesTable.sessionId,
+        data: sessionMessagesTable.data
+      })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
       .all()
-    return rows.map((row) => row.id)
   }
 
-  /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
-  markMessagesError(ids: string[]): void {
-    if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
+  /**
+   * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
+   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
+   * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
+   * a runaway execution (#18281) — so the next connection must start without a token.
+   */
+  resolveCrashOrphanedMessages(
+    messages: Array<{ id: string; data: AgentSessionMessageEntity['data'] }>,
+    sessionIds: string[]
+  ): void {
+    if (messages.length === 0) return
+    application.get('DbService').withWriteTx((tx) => {
+      const updatedAt = Date.now()
+      for (const message of messages) {
+        tx.update(sessionMessagesTable)
+          .set({ status: 'error', data: message.data, updatedAt })
+          .where(eq(sessionMessagesTable.id, message.id))
+          .run()
+      }
+      if (sessionIds.length > 0) {
+        tx.update(sessionMessagesTable)
+          .set({ runtimeResumeToken: null })
+          .where(inArray(sessionMessagesTable.sessionId, sessionIds))
+          .run()
+      }
+    })
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -402,6 +502,7 @@ export class AgentSessionMessageService {
             .run(),
         defaultHandlersFor('Message', String(existingRow.id))
       )
+      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
 
       return {
         entity: this.rowToEntity({
@@ -435,6 +536,7 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
+    replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
     return { entity: this.rowToEntity(saved), dataChange: 'membership' }
   }
 
@@ -516,12 +618,14 @@ export class AgentSessionMessageService {
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
+      const data = { ...existingRow.data, parts }
       const [updated] = tx
         .update(sessionMessagesTable)
-        .set({ data: { ...existingRow.data, parts }, updatedAt })
+        .set({ data, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })

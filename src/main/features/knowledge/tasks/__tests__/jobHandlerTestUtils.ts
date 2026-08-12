@@ -2,6 +2,7 @@ import type { JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, type Mocked, vi } from 'vitest'
 
@@ -199,7 +200,7 @@ export const { createReindexSubtreeJobHandler } = await import('../reindexSubtre
 
 export const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 export const FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abd'
-export const FILE_RELATIVE_PATH = 'source.pdf'
+export const FILE_RELATIVE_PATH = 'source.pdf' as PosixRelativeFilePath
 export const PROCESSED_RELATIVE_PATH = 'source.md'
 type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
@@ -232,7 +233,7 @@ export function createNoteItem(
   // Default to an already-captured snapshot so the item is a valid indexable
   // leaf that passes straight through ensureSnapshot; pass undefined (or
   // override `data`) to exercise the first-index capture path.
-  relativePath: string | undefined = `${id}.md`
+  relativePath: PosixRelativeFilePath | undefined = `${id}.md` as PosixRelativeFilePath
 ): KnowledgeItemOf<'note'> {
   return {
     id,
@@ -249,7 +250,7 @@ export function createNoteItem(
 
 export function createUrlItem(
   id = 'url-1',
-  relativePath?: string,
+  relativePath?: PosixRelativeFilePath,
   status: Exclude<KnowledgeItemOf<'url'>['status'], 'failed'> = 'processing'
 ): KnowledgeItemOf<'url'> {
   return {
@@ -381,7 +382,7 @@ beforeEach(() => {
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
   knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
-    (id: string, type: 'url' | 'note', relativePath: string) =>
+    (id: string, type: 'url' | 'note', relativePath: PosixRelativeFilePath) =>
       type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
   )
   loadKnowledgeItemDocumentsMock.mockResolvedValue([

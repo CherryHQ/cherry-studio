@@ -64,10 +64,16 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
-  const { providers } = useProviders()
+  const { providers, isLoading: isProvidersLoading } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
-    useConfigMetadata(selectedCliTool, providers)
+  const {
+    filterProviders,
+    makeModelFilter,
+    resolveProviderMeta,
+    resolveProviderMetaForTool,
+    gatewayModelsById,
+    isGatewayModelsLoading
+  } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
 
   // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
   // provider display name when no model applies (own login, Claude detailed models).
@@ -177,7 +183,9 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     setCurrentProvider,
     setCurrentCliConfigConnection,
     makeModelFilter,
-    apiGatewayProvider: apiGatewayBundle
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
+    isGatewayModelsLoading
   })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,

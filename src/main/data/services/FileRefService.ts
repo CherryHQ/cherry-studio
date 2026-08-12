@@ -11,6 +11,7 @@
 
 import { application } from '@application'
 import {
+  agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   jobFileRefTable,
   type MiniAppLogoFileRefRow,
@@ -24,6 +25,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
+  agentSessionMessageSourceType,
   chatMessageSourceType,
   FileRefSchema,
   jobSourceType,
@@ -54,6 +56,7 @@ export interface FileRefService {
 
 const SQLITE_INARRAY_CHUNK = 500
 
+type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 type JobFileRefRow = typeof jobFileRefTable.$inferSelect
@@ -62,6 +65,10 @@ function compareRefs(left: FileRef, right: FileRef): number {
   const createdDelta = left.createdAt - right.createdAt
   if (createdDelta !== 0) return createdDelta
   return left.id.localeCompare(right.id)
+}
+
+function agentSessionMessageRowToFileRef(row: AgentSessionMessageFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: agentSessionMessageSourceType })
 }
 
 function chatMessageRowToFileRef(row: ChatMessageFileRefRow): FileRef {
@@ -99,6 +106,15 @@ class FileRefServiceImpl implements FileRefService {
 
   findByEntryId(fileEntryId: FileEntryId): FileRef[] {
     const persistentRefReaders = {
+      [agentSessionMessageSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      },
       [chatMessageSourceType]: () => {
         const rows = this.getDb()
           .select()
@@ -153,6 +169,15 @@ class FileRefServiceImpl implements FileRefService {
 
   findBySource(source: FileRefSourceKey): FileRef[] {
     switch (source.sourceType) {
+      case agentSessionMessageSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      }
       case chatMessageSourceType: {
         const rows = this.getDb()
           .select()
@@ -212,6 +237,13 @@ class FileRefServiceImpl implements FileRefService {
     for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
       const persistentRefCounters = {
+        [agentSessionMessageSourceType]: () =>
+          this.getDb()
+            .select({ entryId: agentSessionMessageFileRefTable.fileEntryId, refCount: count() })
+            .from(agentSessionMessageFileRefTable)
+            .where(inArray(agentSessionMessageFileRefTable.fileEntryId, chunk))
+            .groupBy(agentSessionMessageFileRefTable.fileEntryId)
+            .all(),
         [chatMessageSourceType]: () =>
           this.getDb()
             .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })

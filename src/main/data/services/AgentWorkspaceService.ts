@@ -1,7 +1,10 @@
 import { application } from '@application'
+import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -9,15 +12,23 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentWorkspaceEntity,
+  type AgentWorkspaceReferenceItem,
+  type AgentWorkspaceReferenceList,
+  type AgentWorkspaceReferences,
   AgentWorkspaceTypeSchema,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, count, desc, eq } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
+const AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT = 21
+
+function buildReferenceList(items: AgentWorkspaceReferenceItem[], total = items.length): AgentWorkspaceReferenceList {
+  return { items: items.slice(0, AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT), total }
+}
 
 export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
@@ -99,6 +110,32 @@ export class AgentWorkspaceService {
     const [row] = tx.select().from(agentWorkspaceTable).where(predicate).limit(1).all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
+  }
+
+  getReferences(id: string): AgentWorkspaceReferences {
+    const db = application.get('DbService').getDb()
+    this.getRowByIdTx(db, id)
+
+    const [{ total: sessionTotal }] = db
+      .select({ total: count() })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .all()
+    const sessions = db
+      .select({ id: sessionsTable.id, name: sessionsTable.name })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT)
+      .all()
+    const channels = agentChannelService.listWorkspaceReferencesTx(db, id)
+    const tasks = getDataService('AgentTaskService').listWorkspaceReferencesTx(db, id)
+
+    return {
+      sessions: buildReferenceList(sessions, sessionTotal),
+      channels: buildReferenceList(channels),
+      tasks: buildReferenceList(tasks)
+    }
   }
 
   findOrCreateByPath(rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
