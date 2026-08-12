@@ -4391,10 +4391,10 @@
       }
     },
     "split": {
-      "already_open": "[to be translated]:Already shown in the other pane",
-      "apps_unsupported": "[to be translated]:not supported yet",
-      "close": "[to be translated]:Close split view",
-      "open": "[to be translated]:Split view"
+      "already_open": "Already shown in the other pane",
+      "apps_unsupported": "not supported yet",
+      "close": "Close split view",
+      "open": "Split view"
     },
     "title": "Mini-programme",
     "unpin_failed": "Échec du détachement de la mini-application",
