@@ -44,7 +44,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
-import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { isAnthropicOfficialHost, resolveAgentContextWindow, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -467,7 +467,11 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
-  const contextWindow = model.contextWindow
+  const contextWindow = resolveAgentContextWindow(
+    model.contextWindow,
+    providerRegistryService.lookupModel(providerId, modelId).presetModel?.contextWindow,
+    modelId
+  )
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)

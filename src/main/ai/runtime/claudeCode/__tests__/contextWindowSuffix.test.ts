@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { isAnthropicOfficialHost, with1mSuffix } from '../contextWindowSuffix'
+import {
+  isAnthropicOfficialHost,
+  parseContextWindowSuffix,
+  resolveAgentContextWindow,
+  with1mSuffix
+} from '../contextWindowSuffix'
 
 describe('with1mSuffix', () => {
   it('appends [1m] when a non-Anthropic model declares >= 1M context', () => {
@@ -42,5 +47,64 @@ describe('isAnthropicOfficialHost', () => {
 
   it('is false for an unparseable base URL', () => {
     expect(isAnthropicOfficialHost('not a url')).toBe(false)
+  })
+})
+
+describe('parseContextWindowSuffix', () => {
+  it.each([
+    ['deepseek-v4-pro[1m]', 1_000_000],
+    ['deepseek-v4-pro[1M]', 1_000_000],
+    ['some-model[128k]', 128_000],
+    ['some-model[200k]', 200_000],
+    ['some-model[1.5m]', 1_500_000]
+  ])('parses %s into the declared token count', (id, expected) => {
+    expect(parseContextWindowSuffix(id)).toBe(expected)
+  })
+
+  it('returns undefined for an id without a trailing bracket annotation', () => {
+    expect(parseContextWindowSuffix('deepseek-v4-pro')).toBeUndefined()
+    expect(parseContextWindowSuffix('gpt-oss-20b')).toBeUndefined()
+  })
+
+  it('ignores a non-trailing bracket so a mid-id marker is not misread', () => {
+    // The annotation must be the trailing token; `[1m]-v2` does not declare a 1M window.
+    expect(parseContextWindowSuffix('model[1m]-v2')).toBeUndefined()
+  })
+
+  it('returns undefined for empty / missing input', () => {
+    expect(parseContextWindowSuffix('')).toBeUndefined()
+    expect(parseContextWindowSuffix(undefined)).toBeUndefined()
+  })
+})
+
+describe('resolveAgentContextWindow', () => {
+  // Priority: row value > registry preset > id suffix. Each lower tier only runs when every higher
+  // tier is undefined, mirroring the `??` chain in agentSessionWarmup.
+
+  it('prefers the row-owned context window over preset and suffix', () => {
+    // A preset-backed row already merged the precise value; neither fallback may override it.
+    expect(resolveAgentContextWindow(1_048_600, 1_000_000, 'deepseek-v4-pro[1m]')).toBe(1_048_600)
+  })
+
+  it('falls back to the registry preset when the row has no value (plain id that missed the match)', () => {
+    // A custom row with a plain id that just failed preset matching — the suffix is absent, so the
+    // preset window (declared in the catalog) is the right value, not 100K.
+    expect(resolveAgentContextWindow(undefined, 1_048_600, 'deepseek-v4-pro')).toBe(1_048_600)
+  })
+
+  it('falls back to the id suffix when neither row nor preset has a value (suffixed custom row)', () => {
+    // The #18397 case: the [1m] suffix defeated normalizeModelId so the preset never matched
+    // (presetContextWindow is undefined); the suffix the user typed is the sole source.
+    expect(resolveAgentContextWindow(undefined, undefined, 'deepseek-v4-pro[1m]')).toBe(1_000_000)
+  })
+
+  it('prefers the registry preset over the id suffix when both are available but the row is empty', () => {
+    // The catalog value is precise (1_048_600); the suffix is an approximation (1_000_000). Preset wins.
+    expect(resolveAgentContextWindow(undefined, 1_048_600, 'deepseek-v4-pro[1m]')).toBe(1_048_600)
+  })
+
+  it('returns undefined when no source provides a value', () => {
+    expect(resolveAgentContextWindow(undefined, undefined, 'deepseek-v4-pro')).toBeUndefined()
+    expect(resolveAgentContextWindow(undefined, undefined, undefined)).toBeUndefined()
   })
 })

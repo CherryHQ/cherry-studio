@@ -47,3 +47,38 @@ export function with1mSuffix(
   if (!contextWindow || contextWindow < ONE_MILLION) return modelId
   return `${modelId}[1m]`
 }
+
+/**
+ * Parse a trailing context-window annotation a user baked into a model id — `[1m]`, `[128k]`,
+ * `[200k]`, `[1.5m]` — into a token count. Returns `undefined` when the id has no such suffix, so a
+ * caller can use it as a `??` fallback for a custom row whose `contextWindow` never resolved (the row
+ * failed to match a preset because the suffix defeated `normalizeModelId`, so the registry value was
+ * never merged in). Case-insensitive (`[1M]` matches Code Mate's spelling). Trailing-anchored so a
+ * mid-id bracket is not misread.
+ */
+export function parseContextWindowSuffix(modelId: string | undefined): number | undefined {
+  if (!modelId) return undefined
+  const match = modelId.match(/\[(\d+(?:\.\d+)?)([km])\]$/i)
+  if (!match) return undefined
+  const value = Number(match[1])
+  return match[2].toLowerCase() === 'm' ? value * ONE_MILLION : value * 1000
+}
+
+/**
+ * Resolve the context window to pass to the Claude Code SDK for an Agent session.
+ *
+ * A custom row never merges the registry's `contextWindow` on read, so a row that failed to match a
+ * preset arrives with `rowContextWindow === undefined`. Fall back, in order:
+ *   1. the registry preset's window — covers a plain id that just missed the preset match;
+ *   2. a `[1m]`/`[128k]` annotation in the id — covers a suffixed id the preset can never match
+ *      (normalizeModelId won't strip the bracket).
+ * Preset-backed rows already carry a precise merged value, so step 1 short-circuits before any
+ * fallback runs.
+ */
+export function resolveAgentContextWindow(
+  rowContextWindow: number | undefined,
+  presetContextWindow: number | undefined,
+  modelId: string | undefined
+): number | undefined {
+  return rowContextWindow ?? presetContextWindow ?? parseContextWindowSuffix(modelId)
+}

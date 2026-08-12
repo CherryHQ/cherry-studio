@@ -13,6 +13,8 @@ import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resolveAgentContextWindow } from '../contextWindowSuffix'
+
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
@@ -598,6 +600,38 @@ describe('buildClaudeCodeSessionSettings', () => {
     // The explicit override wins for the env var; the budget still tracks the real window.
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
+  })
+
+  // Regression for #18397: a custom row whose id carries `[1m]` has contextWindow=undefined and the
+  // preset never matched (the suffix defeats normalizeModelId, so presetContextWindow is undefined too).
+  // agentSessionWarmup resolves the window via resolveAgentContextWindow, whose last tier parses the
+  // suffix to 1_000_000. This test pins that the resolved value, once it reaches here, actually
+  // unblocks the auto-compact math — instead of the pre-fix state where both the env var and
+  // autoCompactWindow are absent and the SDK falls back to its 100K default.
+  it('treats a [1m] suffix-derived context window as a real 1M budget', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'provider::deepseek-v4-pro[1m]',
+      mcps: [],
+      allowedTools: [],
+      configuration: {}
+    })
+    // Mirrors agentSessionWarmup.ts: row undefined + preset undefined (suffix defeated the match) →
+    // the suffix is the sole source.
+    const contextWindow = resolveAgentContextWindow(undefined, undefined, 'deepseek-v4-pro[1m]')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/w' } } as never,
+      {} as never,
+      { contextWindow }
+    )
+
+    expect(contextWindow).toBe(1_000_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' })
+    const autoCompactWindow = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    expect(autoCompactWindow).toBeGreaterThan(100_000)
+    expect(autoCompactWindow).toBeLessThanOrEqual(1_000_000)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
