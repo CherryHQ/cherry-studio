@@ -119,11 +119,11 @@ async function writeBundleZip(
 ): Promise<void> {
   for (const source of sources) assertSafeArchiveName(source.archiveName)
 
+  const { ZipArchive } = await import('archiver')
   const stagingPath = AbsoluteFilePathSchema.parse(
     path.join(path.dirname(destination), `.cherry-studio-diagnostics-${randomUUID()}.tmp`)
   )
   const output = createAtomicWriteStream(stagingPath)
-  const { ZipArchive } = await import('archiver')
   const archive = new ZipArchive({ zlib: { level: 1 } })
   const completion = new Promise<void>((resolve, reject) => {
     output.once('finish', resolve)
