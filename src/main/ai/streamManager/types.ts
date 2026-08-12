@@ -144,16 +144,10 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
-export interface StreamConversation {
-  type: 'assistant' | 'agent'
-  id: string
-}
-
 export interface ConversationCompletedEvent {
   topicId: string
   turnId: string
   completedAt: number
-  conversation: StreamConversation
 }
 
 /**
@@ -174,8 +168,8 @@ export interface ActiveStream {
   status: TopicStreamStatus
   isMultiModel: boolean
   lifecycle: StreamLifecycle
-  /** Omitted for temporary/internal streams that do not represent a persistent conversation. */
-  conversation?: StreamConversation
+  /** Snapshotted at admission so temporary/internal streams never emit a conversation completion. */
+  isPersistentConversation: boolean
 
   /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number

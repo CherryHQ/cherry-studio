@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
@@ -62,7 +63,7 @@ export class NotificationService extends BaseService {
     electronNotification.show()
   }
 
-  private handleConversationCompleted({ turnId, completedAt, conversation }: ConversationCompletedEvent): void {
+  private handleConversationCompleted({ topicId, turnId, completedAt }: ConversationCompletedEvent): void {
     const windowManager = application.get('WindowManager')
     const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
     const subWindows = windowManager
@@ -75,10 +76,9 @@ export class NotificationService extends BaseService {
       if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     }
 
-    const target: ConversationNavigationTarget = {
-      conversationType: conversation.type,
-      conversationId: conversation.id
-    }
+    const target: ConversationNavigationTarget = isAgentSessionTopic(topicId)
+      ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
+      : { conversationType: 'assistant', conversationId: topicId }
     const title =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     const message = this.resolveTaskTargetName(target)

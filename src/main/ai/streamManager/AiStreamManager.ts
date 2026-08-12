@@ -55,7 +55,6 @@ import type {
   CherryUIMessage,
   ConversationCompletedEvent,
   StreamChunkPayload,
-  StreamConversation,
   StreamDoneResult,
   StreamErrorResult,
   StreamExecution,
@@ -122,7 +121,8 @@ export interface SendInput {
   liveExecutionChange?: LiveExecutionChange
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
-  conversation?: StreamConversation
+  /** Admission-time snapshot; temporary/internal streams omit it. */
+  isPersistentConversation?: boolean
 }
 
 export interface SendResult {
@@ -140,7 +140,6 @@ export interface StartRuntimeTurnInput {
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
-  conversation: StreamConversation
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -819,7 +818,7 @@ export class AiStreamManager extends BaseService {
       status: 'pending',
       isMultiModel,
       lifecycle: input.lifecycle ?? this.chatLifecycle,
-      conversation: input.conversation
+      isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
@@ -906,7 +905,7 @@ export class AiStreamManager extends BaseService {
         }
       ],
       listeners: [...carriedListeners, ...input.listeners],
-      conversation: input.conversation
+      isPersistentConversation: true
     })
   }
 

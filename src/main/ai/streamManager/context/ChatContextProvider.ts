@@ -12,7 +12,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
-import type { StreamConversation, StreamListener } from '../types'
+import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
 type PreparedLiveExecutionChange =
@@ -58,8 +58,6 @@ export interface PreparedDispatch {
   preserveActiveNode?: boolean
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
-  /** Present only when the stream belongs to a persistent conversation. */
-  conversation?: StreamConversation
 }
 
 export interface DispatchContext {
@@ -73,6 +71,8 @@ export interface DispatchContext {
 
 export interface ChatContextProvider {
   readonly name: string
+  /** Admission-time ownership; temporary providers must opt out. */
+  readonly isPersistentConversation: boolean
 
   /** Synchronous, side-effect free — runs on every request. */
   canHandle(topicId: string): boolean

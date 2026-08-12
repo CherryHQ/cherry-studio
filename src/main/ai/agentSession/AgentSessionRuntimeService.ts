@@ -2497,7 +2497,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
-      conversation: { type: 'agent', id: entry.sessionId },
       modelId: entry.modelId,
       rootSpan,
       request: {
@@ -2575,7 +2574,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
-      conversation: { type: 'agent', id: entry.sessionId },
       modelId: turn.modelId,
       rootSpan,
       request: {
@@ -2672,7 +2670,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
-      conversation: { type: 'agent', id: entry.sessionId },
       modelId,
       rootSpan,
       request: {
@@ -2784,7 +2781,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
-      conversation: { type: 'agent', id: entry.sessionId },
       modelId,
       rootSpan,
       request: {

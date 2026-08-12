@@ -20,7 +20,6 @@ export type {
   CherryUIMessage,
   ConversationCompletedEvent,
   StreamChunkPayload,
-  StreamConversation,
   StreamDonePayload,
   StreamDoneResult,
   StreamErrorPayload,

@@ -132,7 +132,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     const history = prepared.models[0].request.messages
-    expect(prepared.conversation).toEqual({ type: 'assistant', id: 'topic-1' })
+    expect(provider.isPersistentConversation).toBe(true)
     expect(history).toBeDefined()
     expect(flatten(history!)).toEqual([
       { role: 'user', text: 'first question' },

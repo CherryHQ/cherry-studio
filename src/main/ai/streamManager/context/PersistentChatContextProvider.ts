@@ -208,6 +208,7 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
 
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
+  readonly isPersistentConversation = true
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
   canHandle(): boolean {
@@ -223,32 +224,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-    const conversation = { type: 'assistant', id: req.topicId } as const
-
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {
-      return {
-        ...(await this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)),
-        conversation
-      }
+      return this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return {
-        ...(await this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)),
-        conversation
-      }
+      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return {
-        ...(await this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)),
-        conversation
-      }
+      return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     const selectedModelId = req.mentionedModelIds?.[0]
@@ -298,8 +288,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
-        reservedMessages: [toReservedUIMessage(userMessage)],
-        conversation
+        reservedMessages: [toReservedUIMessage(userMessage)]
       }
     }
 
@@ -500,8 +489,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
         liveExecutionChange: preparedLiveExecutionChange,
-        preserveActiveNode: Boolean(liveGroupAppendMessageId),
-        conversation
+        preserveActiveNode: Boolean(liveGroupAppendMessageId)
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)

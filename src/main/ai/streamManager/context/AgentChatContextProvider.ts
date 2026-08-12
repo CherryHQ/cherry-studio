@@ -41,6 +41,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
+  readonly isPersistentConversation = true
 
   canHandle(topicId: string): boolean {
     return isAgentSessionTopic(topicId)
@@ -56,8 +57,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const sessionId = extractAgentSessionId(req.topicId)
-    const conversation = { type: 'agent', id: sessionId } as const
-
     const session = agentSessionService.getById(sessionId)
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
@@ -139,8 +138,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber],
-        conversation
+        listeners: [subscriber]
       }
     }
 
@@ -252,8 +250,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ],
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
-      listeners: [subscriber, ...runtime.listeners],
-      conversation
+      listeners: [subscriber, ...runtime.listeners]
     }
   }
 }

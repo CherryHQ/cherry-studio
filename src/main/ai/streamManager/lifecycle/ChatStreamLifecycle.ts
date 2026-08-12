@@ -70,12 +70,11 @@ export function createChatStreamLifecycle(
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
-      if (stream.status === 'done' && completedAt !== undefined && stream.conversation) {
+      if (stream.status === 'done' && completedAt !== undefined && stream.isPersistentConversation) {
         onConversationCompleted({
           topicId: stream.topicId,
           turnId: stream.turnId,
-          completedAt,
-          conversation: stream.conversation
+          completedAt
         })
       }
     },

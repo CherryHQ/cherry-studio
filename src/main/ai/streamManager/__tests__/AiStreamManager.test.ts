@@ -12,7 +12,6 @@ import type {
   AiStreamManagerConfig,
   CherryUIMessage,
   ConversationCompletedEvent,
-  StreamConversation,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -216,7 +215,7 @@ function startSingle(
     listeners: StreamListener[]
     siblingsGroupId?: number
     abortController?: AbortController
-    conversation?: StreamConversation
+    isPersistentConversation?: boolean
   }
 ) {
   manager.send({
@@ -224,7 +223,7 @@ function startSingle(
     models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
     siblingsGroupId: opts.siblingsGroupId,
-    conversation: opts.conversation
+    isPersistentConversation: opts.isPersistentConversation
   })
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
@@ -428,7 +427,6 @@ describe('AiStreamManager', () => {
 
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
-        conversation: { type: 'agent', id: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [new FakeListener('agent-runtime:replaced')]
@@ -438,7 +436,6 @@ describe('AiStreamManager', () => {
       const currentListener = new FakeListener('agent-runtime:current')
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
-        conversation: { type: 'agent', id: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [currentListener]
@@ -2840,7 +2837,7 @@ describe('AiStreamManager', () => {
           { modelId: 'p::m2', request: req('topic-1') }
         ],
         listeners: [new FakeListener('l:topic-1')],
-        conversation: { type: 'assistant', id: 'topic-1' }
+        isPersistentConversation: true
       })
       await mgr.onExecutionDone('topic-1', 'p::m1')
       expect(conversationCompletedEvents).toEqual([])
@@ -2851,8 +2848,7 @@ describe('AiStreamManager', () => {
         {
           topicId: 'topic-1',
           turnId: expect.stringMatching(/^\d+:\d+$/),
-          completedAt: 1_234,
-          conversation: { type: 'assistant', id: 'topic-1' }
+          completedAt: 1_234
         }
       ])
     })
@@ -2869,15 +2865,14 @@ describe('AiStreamManager', () => {
       expect(conversationCompletedEvents).toEqual([])
     })
 
-    it('reports the explicit Agent completion target', async () => {
+    it('treats runtime turns as persistent conversations without caller metadata', async () => {
       vi.setSystemTime(2_345)
 
-      startSingle(mgr, {
+      mgr.startRuntimeTurn({
         topicId: 'agent-session:session-1',
         modelId: 'p::m',
         request: req('agent-session:session-1'),
-        listeners: [new FakeListener('l:session-1')],
-        conversation: { type: 'agent', id: 'session-1' }
+        listeners: [new FakeListener('l:session-1')]
       })
       await mgr.onExecutionDone('agent-session:session-1', 'p::m')
 
@@ -2885,8 +2880,7 @@ describe('AiStreamManager', () => {
         {
           topicId: 'agent-session:session-1',
           turnId: expect.stringMatching(/^\d+:\d+$/),
-          completedAt: 2_345,
-          conversation: { type: 'agent', id: 'session-1' }
+          completedAt: 2_345
         }
       ])
     })
@@ -2947,7 +2941,7 @@ describe('AiStreamManager', () => {
         modelId: 'p::m',
         request: req('t'),
         listeners: [new FakeListener('l:t')],
-        conversation: { type: 'assistant', id: 't' }
+        isPersistentConversation: true
       })
       mgr.abort('t', 'user-stop')
       await vi.runAllTimersAsync()
@@ -2977,7 +2971,7 @@ describe('AiStreamManager', () => {
         modelId: 'p::m',
         request: req('t'),
         listeners: [new FakeListener('l:t')],
-        conversation: { type: 'assistant', id: 't' }
+        isPersistentConversation: true
       })
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
@@ -2993,7 +2987,7 @@ describe('AiStreamManager', () => {
         modelId: 'p::m',
         request: req('t'),
         listeners: [new FakeListener('l:t')],
-        conversation: { type: 'assistant', id: 't' }
+        isPersistentConversation: true
       })
 
       // `tool-approval-request` records the pending toolCallId and flips pending → streaming.

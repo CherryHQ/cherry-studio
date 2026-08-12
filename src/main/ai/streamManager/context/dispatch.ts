@@ -190,7 +190,7 @@ export async function dispatchStreamRequest(
     siblingsGroupId: prepared.siblingsGroupId,
     liveExecutionChange,
     lifecycle: prepared.lifecycle,
-    conversation: prepared.conversation
+    isPersistentConversation: provider.isPersistentConversation
   })
 
   return {

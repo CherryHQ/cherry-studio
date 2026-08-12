@@ -77,7 +77,6 @@ function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): vo
     topicId: 'topic-1',
     turnId: 'turn-1',
     completedAt: 100,
-    conversation: { type: 'assistant', id: 'topic-1' },
     ...overrides
   })
 }
@@ -150,8 +149,7 @@ describe('NotificationService', () => {
 
     emitCompletion({
       topicId: 'agent-session:session-1',
-      turnId: 'turn-agent',
-      conversation: { type: 'agent', id: 'session-1' }
+      turnId: 'turn-agent'
     })
 
     expect(mocks.electronNotifications).toHaveLength(1)
@@ -176,10 +174,7 @@ describe('NotificationService', () => {
       throw new Error('missing')
     })
 
-    emitCompletion({
-      topicId: 'agent-session:missing',
-      conversation: { type: 'agent', id: 'missing' }
-    })
+    emitCompletion({ topicId: 'agent-session:missing' })
 
     expect(mocks.electronNotifications[0].options).toEqual({ title: 'Agent task complete', body: 'New task' })
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
