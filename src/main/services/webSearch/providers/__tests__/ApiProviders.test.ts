@@ -841,7 +841,7 @@ describe('main web search API providers', () => {
     `)
   })
 
-  it('filters empty fetched content from Searxng results', async () => {
+  it('falls back to the Searxng snippet when the result page yields no readable content', async () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
     fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
 
@@ -862,8 +862,79 @@ describe('main web search API providers', () => {
       providerId: 'searxng',
       capability: 'searchKeywords',
       inputs: ['hello'],
-      results: []
+      results: [
+        {
+          title: 'Searxng Title',
+          content: 'Searxng Content',
+          url: 'https://searx.example/result',
+          sourceInput: 'hello'
+        }
+      ]
     })
+  })
+
+  it('falls back to the Searxng snippet when the result page cannot be fetched', async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Content',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('falls back to the Searxng snippet when the hit carries an empty content field', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'Searxng Title',
+            content: '',
+            snippet: 'Searxng Snippet',
+            url: 'https://searx.example/result'
+          }
+        ]
+      })
+    )
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Snippet',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
   })
 
   it('warns when every Searxng result URL fails validation', async () => {

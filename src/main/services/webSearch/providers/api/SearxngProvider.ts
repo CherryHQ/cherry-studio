@@ -35,11 +35,24 @@ const SearxngConfigResponseSchema = z.object({
 })
 
 type SearxngSearchContext = UrlSearchContext
+type SearxngSearchItem = z.infer<typeof SearxngSearchResponseSchema>['results'][number]
 
 const logger = loggerService.withContext('SearxngProvider')
 
 function trimStringList(values: readonly string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean)
+}
+
+function toSnippetResult(item: SearxngSearchItem): WebSearchResult[] {
+  const url = item.url ?? ''
+  // Engines that carry no summary still emit `content: ''`, so pick the first non-empty field
+  // rather than the first present one.
+  const content = [item.content, item.snippet].map((value) => value?.trim() ?? '').find(Boolean) ?? ''
+  if (!content) {
+    return []
+  }
+
+  return [{ title: item.title || url, url, content, sourceInput: url }]
 }
 
 export class SearxngProvider extends BaseWebSearchProvider {
@@ -177,15 +190,21 @@ export class SearxngProvider extends BaseWebSearchProvider {
       })
     }
 
-    const fulfilledResults = settledResults.filter(
-      (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
-    )
+    // Dropping a hit whose page is unfetchable or yields no readable text turns a Searxng instance
+    // with real results into an empty, unexplained response; degrade to its own snippet instead.
+    const results = validItems.flatMap((item, index) => {
+      const settled = settledResults[index]
+      if (settled.status === 'fulfilled' && settled.value.content.trim().length > 0) {
+        return [settled.value]
+      }
+      return toSnippetResult(item)
+    })
 
-    if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
+    if (results.length === 0 && rejectedResults.length > 0) {
       throw rejectedResults[0].reason
     }
 
-    return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
+    return results
   }
 
   private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {
