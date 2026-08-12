@@ -453,6 +453,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
     (value) => value
   )
 
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
+
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
 
