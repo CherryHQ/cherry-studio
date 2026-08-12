@@ -30,5 +30,6 @@ export function createBuiltinAssistantFeedbackSession(): AgentSessionEntity {
   if (ensured.created) {
     agentService.emitAgentCreated(ensured.agent)
   }
+  agentSessionService.notifyReadModelChange([sessionId], 'membership')
   return agentSessionService.getById(sessionId)
 }

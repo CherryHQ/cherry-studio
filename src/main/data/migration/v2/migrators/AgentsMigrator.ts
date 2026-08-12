@@ -293,6 +293,7 @@ export class AgentsMigrator extends BaseMigrator {
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
       insertStagedLegacySessionMessages(ctx.db, stagedSessionMessageCount)
+      recomputeMigratedAgentSessionActivity(ctx.db, stagedSessionMessageCount)
       migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
@@ -876,6 +877,7 @@ type NormalizedLegacySessionMessage = {
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
   stats: MessageStats | null
+  assistantUpdatedAtIsCompletion: boolean
 }
 
 type PreparedLegacySessionMessage = {
@@ -886,13 +888,13 @@ type PreparedLegacySessionMessage = {
   data: MessageData
   searchableText: string
   status: MessageStatus
-  terminalAt: number | null
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
   stats: MessageStats | null
   runtimeResumeToken: string | null
   createdAt: number
   updatedAt: number
+  activityAt: number | null
 }
 
 function selectLegacySessionColumn(
@@ -1251,7 +1253,8 @@ async function normalizeLegacySessionMessage(
       status: 'success',
       modelId: null,
       modelSnapshot: null,
-      stats: null
+      stats: null,
+      assistantUpdatedAtIsCompletion: true
     }
   }
 
@@ -1265,7 +1268,8 @@ async function normalizeLegacySessionMessage(
       status: 'success',
       modelId: null,
       modelSnapshot: null,
-      stats: null
+      stats: null,
+      assistantUpdatedAtIsCompletion: false
     }
   }
 
@@ -1286,7 +1290,9 @@ async function normalizeLegacySessionMessage(
       normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole) === 'assistant'
         ? estimateLegacyRequestCount(blocks)
         : undefined
-    )
+    ),
+    assistantUpdatedAtIsCompletion:
+      message.status === 'success' || message.status === 'error' || message.status === 'paused'
   }
 }
 
@@ -1360,13 +1366,13 @@ function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaI
          data TEXT NOT NULL,
          searchable_text TEXT NOT NULL,
          status TEXT NOT NULL,
-         terminal_at INTEGER,
          model_id TEXT,
          model_snapshot TEXT,
          stats TEXT,
          runtime_resume_token TEXT,
          created_at INTEGER NOT NULL,
-         updated_at INTEGER NOT NULL
+         updated_at INTEGER NOT NULL,
+         activity_at INTEGER
        )`
     )
   )
@@ -1408,7 +1414,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
         INSERT INTO ${sql.raw(LEGACY_SESSION_MESSAGE_STAGING_TABLE)}
           (
             source_sequence, id, session_id, role, data, searchable_text, status, model_id,
-            terminal_at, model_snapshot, stats, runtime_resume_token, created_at, updated_at
+            model_snapshot, stats, runtime_resume_token, created_at, updated_at, activity_at
           )
         VALUES
           (
@@ -1420,12 +1426,12 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
             ${message.searchableText},
             ${message.status},
             ${message.modelId},
-            ${message.terminalAt},
             ${message.modelSnapshot ? JSON.stringify(message.modelSnapshot) : null},
             ${message.stats ? JSON.stringify(message.stats) : null},
             ${message.runtimeResumeToken},
             ${message.createdAt},
-            ${message.updatedAt}
+            ${message.updatedAt},
+            ${message.activityAt}
           )
       `)
     }
@@ -1499,7 +1505,8 @@ async function stageLegacySessionMessages(
           status: 'error',
           modelId: null,
           modelSnapshot: null,
-          stats: null
+          stats: null,
+          assistantUpdatedAtIsCompletion: false
         }
         logger.warn('Failed to normalize legacy agent session message', {
           legacyId: row.legacyId,
@@ -1511,8 +1518,6 @@ async function stageLegacySessionMessages(
       const now = Date.now()
       const createdAt = legacyTimestampToMs(row.createdAt, now)
       const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
-      const terminalAt =
-        normalized.role === 'assistant' && normalized.status !== 'pending' ? Math.max(createdAt, updatedAt) : null
       prepared.push({
         sourceSequence: row.sourceSequence,
         id: uuidv7(),
@@ -1521,13 +1526,20 @@ async function stageLegacySessionMessages(
         data: normalized.data,
         searchableText: normalized.searchableText,
         status: normalized.status,
-        terminalAt,
         modelId: resolveUserModelId(db, modelCache, normalized.modelId),
         modelSnapshot: normalized.modelSnapshot,
         stats: normalized.stats,
         runtimeResumeToken: row.agentSessionId,
         createdAt,
-        updatedAt
+        updatedAt,
+        activityAt:
+          normalized.role === 'user'
+            ? createdAt
+            : normalized.role === 'assistant'
+              ? normalized.assistantUpdatedAtIsCompletion
+                ? Math.max(createdAt, updatedAt)
+                : createdAt
+              : null
       })
     }
 
@@ -1553,7 +1565,6 @@ type StagedLegacySessionMessageRow = {
   modelSnapshot: string | null
   stats: string | null
   runtimeResumeToken: string | null
-  terminalAt: number | null
   createdAt: number
   updatedAt: number
 }
@@ -1583,7 +1594,6 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
                   data,
                   searchable_text AS searchableText,
                   status,
-                  terminal_at AS terminalAt,
                   model_id AS modelId,
                   model_snapshot AS modelSnapshot,
                   stats,
@@ -1615,7 +1625,6 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
           data: JSON.parse(row.data) as MessageData,
           searchableText: row.searchableText,
           status: row.status,
-          terminalAt: row.terminalAt,
           modelId: row.modelId,
           messageSnapshot,
           stats: row.stats ? (JSON.parse(row.stats) as MessageStats) : undefined,
@@ -1630,31 +1639,6 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
       imported += rows.length
       afterSequence = rows.at(-1)!.sourceSequence
     }
-
-    db.run(
-      sql.raw(`UPDATE agent_session
-               SET last_activity_at = max(
-                 last_activity_at,
-                 COALESCE((
-                   SELECT MAX(
-                     CASE
-                       WHEN role = 'user' THEN created_at
-                       WHEN role = 'assistant' AND terminal_at > created_at THEN terminal_at
-                       WHEN role = 'assistant' THEN created_at
-                       ELSE NULL
-                     END
-                   )
-                   FROM agent_session_message
-                   WHERE session_id = agent_session.id
-                 ), last_activity_at)
-               )
-               WHERE EXISTS (
-                 SELECT 1
-                 FROM agent_session_message
-                 WHERE session_id = agent_session.id
-                   AND role IN ('user', 'assistant')
-               )`)
-    )
 
     db.run(sql.raw("INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')"))
     db.run(sql.raw(AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL))
@@ -1673,6 +1657,26 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
     }
     throw error
   }
+}
+
+/** Initialize parent recency from imported conversation messages. */
+function recomputeMigratedAgentSessionActivity(db: DbType, stagedCount: number): void {
+  if (stagedCount === 0) {
+    db.run(sql.raw('UPDATE agent_session SET last_activity_at = created_at'))
+    return
+  }
+
+  db.run(
+    sql.raw(`UPDATE agent_session
+      SET last_activity_at = max(
+        created_at,
+        coalesce((
+          SELECT max(activity_at)
+          FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
+          WHERE session_id = agent_session.id
+        ), created_at)
+      )`)
+  )
 }
 
 export async function importLegacySessionMessages(

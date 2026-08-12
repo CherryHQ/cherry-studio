@@ -30,7 +30,7 @@ interface EntityReferenceHit {
 
 async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): Promise<EntityReferenceHit[]> {
   if (!q) {
-    // Empty query lists every conversation (most recently updated first); /search/entities
+    // Empty query lists every conversation (most recently active first); /search/entities
     // requires a non-empty q, so the plain list endpoints back the initial panel.
     if (entityType === 'topic') {
       const pages = await Promise.all([
@@ -39,7 +39,7 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
       ])
       return pages
         .flatMap((page) => page.items)
-        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
         .slice(0, REFERENCE_RESULT_LIMIT)
         .map((topic) => ({ id: topic.id, title: topic.name, agentId: null }))
     }
@@ -49,7 +49,7 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
     ])
     return pages
       .flatMap((page) => page.items)
-      .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
       .slice(0, REFERENCE_RESULT_LIMIT)
       .map((session) => ({ id: session.id, title: session.name, agentId: session.agentId }))
   }
@@ -114,7 +114,7 @@ export interface EntityReferenceMentionItems {
 
 /**
  * Builds the `@`-mention items that reference past conversations: an empty query lists the
- * most recently updated entities (via the list endpoints), a non-empty query searches by
+ * most recently active entities (via the list endpoints), a non-empty query searches by
  * name (via `/search/entities`). Picking an item inserts a `reference` composer token at once
  * and fills it in place with the conversation's transcript when it loads. Consumed directly as
  * a suggestion source by the chat composer (topics), and appended to the agent composer's

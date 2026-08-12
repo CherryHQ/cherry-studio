@@ -487,10 +487,10 @@ function createApiTopic(overrides: Partial<ApiTopic> = {}) {
     isNameManuallyEdited: false,
     assistantId: 'assistant-1',
     orderKey: 'a',
-    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
 }
 
@@ -504,7 +504,8 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
     messages: [],
     pinned: false,
     isNameManuallyEdited: false,
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
 }
 

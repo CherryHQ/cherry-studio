@@ -13,6 +13,7 @@ import {
 } from '../agentSessions'
 
 const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+const MIGRATED_AGENT_ID = '018f6ed6-73b8-5f40-8d0d-9bb2f8f1d001'
 const WORKSPACE_ID = 'workspace-1'
 
 describe('ListAgentSessionsQuerySchema', () => {
@@ -23,6 +24,21 @@ describe('ListAgentSessionsQuerySchema', () => {
       pinned: false
     })
     expect(() => ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10 })).toThrow()
+  })
+
+  it('accepts deterministic UUID v5 owner ids produced by legacy migration', () => {
+    expect(ListAgentSessionsQuerySchema.parse({ agentId: MIGRATED_AGENT_ID, pinned: false })).toMatchObject({
+      agentId: MIGRATED_AGENT_ID
+    })
+    expect(LatestAgentSessionQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
+      agentId: MIGRATED_AGENT_ID
+    })
+    expect(AgentSessionStatsQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
+      agentId: MIGRATED_AGENT_ID
+    })
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
+      agentId: MIGRATED_AGENT_ID
+    })
   })
 
   it.each([

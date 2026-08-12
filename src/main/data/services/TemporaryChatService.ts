@@ -26,7 +26,8 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
-import { getMessageActivityTimestamp, resolveResponseTerminalAt } from './utils/activityTime'
+import { topicService } from './TopicService'
+import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -47,7 +48,6 @@ type TemporaryTopicRow = Omit<Topic, 'createdAt' | 'lastActivityAt' | 'updatedAt
 
 type TemporaryMessageRow = Omit<Message, 'createdAt' | 'updatedAt'> & {
   createdAt: number
-  terminalAt: number | null
   updatedAt: number
 }
 
@@ -61,10 +61,8 @@ function rowToTopic(row: TemporaryTopicRow): Topic {
 }
 
 function rowToMessage(row: TemporaryMessageRow): Message {
-  const { terminalAt: _terminalAt, ...message } = row
-  void _terminalAt
   return {
-    ...message,
+    ...row,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
   }
@@ -148,7 +146,6 @@ export class TemporaryChatService {
       messageSnapshot: dto.messageSnapshot ?? null,
       stats: stats ?? null,
       createdAt: now,
-      terminalAt: resolveResponseTerminalAt({ role: dto.role, status: dto.status ?? 'success', timestamp: now }),
       updatedAt: now
     }
     // Race: deleteTopic between the topics.has check above and this line
@@ -160,8 +157,9 @@ export class TemporaryChatService {
     }
     list.push(row)
     const topic = this.topics.get(topicId)
-    if (topic && (row.role === 'user' || row.role === 'assistant')) {
+    if (topic && isConversationActivityRole(row.role)) {
       topic.lastActivityAt = Math.max(topic.lastActivityAt, now)
+      topic.updatedAt = now
     }
     return rowToMessage(row)
   }
@@ -207,8 +205,7 @@ export class TemporaryChatService {
       const db = application.get('DbService').getDb()
       db.transaction((tx) => {
         // 2. Insert the topic with its original in-memory timestamps. Persisting
-        // is storage conversion, not conversation activity, so it must not make
-        // the topic appear newly created or recently active.
+        // is storage conversion, not conversation activity.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
         // topic lands at the tail of the global live-topic order. The
@@ -222,6 +219,7 @@ export class TemporaryChatService {
             id: topic.id,
             name: topic.name ?? undefined,
             assistantId,
+            lastActivityAt: topic.lastActivityAt,
             createdAt: topic.createdAt,
             updatedAt: topic.updatedAt
           },
@@ -230,7 +228,6 @@ export class TemporaryChatService {
             scope: isNull(topicTable.deletedAt)
           }
         )
-        let lastActivityAt = topic.createdAt
 
         // 3. Create the topic's virtual root, then linearize buffered messages under it:
         // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
@@ -245,7 +242,6 @@ export class TemporaryChatService {
               role: m.role,
               data: m.data,
               status: m.status,
-              terminalAt: m.terminalAt,
               siblingsGroupId: 0,
               modelId: m.modelId ?? undefined,
               messageSnapshot: m.messageSnapshot ?? undefined,
@@ -254,8 +250,6 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
-          const activityAt = getMessageActivityTimestamp(m)
-          if (activityAt !== null) lastActivityAt = Math.max(lastActivityAt, activityAt)
           prevId = m.id
         }
 
@@ -263,7 +257,8 @@ export class TemporaryChatService {
         tx.update(topicTable)
           .set({
             activeNodeId: prevId !== rootId ? prevId : null,
-            lastActivityAt
+            lastActivityAt: topic.lastActivityAt,
+            updatedAt: topic.updatedAt
           })
           .where(eq(topicTable.id, topic.id))
           .run()
@@ -274,6 +269,8 @@ export class TemporaryChatService {
       this.messages.set(topicId, msgs)
       throw err
     }
+
+    topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized
     // projection from the records that were captured while the chat was

@@ -770,12 +770,12 @@ function createSession(overrides: Partial<AgentSessionListItem> = {}): AgentSess
     workspaceId: 'ws-a',
     workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Embedded Project A' }),
     orderKey: 'a',
-    lastActivityAt: CURRENT_SESSION_ISO,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
     pinned: false,
     pinId: null,
     ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? CURRENT_SESSION_ISO,
     isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }

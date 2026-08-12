@@ -6,24 +6,16 @@ export function isTerminalMessageStatus(status: string): status is Exclude<Messa
   return TERMINAL_MESSAGE_STATUSES.has(status as MessageStatus)
 }
 
-/** Preserve the first terminal transition even if later persistence rewrites the message row. */
-export function resolveResponseTerminalAt(input: {
-  existingTerminalAt?: number | null
-  role: string
-  status: string
-  timestamp: number
-}): number | null {
-  if (input.existingTerminalAt != null) return input.existingTerminalAt
-  return input.role === 'assistant' && isTerminalMessageStatus(input.status) ? input.timestamp : null
+/** User and assistant rows represent conversation activity; structural/system rows do not. */
+export function isConversationActivityRole(role: string): role is 'user' | 'assistant' {
+  return role === 'user' || role === 'assistant'
 }
 
-/** Activity contribution of one persisted content row. Structural/system rows contribute nothing. */
-export function getMessageActivityTimestamp(input: {
-  createdAt: number
+/** Advance recency only when an assistant response segment actually finishes. */
+export function isAssistantActivityTransition(input: {
+  existingStatus: string
   role: string
-  terminalAt?: number | null
-}): number | null {
-  if (input.role === 'user') return input.createdAt
-  if (input.role !== 'assistant') return null
-  return Math.max(input.createdAt, input.terminalAt ?? input.createdAt)
+  status: string
+}): boolean {
+  return input.role === 'assistant' && input.existingStatus === 'pending' && isTerminalMessageStatus(input.status)
 }

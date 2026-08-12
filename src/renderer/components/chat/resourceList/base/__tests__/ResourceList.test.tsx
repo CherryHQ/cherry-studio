@@ -876,6 +876,55 @@ describe('ResourceList', () => {
     })
   })
 
+  it('keeps inline rename open while an IME is composing so the pinyin buffer is never committed', () => {
+    const onRenameItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ item }: { item: TestItem }) {
+      const { actions } = useResourceList<TestItem>()
+      return (
+        <ResourceList.Item item={item}>
+          <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.startRename(item.id)
+            }}>
+            Rename {item.name}
+          </button>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS} onRenameItem={onRenameItem}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
+    const input = screen.getByLabelText('Rename Alpha')
+
+    // Confirming a CJK candidate types Enter while the input still holds the raw pinyin.
+    fireEvent.change(input, { target: { value: "dui'bi" } })
+    expect(fireEvent.keyDown(input, { key: 'Enter', isComposing: true })).toBe(true)
+    expect(onRenameItem).not.toHaveBeenCalled()
+    // Legacy fallback: browsers that don't expose isComposing report keyCode 229.
+    expect(fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })).toBe(true)
+    expect(onRenameItem).not.toHaveBeenCalled()
+    // Escape only dismisses the candidate window mid-composition; the rename stays open.
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true })
+    expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
+
+    // Composition ends, the composed text lands in the input, and Enter commits it.
+    fireEvent.change(input, { target: { value: '对比' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRenameItem).toHaveBeenCalledWith('alpha', '对比')
+  })
+
   it('uses product row semantics without flattening foreground hierarchy', () => {
     const Provider = ResourceList.Provider<TestItem>
 

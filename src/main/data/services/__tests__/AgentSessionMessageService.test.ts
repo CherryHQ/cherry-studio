@@ -40,7 +40,9 @@ describe('AgentSessionMessageService', () => {
       type: 'user',
       orderKey: `workspace-${values.orderKey}`
     })
-    await dbh.db.insert(agentSessionTable).values({ ...values, workspaceId })
+    await dbh.db
+      .insert(agentSessionTable)
+      .values({ createdAt: 0, lastActivityAt: 0, updatedAt: 0, ...values, workspaceId })
   }
 
   async function seedSessions(rows: Array<Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }>) {
@@ -73,6 +75,7 @@ describe('AgentSessionMessageService', () => {
 
   describe('findPendingAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error with the given data', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
@@ -93,12 +96,15 @@ describe('AgentSessionMessageService', () => {
         { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
       ])
 
+      now.mockReturnValue(5_000)
       const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
       agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
       expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
       expect(row.data).toEqual(finalizedData)
+      expect(session.lastActivityAt).toBe(1_000)
     })
 
     it('discards resume tokens only for the affected sessions', async () => {
@@ -133,6 +139,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -154,6 +161,7 @@ describe('AgentSessionMessageService', () => {
     })
     const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
+    now.mockReturnValue(2_000)
     expect(
       agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
         approvalId: 'approval-1',
@@ -168,6 +176,9 @@ describe('AgentSessionMessageService', () => {
       input: updatedInput,
       approval: { id: 'approval-1', approved: true }
     })
+    const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).all()
+    expect(session.lastActivityAt).toBe(2_000)
+    now.mockRestore()
   })
 
   it('keeps attachment refs in sync with agent-session message history', async () => {
@@ -234,6 +245,7 @@ describe('AgentSessionMessageService', () => {
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_000)
     expect(session.updatedAt).toBe(1_700_000_000_000)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
@@ -258,7 +270,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
-    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -268,7 +280,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
-    nowSpy.mockReturnValue(1_700_000_000_500)
+    now.mockReturnValue(1_700_000_000_500)
     const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -286,10 +298,88 @@ describe('AgentSessionMessageService', () => {
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
-    // A content edit contributes no activity, so the session row is not touched.
-    expect(session.updatedAt).toBe(1_700_000_000_000)
+    expect(session.updatedAt).toBe(1_700_000_000_500)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
+  })
+
+  it('advances each pending assistant response segment but not a terminal rewrite', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    now.mockReturnValue(1_700_000_000_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'done' }] }
+      }
+    })
+
+    now.mockReturnValue(1_700_000_001_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'projection rewrite' }] }
+      }
+    })
+
+    const [message] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(1_700_000_000_500)
+    expect(session.updatedAt).toBe(1_700_000_001_000)
+
+    now.mockReturnValue(1_700_000_001_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: message.data }
+    })
+    now.mockReturnValue(1_700_000_002_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: message.data }
+    })
+
+    const [continuedSession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(continuedSession.lastActivityAt).toBe(1_700_000_002_000)
+  })
+
+  it('keeps session activity after messages are deleted', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    now.mockReturnValue(2_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    now.mockReturnValue(3_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(3_000)
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const [emptySession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(emptySession.lastActivityAt).toBe(3_000)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {
@@ -309,6 +399,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -329,6 +420,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -414,13 +506,14 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
   })
 
-  it('uses one timestamp for a batch of newly saved messages', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
+  it('keeps the session timestamp aligned with a newly saved message batch', async () => {
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
     agentSessionMessageService.saveMessages({
       sessionId: SESSION_ID,
@@ -444,7 +537,6 @@ describe('AgentSessionMessageService', () => {
 
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
-    expect(rows.map((row) => row.updatedAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
@@ -1033,99 +1125,6 @@ describe('AgentSessionMessageService', () => {
       nonNumericKeyError = error
     }
     expect(nonNumericKeyError).toMatchObject({ code: 'VALIDATION_ERROR' })
-  })
-
-  describe('lastActivityAt (session activity time)', () => {
-    const readLastActivityAt = async (sessionId: string) => {
-      const [row] = await dbh.db
-        .select({ lastActivityAt: agentSessionTable.lastActivityAt })
-        .from(agentSessionTable)
-        .where(eq(agentSessionTable.id, sessionId))
-      return row?.lastActivityAt
-    }
-
-    it('advances lastActivityAt to a saved user message createdAt', async () => {
-      const NOW = 5_000_000
-      await seedSession({ id: 'sess-activity-create', name: 'x', orderKey: 'z0', lastActivityAt: 1 })
-      vi.spyOn(Date, 'now').mockReturnValue(NOW)
-
-      agentSessionMessageService.saveMessage({
-        sessionId: 'sess-activity-create',
-        message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }
-      })
-
-      expect(await readLastActivityAt('sess-activity-create')).toBe(NOW)
-    })
-
-    it('advances lastActivityAt when a response reaches a terminal status', async () => {
-      const CREATED_AT = 5_000_000
-      const TERMINAL_AT = 5_000_500
-      await seedSession({ id: 'sess-activity-terminal', name: 'x', orderKey: 'z1', lastActivityAt: 1 })
-
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(CREATED_AT)
-      agentSessionMessageService.saveMessage({
-        sessionId: 'sess-activity-terminal',
-        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
-      })
-      // A pending assistant contributes its createdAt only.
-      expect(await readLastActivityAt('sess-activity-terminal')).toBe(CREATED_AT)
-
-      nowSpy.mockReturnValue(TERMINAL_AT)
-      agentSessionMessageService.saveMessage({
-        sessionId: 'sess-activity-terminal',
-        message: {
-          id: ASSISTANT_MESSAGE_ID,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'done' }] }
-        }
-      })
-
-      // The first terminal transition timestamp advances activity past the createdAt.
-      expect(await readLastActivityAt('sess-activity-terminal')).toBe(TERMINAL_AT)
-    })
-
-    it('recomputes lastActivityAt downward when the newest message is deleted', async () => {
-      await seedSession({ id: 'sess-activity-delete', name: 'x', orderKey: 'z2', lastActivityAt: 200 })
-      await dbh.db.insert(agentSessionMessageTable).values([
-        {
-          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d401',
-          sessionId: 'sess-activity-delete',
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'old' }] },
-          status: 'success',
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d402',
-          sessionId: 'sess-activity-delete',
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'new' }] },
-          status: 'success',
-          createdAt: 200,
-          updatedAt: 200
-        }
-      ])
-
-      agentSessionMessageService.deleteSessionMessage('sess-activity-delete', '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d402')
-
-      // Falls back to the remaining max activity (@ 100), not the stale 200.
-      expect(await readLastActivityAt('sess-activity-delete')).toBe(100)
-    })
-
-    it('never regresses lastActivityAt below the current value (monotonic advance)', async () => {
-      await seedSession({ id: 'sess-activity-monotonic', name: 'x', orderKey: 'z3', lastActivityAt: 10_000_000 })
-      // A newly saved message carries an older createdAt than the current activity time.
-      vi.spyOn(Date, 'now').mockReturnValue(5_000)
-
-      agentSessionMessageService.saveMessage({
-        sessionId: 'sess-activity-monotonic',
-        message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'stale' }] } }
-      })
-
-      expect(await readLastActivityAt('sess-activity-monotonic')).toBe(10_000_000)
-    })
   })
 
   describe('saveMessage — record projection ownership', () => {

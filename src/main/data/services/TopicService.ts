@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -165,6 +166,75 @@ function buildRecordFilters(query: { q?: string; searchScope?: TopicSearchScope;
 }
 
 export class TopicService {
+  notifyReadModelChange(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: {
+      orderKeyChanged?: boolean
+      ownerChanged?: boolean
+      pinsChanged?: boolean
+      searchChanged?: boolean
+    } = {}
+  ): void {
+    if (topicIds.length === 0) {
+      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+      return
+    }
+    const entityIds = [...new Set(topicIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind, entityIds },
+      ...(options.ownerChanged
+        ? [{ endpoint: '/topics' as const, kind: 'membership' as const, dimension: 'assistantId', entityIds }]
+        : []),
+      ...(options.searchChanged
+        ? [{ endpoint: '/topics' as const, kind: 'membership' as const, dimension: 'q', entityIds }]
+        : []),
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      ...(options.orderKeyChanged
+        ? [{ endpoint: '/topics' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
+        : []),
+      { endpoint: '/topics/:id', entityIds },
+      { endpoint: '/topics/latest' },
+      { endpoint: '/topics/stats' },
+      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+    ])
+  }
+
+  /** Owner names affect collection search projections, but not Topic entities. */
+  notifyOwnerProjectionChange(): void {
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind: 'projection' },
+      { endpoint: '/topics', kind: 'membership', dimension: 'q' },
+      { endpoint: '/topics/stats' }
+    ])
+  }
+
+  /** A removed owner changes owner-scoped membership and owner-name projections. */
+  notifyOwnerRemovalChange(topicIds: readonly string[], options: { pinsChanged?: boolean } = {}): void {
+    if (topicIds.length === 0) {
+      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+      return
+    }
+    const entityIds = [...new Set(topicIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind: 'projection', entityIds },
+      { endpoint: '/topics', kind: 'membership', dimension: 'assistantId', entityIds },
+      { endpoint: '/topics', kind: 'membership', dimension: 'q', entityIds },
+      { endpoint: '/topics/latest' },
+      { endpoint: '/topics/stats' },
+      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+    ])
+  }
+
+  getIdsByAssistantIdTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): string[] {
+    return tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .all()
+      .map((row) => row.id)
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
@@ -240,39 +310,14 @@ export class TopicService {
   advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
     const updated = tx
       .update(topicTable)
-      .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
+      .set({
+        lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${topicTable.updatedAt}, ${timestamp})`
+      })
       .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
       .returning({ id: topicTable.id })
       .all()
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
-  }
-
-  /** Restore the exact activity invariant after content deletion or copying. */
-  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
-    const [topic] = tx
-      .select({ createdAt: topicTable.createdAt })
-      .from(topicTable)
-      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-      .limit(1)
-      .all()
-    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
-
-    const [activity] = tx
-      .select({
-        timestamp: sql<number | null>`max(case
-          when ${messageTable.role} = 'user' then ${messageTable.createdAt}
-          when ${messageTable.role} = 'assistant' then max(${messageTable.createdAt}, coalesce(${messageTable.terminalAt}, ${messageTable.createdAt}))
-          else null
-        end)`
-      })
-      .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
-      .all()
-
-    tx.update(topicTable)
-      .set({ lastActivityAt: activity?.timestamp ?? topic.createdAt })
-      .where(eq(topicTable.id, topicId))
-      .run()
   }
 
   ensureTraceId(topicId: string): string {
@@ -302,13 +347,17 @@ export class TopicService {
     const messageService = getDataService('MessageService')
 
     const row = dbService.withWriteTx((tx) => {
+      const createdAt = Date.now()
       const topicRow = insertWithOrderKey(
         tx,
         topicTable,
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          activeNodeId: null
+          activeNodeId: null,
+          lastActivityAt: createdAt,
+          createdAt,
+          updatedAt: createdAt
         },
         {
           pkColumn: topicTable.id,
@@ -316,15 +365,10 @@ export class TopicService {
           scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
-      const [initializedTopicRow] = tx
-        .update(topicTable)
-        .set({ lastActivityAt: topicRow.createdAt })
-        .where(eq(topicTable.id, topicRow.id))
-        .returning()
-        .all()
       messageService.createRootMessageTx(tx, topicRow.id)
-      return initializedTopicRow
+      return topicRow
     })
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -362,11 +406,6 @@ export class TopicService {
           scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
-      tx.update(topicTable)
-        .set({ lastActivityAt: newTopicRow.createdAt })
-        .where(eq(topicTable.id, newTopicRow.id))
-        .run()
-
       // New topic is a creation path → create its virtual root before copying the path
       // (copyPathRowsTx reparents the copied head onto it).
       messageService.createRootMessageTx(tx, newTopicRow.id)
@@ -378,7 +417,6 @@ export class TopicService {
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
-      this.recomputeLastActivityAtTx(tx, newTopicRow.id)
 
       const [updatedTopicRow] = tx
         .update(topicTable)
@@ -389,6 +427,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
+    this.notifyReadModelChange([copiedTopic.id], 'membership')
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
@@ -434,6 +473,10 @@ export class TopicService {
 
       return rowToTopic(row)
     })
+    this.notifyReadModelChange([id], 'projection', {
+      ownerChanged: dto.assistantId !== undefined,
+      searchChanged: dto.name !== undefined || dto.assistantId !== undefined
+    })
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
@@ -445,7 +488,7 @@ export class TopicService {
    * anchor. Ownership-only changes use the ordinary Topic PATCH contract.
    */
   move(id: string, dto: MoveTopicDto): void {
-    return withSqliteErrors(
+    withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [target] = tx
@@ -488,6 +531,11 @@ export class TopicService {
         foreignKey: () => DataApiErrorFactory.notFound('Assistant', dto.assistantId)
       } satisfies SqliteErrorHandlers
     )
+    this.notifyReadModelChange([id], 'projection', {
+      orderKeyChanged: true,
+      ownerChanged: true,
+      searchChanged: true
+    })
   }
 
   /**
@@ -497,7 +545,8 @@ export class TopicService {
    */
   delete(id: string): void {
     const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership', { pinsChanged: true })
 
     logger.info('Deleted topic', { id })
   }
@@ -505,6 +554,7 @@ export class TopicService {
   deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership', { pinsChanged: true })
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -539,6 +589,17 @@ export class TopicService {
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: [nodeId]
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
+      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+    ])
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -762,12 +823,12 @@ export class TopicService {
         name: topicTable.name,
         assistantId: topicTable.assistantId,
         assistantName: assistantTable.name,
-        updatedAt: topicTable.updatedAt
+        lastActivityAt: topicTable.lastActivityAt
       })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(limit)
       .all()
 
@@ -776,7 +837,7 @@ export class TopicService {
       id: row.id,
       title: row.name,
       subtitle: row.assistantName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
     }))
   }
@@ -797,6 +858,7 @@ export class TopicService {
         scope: TOPIC_ORDER_SCOPE
       })
     })
+    this.notifyReadModelChange([id], 'projection', { orderKeyChanged: true })
   }
 
   /**
@@ -826,11 +888,17 @@ export class TopicService {
         scope: TOPIC_ORDER_SCOPE
       })
     })
+    this.notifyReadModelChange(
+      moves.map((move) => move.id),
+      'projection',
+      { orderKeyChanged: true }
+    )
   }
 
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+    this.notifyReadModelChange(deletedIds, 'membership', { pinsChanged: true })
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 

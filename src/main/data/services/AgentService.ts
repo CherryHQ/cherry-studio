@@ -673,6 +673,9 @@ export class AgentService {
     const updated = this.getAgent(id)
     if (updated) {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+      if (updates.name !== undefined) {
+        agentSessionService.notifyOwnerProjectionChange()
+      }
     }
     return updated
   }
@@ -689,8 +692,6 @@ export class AgentService {
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
-    let deletedSessionIds: string[] | undefined
-    let affectedTaskScheduleIds: string[] = []
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -700,27 +701,27 @@ export class AgentService {
             .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
             .limit(1)
             .all()
-          if (!agent) return { rowsAffected: 0 }
+          if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
 
-          if (options.deleteSessions === true) {
-            affectedTaskScheduleIds = agentSessionService.getTaskScheduleIdsForAgentTx(tx, id)
-            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
-          } else {
-            // Agent FK deletion would otherwise leave a task bound to an orphan
-            // session. Clear the relation before that implicit detach.
-            affectedTaskScheduleIds = agentSessionService.clearTaskSchedulesForAgentTx(tx, id)
-          }
-
-          return this.deleteAgentTx(tx, id)
+          const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
+            deleteSessions: options.deleteSessions === true
+          })
+          return { ...this.deleteAgentTx(tx, id), sessionImpact }
         }),
       defaultHandlersFor('Agent', id)
     )
 
     const deleted = result.rowsAffected > 0
-    if (deleted) {
-      agentTaskService.notifyReadModelChange(affectedTaskScheduleIds)
+    if (deleted && result.sessionImpact) {
+      agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
+      if (result.sessionImpact.changeKind === 'membership') {
+        agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, 'membership', { pinsChanged: true })
+      } else {
+        agentSessionService.notifyOwnerRemovalChange(result.sessionImpact.sessionIds, { pinsChanged: true })
+      }
       this._onAgentDeleted.fire({ agentId: id })
     }
+    const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return { deleted, deletedSessionIds }
   }
 

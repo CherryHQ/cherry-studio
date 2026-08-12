@@ -9,6 +9,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
@@ -17,8 +18,8 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, isNull } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -201,6 +202,64 @@ describe('MessageService', () => {
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
 
+  it('tracks conversation activity independently from metadata and later assistant rewrites', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-activity',
+      name: 'Activity',
+      orderKey: 'a0',
+      lastActivityAt: 100,
+      createdAt: 100,
+      updatedAt: 100
+    })
+    messageService.createRootMessageTx(dbh.db, 'topic-activity')
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      const assistant = messageService.create('topic-activity', {
+        parentId: null,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:01.000Z')
+
+      now.mockReturnValue(2_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('done'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(3_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('projection rewrite'),
+        status: 'success'
+      })
+      topicService.update('topic-activity', { name: 'Renamed' })
+
+      const renamed = topicService.getById('topic-activity')
+      expect(renamed.lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+      expect(renamed.updatedAt).toBe('1970-01-01T00:00:03.000Z')
+
+      now.mockReturnValue(4_000)
+      messageService.update(assistant.id, { status: 'pending' })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(5_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('continued'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
+
+      now.mockReturnValue(6_000)
+      messageService.delete(assistant.id)
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   /**
    * Build a small message tree with a multi-model siblings group.
    *
@@ -262,6 +321,94 @@ describe('MessageService', () => {
     ]
     await dbh.db.insert(messageTable).values(withRoot('topic-1', messages))
   }
+
+  describe('resetAssistantForRetry', () => {
+    it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-a1-child-user',
+          parentId: 'm-a1',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('follow up on A'),
+          status: 'success',
+          stats: { totalTokens: 80, contextTokens: 75 },
+          compactionSummary: 'summary through downstream user',
+          createdAt: 400,
+          updatedAt: 400
+        },
+        {
+          id: 'm-a1-child-assistant',
+          parentId: 'm-a1-child-user',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('downstream answer'),
+          status: 'success',
+          stats: { totalTokens: 90, contextTokens: 85 },
+          compactionSummary: 'summary through downstream assistant',
+          createdAt: 500,
+          updatedAt: 500
+        }
+      ])
+      dbh.db
+        .update(messageTable)
+        .set({
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          status: 'error',
+          stats: {
+            totalTokens: 42,
+            requestCount: 1,
+            contextTokens: 40,
+            runtimeTiming: { startedAt: 10, completedAt: 20, spans: [] },
+            timeFirstTokenMs: 5,
+            timeCompletionMs: 10
+          },
+          compactionSummary: 'summary through failed assistant'
+        })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+
+      const before = messageService.getById('m-a1')
+      const reset = messageService.resetAssistantForRetry('m-a1')
+      const topic = dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1')).get()
+      const invalidatedRows = dbh.db
+        .select({
+          id: messageTable.id,
+          stats: messageTable.stats,
+          compactionSummary: messageTable.compactionSummary,
+          updatedAt: messageTable.updatedAt
+        })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ['m-a1', 'm-a1-child-user', 'm-a1-child-assistant']))
+        .all()
+
+      expect(reset).toMatchObject({
+        id: 'm-a1',
+        parentId: before.parentId,
+        siblingsGroupId: before.siblingsGroupId,
+        modelId: before.modelId,
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
+      expect(reset.stats).not.toHaveProperty('runtimeTiming')
+      expect(reset.stats).not.toHaveProperty('contextTokens')
+      expect(reset.stats).not.toHaveProperty('timeFirstTokenMs')
+      expect(reset.stats).not.toHaveProperty('timeCompletionMs')
+      expect(messageService.getById('m-a1-child-user').parentId).toBe('m-a1')
+      expect(messageService.getById('m-a1-child-assistant').parentId).toBe('m-a1-child-user')
+      expect(topic?.activeNodeId).toBe('m-follow')
+      expect(invalidatedRows).toHaveLength(3)
+      expect(invalidatedRows.every((row) => row.compactionSummary === null)).toBe(true)
+      expect(invalidatedRows.every((row) => row.stats?.contextTokens === undefined)).toBe(true)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.stats?.totalTokens).toBe(80)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.stats?.totalTokens).toBe(90)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+    })
+  })
 
   describe('findPendingAssistantMessageIds', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {
@@ -337,7 +484,14 @@ describe('MessageService', () => {
 
   describe('markMessagesError', () => {
     async function seedStatuses() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-e', activeNodeId: 'm-a', orderKey: 'c0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-e',
+        activeNodeId: 'm-a',
+        orderKey: 'c0',
+        lastActivityAt: 120,
+        createdAt: 100,
+        updatedAt: 120
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-e', [
           {
@@ -390,6 +544,7 @@ describe('MessageService', () => {
       expect(await statusOf('m-a')).toBe('error')
       expect(await statusOf('m-b')).toBe('error')
       expect(await statusOf('m-keep')).toBe('success')
+      expect(topicService.getById('topic-e').lastActivityAt).toBe('1970-01-01T00:00:00.120Z')
     })
 
     it('is a no-op for an empty id list', async () => {
@@ -1697,122 +1852,6 @@ describe('MessageService', () => {
     })
   })
 
-  describe('lastActivityAt (topic activity time)', () => {
-    afterEach(() => {
-      vi.restoreAllMocks()
-    })
-
-    async function seedActivityTopic(topicId: string, lastActivityAt: number) {
-      await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0', lastActivityAt })
-      messageService.createRootMessageTx(dbh.db, topicId)
-    }
-
-    const readLastActivityAt = async (topicId: string) => {
-      const [row] = await dbh.db
-        .select({ lastActivityAt: topicTable.lastActivityAt })
-        .from(topicTable)
-        .where(eq(topicTable.id, topicId))
-      return row?.lastActivityAt
-    }
-
-    it('advances lastActivityAt to a created user message createdAt', async () => {
-      const NOW = 5_000_000
-      await seedActivityTopic('topic-activity-create', 1)
-      vi.spyOn(Date, 'now').mockReturnValue(NOW)
-
-      const message = messageService.create('topic-activity-create', {
-        role: 'user',
-        parentId: null,
-        data: mainText('hello'),
-        status: 'success'
-      })
-
-      const [row] = await dbh.db
-        .select({ createdAt: messageTable.createdAt })
-        .from(messageTable)
-        .where(eq(messageTable.id, message.id))
-      expect(row.createdAt).toBe(NOW)
-      expect(await readLastActivityAt('topic-activity-create')).toBe(NOW)
-    })
-
-    it('advances lastActivityAt when a response reaches a terminal status', async () => {
-      const CREATED_AT = 5_000_000
-      const TERMINAL_AT = 5_000_500
-      await seedActivityTopic('topic-activity-terminal', 1)
-
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(CREATED_AT)
-      const assistant = messageService.create('topic-activity-terminal', {
-        role: 'assistant',
-        parentId: null,
-        data: mainText(''),
-        status: 'pending'
-      })
-      // A pending assistant contributes its createdAt only.
-      expect(await readLastActivityAt('topic-activity-terminal')).toBe(CREATED_AT)
-
-      nowSpy.mockReturnValue(TERMINAL_AT)
-      messageService.update(assistant.id, { status: 'success' })
-
-      // The terminal transition timestamp advances activity past the createdAt.
-      expect(await readLastActivityAt('topic-activity-terminal')).toBe(TERMINAL_AT)
-    })
-
-    it('recomputes lastActivityAt downward when the newest message is deleted', async () => {
-      await dbh.db.insert(topicTable).values({
-        id: 'topic-activity-delete',
-        activeNodeId: 'm-new',
-        orderKey: 'a0',
-        lastActivityAt: 200
-      })
-      await dbh.db.insert(messageTable).values(
-        withRoot('topic-activity-delete', [
-          {
-            id: 'm-old',
-            parentId: null,
-            topicId: 'topic-activity-delete',
-            role: 'user',
-            data: mainText('old'),
-            status: 'success',
-            siblingsGroupId: 0,
-            createdAt: 100,
-            updatedAt: 100
-          },
-          {
-            id: 'm-new',
-            parentId: 'm-old',
-            topicId: 'topic-activity-delete',
-            role: 'user',
-            data: mainText('new'),
-            status: 'success',
-            siblingsGroupId: 0,
-            createdAt: 200,
-            updatedAt: 200
-          }
-        ])
-      )
-
-      messageService.delete('m-new', false)
-
-      // Falls back to the remaining max activity (m-old @ 100), not the stale 200.
-      expect(await readLastActivityAt('topic-activity-delete')).toBe(100)
-    })
-
-    it('never regresses lastActivityAt below the current value (monotonic advance)', async () => {
-      await seedActivityTopic('topic-activity-monotonic', 10_000_000)
-      // A newly created message carries an older createdAt than the current activity time.
-      vi.spyOn(Date, 'now').mockReturnValue(5_000)
-
-      messageService.create('topic-activity-monotonic', {
-        role: 'user',
-        parentId: null,
-        data: mainText('stale'),
-        status: 'success'
-      })
-
-      expect(await readLastActivityAt('topic-activity-monotonic')).toBe(10_000_000)
-    })
-  })
-
   describe('delete — virtual root guard', () => {
     const virtualRootId = 'vroot-topic-1'
 
@@ -2950,7 +2989,14 @@ describe('MessageService', () => {
     }
 
     async function seedAnchorWithTwoApprovals() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-ap', activeNodeId: 'anchor', orderKey: 'a0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-ap',
+        activeNodeId: 'anchor',
+        orderKey: 'a0',
+        lastActivityAt: 100,
+        createdAt: 100,
+        updatedAt: 100
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-ap', [
           {
@@ -2998,28 +3044,25 @@ describe('MessageService', () => {
 
     it('publishes the message read-model change after every committed approval decision', async () => {
       await seedAnchorWithTwoApprovals()
+      const getMessageProjectionNotifications = () =>
+        notifyDataApiDataChangeMock.mock.calls
+          .map(([effects]) => effects)
+          .filter(([effect]) => effect?.endpoint === '/topics/:topicId/messages')
+      const expectedNotification = [
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: ['anchor']
+        }
+      ]
 
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          entityIds: ['anchor']
-        }
-      ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          entityIds: ['anchor']
-        }
-      ])
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
 
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: true }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
     })
 
     it('commits the approval response and wait-span completion together', async () => {
@@ -3060,6 +3103,16 @@ describe('MessageService', () => {
         expect.objectContaining({ approvalId: 'ap-a', completedAt: expect.any(Number) }),
         expect.not.objectContaining({ completedAt: expect.anything() })
       ])
+    })
+
+    it('records a persisted approval as conversation activity', async () => {
+      await seedAnchorWithTwoApprovals()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(500)
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+
+      expect(topicService.getById('topic-ap').lastActivityAt).toBe('1970-01-01T00:00:00.500Z')
+      now.mockRestore()
     })
 
     it('returns null for a missing anchor (stale click on a deleted message)', async () => {

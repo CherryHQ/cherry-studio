@@ -177,7 +177,6 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
-    expect(row.terminalAt).toBe(Date.parse('2026-01-01T00:00:01.000Z'))
     const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's-legacy'))
     expect(session.lastActivityAt).toBe(Date.parse('2026-01-01T00:00:01.000Z'))
     expect(session.updatedAt).toBe(sessionCreatedAt)

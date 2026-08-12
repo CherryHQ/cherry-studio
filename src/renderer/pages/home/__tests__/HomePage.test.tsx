@@ -1339,9 +1339,24 @@ describe('HomePage', () => {
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.resourceLayoutTopics = [
-      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        ...historyTopic,
+        id: 'topic-a',
+        assistantId: 'assistant-a',
+        lastActivityAt: '2026-01-05T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-old',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-new',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
     // After assistant-a is deleted its topics are gone from the DB, so `/topics/latest` returns the latest
     // remaining topic (assistant-b's newest).

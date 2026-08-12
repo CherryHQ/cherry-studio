@@ -428,7 +428,6 @@ export interface NewMessage {
   data: MessageData
   searchableText: string
   status: 'success' | 'error' | 'paused'
-  terminalAt: number | null
   siblingsGroupId: number
   modelId: string | null
   messageSnapshot: MessageSnapshot | null
@@ -466,7 +465,7 @@ export interface NewMessage {
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
   const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
@@ -475,7 +474,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    lastActivityAt: createdAt,
+    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
     createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
@@ -560,8 +559,6 @@ export async function transformMessage(
     }
   }
 
-  const createdAt = parseTimestamp(oldMessage.createdAt)
-  const updatedAt = parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   return {
     id: oldMessage.id,
     parentId,
@@ -572,7 +569,6 @@ export async function transformMessage(
     },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
-    terminalAt: oldMessage.role === 'assistant' ? Math.max(createdAt, updatedAt) : null,
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Author snapshot (model nested) for historical display. The assistant is attached only to
@@ -586,8 +582,8 @@ export async function transformMessage(
       oldMessage.metrics,
       oldMessage.role === 'assistant' ? estimateLegacyRequestCount(blocks) : undefined
     ),
-    createdAt,
-    updatedAt
+    createdAt: parseTimestamp(oldMessage.createdAt),
+    updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   }
 }
 

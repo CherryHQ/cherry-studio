@@ -1,16 +1,27 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
+  mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations, useTopics } from '../useTopic'
+import {
+  getTopicMessages,
+  useActiveTopic,
+  useLatestTopic,
+  useTopicById,
+  useTopicMutations,
+  useTopics,
+  useTopicStats
+} from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -39,6 +50,17 @@ const apiMessage = (id: string, isContextBoundary = false) => ({
   stats: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+const createApiTopic = (overrides: Partial<ApiTopic> = {}): ApiTopic => ({
+  id: 'topic-1',
+  name: 'Topic',
+  isNameManuallyEdited: false,
+  orderKey: 'a0',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  ...overrides
 })
 
 describe('getTopicMessages', () => {
@@ -142,6 +164,74 @@ describe('useTopics', () => {
       enabled: undefined,
       swrOptions: { revalidateAll: false, revalidateFirstPage: true }
     })
+  })
+  it('converges the topic list for every notification regardless of entity hints', () => {
+    renderHook(() => useTopics({ pinned: false }))
+    const refresh = mockUseInfiniteQuery.mock.results.at(-1)?.value.refresh
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
+
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
+    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
+    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
+    let pages = [{ items: [topicA, topicB] }]
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }) as never
+    )
+
+    const { result, rerender } = renderHook(() => useTopics({ pinned: false }))
+    const firstTopics = result.current.topics
+
+    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics).not.toBe(firstTopics)
+    expect(result.current.topics[0]).toBe(firstTopics[1])
+    expect(result.current.topics[1]).toBe(firstTopics[0])
+
+    const reorderedTopics = result.current.topics
+    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
+    expect(result.current.topics[1]).toBe(reorderedTopics[1])
+  })
+})
+
+describe('useTopicById', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('scopes concrete topic notifications by route and filters their entity id', () => {
+    renderHook(() => useTopicById('topic-a'))
+    const mutate = mockUseQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:id', expect.any(Function), {
+      routeParams: { id: 'topic-a' }
+    })
+
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-b'] }])
+    expect(mutate).not.toHaveBeenCalled()
+
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    expect(mutate).toHaveBeenCalledOnce()
   })
 })
 
@@ -304,6 +394,23 @@ describe('useLatestTopic', () => {
 
     expect(result.current.latestTopic?.id).toBe('topic-a')
     expect(result.current.isLoading).toBe(true)
+  })
+})
+
+describe('useTopicStats', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('refetches mounted stats when Main publishes a stats change', () => {
+    renderHook(() => useTopicStats())
+    const refetch = mockUseQuery.mock.results.at(-1)?.value.refetch
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/topics/stats' }])
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
 

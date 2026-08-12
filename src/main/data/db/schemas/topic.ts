@@ -27,8 +27,8 @@ export const topicTable = sqliteTable(
     // Fractional-indexing key for the one global Topic order.
     ...orderKeyColumns,
 
-    // User-visible activity time. Metadata writes still advance `updatedAt`,
-    // but only activity-bearing message phases update this column.
+    // User-visible conversation activity. Metadata writes still advance
+    // updatedAt, but only activity-bearing message phases update this column.
     lastActivityAt: integer().notNull().$defaultFn(Date.now),
 
     ...createUpdateDeleteTimestamps

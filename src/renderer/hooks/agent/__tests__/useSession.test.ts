@@ -5,9 +5,11 @@ import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
   MockUseDataApiUtils,
+  mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
-  mockUseMutation
+  mockUseMutation,
+  mockUseQuery
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useActiveSession,
   useAgentSessionAutoRenameSync,
+  useAgentSessionStats,
   useLatestSession,
   useSessionMutations,
   useSessions,
@@ -670,6 +673,23 @@ describe('useLatestSession', () => {
 
     expect(result.current.latestSession?.id).toBe('session-latest')
     expect(result.current.isLoading).toBe(true)
+  })
+})
+
+describe('useAgentSessionStats', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('refetches mounted stats when Main publishes a stats change', () => {
+    renderHook(() => useAgentSessionStats())
+    const refetch = mockUseQuery.mock.results.at(-1)?.value.refetch
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/agent-sessions/stats' }])
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
 

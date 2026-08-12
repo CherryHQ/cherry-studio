@@ -6,17 +6,36 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
-### `activityTime.ts` — Topic / Agent Session activity invariants
+### `activityTime.ts` — conversation activity semantics
 
-Shared bounded-phase helpers for Topic and Agent Session content persistence:
+Shared by Topic and Agent Session message persistence. It identifies
+conversation-bearing roles and real assistant completion transitions so both
+domains apply the same activity semantics. `topic.lastActivityAt` and
+`agent_session.lastActivityAt` are monotonic high-water marks: once an activity
+happens, later deletion or metadata maintenance does not erase that history.
+The following operations advance the high-water mark:
 
-- `resolveResponseTerminalAt` records the first assistant-response terminal
-  transition and preserves it across later row updates.
-- `getMessageActivityTimestamp` maps user/assistant rows to their activity
-  contribution while excluding structural and system rows.
+| Operation | Changes `lastActivityAt` |
+| --- | --- |
+| Create a Topic or Agent Session | Yes; initialized from container `createdAt` |
+| Create or fill a user message | Yes |
+| Create an assistant placeholder | Yes |
+| Complete, pause, or fail a pending assistant response | Yes |
+| Persist a tool-approval decision | Yes |
+| Complete a later continuation segment on the same assistant row | Yes |
+| Delete a content message | No |
+| Duplicate a Topic | Yes; initialized from the new Topic creation |
+| Persist a temporary Topic | Preserves the temporary Topic's activity time |
+| Rename, pin, reorder, navigate, edit metadata, or update message projections | No |
+| Boot-time `pending → error` crash reconciliation | No |
+| Create/update a system or virtual-root row | No |
 
-The helpers do not write either parent table. Message services call the owning
-Topic or Agent Session service for parent updates and deletion recomputation.
+For an existing-v2 schema upgrade, the SQLite migration initializes each
+container directly from user creation times and the best available assistant
+completion proxy `max(createdAt, updatedAt)`; pending assistant rows contribute
+their creation time. The v1 ChatMigrator and AgentsMigrator derive the same
+container-level value while importing. Empty containers fall back to their own
+`createdAt` in both paths.
 
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
@@ -129,7 +148,7 @@ Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>
 
 - **Two decode policies, deliberately split**: list browsing warns and falls back to the first page (`decodeListCursor` → `null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
 - **Warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across call sites; the `context` field distinguishes the source.
-- **Single-tuple keyset only**: covers `(key, id)` pagination. Multiple display bands must be exposed as independent queries and cursor chains (as Topic and AgentSession do), never encoded into one sentinel cursor.
+- **Single-tuple keyset only**: covers `(key, id)` pagination. Multi-band / sentinel cursors (e.g. `TopicService`'s pin/topic union with a first-page sentinel) cannot be expressed as one `(key, id)` tuple, and their malformed-fallback returns a sentinel rather than `null` — they keep their own codec and must NOT be routed here.
 - **Direction is declared once**: `keysetOrdering` emits both the `where` predicate and the matching `orderBy` from a single `{ major, tie }`, so the WHERE clause and the `ORDER BY` cannot disagree — the classic keyset skip/repeat bug becomes unrepresentable.
 
 **Example:**

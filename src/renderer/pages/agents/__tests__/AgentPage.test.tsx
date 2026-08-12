@@ -1518,19 +1518,19 @@ describe('AgentPage', () => {
         ...agentPageMocks.persistedSession,
         id: 'session-a',
         agentId: 'agent-a',
-        updatedAt: '2026-01-02T00:00:00.000Z'
+        lastActivityAt: '2026-01-02T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-old',
         agentId: 'agent-b',
-        updatedAt: '2026-01-01T00:00:00.000Z'
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-new',
         agentId: 'agent-b',
-        updatedAt: '2026-01-03T00:00:00.000Z'
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
       }
     ]
     // After agent-a is deleted its sessions are gone from the DB, so `/agent-sessions/latest` returns the

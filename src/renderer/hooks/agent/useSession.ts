@@ -10,6 +10,7 @@
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -111,6 +112,12 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  useDataChange('/agent-sessions/:sessionId', (effects) => {
+    if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+
   return { session, error, isLoading, mutate }
 }
 
@@ -121,16 +128,19 @@ export const useSession = (sessionId: string | null) => {
  * most-recently-active session without waiting for the full session history to paginate
  * in and without depending on either `/agent-sessions` list stream's order.
  *
- * `/agent-sessions/latest` is a global `lastActivityAt DESC, id ASC` selector, so keeping its
- * cache coherent would mean every activity-bearing write invalidating it (an
- * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
- * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
- * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * Activity-bearing writes publish a scalar data-change signal so a mounted
+ * first-entry surface cannot keep a stale winner from another window. Folding
+ * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
+ * revalidation rather than trust a stale cache.
  * `latestSession` is `undefined` while loading and when there are no sessions.
  */
 export function useLatestSession(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
     enabled: opts?.enabled
+  })
+
+  useDataChange('/agent-sessions/latest', () => {
+    if (opts?.enabled !== false) void refetch()
   })
 
   return {
@@ -152,6 +162,10 @@ export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSe
   const { data, isLoading, error, refetch } = useQuery('/agent-sessions/stats', {
     enabled: opts?.enabled,
     query: opts?.query
+  })
+
+  useDataChange('/agent-sessions/stats', () => {
+    if (opts?.enabled !== false) void refetch()
   })
 
   return { stats: data, isLoading, error, refetch }
@@ -271,6 +285,9 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     limit: pageSize,
     enabled,
     swrOptions: { revalidateAll: false, revalidateFirstPage: true }
+  })
+  useDataChange('/agent-sessions', () => {
+    if (enabled !== false) void refresh()
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')

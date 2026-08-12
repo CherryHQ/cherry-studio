@@ -7,7 +7,10 @@ import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -24,10 +27,7 @@ describe('TemporaryChatService', () => {
 
   beforeEach(() => {
     service = new TemporaryChatService()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
+    notifyDataApiDataChangeMock.mockClear()
   })
 
   describe('appendMessage — input validation', () => {
@@ -192,6 +192,13 @@ describe('TemporaryChatService', () => {
 
       const result = service.persist(topic.id)
       expect(result).toEqual({ topicId: topic.id, messageCount: 3 })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
+        { endpoint: '/topics/:id', entityIds: [topic.id] },
+        { endpoint: '/topics/latest' },
+        { endpoint: '/topics/stats' }
+      ])
 
       // In-memory store is cleared
       expect(() => service.listMessages(topic.id)).toThrow(/not found/i)
@@ -220,28 +227,6 @@ describe('TemporaryChatService', () => {
       expect(result.messageCount).toBe(0)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.activeNodeId).toBeNull()
-    })
-
-    it('preserves creation and response-completion activity timestamps across persistence', async () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
-      const topic = service.createTopic({ name: 'timestamped' })
-      vi.setSystemTime(new Date('2026-01-01T00:01:00.000Z'))
-      const user = service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      vi.setSystemTime(new Date('2026-01-01T00:02:00.000Z'))
-      const assistant = service.appendMessage(topic.id, { role: 'assistant', data: mainText('hello') })
-      vi.setSystemTime(new Date('2026-01-01T00:03:00.000Z'))
-
-      service.persist(topic.id)
-
-      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
-      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
-      const byId = new Map(rows.map((row) => [row.id, row]))
-      expect(dbTopic?.createdAt).toBe(Date.parse(topic.createdAt))
-      expect(byId.get(user.id)?.createdAt).toBe(Date.parse(user.createdAt))
-      expect(byId.get(assistant.id)?.createdAt).toBe(Date.parse(assistant.createdAt))
-      expect(byId.get(assistant.id)?.terminalAt).toBe(Date.parse(assistant.createdAt))
-      expect(dbTopic?.lastActivityAt).toBe(Date.parse(assistant.createdAt))
     })
 
     it('unknown topicId → notFound', () => {

@@ -10,6 +10,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -37,9 +38,8 @@ import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import { agentSessionService } from './AgentSessionService'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
-import { getMessageActivityTimestamp, resolveResponseTerminalAt } from './utils/activityTime'
+import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -89,7 +89,7 @@ type SaveAgentSessionMessageOptions =
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
   dataChange: 'membership' | 'projection'
-  activityAt: number | null
+  activityTimestamp: number | null
 }
 
 function replaceAgentSessionMessageFileRefsTx(
@@ -300,18 +300,18 @@ export class AgentSessionMessageService {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
+    const database = application.get('DbService').getDb()
+
+    const [session] = database
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
     const result = withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx((tx) => {
-          const [session] = tx
-            .select({ id: sessionTable.id })
-            .from(sessionTable)
-            .where(eq(sessionTable.id, sessionId))
-            .limit(1)
-            .all()
-          if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
-          return this.deleteSessionMessageTx(tx, sessionId, messageId)
-        }),
+      () => this.deleteSessionMessageTx(database, sessionId, messageId),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -353,9 +353,6 @@ export class AgentSessionMessageService {
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
       .run()
-    if (result.changes > 0) {
-      agentSessionService.recomputeLastActivityAtTx(tx, sessionId)
-    }
     return { rowsAffected: result.changes }
   }
 
@@ -391,22 +388,18 @@ export class AgentSessionMessageService {
   ): void {
     if (messages.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
-      const terminalAt = Date.now()
+      const updatedAt = Date.now()
       for (const message of messages) {
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', terminalAt, data: message.data, updatedAt: terminalAt })
+          .set({ status: 'error', data: message.data, updatedAt })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
-        replaceAgentSessionMessageFileRefsTx(tx, message.id, message.data)
       }
       if (sessionIds.length > 0) {
         tx.update(sessionMessagesTable)
           .set({ runtimeResumeToken: null })
           .where(inArray(sessionMessagesTable.sessionId, sessionIds))
           .run()
-        for (const sessionId of new Set(sessionIds)) {
-          agentSessionService.advanceLastActivityAtTx(tx, sessionId, terminalAt)
-        }
       }
     })
   }
@@ -492,13 +485,13 @@ export class AgentSessionMessageService {
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
-      const terminalAt = resolveResponseTerminalAt({
-        existingTerminalAt: existingRow.terminalAt,
+      const activityTimestamp = isAssistantActivityTransition({
+        existingStatus: existingRow.status,
         role: message.role,
-        status,
-        timestamp: timestampMs
+        status
       })
-      const activityAt = existingRow.terminalAt === null && terminalAt !== null ? terminalAt : null
+        ? timestampMs
+        : null
 
       withSqliteErrors(
         () =>
@@ -507,7 +500,6 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
-              terminalAt,
               data: message.data,
               modelId,
               messageSnapshot,
@@ -521,33 +513,29 @@ export class AgentSessionMessageService {
       )
       replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
 
-      const entity = this.rowToEntity({
-        ...existingRow,
-        role: message.role,
-        status,
-        terminalAt,
-        data: message.data,
-        searchableText: existingRow.searchableText,
-        modelId,
-        messageSnapshot,
-        stats,
-        runtimeResumeToken: runtimeResumeTokenToPersist,
-        updatedAt: updatedAtMs
-      })
       return {
-        entity,
+        entity: this.rowToEntity({
+          ...existingRow,
+          role: message.role,
+          status,
+          data: message.data,
+          searchableText: existingRow.searchableText,
+          modelId,
+          messageSnapshot,
+          stats,
+          runtimeResumeToken: runtimeResumeTokenToPersist,
+          updatedAt: updatedAtMs
+        }),
         dataChange: 'projection',
-        activityAt
+        activityTimestamp
       }
     }
 
-    const terminalAt = resolveResponseTerminalAt({ role: message.role, status, timestamp: timestampMs })
     const insertData: InsertSessionMessageRow = {
       id: messageId,
       sessionId,
       role: message.role,
       status,
-      terminalAt,
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
@@ -562,7 +550,7 @@ export class AgentSessionMessageService {
     return {
       entity: this.rowToEntity(saved),
       dataChange: 'membership',
-      activityAt: getMessageActivityTimestamp(saved)
+      activityTimestamp: isConversationActivityRole(message.role) ? timestampMs : null
     }
   }
 
@@ -573,8 +561,8 @@ export class AgentSessionMessageService {
   ): SavedAgentSessionMessage {
     const result = this.upsertMessage(db, params, timestampMs)
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
-    if (result.activityAt !== null) {
-      agentSessionService.advanceLastActivityAtTx(db, params.sessionId, result.activityAt)
+    if (result.activityTimestamp !== null) {
+      agentSessionService.advanceLastActivityAtTx(db, params.sessionId, result.activityTimestamp)
     }
     return result
   }
@@ -590,11 +578,15 @@ export class AgentSessionMessageService {
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
+    if (result.activityTimestamp !== null) {
+      agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
+    }
     if (publishDataChange) {
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: result.dataChange,
+          routeParams: { sessionId: params.sessionId },
           entityIds: [result.entity.id]
         }
       ])
@@ -605,28 +597,34 @@ export class AgentSessionMessageService {
   saveMessages(params: CreateAgentSessionMessagesDto, expectedAgentId?: string): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
-    const saved = application.get('DbService').withWriteTx((tx) => {
+    const { entities: saved, activityTimestamp } = application.get('DbService').withWriteTx((tx) => {
       this.assertExpectedAgentTx(tx, sessionId, expectedAgentId)
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
-      let activityAt: number | null = null
+      let activityTimestamp: number | null = null
       for (const message of messages) {
         const savedMessage = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs)
         result.push(savedMessage.entity)
-        if (savedMessage.activityAt !== null) {
-          activityAt = activityAt === null ? savedMessage.activityAt : Math.max(activityAt, savedMessage.activityAt)
+        if (savedMessage.activityTimestamp !== null) {
+          activityTimestamp =
+            activityTimestamp === null
+              ? savedMessage.activityTimestamp
+              : Math.max(activityTimestamp, savedMessage.activityTimestamp)
         }
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
-      if (activityAt !== null) {
-        agentSessionService.advanceLastActivityAtTx(tx, sessionId, activityAt)
+      if (activityTimestamp !== null) {
+        agentSessionService.advanceLastActivityAtTx(tx, sessionId, activityTimestamp)
       }
-      return result
+      return { entities: result, activityTimestamp }
     })
     for (const entity of saved) {
       if (entity.role === 'assistant') {
         aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
       }
+    }
+    if (activityTimestamp !== null) {
+      agentSessionService.notifyReadModelChange([sessionId], 'projection')
     }
     return saved
   }
@@ -671,6 +669,7 @@ export class AgentSessionMessageService {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId },
         entityIds: [messageId]
       }
     ])
@@ -704,14 +703,17 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .run()
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
       return true
     })
 
     if (applied) {
+      agentSessionService.notifyReadModelChange([sessionId], 'projection')
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: 'projection',
+          routeParams: { sessionId },
           entityIds: [messageId]
         }
       ])

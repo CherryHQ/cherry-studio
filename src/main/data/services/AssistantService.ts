@@ -511,6 +511,10 @@ export class AssistantDataService {
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
+    if (dto.name !== undefined) {
+      topicService.notifyOwnerProjectionChange()
+    }
+
     return rowToAssistant(row, nextRelations, modelName)
   }
 
@@ -552,24 +556,30 @@ export class AssistantDataService {
    * does not restore its previous classification.
    */
   delete(id: string, options: { deleteTopics?: boolean } = {}): { deleted: boolean; deletedTopicIds?: string[] } {
-    let deletedTopicIds: string[] | undefined
-    const deleted = application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const affectedTopicIds = topicService.getIdsByAssistantIdTx(tx, id)
       const didDelete = this.deleteTx(tx, id)
-      if (!didDelete) return false
+      if (!didDelete) return { deleted: false, affectedTopicIds, deletedTopicIds: undefined }
 
+      let deletedTopicIds: string[] | undefined
       if (options.deleteTopics === true) {
         deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
       }
 
-      return true
+      return { deleted: true, affectedTopicIds, deletedTopicIds }
     })
 
-    if (!deleted) {
+    if (!result.deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+    if (options.deleteTopics === true) {
+      topicService.notifyReadModelChange(result.deletedTopicIds ?? [], 'membership', { pinsChanged: true })
+    } else {
+      topicService.notifyOwnerRemovalChange(result.affectedTopicIds, { pinsChanged: true })
     }
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
-    return { deleted, deletedTopicIds }
+    return { deleted: result.deleted, deletedTopicIds: result.deletedTopicIds }
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {

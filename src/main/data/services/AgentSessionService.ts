@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -67,9 +68,9 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     description: clean.description,
     workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
-    lastActivityAt: timestampToISO(row.session.lastActivityAt),
     traceId: clean.traceId,
     orderKey: clean.orderKey,
+    lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -142,6 +143,71 @@ function buildSessionRecordFilters(query: {
 }
 
 export class AgentSessionService {
+  notifyReadModelChange(
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: {
+      orderKeyChanged?: boolean
+      ownerChanged?: boolean
+      pinsChanged?: boolean
+      searchChanged?: boolean
+      workspaceChanged?: boolean
+    } = {}
+  ): void {
+    if (sessionIds.length === 0) {
+      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+      return
+    }
+    const entityIds = [...new Set(sessionIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind, entityIds },
+      ...(options.ownerChanged
+        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'agentId', entityIds }]
+        : []),
+      ...(options.searchChanged
+        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'q', entityIds }]
+        : []),
+      ...(options.workspaceChanged
+        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'workspaceId', entityIds }]
+        : []),
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      ...(options.orderKeyChanged
+        ? [{ endpoint: '/agent-sessions' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
+        : []),
+      { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-sessions/stats' },
+      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+    ])
+  }
+
+  /** Owner names affect collection search projections, but not Session entities. */
+  notifyOwnerProjectionChange(): void {
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind: 'projection' },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q' },
+      { endpoint: '/agent-sessions/stats' }
+    ])
+  }
+
+  /** A removed owner changes owner-scoped membership and owner-name projections. */
+  notifyOwnerRemovalChange(sessionIds: readonly string[], options: { pinsChanged?: boolean } = {}): void {
+    if (sessionIds.length === 0) {
+      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+      return
+    }
+    const entityIds = [...new Set(sessionIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'agentId', entityIds },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds },
+      { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-sessions/stats' },
+      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+    ])
+  }
+
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -158,12 +224,12 @@ export class AgentSessionService {
         agentId: sessionsTable.agentId,
         agentName: agentsTable.name,
         name: sessionsTable.name,
-        updatedAt: sessionsTable.updatedAt
+        lastActivityAt: sessionsTable.lastActivityAt
       })
       .from(sessionsTable)
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(limit)
       .all()
 
@@ -172,7 +238,7 @@ export class AgentSessionService {
       id: row.id,
       title: row.name,
       subtitle: row.agentName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { sessionId: row.id, agentId: row.agentId }
     }))
   }
@@ -183,6 +249,7 @@ export class AgentSessionService {
       ...defaultHandlersFor('Session', id),
       foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
+    this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
 
@@ -231,13 +298,23 @@ export class AgentSessionService {
     })
   }
 
-  /**
-   * Bump the session's `updatedAt` from a foreign service's transaction —
-   * message writes call this so the session surfaces in recency-ordered lists.
-   * Lives here because this service owns the session table's invariants.
-   */
+  /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
+  }
+
+  /** Monotonically advance a session's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
+    const updated = tx
+      .update(sessionsTable)
+      .set({
+        lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${sessionsTable.updatedAt}, ${timestamp})`
+      })
+      .where(eq(sessionsTable.id, sessionId))
+      .returning({ id: sessionsTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
@@ -331,9 +408,31 @@ export class AgentSessionService {
     return this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.taskScheduleId, taskScheduleId))
   }
 
-  /** Clear bindings before an agent FK detaches its sessions. */
-  clearTaskSchedulesForAgentTx(tx: DbOrTx, agentId: string): string[] {
-    const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+  /** Prepare session-owned changes before the caller deletes an agent row. */
+  prepareForAgentDeletionTx(
+    tx: DbOrTx,
+    agentId: string,
+    options: { deleteSessions: boolean }
+  ): {
+    sessionIds: string[]
+    taskScheduleIds: string[]
+    changeKind: 'membership' | 'projection'
+  } {
+    const sessions = tx
+      .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.agentId, agentId))
+      .all()
+    const taskScheduleIds = sessions.flatMap((session) => (session.taskScheduleId ? [session.taskScheduleId] : []))
+
+    if (options.deleteSessions) {
+      return {
+        sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false }),
+        taskScheduleIds,
+        changeKind: 'membership'
+      }
+    }
+
     if (taskScheduleIds.length > 0) {
       this.updateTaskScheduleRelationTx(
         tx,
@@ -341,7 +440,11 @@ export class AgentSessionService {
         and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
-    return taskScheduleIds
+    return {
+      sessionIds: sessions.map((session) => session.id),
+      taskScheduleIds,
+      changeKind: 'projection'
+    }
   }
 
   /** Relation maintenance is not session activity and must not affect recency restore. */
@@ -408,45 +511,6 @@ export class AgentSessionService {
       .all()
 
     return rows.map(rowToSession)
-  }
-
-  /** Monotonically advance a session's activity time within the caller's write transaction. */
-  advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
-    const updated = tx
-      .update(sessionsTable)
-      .set({ lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})` })
-      .where(eq(sessionsTable.id, sessionId))
-      .returning({ id: sessionsTable.id })
-      .all()
-    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
-  }
-
-  /** Restore the exact activity invariant after session-message deletion. */
-  recomputeLastActivityAtTx(tx: DbOrTx, sessionId: string): void {
-    const [session] = tx
-      .select({ createdAt: sessionsTable.createdAt })
-      .from(sessionsTable)
-      .where(eq(sessionsTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
-
-    const [activity] = tx
-      .select({
-        timestamp: sql<number | null>`max(case
-          when ${agentSessionMessageTable.role} = 'user' then ${agentSessionMessageTable.createdAt}
-          when ${agentSessionMessageTable.role} = 'assistant' then max(${agentSessionMessageTable.createdAt}, coalesce(${agentSessionMessageTable.terminalAt}, ${agentSessionMessageTable.createdAt}))
-          else null
-        end)`
-      })
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
-      .all()
-
-    tx.update(sessionsTable)
-      .set({ lastActivityAt: activity?.timestamp ?? session.createdAt })
-      .where(eq(sessionsTable.id, sessionId))
-      .run()
   }
 
   ensureTraceId(sessionId: string): string {
@@ -672,6 +736,10 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
+    this.notifyReadModelChange([id], 'projection', {
+      ownerChanged: dto.agentId !== undefined,
+      searchChanged: dto.name !== undefined || dto.description !== undefined || dto.agentId !== undefined
+    })
     return this.getById(id)
   }
 
@@ -708,6 +776,7 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
+    this.notifyReadModelChange([id], 'projection', { workspaceChanged: true })
     return this.getById(id)
   }
 
@@ -775,16 +844,21 @@ export class AgentSessionService {
       updatedAt: number
     }
   ): void {
-    const row = insertWithOrderKey(tx, sessionsTable, values, {
-      pkColumn: sessionsTable.id,
-      position: 'first'
-    }) as SessionRow
-    tx.update(sessionsTable).set({ lastActivityAt: row.createdAt }).where(eq(sessionsTable.id, row.id)).run()
+    insertWithOrderKey(
+      tx,
+      sessionsTable,
+      { ...values, lastActivityAt: values.createdAt },
+      {
+        pkColumn: sessionsTable.id,
+        position: 'first'
+      }
+    )
   }
 
   delete(id: string): void {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
     publishTaskReadModelChanges(taskScheduleIds)
+    this.notifyReadModelChange([id], 'membership', { pinsChanged: true })
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -816,6 +890,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -831,6 +906,7 @@ export class AgentSessionService {
       return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -859,6 +935,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -963,6 +1040,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.notifyReadModelChange([id], 'projection', { orderKeyChanged: true })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -980,6 +1058,11 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    this.notifyReadModelChange(
+      moves.map((move) => move.id),
+      'projection',
+      { orderKeyChanged: true }
+    )
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {

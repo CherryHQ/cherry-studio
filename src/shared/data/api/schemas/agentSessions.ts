@@ -76,9 +76,11 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 /**
  * Owner scope for session list/stats filters: a concrete agent id, or the
  * literal `'unlinked'` for sessions whose agent was deleted via cascade
- * (`agentId IS NULL`). Agent ids are UUIDs, so the sentinel cannot collide.
+ * (`agentId IS NULL`). New agents use UUID v4 and migrated agents use
+ * deterministic UUID v5, so the sentinel cannot collide.
  */
-export const AgentSessionOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+const ConcreteAgentIdSchema = z.uuid()
+export const AgentSessionOwnerScopeSchema = z.union([ConcreteAgentIdSchema, z.literal('unlinked')])
 export type AgentSessionOwnerScope = z.infer<typeof AgentSessionOwnerScopeSchema>
 
 /** A concrete user-workspace id, or the aggregate `system` scope sentinel. */
@@ -154,7 +156,7 @@ export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySche
 
 /** Exact owner and optional workspace target for reusable empty-session lookup. */
 export const ReusableAgentSessionPlaceholdersQuerySchema = z.strictObject({
-  agentId: z.uuidv4(),
+  agentId: ConcreteAgentIdSchema,
   /** Concrete user workspace id, `system`, or omitted for every workspace. */
   workspaceId: AgentSessionWorkspaceScopeSchema.optional()
 })

@@ -167,6 +167,13 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
         sourceColumn: 'created_at'
       },
       {
+        // Seed the required parent field from creation. AgentsMigrator replaces
+        // it with the exact maximum imported message activity after message import.
+        name: 'last_activity_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
         sourceColumn: 'created_at'
