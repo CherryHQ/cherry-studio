@@ -3115,7 +3115,10 @@ describe('Sessions', () => {
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
-  it('deletes only tasks from the built-in Cherry Assistant group', async () => {
+  it.each([
+    { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
+    { builtinRole: 'support' as const, name: 'Cherry Support' }
+  ])('deletes only tasks from the protected built-in $name group', async ({ builtinRole, name }) => {
     const onActiveAgentDeleted = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
@@ -3123,8 +3126,8 @@ describe('Sessions', () => {
         {
           id: 'agent-a',
           model: 'model-a',
-          name: 'Cherry Assistant',
-          configuration: { builtin_role: 'assistant' }
+          name,
+          configuration: { builtin_role: builtinRole }
         }
       ],
       isLoading: false,
@@ -3138,7 +3141,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
 
-    const agentGroup = screen.getByRole('button', { name: 'Cherry Assistant' }).closest('div')
+    const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteTasksMenuItem = screen

@@ -15,6 +15,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -213,7 +214,9 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
+      )
       const sessionIds = deleteTasksOnly
         ? sessions.filter((session) => session.agentId === agentId).map((session) => session.id)
         : []
@@ -270,7 +273,9 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
-      const deleteTasksOnly = agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
+      )
 
       return [
         buildResolvedResourceEntityMenuAction({

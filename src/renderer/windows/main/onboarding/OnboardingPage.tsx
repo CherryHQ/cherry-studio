@@ -20,6 +20,7 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -110,12 +111,15 @@ export default function OnboardingPage() {
           await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
         }
       })
-    const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
-      const agent = total === 1 ? items[0] : undefined
-      const isSeededAgent = agent?.configuration?.builtin_role === 'assistant'
-      if (isSeededAgent && (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)) {
-        await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
-      }
+    const agentUpdate = dataApiService.get('/agents', { query: { limit: 500 } }).then(async ({ items }) => {
+      const officialAgents = items.filter(
+        (agent) =>
+          isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
+          (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      )
+      await Promise.all(
+        officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } }))
+      )
     })
 
     await Promise.all([assistantUpdate, agentUpdate])

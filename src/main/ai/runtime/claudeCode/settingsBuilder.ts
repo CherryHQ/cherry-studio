@@ -66,6 +66,7 @@ import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { BUILTIN_AGENT_ROLE, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   CONFIG_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -447,15 +448,16 @@ export async function buildClaudeCodeSessionSettings(
   }
   const agentConfig = agent.configuration
   const builtinRole = agentConfig?.builtin_role as string | undefined
-  const isAssistant = builtinRole === 'assistant'
   const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
       : options.linkedChannelSnapshot
-  // External channel turns are untrusted and have no local approval UI; never expose
-  // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
-  const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
+  // Cherry Assistant keeps its existing local-only support MCP behavior. Cherry Support also
+  // exposes product lookups outside local sessions; sensitive tools still require a responder.
+  const assistantMcpEnabled =
+    builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ||
+    (builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT && linkedChannelSnapshot === null)
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -943,7 +945,7 @@ async function buildToolPermissions(
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
   const agentConfig = agent.configuration
-  const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const isProtectedBuiltinAgent = isProtectedBuiltinAgentRole(agentConfig?.builtin_role)
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
@@ -1199,12 +1201,12 @@ async function buildToolPermissions(
     }
   }
 
-  // Cherry Assistant may edit automatically, but it must never turn that convenience into
+  // Protected built-in Agents may edit automatically, but must never turn that convenience into
   // irreversible deletion. Block permanent deletion tools and common destructive Bash operations
   // under every permission mode; confirmed workspace deletion goes through the dedicated
   // move-to-trash tool, which independently protects critical paths.
   const assistantDestructiveOperationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    if (!isProtectedBuiltinAgent || !input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     let reason: string | undefined
 
@@ -1217,13 +1219,13 @@ async function buildToolPermissions(
     }
 
     if (!reason) return {}
-    logger.info('Blocked destructive Cherry Assistant operation', { sessionId: session.id, toolName, reason })
+    logger.info('Blocked destructive built-in Agent operation', { sessionId: session.id, toolName, reason })
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          `Cherry Assistant blocked ${reason}. It must never permanently delete data or bypass this safeguard. ` +
+          `This built-in Agent blocked ${reason}. It must never permanently delete data or bypass this safeguard. ` +
           'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
       }
     }
@@ -1233,7 +1235,7 @@ async function buildToolPermissions(
   // bypassPermissions skips canUseTool. Keep the submission itself behind a live per-call approval;
   // headless turns may still prepare the local feedback draft and inspect the form schema.
   const assistantFeedbackSubmissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    if (!isProtectedBuiltinAgent || !input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
@@ -1418,7 +1420,7 @@ export async function buildSystemPrompt(
   const agentConfig = agent.configuration
 
   const builtinRole = agentConfig?.builtin_role as string | undefined
-  const isAssistant = builtinRole === 'assistant'
+  const isAssistant = builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT
 
   // Builtin contract: empty DB instructions means the bundle owns the definition,
   // so app upgrades and language changes apply at session build time. A non-empty
@@ -1569,7 +1571,8 @@ export function buildMcpServers(
     totalMcpServers: Object.keys(mcpList).length
   })
 
-  // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
+  // 5. Product support tools. Cherry Assistant receives these locally; Cherry Support receives
+  // them in every session, with runtime policy denying sensitive unattended actions.
   if (assistantMcpEnabled) {
     const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
@@ -1582,7 +1585,7 @@ export function buildMcpServers(
       name: 'assistant-files',
       instance: fileToolsServer.mcpServer
     }
-    logger.debug('Cherry Assistant: injected assistant MCP server', {
+    logger.debug('Injected built-in Agent support MCP servers', {
       agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
     })

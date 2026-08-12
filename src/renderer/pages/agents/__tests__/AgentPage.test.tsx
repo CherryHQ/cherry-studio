@@ -743,12 +743,12 @@ describe('AgentPage', () => {
   })
 
   it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {
-    // Opening must not depend on Cherry Assistant already being present in the renderer's stale Agent list.
+    // Opening must not depend on Cherry Support already being present in the renderer's stale Agent list.
     agentPageMocks.agents = []
     const previousSession = {
       ...agentPageMocks.persistedSession,
       id: 'session-previous',
-      agentId: 'cherry-assistant',
+      agentId: 'cherry-support',
       name: '',
       workspaceId: undefined,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
@@ -756,7 +756,7 @@ describe('AgentPage', () => {
     const feedbackSession = {
       ...agentPageMocks.persistedSession,
       id: 'session-feedback',
-      agentId: 'cherry-assistant',
+      agentId: 'cherry-support',
       workspaceId: undefined,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
     }
@@ -778,8 +778,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
       initialDraft: {
-        text: 'Use the issue-reporter skill.',
-        tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
+        text: 'Use the cherry-studio-feedback skill.',
+        tokens: [expect.objectContaining({ id: 'skill:cherry-studio-feedback', kind: 'skill' })]
       }
     })
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({

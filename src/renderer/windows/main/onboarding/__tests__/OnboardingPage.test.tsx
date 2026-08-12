@@ -267,8 +267,11 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: seededAgentModel, configuration: { builtin_role: 'assistant' } }],
-          total: 1
+          items: [
+            { id: 'assistant-agent', model: seededAgentModel, configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: seededAgentModel, configuration: { builtin_role: 'support' } }
+          ],
+          total: 2
         }
       }
       throw new Error(`Unexpected path: ${path}`)
@@ -284,11 +287,14 @@ describe('OnboardingPage', () => {
     })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', { query: { limit: 2 } })
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 2 } })
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 500 } })
     expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/assistant-1', {
       body: { modelId: 'openai::gpt-4o' }
     })
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/agent-1', {
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
+      body: { model: 'openai::gpt-4o' }
+    })
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
       body: { model: 'openai::gpt-4o' }
     })
   })
@@ -306,8 +312,12 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: null, configuration: {} }],
-          total: 1
+          items: [
+            { id: 'ordinary-agent', model: null, configuration: {} },
+            { id: 'assistant-agent', model: 'anthropic::custom', configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: 'openai::custom', configuration: { builtin_role: 'support' } }
+          ],
+          total: 3
         }
       }
       throw new Error(`Unexpected path: ${path}`)

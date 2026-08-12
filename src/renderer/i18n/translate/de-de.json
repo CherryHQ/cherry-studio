@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Integrierter Cherry Studio Berater. Diagnose von Problemen, Anleitung bei Bedienung, Sammlung von FAQs, Einreichung von Fehlern/Feature-Anfragen sowie Suche/Erstellung von Skills"
+      },
+      "cherry_support": {
+        "description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback"
       }
     },
     "channels": {
@@ -5939,10 +5942,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatte mit dem Cherry Assistant, um Feedback zu teilen.",
+          "description": "Chatte mit Cherry Support, um Hilfe zu erhalten oder Feedback zu teilen.",
           "title": "Verwenden Sie Agent"
         },
-        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+        "agent_error": "Cherry Support für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
         "dialog": {
           "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",

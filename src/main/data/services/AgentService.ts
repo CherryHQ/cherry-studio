@@ -15,6 +15,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -59,7 +60,7 @@ type AgentCreateInput = AgentBase & {
 }
 
 interface EnsureBuiltinAgentInput {
-  builtinRole: string
+  builtinRole: BuiltinAgentRole
   configuration: AgentConfiguration
   name: string
   preferredModelId: UniqueModelId | null
@@ -74,9 +75,11 @@ export interface EnsureBuiltinAgentResult {
 function getAgentDescription(description: string, configuration: unknown): string {
   if (description) return description
   if (typeof configuration === 'object' && configuration !== null) {
-    if ((configuration as { builtin_role?: unknown }).builtin_role === 'assistant') {
+    const builtinRole = (configuration as { builtin_role?: unknown }).builtin_role
+    if (builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT) {
       return t('agent.builtin.cherry_assistant.description')
     }
+    if (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) return t('agent.builtin.cherry_support.description')
   }
   return ''
 }
@@ -87,8 +90,9 @@ function buildAgentSearchPredicate(search: string): SQL {
   const descriptionMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
   // The builtin description is an i18n-owned fallback when the database value is blank, so include
   // its localized main-process fallback in SQL rather than limiting search to a renderer page.
-  const builtinDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant' AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, descriptionMatch, builtinDescriptionMatch)!
+  const assistantDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.ASSISTANT} AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
+  const supportDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.SUPPORT} AND ${t('agent.builtin.cherry_support.description')} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch)!
 }
 
 /**

@@ -497,7 +497,9 @@ describe('AgentService', () => {
       const agentId = 'agent_builtin_change'
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' as never } })
+      )
       expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
       expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
     })
@@ -1461,6 +1463,23 @@ describe('AgentService', () => {
           id: 'agent_builtin_global_search',
           subtitle:
             'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
+    })
+
+    it('matches and displays Cherry Support through its localized fallback description', async () => {
+      await insertAgent({
+        id: 'agent_builtin_support_search',
+        name: 'Cherry Support',
+        description: '',
+        configuration: { builtin_role: 'support' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_support_search',
+          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
         })
       ])
     })

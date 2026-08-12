@@ -10,33 +10,33 @@ const mocks = vi.hoisted(() => ({
   loadInput: vi.fn()
 }))
 
-vi.mock('../ensureBuiltinAssistant', () => ({
-  loadBuiltinAssistantEnsureInput: mocks.loadInput
+vi.mock('../ensureBuiltinAgent', () => ({
+  loadBuiltinAgentEnsureInput: mocks.loadInput
 }))
 
-import { createBuiltinAssistantFeedbackSession } from '../createBuiltinAssistantFeedbackSession'
+import { createBuiltinSupportSession } from '../createBuiltinSupportSession'
 
-describe('createBuiltinAssistantFeedbackSession', () => {
+describe('createBuiltinSupportSession', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadInput.mockReturnValue({
-      builtinRole: 'assistant',
+      builtinRole: 'support',
       configuration: {
-        avatar: '🍒',
+        avatar: '🧰',
         permission_mode: 'default',
         max_turns: 100,
         env_vars: {}
       },
-      name: 'Cherry Assistant',
+      name: 'Cherry Support',
       preferredModelId: null,
       type: 'claude-code'
     })
   })
 
-  it('atomically restores the built-in assistant and creates a fresh system session', () => {
-    const session = createBuiltinAssistantFeedbackSession()
+  it('atomically restores Cherry Support and creates a fresh system session', () => {
+    const session = createBuiltinSupportSession()
 
     expect(session).toMatchObject({
       agentId: expect.any(String),
@@ -48,7 +48,17 @@ describe('createBuiltinAssistantFeedbackSession', () => {
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
   })
 
-  it('rolls back the restored assistant when session creation fails', () => {
+  it('reuses the active Cherry Support role but creates a new session for every request', () => {
+    const first = createBuiltinSupportSession()
+    const second = createBuiltinSupportSession()
+
+    expect(first.id).not.toBe(second.id)
+    expect(first.agentId).toBe(second.agentId)
+    expect(dbh.db.select().from(agentTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(2)
+  })
+
+  it('rolls back the restored Support role when session creation fails', () => {
     const originalCreateTx = agentSessionService.createTx.bind(agentSessionService)
     vi.spyOn(agentSessionService, 'createTx').mockImplementationOnce((tx, id, dto) => {
       originalCreateTx(tx, id, dto)
@@ -58,7 +68,7 @@ describe('createBuiltinAssistantFeedbackSession', () => {
     const listener = agentService.onAgentCreated(onAgentCreated)
 
     try {
-      expect(() => createBuiltinAssistantFeedbackSession()).toThrow('forced session creation failure')
+      expect(() => createBuiltinSupportSession()).toThrow('forced session creation failure')
     } finally {
       listener.dispose()
     }

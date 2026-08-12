@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cố vấn tích hợp của Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, đồng thời tìm kiếm hoặc tạo Kỹ năng"
+      },
+      "cherry_support": {
+        "description": "Agent hỗ trợ chính thức của Cherry Studio cho hướng dẫn cấu hình, chẩn đoán, FAQ và phản hồi"
       }
     },
     "session": {

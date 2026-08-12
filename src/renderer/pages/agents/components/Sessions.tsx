@@ -92,6 +92,7 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -1122,7 +1123,7 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role)
       const sessionIds = deleteTasksOnly
         ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
         : []
@@ -1541,7 +1542,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
-                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
+                deleteTasksOnly={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1715,7 +1716,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
-          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
+          deleteTasksOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
