@@ -80,7 +80,7 @@ export default defineProvider({
         type: 'openai-chat',
         wire: {
           off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'auto' } }] },
+          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
           effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
         }
       }
