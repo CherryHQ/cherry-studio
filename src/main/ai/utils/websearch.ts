@@ -114,9 +114,9 @@ export function buildProviderBuiltinWebSearchConfig(
     // the resolved serving credential rides the plugin config.
     case 'moonshot':
       return { moonshot: serving ?? {} }
-    case 'azure-responses':
     // open-responses models keep the 'openai' config key: their provider string is
     // 'openai.responses', so tool-factory resolution lands on the OpenAI extension.
+    case 'azure-responses':
     case 'open-responses':
     case 'openai': {
       // Doubao (Ark) and DashScope (Bailian) responses-endpoint models ride the openai Responses
