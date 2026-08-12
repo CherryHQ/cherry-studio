@@ -300,7 +300,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://api.deepseek.com",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -877,7 +877,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://opencode.ai/zen/go/v1",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1135,7 +1135,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1234,7 +1234,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1412,7 +1412,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://api.fireworks.ai/inference",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1653,7 +1653,7 @@
           "baseUrl": "https://tokenhub.tencentmaas.com/v1"
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://tokenhub.tencentmaas.com/v1"
         }
       },
@@ -1914,7 +1914,7 @@
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
-          "adapterFamily": "huggingface",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
         }
       },
@@ -2004,7 +2004,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "openai",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://api.xiaomimimo.com",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -2073,5 +2073,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "cde3bb6539c1f8fa"
+  "version": "c4ceb3e62eb6733b"
 }

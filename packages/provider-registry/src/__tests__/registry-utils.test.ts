@@ -236,7 +236,7 @@ describe('inferAdapterFamily', () => {
     expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_CHAT)).toBe('ollama')
     expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe('ollama')
     expect(inferAdapterFamily(ENDPOINT_TYPE.JINA_RERANK)).toBe('jina-rerank')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('open-responses')
   })
 
   it('falls back to openai-compatible for endpoints with no specific default', () => {

@@ -65,9 +65,9 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 })
 
 describe('deepseek endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the official Responses endpoint', () => {
+  it('uses the spec-neutral open-responses adapter for the official Responses endpoint', () => {
     expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
-      adapterFamily: 'openai',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://api.deepseek.com',
       reasoningFormat: { type: 'openai-responses' }
     })
@@ -120,9 +120,9 @@ describe('deepseek endpoint matrix', () => {
  * prints chat/completions for Grok 4.5, months after models.dev moved it to the OpenAI SDK (#17860).
  */
 describe('opencode (Zen Go) endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the Responses endpoint', () => {
+  it('uses the spec-neutral open-responses adapter for the Responses endpoint', () => {
     expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
-      adapterFamily: 'openai',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://opencode.ai/zen/go/v1',
       reasoningFormat: { type: 'openai-responses' }
     })

@@ -82,7 +82,7 @@ const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
  */
 const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
   openai: 'openai-compatible',
-  'openai-response': 'openai',
+  'openai-response': 'open-responses',
   anthropic: 'anthropic',
   gemini: 'google',
   'new-api': 'newapi',

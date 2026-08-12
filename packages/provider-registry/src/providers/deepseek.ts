@@ -86,7 +86,7 @@ export default defineProvider({
       }
     },
     'openai-responses': {
-      adapterFamily: 'openai',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://api.deepseek.com',
       reasoningFormat: { type: 'openai-responses' }
     }

@@ -59,7 +59,7 @@ export function inferAdapterFamily(endpointType, catalogConfig?): string {
 | `google-generate-content` | `google` |
 | `ollama-chat` / `ollama-generate` | `ollama` |
 | `jina-rerank` | `jina-rerank` |
-| `openai-responses` | `openai` |
+| `openai-responses` | `open-responses` |
 | everything else | `openai-compatible` (terminal fallback) |
 
 ### Write paths
