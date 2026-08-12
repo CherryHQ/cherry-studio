@@ -207,15 +207,29 @@ function getPaddleService(modelPaths) {
   if (!promise) {
     promise = (async () => {
       const { PaddleOcrService } = await getPpu()
+      let sessionFallbackError = null
       const service = new PaddleOcrService({
         model: {
           detection: modelPaths.detection,
           recognition: modelPaths.recognition,
           charactersDictionary: modelPaths.charactersDictionary
         },
-        session: runtimeProfile.sessionOptions
+        session: {
+          ...runtimeProfile.sessionOptions,
+          onSessionFallback: (error) => {
+            sessionFallbackError = sessionFallbackError || error
+          }
+        }
       })
       await service.initialize()
+      if (sessionFallbackError) {
+        try {
+          await service.destroy()
+        } catch (error) {
+          postLog('warn', 'failed to dispose internally-fallen-back OCR service error=' + describeError(error))
+        }
+        throw new Error('OCR hardware session fell back internally to CPU', { cause: sessionFallbackError })
+      }
       if (runtimeProfile.id !== 'cpu') {
         postLog('info', 'hardware provider active provider=' + runtimeProfile.id + ' runtime=ocr')
       }

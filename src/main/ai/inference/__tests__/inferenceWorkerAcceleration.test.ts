@@ -64,7 +64,12 @@ export class PaddleOcrService {
     if (typeof this.device === 'object') throw new Error('OCR must use the dynamic CoreML session options')
   }
 
-  async initialize() {}
+  async initialize() {
+    if (this.options.model.detection.includes('initialize-fallback') && this.device !== 'cpu') {
+      this.device = 'cpu'
+      this.options.session.onSessionFallback?.(new Error('OCR session hardware provider failed'))
+    }
+  }
 
   async recognize() {
     const detection = this.options.model.detection
@@ -261,6 +266,27 @@ describe('inference worker hardware acceleration', () => {
     expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
+  })
+
+  it('turns PaddleOCR internal fallback into sticky worker-level CPU fallback', async () => {
+    const fallback = await request({
+      type: 'ocr.recognize',
+      id: 'internal-fallback',
+      modelPaths: { detection: '/initialize-fallback', recognition: '/rec', charactersDictionary: '/dict' },
+      imagePath: import.meta.filename
+    })
+    const nextModel = await request({
+      type: 'ocr.recognize',
+      id: 'next-model',
+      modelPaths: { detection: '/hardware-ok-after-fallback', recognition: '/rec', charactersDictionary: '/dict' },
+      imagePath: import.meta.filename
+    })
+
+    expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
+    expect(nextModel).toMatchObject({ type: 'result', text: 'cpu result' })
+    expect(workerLogs()).not.toContain('hardware provider active provider=directml runtime=ocr')
+    expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
+    expect(workerLogs().some((message) => message.includes('OCR session hardware provider failed'))).toBe(true)
   })
 
   it('reports unreadable OCR images without disabling hardware acceleration', async () => {
