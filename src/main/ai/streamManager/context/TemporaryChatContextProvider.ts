@@ -126,8 +126,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],
-      listeners,
-      isMultiModel: false
+      listeners
     }
   }
 }
