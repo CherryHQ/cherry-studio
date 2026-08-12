@@ -118,3 +118,25 @@ describe('RegistryLoader.findModel — registry-tag (colon) size/quant ids', () 
     expect(loader.findModel('gpt-oss-20b')?.id).toBe('gpt-oss-20b')
   })
 })
+
+describe('RegistryLoader.findModel — size-preserving catalog matches', () => {
+  const realCatalogLoader = () =>
+    new RegistryLoader({
+      models: join(__dirname, '../../data/models.json'),
+      providers: join(__dirname, '../../data/providers.json'),
+      providerModels: join(__dirname, '../../data/provider-models.json')
+    })
+
+  it('maps version-spelled 9b ids to the 9b row instead of a same-family 27b row', () => {
+    const loader = realCatalogLoader()
+
+    expect(loader.findModel('qwen3.5-9b')?.id).toBe('qwen3-5-9b')
+    expect(loader.findModel('qwen3.5-27b')?.id).toBe('qwen3-5-27b')
+  })
+
+  it('falls back to the family key when no size-specific catalog row exists', () => {
+    const loader = modelLoader([model('qwen3-5')])
+
+    expect(loader.findModel('qwen3.5-999b')?.id).toBe('qwen3-5')
+  })
+})
