@@ -15,8 +15,6 @@ export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
   labelKey: string
   labelFallback: string
-  /** i18n key for capability-limit hint under the selector; null = none. */
-  hintKey: string | null
   permissionModes: readonly AgentPermissionMode[]
   /** plan/small model fields. */
   modelTiers: boolean
@@ -72,7 +70,6 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
     labelFallback: 'Advanced: Powered by Claude Code',
-    hintKey: null,
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
     heartbeat: true,
@@ -99,7 +96,6 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
     labelFallback: 'Quick: Powered by Pi',
-    hintKey: 'library.config.agent.field.runtime.pi_hint',
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,
     heartbeat: true,

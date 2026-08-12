@@ -298,7 +298,7 @@ describe('ResourceCreateWizard', () => {
     expect(() => rerender(<ResourceCreateWizard {...props} kind="assistant" open={false} />)).not.toThrow()
   })
 
-  it('shows the capability step for pi agents (skills supported)', async () => {
+  it('shows capability and knowledge steps for pi agents', async () => {
     const user = userEvent.setup()
     render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -308,6 +308,10 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: CREATE })).toBeInTheDocument()
   })
 

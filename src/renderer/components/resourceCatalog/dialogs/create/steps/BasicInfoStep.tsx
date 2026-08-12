@@ -5,11 +5,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
+  RadioGroup,
+  RadioGroupItem
 } from '@cherrystudio/ui'
 import {
   AvatarField,
@@ -71,8 +68,6 @@ function AgentRuntimeModelFields({
   onSettingsNavigate
 }: ModelFieldProps) {
   const { t } = useTranslation()
-  const agentType = form.watch('agentType')
-  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
 
   const handleRuntimeChange = (next: AgentType) => {
     form.setValue('agentType', next, { shouldDirty: true })
@@ -90,21 +85,30 @@ function AgentRuntimeModelFields({
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('library.config.agent.field.runtime.label')}</FormLabel>
-            <Select value={field.value} onValueChange={(value) => handleRuntimeChange(value as AgentType)}>
+            <FormDescription className="text-xs">
+              {t('library.config.agent.field.runtime.immutable_hint')}
+            </FormDescription>
+            <RadioGroup
+              className="grid grid-cols-2 gap-2"
+              value={field.value}
+              onValueChange={(value) => handleRuntimeChange(value as AgentType)}>
               <FormControl>
-                <SelectTrigger aria-label={t('library.config.agent.field.runtime.label')}>
-                  <SelectValue />
-                </SelectTrigger>
+                <div className="contents">
+                  {AGENT_RUNTIME_OPTIONS.map((option) => {
+                    const id = `agent-runtime-${option.value}`
+                    return (
+                      <label
+                        key={option.value}
+                        htmlFor={id}
+                        className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm transition-colors hover:bg-accent/50 has-[:focus-visible]:border-primary has-data-[state=checked]:border-border-selected has-data-[state=checked]:bg-accent/50">
+                        <RadioGroupItem id={id} value={option.value} size="sm" />
+                        <span className="truncate">{t(option.labelKey, option.labelFallback)}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </FormControl>
-              <SelectContent portalContainer={portalContainer}>
-                {AGENT_RUNTIME_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {t(option.labelKey, option.labelFallback)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {caps.hintKey ? <FormDescription className="text-xs">{t(caps.hintKey)}</FormDescription> : null}
+            </RadioGroup>
             <FormMessage />
           </FormItem>
         )}

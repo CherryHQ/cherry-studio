@@ -3449,12 +3449,12 @@
             "label": "計畫模型"
           },
           "runtime": {
-            "label": "模式",
+            "immutable_hint": "建立後不可切換",
+            "label": "執行模式",
             "option": {
               "claude_code": "增強：基於 Claude Code",
               "pi": "快捷：基於 Pi"
-            },
-            "pi_hint": "pi 智能體支援內建工具、技能、MCP 伺服器與 Soul 模式，暫不支援計劃模式。"
+            }
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",

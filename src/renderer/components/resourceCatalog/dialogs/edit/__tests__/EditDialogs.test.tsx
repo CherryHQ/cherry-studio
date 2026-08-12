@@ -1235,7 +1235,7 @@ describe('edit dialogs', () => {
 
     expect(screen.queryByText('Plan model')).not.toBeInTheDocument()
     expect(screen.queryByText('Small model')).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Knowledge' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '技能' })).toBeInTheDocument()
 

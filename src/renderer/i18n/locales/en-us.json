@@ -3473,12 +3473,12 @@
             "label": "Plan model"
           },
           "runtime": {
-            "label": "Mode",
+            "immutable_hint": "Cannot be changed after creation",
+            "label": "Runtime mode",
             "option": {
               "claude_code": "Advanced: Powered by Claude Code",
               "pi": "Quick: Powered by Pi"
-            },
-            "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available."
+            }
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",

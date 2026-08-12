@@ -42,12 +42,19 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
   }
 })
 
-function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
+function Harness({
+  modelId = null,
+  runtimeSelectable = false
+}: {
+  modelId?: UniqueModelId | null
+  runtimeSelectable?: boolean
+}) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
       name: '',
       description: '',
+      agentType: 'claude-code',
       modelId,
       prompt: '',
       knowledgeBaseIds: [],
@@ -57,7 +64,7 @@ function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" />
+      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
     </Form>
   )
 }
@@ -76,6 +83,16 @@ describe('BasicInfoStep', () => {
     await waitFor(() =>
       expect(screen.getByPlaceholderText('library.config.dialogs.create.name_placeholder')).toHaveFocus()
     )
+  })
+
+  it('shows both immutable runtime choices directly without a pi-only hint', () => {
+    render(<Harness runtimeSelectable />)
+
+    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(screen.getByText('library.config.agent.field.runtime.option.claude_code')).toBeInTheDocument()
+    expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {
