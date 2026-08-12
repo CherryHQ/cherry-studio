@@ -26,7 +26,7 @@ export const processLatexBrackets = (text: string) => {
       protectedItems.push(match)
       return `__CHERRY_STUDIO_PROTECTED_${index}__`
     })
-    .replace(/\[([^\[\]]*(?:\[[^\]]*\][^\[\]]*)*)\]\([^)]*?\)/g, (match) => {
+    .replace(/\[([^[\]]*(?:\[[^\]]*\][^[\]]*)*)\]\([^)]*?\)/g, (match) => {
       const index = protectedItems.length
       protectedItems.push(match)
       return `__CHERRY_STUDIO_PROTECTED_${index}__`

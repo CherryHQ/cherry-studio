@@ -34,7 +34,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 // The live-state builder is the guard's observable output surface: the test
 // asserts on the topic/message ids it forwards to onBranchLiveStateChange.
-vi.mock('@renderer/components/chat/flow', () => ({
+vi.mock('@renderer/components/chat/flow/topicMessageFlowLiveTree', () => ({
   buildTopicMessageFlowLiveState: ({
     topicId,
     messages,
