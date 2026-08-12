@@ -3,6 +3,7 @@ import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
@@ -288,22 +289,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
-}
-
-export function resolveRequestedMaxOutputTokens(
-  requestMaxOutputTokens: number | undefined,
-  customMaxOutputTokens: unknown,
-  assistant: Assistant | undefined,
-  model: Model,
-  endpointType: EndpointType | undefined
-): number | undefined {
-  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
-  if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
-
-  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
-
-  return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
 }
 
 async function resolveSdkConfig(
