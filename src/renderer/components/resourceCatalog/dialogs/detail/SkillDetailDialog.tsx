@@ -24,6 +24,9 @@ function formatDate(dateStr: string, language: string): string {
 
 const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
   const { t, i18n } = useTranslation()
+  // The locale that actually supplied the copy: an unbundled `en-GB` request renders `en-US` strings,
+  // and formatting the dates as `en-GB` would pair UK dates with US text.
+  const locale = i18n.resolvedLanguage ?? i18n.language
   const [dialogOpen, setDialogOpen] = useState(open)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,7 +115,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               <span className="font-medium text-muted-foreground text-sm">{t('library.skill_detail.created_at')}</span>
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Clock size={13} />
-                <span>{formatDate(skill.createdAt, i18n.language)}</span>
+                <span>{formatDate(skill.createdAt, locale)}</span>
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -120,7 +123,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Clock size={13} />
                 <span>
-                  {formatDate(skill.updatedAt, i18n.language)} ({formatRelativeTime(skill.updatedAt, i18n.language)})
+                  {formatDate(skill.updatedAt, locale)} ({formatRelativeTime(skill.updatedAt, locale)})
                 </span>
               </div>
             </div>

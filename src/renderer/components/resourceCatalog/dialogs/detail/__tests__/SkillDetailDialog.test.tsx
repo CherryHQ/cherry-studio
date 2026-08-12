@@ -9,7 +9,7 @@ import SkillDetailDialog from '../SkillDetailDialog'
 const { listFilesMock, readSkillFileMock, uiLanguage } = vi.hoisted(() => ({
   listFilesMock: vi.fn(),
   readSkillFileMock: vi.fn(),
-  uiLanguage: { current: 'en-US' }
+  uiLanguage: { current: 'en-US', resolved: undefined as string | undefined }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -19,7 +19,7 @@ vi.mock('react-i18next', () => ({
   },
   useTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: uiLanguage.current }
+    i18n: { language: uiLanguage.current, resolvedLanguage: uiLanguage.resolved }
   })
 }))
 
@@ -88,6 +88,7 @@ describe('SkillDetailDialog', () => {
     listFilesMock.mockReset()
     readSkillFileMock.mockReset()
     uiLanguage.current = 'en-US'
+    uiLanguage.resolved = undefined
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -114,6 +115,16 @@ describe('SkillDetailDialog', () => {
     render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
+  it('follows the locale that supplied the copy when the requested one has no bundle', () => {
+    // `en-GB` has no locale pack, so i18next renders `en-US` strings; formatting the date as `en-GB`
+    // would put UK-ordered dates next to US English text.
+    uiLanguage.current = 'en-GB'
+    uiLanguage.resolved = 'en-US'
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText(/^\d{2}\/\d{2}\/2026$/)).toBeInTheDocument()
   })
 
   it('shows skill metadata in a dialog without file preview or delete entry points', () => {
