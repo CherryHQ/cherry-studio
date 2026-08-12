@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(
-  () => ({
-    acknowledgeMainWindowNavigationMock: vi.fn(),
-    openRouteInMainWindowMock: vi.fn(),
-    protocolServiceMock: {
-      onMainRendererReady: vi.fn()
-    },
-    loggerMock: {
-      warn: vi.fn()
-    }
-  })
-)
+const {
+  acknowledgeMainWindowNavigationMock,
+  openRouteInMainWindowMock,
+  openSettingsInMainWindowMock,
+  protocolServiceMock,
+  loggerMock
+} = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
+  openRouteInMainWindowMock: vi.fn(),
+  openSettingsInMainWindowMock: vi.fn(),
+  protocolServiceMock: {
+    onMainRendererReady: vi.fn()
+  },
+  loggerMock: {
+    warn: vi.fn()
+  }
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -25,7 +30,8 @@ vi.mock('@application', () => ({
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
-  openRouteInMainWindow: openRouteInMainWindowMock
+  openRouteInMainWindow: openRouteInMainWindowMock,
+  openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
 vi.mock('@logger', () => ({
@@ -43,10 +49,11 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('navigationHandlers', () => {
-  it('opens an allowlisted settings route in the main window', async () => {
+  it('routes an allowlisted settings path through the singleton Settings entry point', async () => {
     await navigationHandlers['navigation.open_route_in_main']({ path: '/settings/mcp/servers' }, ctx)
 
-    expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
   })
 
   it('opens an allowlisted non-settings route in the main window', async () => {

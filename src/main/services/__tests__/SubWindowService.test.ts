@@ -17,10 +17,13 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock, ipc
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
+    show: vi.fn<(id: string) => boolean>(() => true),
+    focus: vi.fn<(id: string) => boolean>(() => true),
     behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
   }
   const ipcApiServiceMock = {
-    broadcastToType: vi.fn<(type: string, event: string, payload: unknown) => void>()
+    broadcastToType: vi.fn<(type: string, event: string, payload: unknown) => void>(),
+    send: vi.fn<(id: string, event: string, payload: unknown) => void>()
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
@@ -144,8 +147,11 @@ describe('SubWindowService', () => {
     windowManagerMock.getWindowInfosByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
+    windowManagerMock.show.mockReset().mockReturnValue(true)
+    windowManagerMock.focus.mockReset().mockReturnValue(true)
     windowManagerMock.behavior.setAlwaysOnTop.mockReset()
     ipcApiServiceMock.broadcastToType.mockReset()
+    ipcApiServiceMock.send.mockReset()
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
@@ -280,6 +286,48 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - tabId → windowId mapping + cleanup', () => {
+    it('reuses the existing Settings window while regular tabs remain multi-window', () => {
+      const settingsWindow = createMockWindow()
+      const regularWindow = createMockWindow()
+      windowManagerMock.open.mockReturnValueOnce('settings-window').mockReturnValueOnce('regular-window')
+      windowManagerMock.getWindow.mockImplementation((id) => {
+        if (id === 'settings-window') return settingsWindow
+        if (id === 'regular-window') return regularWindow
+        return undefined
+      })
+
+      svc.createWindow({ id: 'settings-1', url: '/settings/provider' })
+      svc.createWindow({ id: 'settings-2', url: '/settings/about' })
+      svc.createWindow({ id: 'regular', url: '/app/chat' })
+
+      expect(windowManagerMock.open).toHaveBeenCalledTimes(2)
+      expect(windowManagerMock.show).toHaveBeenCalledWith('settings-window')
+      expect(windowManagerMock.focus).toHaveBeenCalledWith('settings-window')
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'navigation.open_route_requested', {
+        to: '/settings/about'
+      })
+      expect((svc as any).tabIdToWindowId.get('settings-2')).toBe('settings-window')
+      expect((svc as any).tabIdToWindowId.get('regular')).toBe('regular-window')
+    })
+
+    it('allows another Settings window after the existing one closes', () => {
+      const firstWindow = createMockWindow()
+      const secondWindow = createMockWindow()
+      windowManagerMock.open.mockReturnValueOnce('settings-1').mockReturnValueOnce('settings-2')
+      windowManagerMock.getWindow.mockImplementation((id) => {
+        if (id === 'settings-1') return firstWindow
+        if (id === 'settings-2') return secondWindow
+        return undefined
+      })
+
+      svc.createWindow({ id: 'tab-1', url: '/settings/provider' })
+      firstWindow.emit('closed')
+      svc.createWindow({ id: 'tab-2', url: '/settings/general' })
+
+      expect(windowManagerMock.open).toHaveBeenCalledTimes(2)
+      expect((svc as any).tabIdToWindowId.get('tab-2')).toBe('settings-2')
+    })
+
     it('populates tabIdToWindowId after open and cleans up on "closed"', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)

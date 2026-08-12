@@ -19,6 +19,7 @@ interface UseTabDragOptions {
   pinnedTabs: Tab[]
   normalTabs: Tab[]
   normalReorderStartIndex?: number
+  canDetach: boolean
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
@@ -29,7 +30,7 @@ export interface UseTabDragReturn {
   tabRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
-  handlePointerDown: (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal', canDetach: boolean) => void
+  handlePointerDown: (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => void
   handleTabClick: (tabId: string) => boolean
   isDragging: (tabId: string) => boolean
   isGhost: (tabId: string) => boolean
@@ -39,6 +40,7 @@ export function useTabDrag({
   pinnedTabs,
   normalTabs,
   normalReorderStartIndex = 0,
+  canDetach,
   reorderTabs,
   closeTab,
   setActiveTab
@@ -60,8 +62,7 @@ export function useTabDrag({
     tabClosed: false,
     originalRects: new Map<string, { left: number; width: number }>(),
     grabOffsetX: 0,
-    grabOffsetY: 0,
-    canDetach: false
+    grabOffsetY: 0
   })
 
   // Prevent onClick from firing after drag ends
@@ -129,7 +130,7 @@ export function useTabDrag({
 
   // pointerdown
   const handlePointerDown = useCallback(
-    (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal', canDetach: boolean) => {
+    (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => {
       if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('[role="button"]')) return
 
@@ -159,8 +160,7 @@ export function useTabDrag({
         tabClosed: false,
         originalRects,
         grabOffsetX: e.screenX - window.screenX,
-        grabOffsetY: e.screenY - window.screenY,
-        canDetach
+        grabOffsetY: e.screenY - window.screenY
       }
 
       didDragRef.current = false
@@ -197,7 +197,6 @@ export function useTabDrag({
 
       const isOutsideTabBar =
         e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
-      const canDetach = dragRef.current.canDetach
 
       if (dragState.mode === 'pending') {
         if (canDetach && isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
@@ -300,7 +299,16 @@ export function useTabDrag({
         rafId.current = null
       }
     }
-  }, [dragState, pinnedTabs, normalTabs, normalReorderStartIndex, calculateInsertIndex, reorderTabs, closeTab])
+  }, [
+    dragState,
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach,
+    calculateInsertIndex,
+    reorderTabs,
+    closeTab
+  ])
 
   return {
     tabBarRef,

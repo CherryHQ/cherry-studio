@@ -3,8 +3,10 @@ import { loggerService } from '@logger'
 import {
   acknowledgeMainWindowNavigation,
   isAllowedRoute,
-  openRouteInMainWindow
+  openRouteInMainWindow,
+  openSettingsInMainWindow
 } from '@main/services/mainWindowNavigation'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import type { navigationRequestSchemas } from '@shared/ipc/schemas/navigation'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -16,7 +18,11 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
       logger.warn('Blocked navigation to disallowed route', { path })
       return
     }
-    openRouteInMainWindow(path)
+    if (isSettingsPath(path)) {
+      openSettingsInMainWindow(path)
+    } else {
+      openRouteInMainWindow(path)
+    }
   },
   'navigation.protocol_dispatch_ready': async (_input, { senderId }) => {
     if (senderId) application.get('ProtocolService').onMainRendererReady(senderId)

@@ -218,7 +218,8 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
-  it('shows Settings as a focused Back control without detach actions', () => {
+  it('shows the focused tab as a Back control with a visible detach action', async () => {
+    const user = userEvent.setup()
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
     const detachTab = vi.fn()
 
@@ -240,15 +241,17 @@ describe('AppShellTabBar', () => {
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('menu-tab.open-in-new-window')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
-    expect(screen.queryByLabelText('tab.open_in_new_window', { selector: 'button' })).not.toBeInTheDocument()
-    expect(detachTab).not.toHaveBeenCalled()
+    const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
+    expect(detachButton.querySelector('svg')).toHaveClass('text-foreground-tertiary', 'group-hover:text-foreground')
+    expect(detachButton).toHaveTextContent('')
+    await user.click(detachButton)
+    expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
-  it('prevents Settings drag detach while preserving it for regular tabs', () => {
+  it('detaches the focused tab when dragged outside the tab bar', () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
@@ -299,27 +302,11 @@ describe('AppShellTabBar', () => {
       Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
       fireEvent(document, pointerMove)
 
-      expect(mocks.ipcRequest).not.toHaveBeenCalledWith('tab.detach', expect.anything())
-      expect(closeTab).not.toHaveBeenCalled()
-
-      cleanup()
-      mocks.ipcRequest.mockClear()
-
-      const regularTab = createTab('a')
-      const closeRegularTab = renderTabBar({
-        tabs: [regularTab],
-        activeTabId: regularTab.id,
-        detachTab: vi.fn()
-      })
-      const regularTabButton = screen.getByRole('button', { name: regularTab.title })
-      fireEvent(regularTabButton, pointerDown)
-      fireEvent(document, pointerMove)
-
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
         'tab.detach',
-        expect.objectContaining({ id: regularTab.id, url: regularTab.url })
+        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
       )
-      expect(closeRegularTab).toHaveBeenCalledWith(regularTab.id)
+      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -341,14 +328,6 @@ describe('AppShellTabBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }), { detail: 1 })
 
     expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
-  })
-
-  it('keeps detach actions for regular tabs while hiding them for Settings', () => {
-    const tabs = [createTab('home'), createTab('settings', { url: '/settings/provider', title: 'Settings' })]
-
-    renderTabBar({ tabs, activeTabId: 'home', detachTab: vi.fn() })
-
-    expect(screen.getAllByTestId('menu-tab.open-in-new-window')).toHaveLength(1)
   })
 
   it('moves a normal tab to the first slot', async () => {
@@ -1262,7 +1241,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('keeps close, pin, detach, and menu enabled for the last normal tab', () => {
-    expect(getTabCapabilities(createTab('home'), ctx({ normalCount: 1, normalIndex: 0 }))).toEqual({
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 1, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
@@ -1274,7 +1253,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('unlocks every normal action once a second normal tab exists', () => {
-    expect(getTabCapabilities(createTab('a'), ctx({ normalCount: 2, normalIndex: 0 }))).toEqual({
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
@@ -1286,7 +1265,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('does not treat newly-created chat tabs as the fixed home tab', () => {
-    expect(getTabCapabilities(createTab('chat'), ctx({ normalCount: 2, normalIndex: 1 }))).toEqual({
+    expect(getTabCapabilities({ id: 'chat', isPinned: false }, ctx({ normalCount: 2, normalIndex: 1 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
@@ -1298,7 +1277,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('treats the home tab like any other normal tab when siblings exist', () => {
-    expect(getTabCapabilities(createTab('home'), ctx({ normalCount: 3, normalIndex: 0 }))).toEqual({
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 3, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
@@ -1310,8 +1289,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('lets pinned tabs unpin and close via menu, batch-closing only the normal zone', () => {
-    const pinnedTab = createTab('p', { isPinned: true })
-    expect(getTabCapabilities(pinnedTab, ctx({ pinnedCount: 1, normalCount: 1 }))).toEqual({
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1, normalCount: 1 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
@@ -1320,32 +1298,31 @@ describe('getTabCapabilities', () => {
       closeOthers: true,
       closeToRight: true
     })
-    expect(getTabCapabilities(pinnedTab, ctx({ pinnedCount: 2 })).reorder).toBe(true)
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
   })
 
   it('hides batch close on pinned tabs when no normal tabs exist', () => {
-    const caps = getTabCapabilities(createTab('p', { isPinned: true }), ctx({ pinnedCount: 2, normalCount: 0 }))
+    const caps = getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2, normalCount: 0 }))
     expect(caps.close).toBe(true)
     expect(caps.closeOthers).toBe(false)
     expect(caps.closeToRight).toBe(false)
   })
 
   it('offers close-to-right only while normal tabs exist to the right', () => {
-    expect(getTabCapabilities(createTab('a'), ctx({ normalCount: 3, normalIndex: 1 })).closeToRight).toBe(true)
-    expect(getTabCapabilities(createTab('c'), ctx({ normalCount: 3, normalIndex: 2 })).closeToRight).toBe(false)
-    expect(getTabCapabilities(createTab('a'), ctx({ normalCount: 3 })).closeToRight).toBe(false)
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 3, normalIndex: 1 })).closeToRight).toBe(
+      true
+    )
+    expect(getTabCapabilities({ id: 'c', isPinned: false }, ctx({ normalCount: 3, normalIndex: 2 })).closeToRight).toBe(
+      false
+    )
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 3 })).closeToRight).toBe(false)
   })
 
   it('respects window detach support', () => {
-    expect(getTabCapabilities(createTab('a'), ctx({ normalCount: 2 })).detach).toBe(true)
-    expect(getTabCapabilities(createTab('p', { isPinned: true }), ctx({ pinnedCount: 2 })).detach).toBe(true)
-    expect(getTabCapabilities(createTab('a'), ctx({ normalCount: 2, canDetach: false })).detach).toBe(false)
-  })
-
-  it('prevents Settings tabs from detaching', () => {
-    expect(
-      getTabCapabilities(createTab('settings', { url: '/settings/provider' }), ctx({ normalCount: 2, normalIndex: 0 }))
-        .detach
-    ).toBe(false)
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2 })).detach).toBe(true)
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).detach).toBe(true)
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
+      false
+    )
   })
 })

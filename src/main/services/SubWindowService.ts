@@ -6,6 +6,7 @@ import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -51,6 +52,7 @@ export class SubWindowService extends BaseService {
   /** tabId → windowId map (windowId belongs to WindowManager's namespace, distinct from tabId) */
   private tabIdToWindowId: Map<string, string> = new Map()
   private windowState: Map<string, SubWindowState> = new Map()
+  private settingsWindowId?: string
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -151,6 +153,19 @@ export class SubWindowService extends BaseService {
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
 
+    if (isSettingsPath(url) && this.settingsWindowId) {
+      const existingWindow = wm.getWindow(this.settingsWindowId)
+      if (existingWindow && !existingWindow.isDestroyed()) {
+        const existingTabId = [...this.tabIdToWindowId].find(([, windowId]) => windowId === this.settingsWindowId)?.[0]
+        const existingState = existingTabId && this.windowState.get(existingTabId)
+        this.tabIdToWindowId.set(tabId, this.settingsWindowId)
+        if (existingState) this.windowState.set(tabId, existingState)
+        this.openSettingsWindow(url)
+        return this.settingsWindowId
+      }
+      this.settingsWindowId = undefined
+    }
+
     const initData: SubWindowInitData = {
       tabId,
       url,
@@ -179,6 +194,7 @@ export class SubWindowService extends BaseService {
     }
 
     this.tabIdToWindowId.set(tabId, windowId)
+    if (isSettingsPath(url)) this.settingsWindowId = windowId
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
     // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
@@ -203,12 +219,33 @@ export class SubWindowService extends BaseService {
     // so even if WindowManager's internal 'closed' handler later calls removeAllListeners,
     // this callback has already executed.
     win.once('closed', () => {
-      this.tabIdToWindowId.delete(tabId)
-      this.windowState.delete(tabId)
+      for (const [mappedTabId, mappedWindowId] of this.tabIdToWindowId) {
+        if (mappedWindowId === windowId) {
+          this.tabIdToWindowId.delete(mappedTabId)
+          this.windowState.delete(mappedTabId)
+        }
+      }
+      if (this.settingsWindowId === windowId) this.settingsWindowId = undefined
     })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
     return windowId
+  }
+
+  public openSettingsWindow(path: SettingsPath): boolean {
+    if (!this.settingsWindowId) return false
+
+    const wm = application.get('WindowManager')
+    const window = wm.getWindow(this.settingsWindowId)
+    if (!window || window.isDestroyed()) {
+      this.settingsWindowId = undefined
+      return false
+    }
+
+    application.get('IpcApiService').send(this.settingsWindowId, 'navigation.open_route_requested', { to: path })
+    wm.show(this.settingsWindowId)
+    wm.focus(this.settingsWindowId)
+    return true
   }
 
   /** Whether the calling window resolves to a SubWindow (guards operations that must never act on the main window). */

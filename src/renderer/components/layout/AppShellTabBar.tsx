@@ -5,7 +5,6 @@ import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -420,10 +419,10 @@ interface TabCapabilities {
  * right"; for a pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'id' | 'isPinned' | 'url'>,
+  tab: Pick<Tab, 'id' | 'isPinned'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex?: number }
 ): TabCapabilities {
-  const detach = ctx.canDetach && !isSettingsPath(tab.url)
+  const detach = ctx.canDetach
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
     return {
@@ -682,7 +681,6 @@ export const AppShellTabBar = ({
     () => ({ pinnedCount: pinnedTabs.length, normalCount: normalTabs.length, canDetach: !!detachTab }),
     [pinnedTabs.length, normalTabs.length, detachTab]
   )
-  const canDetachActiveTab = !!detachTab && normalTabs.some((tab) => tab.id === activeTabId && !isSettingsPath(tab.url))
 
   // ─── Context menu actions ───────────────────────────────────────────────────
 
@@ -749,6 +747,7 @@ export const AppShellTabBar = ({
       pinnedTabs,
       normalTabs,
       normalReorderStartIndex,
+      canDetach: !!detachTab,
       reorderTabs,
       closeTab,
       setActiveTab
@@ -932,9 +931,7 @@ export const AppShellTabBar = ({
                         noTransition,
                         translateX: getTranslateX(tab.id, 'pinned'),
                         onPointerDown:
-                          caps.reorder || caps.detach
-                            ? (e) => handlePointerDown(e, tab, 'pinned', caps.detach)
-                            : () => undefined
+                          caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
                       }}
                       tabRef={(el) => {
                         if (el) {
@@ -963,7 +960,7 @@ export const AppShellTabBar = ({
                   menu: true,
                   reorder: false,
                   togglePin: false,
-                  detach: !!detachTab && !isSettingsPath(tab.url),
+                  detach: !!detachTab,
                   close: true,
                   closeOthers: false,
                   closeToRight: false
@@ -992,9 +989,7 @@ export const AppShellTabBar = ({
                       noTransition,
                       translateX: getTranslateX(tab.id, 'normal'),
                       onPointerDown:
-                        caps.reorder || caps.detach
-                          ? (e) => handlePointerDown(e, tab, 'normal', caps.detach)
-                          : () => undefined
+                        caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
                     }}
                     tabRef={(el) => {
                       if (el) {
@@ -1108,9 +1103,7 @@ export const AppShellTabBar = ({
                     noTransition,
                     translateX: getTranslateX(tab.id, 'normal'),
                     onPointerDown:
-                      caps.reorder || caps.detach
-                        ? (e) => handlePointerDown(e, tab, 'normal', caps.detach)
-                        : () => undefined
+                      caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
                   }}
                   tabRef={(el) => {
                     if (el) {
@@ -1144,7 +1137,7 @@ export const AppShellTabBar = ({
 
         {isFocusedTab ? (
           <div className="flex h-full shrink-0 items-stretch">
-            {detachTab && canDetachActiveTab && (
+            {detachTab && (
               <div className="flex items-center pr-2 [-webkit-app-region:no-drag]">
                 <Tooltip content={t('tab.open_in_new_window')} placement="bottom" delay={800}>
                   <Button

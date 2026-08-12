@@ -66,33 +66,17 @@ describe('openRoute', () => {
 })
 
 describe('openSettingsTab', () => {
-  it('delegates the normalized settings path to the main-route event with query preserved', () => {
-    const handler = vi.fn((event: Event) => event.preventDefault())
-    window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
-
+  it('uses the centralized Settings request with query preserved', () => {
     openSettingsTab('/settings/provider?id=openai')
 
-    const event = handler.mock.calls[0][0] as OpenMainRouteEvent
-    expect(event.detail).toEqual({ path: '/settings/provider?id=openai' })
-
-    window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
-  })
-
-  it('requests main-window navigation when the main-route event is unhandled', () => {
-    openSettingsTab('/settings/mcp/servers')
-
-    expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/mcp/servers' })
+    expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_route_in_main', {
+      path: '/settings/provider?id=openai'
+    })
   })
 
   it('normalizes invalid paths to the default settings page', () => {
-    const handler = vi.fn((event: Event) => event.preventDefault())
-    window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
-
     openSettingsTab('/agents' as never)
 
-    const event = handler.mock.calls[0][0] as OpenMainRouteEvent
-    expect(event.detail).toEqual({ path: '/settings/provider' })
-
-    window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+    expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/provider' })
   })
 })

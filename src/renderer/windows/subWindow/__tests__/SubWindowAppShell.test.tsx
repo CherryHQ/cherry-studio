@@ -15,6 +15,8 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
+const updateTab = vi.fn()
+let navigationHandler: ((payload: { to: string }) => void) | undefined
 
 async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitData | null } = {}) {
   vi.resetModules()
@@ -22,13 +24,18 @@ async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitDa
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
   }))
+  vi.doMock('@renderer/ipc', () => ({
+    useIpcOn: (_event: string, handler: (payload: { to: string }) => void) => {
+      navigationHandler = handler
+    }
+  }))
   vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
       tabs: defaultTabs,
       activeTabId: 'home',
       setActiveTab: vi.fn(),
       closeTab: vi.fn(),
-      updateTab: vi.fn(),
+      updateTab,
       addTab: vi.fn(),
       reorderTabs: vi.fn(),
       openTab,
@@ -76,6 +83,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.resetModules()
+  navigationHandler = undefined
 })
 
 describe('SubWindowAppShell', () => {
@@ -112,5 +120,18 @@ describe('SubWindowAppShell', () => {
       })
     })
     expect(openTab).toHaveBeenCalledOnce()
+  })
+
+  it('navigates the detached Settings tab when another Settings open is requested', async () => {
+    await renderSubWindowAppShell()
+
+    navigationHandler?.({ to: '/settings/about' })
+
+    expect(updateTab).toHaveBeenCalledWith('home', {
+      url: '/settings/about',
+      title: '/settings/about',
+      icon: undefined,
+      metadata: undefined
+    })
   })
 })
