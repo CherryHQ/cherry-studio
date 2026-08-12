@@ -3470,10 +3470,10 @@
             "label": "Plan model"
           },
           "runtime": {
-            "label": "Runtime",
+            "label": "Mode",
             "option": {
-              "claude_code": "Claude Code",
-              "pi": "pi"
+              "claude_code": "Advanced: Powered by Claude Code",
+              "pi": "Quick: Powered by Pi"
             },
             "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available."
           },

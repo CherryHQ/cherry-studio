@@ -3470,10 +3470,10 @@
             "label": "Plan 模型"
           },
           "runtime": {
-            "label": "运行时",
+            "label": "模式",
             "option": {
-              "claude_code": "Claude Code",
-              "pi": "pi"
+              "claude_code": "增强：基于 Claude Code",
+              "pi": "快捷：基于 Pi"
             },
             "pi_hint": "pi 智能体支持内置工具、技能、MCP 服务器与 Soul 模式，暂不支持计划模式。"
           },

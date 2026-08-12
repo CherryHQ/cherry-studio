@@ -71,7 +71,7 @@ const PI_BUILTIN_COMMANDS = [
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
-    labelFallback: 'Claude Code',
+    labelFallback: 'Advanced: Powered by Claude Code',
     hintKey: null,
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
@@ -98,7 +98,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   },
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'pi',
+    labelFallback: 'Quick: Powered by Pi',
     hintKey: 'library.config.agent.field.runtime.pi_hint',
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,

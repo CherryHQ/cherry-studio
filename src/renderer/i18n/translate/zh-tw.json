@@ -3449,10 +3449,10 @@
             "label": "計畫模型"
           },
           "runtime": {
-            "label": "執行環境",
+            "label": "模式",
             "option": {
-              "claude_code": "Claude Code",
-              "pi": "pi"
+              "claude_code": "增強：基於 Claude Code",
+              "pi": "快捷：基於 Pi"
             },
             "pi_hint": "pi 智能體支援內建工具、技能、MCP 伺服器與 Soul 模式，暫不支援計劃模式。"
           },
