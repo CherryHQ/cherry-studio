@@ -341,7 +341,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private reconcileStalePendingMessages(): void {
     try {
-      const stale = agentSessionMessageService.findPendingAssistantMessages()
+      const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
       logger.info('Reconciling crash-orphaned pending agent-session messages', {
@@ -1209,7 +1209,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
-        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
     return true
   }
@@ -1257,6 +1257,10 @@ export class AgentSessionRuntimeService extends BaseService {
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
     this.disposeWarmLeases()
+    const streamManager = application.get('AiStreamManager')
+    for (const entry of this.entries.values()) {
+      if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
+    }
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
