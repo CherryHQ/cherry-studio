@@ -20,6 +20,7 @@ import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
+import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -45,6 +46,7 @@ import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
+import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
@@ -77,6 +79,16 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
   return (anchorId, data) =>
     subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+}
+
+/** Media cost table for the turn. Unreachable provider row → the openai table. */
+function resolveRowDialect(model: Model | undefined): TokenDialect {
+  if (!model) return 'openai'
+  try {
+    return resolveModelTokenDialect(providerService.getByProviderId(model.providerId), model)
+  } catch {
+    return 'openai'
+  }
 }
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
@@ -656,8 +668,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
   }
 
-  private estimateTotal(rows: CompactionRow[]): number {
-    return rows.reduce((s, r) => s + estimateRowTokens(r), 0)
+  private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
+    return rows.reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
   }
 
   /**
@@ -666,7 +678,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
    * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
-  private estimateContext(effective: CompactionRow[]): number {
+  private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
     let anchorIdx = -1
     for (let i = effective.length - 1; i >= 0; i--) {
       if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
@@ -674,9 +686,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         break
       }
     }
-    if (anchorIdx < 0) return this.estimateTotal(effective)
+    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
     const base = effective[anchorIdx].contextTokens as number
-    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r), 0)
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
     return base + tail
   }
 
@@ -767,12 +779,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
     const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
-    if (this.estimateContext(effective) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    // Selects the media cost tables only; text stays on tokenx, matching the
+    // in-loop hook so the two triggers cannot disagree on the same history.
+    const dialect = resolveRowDialect(models[0])
+    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
+    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
@@ -787,7 +802,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // this summarize call runs BEFORE the model stream, so without an explicit
     // clear a failed fold would leave "compacting…" pinned on a live turn.
     const startedAt = new Date().toISOString()
-    const preTokens = this.estimateContext(effective)
+    const preTokens = this.estimateContext(effective, dialect)
     // One id per fold: a turn can compact several times, and a shared id would
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
@@ -855,7 +870,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
         ...recent.slice(keepIdx)
       ]
-      settle({ postTokens: this.estimateContext(served), foldedCount: keepIdx })
+      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })

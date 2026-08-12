@@ -117,6 +117,7 @@ function makeModel(id: UniqueModelId, contextWindow = 4000) {
     id,
     name: id,
     providerId: 'openai',
+    maxOutputTokens: undefined as number | undefined,
     apiModelId: 'gpt-4o',
     contextWindow,
     capabilities: [] as never[],
