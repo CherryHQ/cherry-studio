@@ -4,7 +4,9 @@
  * covered by its integration suite.
  */
 
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -21,7 +23,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), listAll: vi.fn(), listAllTx: vi.fn(), updateTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
   jobService: { list: vi.fn() }
@@ -86,6 +88,8 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 }
 
 describe('AgentTaskService (read side)', () => {
+  const dbh = setupTestDatabase()
+
   beforeEach(() => {
     notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
@@ -113,6 +117,20 @@ describe('AgentTaskService (read side)', () => {
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
       { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+    ])
+  })
+
+  it('includes run history only in Job lifecycle projection changes', () => {
+    agentTaskService.notifyRunReadModelChange([TASK_ID, TASK_ID])
+    agentTaskService.notifyRunReadModelChange([])
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'projection', entityIds: [TASK_ID] }
     ])
   })
 
@@ -249,6 +267,144 @@ describe('AgentTaskService (read side)', () => {
       expect(result.total).toBe(2)
       expect(result.tasks).toHaveLength(1)
       expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
+    })
+
+    it('projects the newest active run ahead of a newer terminal run', () => {
+      const first = makeSnapshot({ id: 'active-task', name: 'active-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([first])
+      const now = Date.now()
+      dbh.db
+        .insert(jobScheduleTable)
+        .values({
+          id: first.id,
+          type: first.type,
+          name: first.name ?? '',
+          trigger: first.trigger,
+          jobInputTemplate: first.jobInputTemplate,
+          enabled: first.enabled,
+          catchUpPolicy: first.catchUpPolicy,
+          metadata: first.metadata,
+          createdAt: Date.parse(first.createdAt),
+          updatedAt: Date.parse(first.updatedAt)
+        })
+        .run()
+      dbh.db
+        .insert(jobTable)
+        .values([
+          {
+            id: '0198a000-0000-7000-8000-000000000001',
+            type: 'agent.task',
+            status: 'running',
+            queue: 'agent:test',
+            scheduleId: first.id,
+            scheduledAt: now - 3_000,
+            startedAt: now - 2_000,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now - 3_000,
+            updatedAt: now - 2_000
+          },
+          {
+            id: '0198a000-0000-7000-8000-000000000002',
+            type: 'agent.task',
+            status: 'completed',
+            queue: 'agent:test',
+            scheduleId: first.id,
+            scheduledAt: now - 1_000,
+            startedAt: now - 900,
+            finishedAt: now - 100,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now - 1_000,
+            updatedAt: now - 100
+          },
+          {
+            id: '0198a000-0000-7000-8000-000000000003',
+            type: 'agent.task',
+            status: 'pending',
+            queue: 'agent:test',
+            scheduleId: first.id,
+            scheduledAt: now,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .run()
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks[0].runSummary).toMatchObject({
+        id: '0198a000-0000-7000-8000-000000000003',
+        status: 'running',
+        finishedAt: null
+      })
+    })
+
+    it('projects the newest terminal run and leaves tasks without jobs empty', () => {
+      const withJobs = makeSnapshot({ id: 'terminal-task', name: 'terminal-task' })
+      const withoutJobs = makeSnapshot({ id: 'empty-task', name: 'empty-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([withJobs, withoutJobs])
+      const now = Date.now()
+      dbh.db
+        .insert(jobScheduleTable)
+        .values(
+          [withJobs, withoutJobs].map((schedule) => ({
+            id: schedule.id,
+            type: schedule.type,
+            name: schedule.name ?? '',
+            trigger: schedule.trigger,
+            jobInputTemplate: schedule.jobInputTemplate,
+            enabled: schedule.enabled,
+            catchUpPolicy: schedule.catchUpPolicy,
+            metadata: schedule.metadata,
+            createdAt: Date.parse(schedule.createdAt),
+            updatedAt: Date.parse(schedule.updatedAt)
+          }))
+        )
+        .run()
+      dbh.db
+        .insert(jobTable)
+        .values([
+          {
+            id: '0198a000-0000-7000-8000-000000000011',
+            type: 'agent.task',
+            status: 'failed',
+            queue: 'agent:test',
+            scheduleId: withJobs.id,
+            scheduledAt: now - 2_000,
+            startedAt: now - 1_900,
+            finishedAt: now - 1_000,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now - 2_000,
+            updatedAt: now - 1_000
+          },
+          {
+            id: '0198a000-0000-7000-8000-000000000012',
+            type: 'agent.task',
+            status: 'cancelled',
+            queue: 'agent:test',
+            scheduleId: withJobs.id,
+            scheduledAt: now - 500,
+            startedAt: now - 400,
+            finishedAt: now - 100,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now - 500,
+            updatedAt: now - 100
+          }
+        ])
+        .run()
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toMatchObject({
+        id: '0198a000-0000-7000-8000-000000000012',
+        status: 'cancelled'
+      })
+      expect(result.tasks.find((task) => task.id === withoutJobs.id)?.runSummary).toBeNull()
     })
   })
 

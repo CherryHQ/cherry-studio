@@ -6,6 +6,7 @@
  * transaction primitives used by workspace deletion.
  */
 
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -13,16 +14,23 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
+import type {
+  ScheduledTaskEntity,
+  TaskRunDisplayStatus,
+  TaskRunLogEntity,
+  TaskRunSummary
+} from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { JobScheduleSnapshot, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
+import { sql } from 'drizzle-orm'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
@@ -117,6 +125,18 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
   return 'active'
 }
 
+function toTaskRunDisplayStatus(status: JobStatus): TaskRunDisplayStatus {
+  return status === 'pending' || status === 'delayed' ? 'running' : status
+}
+
+type TaskRunSummaryRow = {
+  id: string
+  scheduleId: string
+  status: JobStatus
+  startedAt: number
+  finishedAt: number | null
+}
+
 export class AgentTaskService {
   /** Publish every DataApi projection backed by the composed task read model. */
   notifyReadModelChange(taskIds: readonly string[]): void {
@@ -127,6 +147,19 @@ export class AgentTaskService {
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
       { endpoint: '/agent-tasks/:taskId', entityIds },
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+    ])
+  }
+
+  /** Publish task projections plus run history after a Job starts or settles. */
+  notifyRunReadModelChange(taskIds: readonly string[]): void {
+    const entityIds = [...new Set(taskIds)]
+    if (entityIds.length === 0) return
+    notifyDataApiDataChange([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
+      { endpoint: '/agent-tasks/:taskId', entityIds },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds },
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'projection', entityIds }
     ])
   }
 
@@ -167,7 +200,12 @@ export class AgentTaskService {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
-    return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
+    const runSummary = this.getRunSummariesByScheduleIds([snapshot.id]).get(snapshot.id) ?? null
+    return this.toScheduledTaskEntity(
+      snapshot,
+      agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null,
+      runSummary
+    )
   }
 
   /**
@@ -221,10 +259,60 @@ export class AgentTaskService {
         : sorted
 
     const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
+    const runSummaries = this.getRunSummariesByScheduleIds(sliced.map((task) => task.id))
     return {
-      tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
+      tasks: sliced.map((s) =>
+        this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null, runSummaries.get(s.id) ?? null)
+      ),
       total: filtered.length
     }
+  }
+
+  private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
+    const uniqueScheduleIds = [...new Set(scheduleIds)]
+    if (uniqueScheduleIds.length === 0) return new Map()
+
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .all<TaskRunSummaryRow>(sql`
+      WITH ranked_jobs AS (
+        SELECT
+          id,
+          schedule_id AS "scheduleId",
+          status,
+          COALESCE(started_at, scheduled_at) AS "startedAt",
+          finished_at AS "finishedAt",
+          ROW_NUMBER() OVER (
+            PARTITION BY schedule_id
+            ORDER BY
+              CASE WHEN status IN ('pending', 'delayed', 'running') THEN 0 ELSE 1 END,
+              created_at DESC,
+              id DESC
+          ) AS row_rank
+        FROM job
+        WHERE type = ${AGENT_TASK_TYPE}
+          AND schedule_id IN (${sql.join(
+            uniqueScheduleIds.map((scheduleId) => sql`${scheduleId}`),
+            sql`, `
+          )})
+      )
+      SELECT id, "scheduleId", status, "startedAt", "finishedAt"
+      FROM ranked_jobs
+      WHERE row_rank = 1
+    `)
+
+    return new Map(
+      rows.map((row) => [
+        row.scheduleId,
+        {
+          id: row.id,
+          status: toTaskRunDisplayStatus(row.status),
+          startedAt: timestampToISO(row.startedAt),
+          finishedAt: row.finishedAt === null ? null : timestampToISO(row.finishedAt)
+        }
+      ])
+    )
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
@@ -247,7 +335,11 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot, reuseSessionId: string | null): ScheduledTaskEntity {
+  private toScheduledTaskEntity(
+    snapshot: JobScheduleSnapshot,
+    reuseSessionId: string | null,
+    runSummary: TaskRunSummary | null
+  ): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
@@ -272,6 +364,7 @@ export class AgentTaskService {
       lastRun: snapshot.lastRun,
       enabled: snapshot.enabled,
       status: deriveStatus(snapshot),
+      runSummary,
       createdAt: snapshot.createdAt,
       updatedAt: snapshot.updatedAt
     }
@@ -290,8 +383,7 @@ export class AgentTaskService {
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status: TaskRunLogEntity['status'] =
-      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
+    const status = toTaskRunDisplayStatus(job.status)
 
     return {
       id: job.id,

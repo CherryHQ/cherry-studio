@@ -93,7 +93,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
@@ -102,8 +102,12 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   CircleSlash,
+  CircleStop,
+  CircleX,
   Folder,
+  Loader2,
   MoreHorizontal,
   PencilLine,
   Play,
@@ -117,6 +121,19 @@ const logger = loggerService.withContext('TasksSettings')
 const ALL_TASKS_FILTER = 'all'
 const SCHEDULE_HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
 const SCHEDULE_MINUTES = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'))
+
+const TASK_DETAIL_TABS = ['prompt', 'general', 'history'] as const
+type TaskDetailTab = (typeof TASK_DETAIL_TABS)[number]
+export type ScheduledTaskDetailSearch = {
+  tab?: TaskDetailTab
+  runId?: string
+}
+
+export function parseScheduledTaskDetailSearch(search: Record<string, unknown>): ScheduledTaskDetailSearch {
+  const tab = TASK_DETAIL_TABS.find((value) => value === search.tab)
+  const runId = typeof search.runId === 'string' && search.runId.trim() ? search.runId : undefined
+  return { tab, runId }
+}
 
 const TASK_PROMPT_GENERATION_SYSTEM_PROMPT = [
   'Write a concise execution prompt for a scheduled Agent task based on the supplied task name.',
@@ -349,6 +366,53 @@ function getTaskStatusLabel(status: string, t: TFunction) {
     completed: t('agent.tasks.status.completed')
   }
   return labels[status] ?? status
+}
+
+function formatRunSummaryTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSummary']> }> = ({ summary }) => {
+  const { t } = useTranslation()
+
+  if (summary.status === 'running') {
+    return (
+      <span className="flex items-center gap-1.5 text-info">
+        <Loader2 aria-hidden className="size-3 motion-safe:animate-spin" />
+        {t('agent.tasks.runSummary.running')}
+      </span>
+    )
+  }
+
+  const time = formatRunSummaryTime(summary.finishedAt ?? summary.startedAt)
+  if (summary.status === 'completed') {
+    return (
+      <span className="flex items-center gap-1.5 text-success">
+        <CircleCheck aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.completed', { time })}
+      </span>
+    )
+  }
+  if (summary.status === 'failed') {
+    return (
+      <span className="flex items-center gap-1.5 text-error">
+        <CircleX aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.failed', { time })}
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-muted-foreground">
+      <CircleStop aria-hidden className="size-3" />
+      {t('agent.tasks.runSummary.cancelled', { time })}
+    </span>
+  )
 }
 
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
@@ -632,12 +696,13 @@ const TaskSessionReuseField: FC<{
   )
 }
 
-const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
+const TaskLogsInline: FC<{ taskId: string; agentId: string; runId?: string }> = ({ taskId, agentId, runId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const { openConversation } = useConversationNavigation('agents')
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
+  const targetRunRef = useRef<HTMLSpanElement | null>(null)
 
   const filteredLogs = useMemo(() => {
     if (!searchText.trim()) return logs
@@ -651,20 +716,31 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     )
   }, [locale, logs, searchText])
 
+  useEffect(() => {
+    targetRunRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [filteredLogs, runId])
+
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
     () => [
       {
         accessorKey: 'startedAt',
         header: t('agent.tasks.logs.runAt'),
         meta: { width: 160 },
-        cell: ({ getValue }) =>
-          new Date(getValue() as string).toLocaleString(undefined, {
+        cell: ({ getValue, row }) => {
+          const time = new Date(getValue() as string).toLocaleString(undefined, {
             month: 'numeric',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             hour12: false
           })
+          return (
+            <span ref={row.original.id === runId ? targetRunRef : undefined}>
+              {row.original.id === runId && <span className="sr-only">{t('agent.tasks.logs.selectedRun')}: </span>}
+              {time}
+            </span>
+          )
+        }
       },
       {
         accessorKey: 'durationMs',
@@ -710,16 +786,17 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
               : isErrorStatus
                 ? record.error
                 : (record.result ?? '-')
+          const sessionId = record.sessionId
 
           return (
             <RowFlex className="items-start gap-1">
-              {record.sessionId && (
+              {sessionId && (
                 <Tooltip title={t('agent.tasks.logs.viewSession')}>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('agent.tasks.logs.viewSession')}
-                    onClick={() => openConversation(record.sessionId!)}>
+                    onClick={() => openConversation(sessionId)}>
                     <ArrowRight size={13} />
                   </Button>
                 </Tooltip>
@@ -730,7 +807,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         }
       }
     ],
-    [openConversation, t]
+    [openConversation, runId, t]
   )
 
   if (isLoading) {
@@ -761,7 +838,13 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
       />
       <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
         <div data-slot="task-logs-table-width" className="min-w-[720px]">
-          <DataTable data={filteredLogs} columns={columns} rowKey="id" emptyText={t('agent.tasks.logs.empty')} />
+          <DataTable
+            data={filteredLogs}
+            columns={columns}
+            rowKey="id"
+            rowClassName={(record) => (record.id === runId ? 'bg-info-subtle hover:bg-info-subtle' : '')}
+            emptyText={t('agent.tasks.logs.empty')}
+          />
         </div>
       </div>
     </FieldGroup>
@@ -776,7 +859,10 @@ const TaskDetail: FC<{
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
-}> = ({ task, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
+  activeTab: TaskDetailTab
+  runId?: string
+  onTabChange: (tab: TaskDetailTab) => void
+}> = ({ task, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus, activeTab, runId, onTabChange }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
@@ -935,7 +1021,7 @@ const TaskDetail: FC<{
       </div>
 
       <SettingGroup theme={theme}>
-        <Tabs defaultValue="prompt" variant="line">
+        <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as TaskDetailTab)} variant="line">
           <TabsList aria-label={task.name}>
             <TabsTrigger value="prompt">{t('agent.tasks.prompt.label')}</TabsTrigger>
             <TabsTrigger value="general">{t('settings.general.title')}</TabsTrigger>
@@ -972,7 +1058,7 @@ const TaskDetail: FC<{
           </TabsContent>
           <TabsContent value="history">
             <SettingDivider />
-            <TaskLogsInline taskId={task.id} agentId={task.agentId} />
+            <TaskLogsInline taskId={task.id} agentId={task.agentId} runId={runId} />
           </TabsContent>
         </Tabs>
       </SettingGroup>
@@ -1262,6 +1348,8 @@ const TasksSettings: FC = () => {
   const navigate = useNavigate()
   const params = useParams({ strict: false })
   const taskId = params.taskId
+  const taskDetailSearch = parseScheduledTaskDetailSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const activeDetailTab = taskDetailSearch.tab ?? 'prompt'
   const { createTask } = useCreateTask()
   const { updateTask } = useUpdateTask()
   const { deleteTask } = useDeleteTask()
@@ -1322,6 +1410,20 @@ const TasksSettings: FC = () => {
     setAgentFilter(ALL_TASKS_FILTER)
     setStatusFilter(ALL_TASKS_FILTER)
   }, [])
+
+  const handleDetailTabChange = useCallback(
+    (tab: TaskDetailTab) => {
+      if (!taskId) return
+      const search =
+        tab === 'prompt'
+          ? {}
+          : tab === 'history' && taskDetailSearch.runId
+            ? { tab, runId: taskDetailSearch.runId }
+            : { tab }
+      void navigate({ to: '/settings/scheduled-tasks/$taskId', params: { taskId }, search, replace: true })
+    },
+    [navigate, taskDetailSearch.runId, taskId]
+  )
 
   useEffect(() => {
     if (agentsError || tasksError || taskError) {
@@ -1469,6 +1571,9 @@ const TasksSettings: FC = () => {
         onDelete={handleDelete}
         onRun={handleRun}
         onToggleStatus={handleToggleStatus}
+        activeTab={activeDetailTab}
+        runId={taskDetailSearch.runId}
+        onTabChange={handleDetailTabChange}
       />
     )
   }
@@ -1585,28 +1690,38 @@ const TasksSettings: FC = () => {
                 {filteredTasks.map((task) => (
                   <Item
                     key={task.id}
-                    asChild
                     variant="outline"
-                    className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
+                    className="relative rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm"
+                    style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
                     <Link
                       to="/settings/scheduled-tasks/$taskId"
                       params={{ taskId: task.id }}
-                      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                        <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
-                      </div>
-                      <ItemContent className="min-w-0">
-                        <ItemTitle className="truncate">{task.name}</ItemTitle>
-                        <ItemDescription className="truncate text-xs leading-4">
-                          {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
-                          {getTriggerSummary(task.trigger, t)}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions className="shrink-0">
-                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                        <ChevronRight size={16} className="text-foreground-tertiary" />
-                      </ItemActions>
+                      className="absolute inset-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
+                      <span className="sr-only">{task.name}</span>
                     </Link>
+                    <div className="pointer-events-none relative z-1 flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                      <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
+                    </div>
+                    <ItemContent className="pointer-events-none relative z-1 min-w-0">
+                      <ItemTitle className="truncate">{task.name}</ItemTitle>
+                      <ItemDescription className="truncate text-xs leading-4">
+                        {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                        {getTriggerSummary(task.trigger, t)}
+                      </ItemDescription>
+                      {task.runSummary && (
+                        <Link
+                          to="/settings/scheduled-tasks/$taskId"
+                          params={{ taskId: task.id }}
+                          search={{ tab: 'history', runId: task.runSummary.id }}
+                          className="pointer-events-auto relative z-2 w-fit rounded-sm text-xs outline-none hover:underline focus-visible:underline focus-visible:underline-offset-2">
+                          <TaskRunSummaryLine summary={task.runSummary} />
+                        </Link>
+                      )}
+                    </ItemContent>
+                    <ItemActions className="pointer-events-none relative z-1 shrink-0">
+                      <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
+                      <ChevronRight size={16} className="text-foreground-tertiary" />
+                    </ItemActions>
                   </Item>
                 ))}
               </ItemGroup>

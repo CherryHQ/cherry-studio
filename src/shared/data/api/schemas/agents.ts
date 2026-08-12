@@ -155,6 +155,17 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
+export const TaskRunDisplayStatusSchema = z.enum(['running', 'completed', 'failed', 'cancelled'])
+export type TaskRunDisplayStatus = z.infer<typeof TaskRunDisplayStatusSchema>
+
+export const TaskRunSummarySchema = z.strictObject({
+  id: z.string(),
+  status: TaskRunDisplayStatusSchema,
+  startedAt: z.string(),
+  finishedAt: z.string().nullable()
+})
+export type TaskRunSummary = z.infer<typeof TaskRunSummarySchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -179,6 +190,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   enabled: z.boolean(),
   /** Output-only derived label kept for UI continuity (active / paused / completed). */
   status: z.enum(['active', 'paused', 'completed']),
+  /** Latest relevant Job projected for overview display; null until the task has a Job. */
+  runSummary: TaskRunSummarySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -191,7 +204,7 @@ export const TaskRunLogEntitySchema = z.strictObject({
   startedAt: z.string(),
   durationMs: z.number(),
   /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
+  status: TaskRunDisplayStatusSchema,
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })

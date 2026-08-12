@@ -491,6 +491,7 @@
         "runAt": "运行时间",
         "running": "运行中...",
         "search": "搜索运行记录...",
+        "selectedRun": "当前定位的运行记录",
         "status": "状态",
         "viewSession": "查看会话"
       },
@@ -514,6 +515,12 @@
         "warning": "复用会话会持续累积上下文，长期运行会推高 token 消耗，并可能超出模型的上下文窗口。如需重新绑定一个干净的会话，请先关闭并保存，再开启并保存。"
       },
       "run": "运行",
+      "runSummary": {
+        "cancelled": "上次运行已取消 · {{time}}",
+        "completed": "上次运行成功 · {{time}}",
+        "failed": "上次运行失败 · {{time}}",
+        "running": "运行中"
+      },
       "runTriggered": "任务已触发",
       "save": "保存",
       "schedule": {

@@ -60,7 +60,7 @@ An active Job wins over a newer terminal Job so overlapping executions never mak
 
 `jobTable` remains the single source of truth. `AgentTaskService` composes schedules, Agent ownership, channel subscriptions, reusable-session information, and the new run summary into `ScheduledTaskEntity`.
 
-The `agent.task` feature layer publishes scheduled-task read-model changes when an execution starts and when it settles. The same notification also invalidates the affected task-history projection. This follows the existing main-event-to-business-read-model pattern without adding a feature-specific branch to generic JobManager.
+The `agent.task` feature layer publishes scheduled-task read-model changes when an execution starts and when it settles. This Job-lifecycle notification also invalidates the affected task-history projection, while ordinary task/session mutations keep their narrower existing notification set. This follows the existing main-event-to-business-read-model pattern without adding a feature-specific branch to generic JobManager.
 
 Manual “run now” already invalidates task reads immediately after the pending Job is persisted; that behavior remains unchanged. Automatically scheduled Jobs become visible as `running` when their handler starts. The design deliberately does not introduce a separate queued indicator.
 
@@ -114,13 +114,13 @@ Rejected for this scope. A generic cross-consumer event would be an infrastructu
 
 ## Verification Strategy
 
-The implementation follows test-driven development. Each test must fail for the missing behavior before production code is written.
+At the user's explicit request, implementation proceeds before the regression tests rather than through a TDD red/green loop. The final behavior is still protected at the following layers:
 
 1. Data-service tests using the real test database protect the projection rules: active-over-terminal precedence, newest-active selection, newest-terminal selection, state collapsing, and the no-run case.
 2. Agent-task handler tests protect read-model invalidation at execution start and settlement without testing generic JobManager internals.
 3. Renderer component tests protect user-visible card labels and the distinct history link.
 4. Route/component tests protect `tab=history`, target-row reveal, and preservation of the default detail route for the rest of the card.
-5. Targeted tests run during each red/green cycle. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
+5. Targeted tests run after each implementation area. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
 
 ## Success Criteria
 
