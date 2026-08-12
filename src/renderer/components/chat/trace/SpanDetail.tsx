@@ -8,10 +8,14 @@ import {
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger
+  TabsTrigger,
+  Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { ChevronsLeft } from 'lucide-react'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { toast } from '@renderer/services/toast'
+import { Check, ChevronsLeft, Copy } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +24,8 @@ import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenter
 import type { TraceNode } from './traceNode'
 import { convertTime } from './TraceTree'
 
+const logger = loggerService.withContext('SpanDetail')
+
 interface SpanDetailProps {
   node: TraceNode
   onShowList: (input: boolean) => void
@@ -27,6 +33,11 @@ interface SpanDetailProps {
 
 const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const [activeTab, setActiveTab] = useState<string>('inputs')
+  const [copiedContent, setCopiedContent] = useTemporaryValue<{
+    nodeId: string
+    tab: string
+    content: string
+  } | null>(null)
   const { t } = useTranslation()
 
   // Span-type-specific rows and tabs come from the presenter registry.
@@ -36,6 +47,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const safeTab = tabs.some((tab) => tab.value === activeTab) ? activeTab : (tabs[0]?.value ?? 'inputs')
   // Derive synchronously so the code block never lingers on the previous tab's content.
   const { content, contentLanguage } = useMemo(() => formatTabData(node, tabs, safeTab), [node, tabs, safeTab])
+  const copied = copiedContent?.nodeId === node.id && copiedContent.tab === safeTab && copiedContent.content === content
 
   const usedTime = convertTime((node.endTime || Date.now()) - node.startTime)
   const rows: SpanDetailRow[] = [
@@ -47,6 +59,17 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
     { label: t('trace.spendTime'), value: usedTime },
     ...view.rows
   ]
+
+  const handleCopy = async () => {
+    if (!content) return
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedContent({ nodeId: node.id, tab: safeTab, content })
+    } catch (error) {
+      logger.error('Failed to copy span detail content', error as Error)
+      toast.error(t('common.copy_failed'))
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 text-xs">
@@ -68,13 +91,29 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
       </FieldGroup>
 
       <Tabs value={safeTab} onValueChange={setActiveTab} className="min-h-0 flex-1 gap-2 overflow-hidden">
-        <TabsList className="h-8 w-fit">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <TabsList className="h-8">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          <Tooltip content={t('common.copy')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={copied ? 'text-success hover:text-success' : 'text-muted-foreground hover:text-foreground'}
+              aria-label={t('common.copy')}
+              disabled={!content}
+              onClick={() => void handleCopy()}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </Button>
+          </Tooltip>
+        </div>
         <TabsContent
           value={safeTab}
           className="min-h-0 flex-1 overflow-hidden rounded-md border border-border-subtle bg-popover">
@@ -88,7 +127,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
             wrapped
             fontSize={12}
             options={{ lineNumbers: false }}
-            className="h-full [&_.shiki-scroller]:overflow-x-hidden"
+            className="selectable h-full [&_.shiki-scroller]:overflow-x-hidden"
           />
         </TabsContent>
       </Tabs>

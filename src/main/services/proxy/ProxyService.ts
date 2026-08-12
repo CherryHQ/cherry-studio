@@ -3,11 +3,13 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
+import type { ProxyRoutingSnapshot } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -54,7 +56,7 @@ export function resolveProxyConfig({
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
-  private nodeProxyController = new NodeProxyController(logger)
+  private nodeProxyController: NodeProxyController | null = null
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -73,6 +75,12 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
+  async getRoutingSnapshot(): Promise<ProxyRoutingSnapshot> {
+    await this.proxyReconciler.flush()
+    return this.getNodeProxyController().getRoutingSnapshot()
   }
 
   /**
@@ -145,15 +153,24 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
-    this.nodeProxyController.configure({
+    this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
       proxyBypassRules: config.proxyBypassRules
     })
     await this.setSessionsProxy(config)
   }
 
+  private getNodeProxyController(): NodeProxyController {
+    this.nodeProxyController ??= new NodeProxyController(logger)
+    return this.nodeProxyController
+  }
+
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    const sessions = [
+      session.defaultSession,
+      session.fromPartition('persist:webview'),
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    ]
     // Await the session AND app proxy config together so a one-shot apply can't fail
     // silently and callers can rely on the proxy being in effect once this resolves.
     await Promise.all([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])

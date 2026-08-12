@@ -1,3 +1,4 @@
+import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +25,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   // Settings pages
   '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
   '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
+  '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
   '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
   '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
   '/settings/system': { icon: '⚙️', labelKey: 'settings.system.title' },
@@ -31,11 +33,21 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
-  '/settings/file-processing': { icon: '📄', labelKey: 'settings.tool.file_processing.title' },
+  '/settings/file-processing': {
+    icon: '📄',
+    labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
+  },
+  '/settings/ocr': { icon: '🔤', labelKey: 'settings.tool.file_processing.features.image_to_text.title' },
   '/settings/shortcut': { icon: '⌨️', labelKey: 'settings.shortcuts.title' },
   '/settings/quick-assistant': { icon: '🪟', labelKey: 'settings.quickAssistant.title' },
   '/settings/selection-assistant': { icon: '✂️', labelKey: 'selection.name' },
   '/settings/about': { icon: 'ℹ️', labelKey: 'settings.about.label' },
+  '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
+  '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
+  '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
+  '/settings/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
+  '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
+  '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
 
   // MCP sub-pages
   '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },
@@ -48,6 +60,19 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
 
 // Sorted by path length descending for longest prefix match
 const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
+const KNOWN_NAVIGATION_ROUTES = [
+  ...Object.keys(ROUTE_LABELS),
+  '/app/mini-app/$appId',
+  '/app/paintings/$',
+  '/settings/mcp/$',
+  '/settings/mcp/settings/$serverId',
+  '/settings/scheduled-tasks/$taskId'
+]
+
+export function isKnownNavigationPath(path: string): boolean {
+  const cleanPath = path.split('?')[0]
+  return isAllowedNavigationPath(cleanPath, KNOWN_NAVIGATION_ROUTES)
+}
 
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first
@@ -126,7 +151,7 @@ export function NavigateToolInline({
       <span>
         {routeInfo.icon} {routeInfo.labelKey ? t(routeInfo.labelKey) : routeInfo.label}
       </span>
-      {isSuccess && <span className="text-green-500">✓</span>}
+      {isSuccess && <span className="text-success">✓</span>}
     </button>
   )
 }

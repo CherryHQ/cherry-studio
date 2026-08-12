@@ -40,7 +40,6 @@ export type TopicDisplayGroupLabels = {
 
 export type TopicDisplayGroupOptions = {
   assistantById?: ReadonlyMap<string, TopicDisplayAssistant>
-  defaultAssistant?: Pick<TopicDisplayAssistant, 'name'>
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -71,7 +70,6 @@ export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
-const TOPIC_DEFAULT_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER - 1
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 export function moveTopicAfterDrop<T extends { id: string }>(
@@ -193,7 +191,6 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
-  defaultAssistant,
   labels,
   mode,
   now,
@@ -222,7 +219,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
       const assistantId = topic.assistantId
 
       if (!assistantId) {
-        return { id: 'assistant:unknown', label: defaultAssistant?.name || labels.assistant.unlinked }
+        return { id: 'assistant:unknown', label: labels.assistant.unlinked }
       }
 
       const assistant = assistantById?.get(assistantId)
@@ -246,10 +243,6 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
   if (assistantRank !== undefined) {
     return assistantRank + 1
-  }
-
-  if (!topic.assistantId) {
-    return TOPIC_DEFAULT_ASSISTANT_RANK
   }
 
   return TOPIC_UNLINKED_ASSISTANT_RANK

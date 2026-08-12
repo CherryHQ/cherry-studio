@@ -13,6 +13,7 @@ export const OpenAIModelsResponseSchema = z.object({
   data: z.array(
     z.looseObject({
       id: z.string(),
+      name: z.string().optional(),
       object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional()
@@ -55,6 +56,7 @@ export const OllamaTagsResponseSchema = z.object({
       modified_at: z.string().optional(),
       size: z.number().optional(),
       digest: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
       details: z
         .looseObject({
           parent_model: z.string().optional(),

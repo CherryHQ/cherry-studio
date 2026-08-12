@@ -5,17 +5,18 @@
  *   - `pdf`                          → `extractPdfText` (`@main/utils/pdf`)
  *   - `doc`                          → `word-extractor`
  *   - `docx/pptx/xlsx/xls/od*`       → `officeparser`
- *   - everything else (text / code)  → encoding-detected decode
+ *   - everything else (text / code)  → encoding-aware text detection for
+ *                                       extensionless files, then decode
  *
  */
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
-import officeParser from 'officeparser'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('ai:documentExtraction')
@@ -32,7 +33,7 @@ export function noExtractableTextNote(filename: string): string {
   return `No extractable text found in "${filename}" — it may be a scanned or image-only document.`
 }
 
-async function extract(entryId: FileEntryId, ext: string): Promise<string> {
+async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
   const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
@@ -43,24 +44,32 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string> {
     return extracted.getBody().trim()
   }
   if (OFFICE_PARSER_EXTS.has(ext)) {
+    // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
+    const { default: officeParser } = await import('officeparser')
     const text = await officeParser.parseOfficeAsync(buffer, { tempFilesLocation: application.getPath('app.temp') })
     return text.trim()
   }
+  if (!ext) return decodeTextBufferIfText(buffer)?.trim() ?? null
   return decodeTextWithAutoEncoding(buffer).trim()
 }
 
 /**
- * Extract plain text from a file entry (may be empty for scanned/image-only
- * docs — the caller emits {@link noExtractableTextNote}). Throws on unreadable
- * file / parse failure, and rethrows the abort reason if `signal` is aborted.
+ * Extract plain text from a file entry. Returns `null` when an extensionless
+ * file is detected as binary, and may return an empty string for scanned /
+ * image-only docs (the caller emits {@link noExtractableTextNote}). Throws on
+ * unreadable file / parse failure, and rethrows the abort reason if `signal`
+ * is aborted.
  */
-export async function extractDocumentText(entryId: FileEntryId, opts: { signal?: AbortSignal } = {}): Promise<string> {
+export async function extractDocumentText(
+  entryId: FileEntryId,
+  opts: { signal?: AbortSignal } = {}
+): Promise<string | null> {
   const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
 
   const version = await fileManager.getVersion(entryId)
   const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
-  const cached = cache.get<string>(cacheKey)
+  const cached = cache.get<string | null>(cacheKey)
   if (cached !== undefined) return cached
 
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
@@ -68,7 +77,7 @@ export async function extractDocumentText(entryId: FileEntryId, opts: { signal?:
   const ext = entry.ext?.toLowerCase() ?? ''
   const text = await extract(entryId, ext)
 
-  logger.debug('Extracted document text', { entryId, ext, chars: text.length })
+  logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
   cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
 }

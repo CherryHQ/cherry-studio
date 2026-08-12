@@ -13,7 +13,13 @@ export type FetchRemoteTextOptions = {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
   readonly maxBytes?: number
+  readonly maxRedirects?: number
 }
+
+type ResolvedFetchRemoteTextOptions = Omit<FetchRemoteTextOptions, 'headers'> & { readonly headers: Headers }
+
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308])
+const SENSITIVE_REDIRECT_HEADERS = ['authorization', 'cookie', 'proxy-authorization'] as const
 
 function buildRequestHeaders(headers: HeadersInit | undefined, host: string): Record<string, string> {
   const resolvedHeaders = new Headers(headers)
@@ -89,12 +95,12 @@ function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
   return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 }
 
-/**
- * Fetch text through a direct main-process connection pinned to a prevalidated
- * DNS address. Redirects are rejected and response bodies are bounded.
- */
-export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
-  const signal = buildSignal(options)
+async function fetchRemoteTextFromUrl(
+  url: string,
+  options: ResolvedFetchRemoteTextOptions,
+  signal: AbortSignal,
+  redirectsRemaining: number
+): Promise<string> {
   const target = await resolveRemoteFetchUrl(url, { signal })
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
@@ -114,6 +120,41 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
 
     const clientRequest = request(requestOptions, (response) => {
       const statusCode = response.statusCode ?? 0
+
+      if (REDIRECT_STATUS_CODES.has(statusCode)) {
+        const location = getHeaderValue(response.headers, 'location')
+        if (!location || redirectsRemaining === 0) {
+          response.resume()
+          response.destroy()
+          fail(new Error(`HTTP error: ${statusCode}`))
+          return
+        }
+
+        let redirectUrl: URL
+        try {
+          redirectUrl = new URL(location, target.url)
+        } catch {
+          response.resume()
+          response.destroy()
+          fail(new Error(`Invalid redirect location: ${location}`))
+          return
+        }
+
+        if (redirectUrl.origin !== new URL(target.url).origin) {
+          for (const header of SENSITIVE_REDIRECT_HEADERS) {
+            options.headers.delete(header)
+          }
+        }
+
+        settled = true
+        response.resume()
+        response.destroy()
+        void fetchRemoteTextFromUrl(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(
+          resolve,
+          reject
+        )
+        return
+      }
 
       if (statusCode < 200 || statusCode >= 300) {
         response.resume()
@@ -167,4 +208,19 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
     clientRequest.on('error', fail)
     clientRequest.end()
   })
+}
+
+/**
+ * Fetch text through a direct main-process connection pinned to a prevalidated
+ * DNS address. Redirects are opt-in and response bodies are bounded.
+ */
+export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
+  const maxRedirects = options.maxRedirects ?? 0
+  if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
+    throw new Error('maxRedirects must be a non-negative safe integer')
+  }
+
+  const signal = buildSignal(options)
+  const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
+  return fetchRemoteTextFromUrl(url, requestOptions, signal, maxRedirects)
 }

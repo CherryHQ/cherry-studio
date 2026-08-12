@@ -9,7 +9,7 @@ interface NextInputHistoryIndexParams {
 interface InputHistoryNavigationGuardParams {
   isAllSelected: boolean
   isComposing: boolean
-  isCursorAtEnd: boolean
+  isCursorAtHistoryBoundary: boolean
   isQuickPanelVisible: boolean
   key: string
   text: string
@@ -42,7 +42,7 @@ export function getNextInputHistoryIndex({
 export function shouldHandleInputHistoryNavigation({
   isAllSelected,
   isComposing,
-  isCursorAtEnd,
+  isCursorAtHistoryBoundary,
   isQuickPanelVisible,
   key,
   text
@@ -55,5 +55,5 @@ export function shouldHandleInputHistoryNavigation({
     return false
   }
 
-  return text.trim().length === 0 || isAllSelected || isCursorAtEnd
+  return text.trim().length === 0 || isAllSelected || isCursorAtHistoryBoundary
 }

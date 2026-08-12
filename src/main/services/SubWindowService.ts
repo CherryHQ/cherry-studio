@@ -2,14 +2,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
-import { validateSender } from '@main/ipc/validateSender'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { normalizeTabInstanceMetadata } from '@shared/utils/tabInstanceMetadata'
 import { BrowserWindow, ipcMain, type IpcMainEvent, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -64,7 +63,7 @@ export class SubWindowService extends BaseService {
     // NOT the `this.ipcOn` sugar (slated for removal). Tab_Attach / Tab_Detach / Tab_DragEnd /
     // SubWindow_SetAlwaysOnTop moved to IpcApi (tab.* / window.*).
     const onMoveWindow = (event: IpcMainEvent, payload: { tabId: string; x: number; y: number }) => {
-      if (!validateSender(event, application.getPath('app.root'))) return
+      if (!validateSender(event)) return
       const wm = application.get('WindowManager')
       // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
       // but we want to move the sub window identified by tabId.
@@ -144,15 +143,13 @@ export class SubWindowService extends BaseService {
     icon?: string
     type?: string
     isPinned?: boolean
-    metadata?: Record<string, unknown>
     x?: number
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, icon, type, isPinned, metadata, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
-    const tabInstanceMetadata = normalizeTabInstanceMetadata(metadata)
 
     const initData: SubWindowInitData = {
       tabId,
@@ -160,8 +157,7 @@ export class SubWindowService extends BaseService {
       title,
       ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned,
-      ...(tabInstanceMetadata && { metadata: tabInstanceMetadata })
+      isPinned
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).

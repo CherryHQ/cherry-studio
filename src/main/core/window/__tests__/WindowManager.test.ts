@@ -1481,6 +1481,13 @@ describe('WindowManager', () => {
       expect(wm.getInitData(id)).toBeNull()
     })
 
+    it('clears init data', () => {
+      const id = wm.open('default' as never)
+      wm.setInitData(id, { key: 'value' })
+      wm.clearInitData(id)
+      expect(wm.getInitData(id)).toBeNull()
+    })
+
     it('clears init data on window close', () => {
       const id = wm.open('default' as never)
       wm.setInitData(id, { key: 'value' })
@@ -1604,6 +1611,17 @@ describe('WindowManager', () => {
       wm.broadcast('test-channel')
 
       expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('isolates a failing send so remaining windows still receive', () => {
+      wm.open('default' as never)
+      wm.open('singleton' as never)
+      createdWindows[0].webContents.send.mockImplementationOnce(() => {
+        throw new Error('renderer gone')
+      })
+
+      expect(() => wm.broadcast('test-channel', 'data')).not.toThrow()
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('test-channel', 'data')
     })
   })
 

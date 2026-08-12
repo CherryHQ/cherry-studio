@@ -35,9 +35,10 @@ describe('accessiblePath on a case-sensitive platform (linux)', () => {
   })
 
   it('is case-sensitive', async () => {
-    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+    const { getPathComparisonKey, isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
 
     expect(isPathWithinAccessiblePath('/Workspace/notes.md', ['/workspace'])).toBe(false)
+    expect(getPathComparisonKey('/Workspace/docs')).not.toBe(getPathComparisonKey('/workspace/docs'))
   })
 
   it('computes the relative path against the matching base', async () => {
@@ -70,9 +71,10 @@ describe('accessiblePath on a case-insensitive platform (macOS/Windows)', () => 
   const platform = { isMac: true, isWin: false, isLinux: false }
 
   it('matches regardless of case', async () => {
-    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+    const { getPathComparisonKey, isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
 
     expect(isPathWithinAccessiblePath('/Workspace/docs/notes.md', ['/workspace'])).toBe(true)
+    expect(getPathComparisonKey('/Workspace/Docs/./')).toBe(getPathComparisonKey('/workspace/docs'))
   })
 
   it('accepts Windows drive-letter paths with backslashes or forward slashes', async () => {
@@ -92,5 +94,34 @@ describe('accessiblePath on a case-insensitive platform (macOS/Windows)', () => 
     const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
 
     expect(isPathWithinAccessiblePath('C:/notes.md', ['C:\\'])).toBe(true)
+  })
+})
+
+describe('accessiblePath with un-canonicalizable input (UNC)', () => {
+  // UNC is a valid `AbsoluteFilePath` but `canonicalizeFilePath` throws on it.
+  // Containment is a predicate and must stay total: an un-canonicalizable path
+  // is simply not provably inside anything. See
+  // `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
+  const platform = { isMac: false, isWin: true, isLinux: false }
+
+  it('reports a UNC file path as not contained instead of throwing', async () => {
+    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+
+    expect(() => isPathWithinAccessiblePath('\\\\server\\share\\notes.md', ['C:\\workspace'])).not.toThrow()
+    expect(isPathWithinAccessiblePath('\\\\server\\share\\notes.md', ['C:\\workspace'])).toBe(false)
+  })
+
+  it('skips a UNC accessible base without discarding the usable ones', async () => {
+    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+
+    expect(isPathWithinAccessiblePath('C:\\workspace\\notes.md', ['\\\\server\\share', 'C:\\workspace'])).toBe(true)
+  })
+
+  it('returns the path unchanged from getAccessiblePathRelativePath', async () => {
+    const { getAccessiblePathRelativePath } = await loadAccessiblePath(platform)
+
+    expect(getAccessiblePathRelativePath('\\\\server\\share\\notes.md', ['C:\\workspace'])).toBe(
+      '\\\\server\\share\\notes.md'
+    )
   })
 })

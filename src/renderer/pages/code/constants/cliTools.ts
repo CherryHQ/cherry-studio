@@ -7,6 +7,7 @@ import {
   OpenaiCodex,
   Openclaw,
   OpenCode,
+  PiCli,
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
@@ -25,21 +26,9 @@ export const CLI_TOOLS = [
   { value: CodeCli.KIMI_CODE, label: 'code.cli_tools.kimi_code', icon: KimiCode },
   { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli },
   { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
+  { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
-
-/** CLI tool id → installed binary name (the shim mise exposes). */
-export const CLI_BINARY_NAMES: Record<CodeCli, string> = {
-  [CodeCli.CLAUDE_CODE]: 'claude',
-  [CodeCli.OPENAI_CODEX]: 'codex',
-  [CodeCli.OPEN_CODE]: 'opencode',
-  [CodeCli.OPENCLAW]: 'openclaw',
-  [CodeCli.GEMINI_CLI]: 'gemini',
-  [CodeCli.QWEN_CODE]: 'qwen',
-  [CodeCli.KIMI_CODE]: 'kimi',
-  [CodeCli.QODER_CLI]: 'qoderclicn',
-  [CodeCli.GITHUB_COPILOT_CLI]: 'copilot'
-}
 
 /**
  * Provider-less CLI tools: authenticate through their own login flow (OAuth /
@@ -75,6 +64,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - OpenCode / OpenClaw: inject reads anthropic-or-openai at runtime.
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
+ * - Pi: injects any endpoint supported by Pi's custom-provider schema.
  * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
@@ -87,5 +77,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.QODER_CLI]: () => [],
-  [CodeCli.GITHUB_COPILOT_CLI]: () => []
+  [CodeCli.GITHUB_COPILOT_CLI]: () => [],
+  [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p))
 }

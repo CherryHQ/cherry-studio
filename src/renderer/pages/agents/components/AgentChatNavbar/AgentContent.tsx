@@ -8,6 +8,7 @@ import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity | null
+  conversationControls?: ReactNode
   tools?: ReactNode
   showSidebarControls?: boolean
   sidebarOpen?: boolean
@@ -16,6 +17,7 @@ type AgentContentProps = {
 
 const AgentContent = ({
   activeAgent,
+  conversationControls,
   tools,
   showSidebarControls = true,
   sidebarOpen,
@@ -34,7 +36,7 @@ const AgentContent = ({
             tooltipPlacement={showSidebar ? undefined : 'right'}
           />
         )}
-        <ConversationTopBarPortalHost />
+        <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
       </div>
       <div data-navbar-right-occupant className="flex shrink-0 items-center">
         {activeAgent && <Tools>{tools}</Tools>}

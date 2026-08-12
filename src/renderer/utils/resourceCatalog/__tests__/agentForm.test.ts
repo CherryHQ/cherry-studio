@@ -110,7 +110,7 @@ describe('diffAgentSaveIntent', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed' }
 
-    expect(diffAgentSaveIntent(next, baseline, agent)).toEqual({
+    expect(diffAgentSaveIntent(next, baseline)).toEqual({
       kind: 'update',
       payload: { name: 'Renamed' }
     })
@@ -121,7 +121,7 @@ describe('diffAgentUpdate', () => {
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)
-    expect(diffAgentUpdate(baseline, baseline, agent)).toBeNull()
+    expect(diffAgentUpdate(baseline, baseline)).toBeNull()
   })
 
   it('includes only changed top-level keys in the PATCH payload', () => {
@@ -129,11 +129,29 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed', instructions: 'new prompt' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto).toEqual({
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
+
+    const result = diffAgentUpdate(baseline, next)
+
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+  })
+
+  it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1', 'kb-2'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2', 'kb-1'] }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 
   it('includes skillUpdates when the enabled skill set changes', () => {
@@ -141,7 +159,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent, ['skill-1'])
     const next = { ...baseline, skillIds: ['skill-2'] }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto).toEqual({
       skillUpdates: [
@@ -156,7 +174,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
     const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
 
-    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
@@ -173,7 +191,7 @@ describe('diffAgentUpdate', () => {
       smallModel: ''
     }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto).toMatchObject({
       model: 'anthropic::claude-sonnet-4-6',
@@ -182,19 +200,18 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
+  it('emits only edited configuration keys and explicitly removes max_turns', () => {
     const agent = createAgent({
       configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
     })
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, avatar: '🚀' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
-    // plugin_state must be preserved — the library form does not edit it, so
-    // it MUST NOT be stripped from the PATCH payload.
+    const result = diffAgentUpdate(baseline, next)
+    // Main preserves plugin_state by merging this intent into the latest row.
     expect(result?.dto.configuration).toEqual({
       avatar: '🚀',
-      plugin_state: 'keep-me'
+      max_turns: undefined
     })
   })
 
@@ -204,7 +221,7 @@ describe('diffAgentUpdate', () => {
     // User appends a line via the textarea control.
     const next = { ...baseline, envVarsText: 'A=1\nB=2' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         A: '1',
@@ -218,7 +235,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         TOKEN: ' abc ',
@@ -233,7 +250,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, permissionMode: 'default' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
     })

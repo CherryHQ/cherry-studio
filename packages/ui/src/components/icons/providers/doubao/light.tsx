@@ -11,15 +11,24 @@ const DoubaoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
-      <g clipPath={`url(#${iconId}-doubaolight__a)`}>
-        <path fill={`url(#${iconId}-doubaolight__b)`} d="M15 15H105V105H15z" />
+      <mask
+        id={`${iconId}-doubaolight__a`}
+        width={90}
+        height={90}
+        x={15}
+        y={15}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M105 15H15V105H105V15Z" />
+      </mask>
+      <g mask={`url(#${iconId}-doubaolight__a)`}>
+        <path fill={`url(#${iconId}-doubaolight__b)`} d="M105 15H15V105H105V15Z" />
       </g>
       <defs>
-        <clipPath id={`${iconId}-doubaolight__a`}>
-          <path fill="#fff" d="M0 0H90V90H0z" transform="translate(15 15)" />
-        </clipPath>
         <pattern id={`${iconId}-doubaolight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-doubaolight__c`} transform="scale(.00313)" />
         </pattern>

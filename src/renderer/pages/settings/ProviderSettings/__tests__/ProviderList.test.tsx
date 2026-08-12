@@ -1,5 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,10 +14,11 @@ const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
+const { providerEditorDrawerSpy } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn()
+}))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
-let providerListScrollerClientHeight = 100
-let providerListMainContentScrollHeight = 120
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -117,7 +119,10 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
 }))
 
 vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
+  default: (props: any) => {
+    providerEditorDrawerSpy(props)
+    return <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'} />
+  }
 }))
 
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
@@ -158,6 +163,7 @@ describe('ProviderList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
@@ -175,22 +181,6 @@ describe('ProviderList', () => {
     deleteProviderMock.mockResolvedValue(undefined)
     providerItemRects = {}
     scrollerRect = { bottom: 100, top: 0 }
-    providerListScrollerClientHeight = 100
-    providerListMainContentScrollHeight = 120
-    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).dataset.testid === 'provider-list-scrollbar' ? providerListScrollerClientHeight : 0
-      }
-    })
-    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).hasAttribute('data-provider-list-main-content')
-          ? providerListMainContentScrollHeight
-          : 0
-      }
-    })
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
       value: (callback: FrameRequestCallback) => {
@@ -245,6 +235,47 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('offers only safe canonical preset sources to the custom provider editor', () => {
+    const canonicalOpenAI = {
+      ...providers[0],
+      presetProviderId: 'openai',
+      authType: 'api-key'
+    }
+    const canonicalNewApi = {
+      id: 'new-api',
+      name: 'New API',
+      presetProviderId: 'new-api',
+      authType: 'api-key',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://localhost:3000' }
+      }
+    }
+    useProvidersMock.mockReturnValue({
+      providers: [
+        canonicalOpenAI,
+        canonicalNewApi,
+        { ...canonicalOpenAI, id: 'openai-work' },
+        {
+          ...providers[1],
+          id: 'claude-code',
+          presetProviderId: 'claude-code',
+          authType: 'api-key',
+          authMethods: ['external-cli']
+        }
+      ],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        presetSources: [canonicalOpenAI, canonicalNewApi],
+        onSelectPreset: expect.any(Function)
+      })
+    )
   })
 
   it('triggers add and reorder actions', () => {
@@ -315,34 +346,33 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('keeps add buttons inside the provider list scroller', () => {
+  it('restores the provider filter after leaving and returning to the page', () => {
+    const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
+    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
+
+    first.unmount()
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
-    const [topAddButton, bottomAddButton] = addButtons
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
-    const firstProvider = screen.getByTestId('provider-list-item-openai')
-    const lastProvider = screen.getByTestId('provider-list-item-anthropic')
-
-    expect(addButtons).toHaveLength(2)
-    expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(searchWrap).toHaveClass('h-9')
-    expect(searchWrap).toContainElement(filterButton)
-    expect(filterButton).toHaveClass('size-[22px]')
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
   })
 
-  it('hides the bottom add button when provider list content does not overflow', () => {
-    providerListMainContentScrollHeight = 80
-
+  it('keeps a single add action below the scrollable provider list', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    expect(screen.getAllByRole('button', { name: '添加服务商' })).toHaveLength(1)
+    const addButton = screen.getByRole('button', { name: '添加服务商' })
+    const scrollbar = screen.getByTestId('provider-list-scrollbar')
+    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
+    const searchInput = screen.getByPlaceholderText('搜索模型平台...')
+    const searchWrap = searchInput.closest('div')
+
+    expect(scrollbar).not.toContainElement(addButton)
+    expect(scrollbar.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(searchWrap).toContainElement(filterButton)
   })
 
   it('surfaces reorder persistence errors', async () => {
@@ -384,9 +414,7 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('all')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

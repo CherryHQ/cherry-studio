@@ -10,10 +10,15 @@ export default defineCreator({
   name: 'Tencent (Hunyuan)',
   families: ['hunyuan'],
   idPrefixes: ['hunyuan', 'hy'],
-  // Web search is a per-request enhancement on Hunyuan's chat/reasoning models. `hunyuan` covers the
-  // `hunyuan-*` chat ids; `hy3-preview` lives in a different namespace, so it's listed explicitly (the
-  // `hy-*` MT/role/image and `tc-code` models are not chat models and stay out).
-  webSearch: ['hunyuan', 'hy3-preview'],
+  reasoningFamilies: [
+    // Only hunyuan-a13b exposes the knob today.
+    { pattern: '^hunyuan-a13b', toggle: true },
+    { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
+    // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    { pattern: 'hunyuan-t1' },
+    { pattern: 'hunyuan-a13b' },
+    { pattern: '^hy3' }
+  ],
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },
     { id: 'hunyuan-t1', name: 'Hunyuan T1', capabilities: ['reasoning', 'function-call'] },
@@ -23,6 +28,14 @@ export default defineCreator({
       capabilities: ['reasoning', 'function-call'],
       contextWindow: 262144,
       maxOutputTokens: 32768
+    },
+    {
+      id: 'hy3',
+      name: 'Hunyuan 3',
+      capabilities: ['reasoning', 'function-call'],
+      contextWindow: 262144,
+      maxInputTokens: 196608,
+      maxOutputTokens: 131072
     },
     {
       id: 'hy3-preview',

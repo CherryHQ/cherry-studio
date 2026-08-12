@@ -5,14 +5,14 @@
  * Drives a stream entirely through main:
  *   - `ipcApi.request('translate.open', { ..., messageId })` opens a stream with a
  *     `TranslationBackend` attached on main.
- *   - chunks land via `ai.stream_chunk` → we accumulate locally and write into
+ *   - chunks land via `ai.stream.chunk` → we accumulate locally and write into
  *     the renderer-side `TranslationOverlayContext` (no SWR PATCH).
- *   - `ai.stream_done` is dispatched after main's persistence listener
+ *   - `ai.stream.done` is dispatched after main's persistence listener
  *     completes the DB write (listener order in `TranslateService.open` puts
  *     Persistence before WebContents, and the manager awaits each terminal
  *     callback serially). On `status: 'success'` we refresh the messages
  *     cache and clear the overlay so the persisted `data-translation` part
- *     becomes the source of truth. On `paused` (cancel) or `ai.stream_error`
+ *     becomes the source of truth. On `paused` (cancel) or `ai.stream.error`
  *     we just clear the overlay — main wrote nothing.
  *
  * Orphan translations (selection translate, translate page) keep using
@@ -85,7 +85,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
       // user is explicitly asking for a different target. Server-side abort
       // is best-effort; the renderer teardown is the source of truth.
       if (activeRef.current) {
-        void ipcApi.request('ai.stream_abort', { topicId: activeRef.current.streamId }).catch(() => {})
+        void ipcApi.request('ai.stream.abort', { topicId: activeRef.current.streamId }).catch(() => {})
         teardown(null)
       }
 
@@ -107,7 +107,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         targetLanguage: language.langCode as TranslateLangCode
       })
 
-      const unsubChunk = ipcApi.on('ai.stream_chunk', ({ topicId, chunk }) => {
+      const unsubChunk = ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
         if (topicId !== streamId) return
         if (
           chunk &&
@@ -122,7 +122,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         }
       })
 
-      const unsubDone = ipcApi.on('ai.stream_done', async ({ topicId, status }) => {
+      const unsubDone = ipcApi.on('ai.stream.done', async ({ topicId, status }) => {
         if (topicId !== streamId) return
         if (status === 'success') {
           try {
@@ -135,7 +135,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         teardown(streamId)
       })
 
-      const unsubError = ipcApi.on('ai.stream_error', ({ topicId }) => {
+      const unsubError = ipcApi.on('ai.stream.error', ({ topicId }) => {
         if (topicId !== streamId) return
         setOverlay?.(messageId, null)
         teardown(streamId)
@@ -163,7 +163,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
   const cancel = useCallback(() => {
     const active = activeRef.current
     if (!active) return
-    void ipcApi.request('ai.stream_abort', { topicId: active.streamId }).catch(() => {})
+    void ipcApi.request('ai.stream.abort', { topicId: active.streamId }).catch(() => {})
     // onStreamError / onStreamDone (status: 'paused') will clear the overlay.
   }, [])
 

@@ -15,7 +15,7 @@ const checkboxVariants = cva(
     'data-[state=checked]:border-foreground data-[state=checked]:text-foreground',
     'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
-    'focus-visible:ring-3 focus-visible:ring-ring/30',
+    'focus-visible:border-primary',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
     'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
   ),

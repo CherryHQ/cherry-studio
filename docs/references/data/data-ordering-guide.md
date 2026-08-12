@@ -339,7 +339,7 @@ Pure-function helpers `assignOrderKeysInSequence` / `assignOrderKeysByScope` sta
 - **DB column**: `order_key` (SQL) / `orderKey` (TS), always `TEXT NOT NULL`. No nullable variants.
 - **Type names**: every order-related export prefixed with `Order` (`OrderRequest`, `OrderRequestSchema`, `OrderBatchRequest`, `OrderBatchRequestSchema`, `OrderEndpoints`). No `Sort*` / `Position*` / `Rank*` aliases — the `Order` prefix is what keeps `_endpointHelpers.ts` classifiable as it grows.
 
-**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested URLs like `/groups/:gid/topics/:id/order` (group dimension travels in the body, not the path).
+**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested ordering URLs like `/parents/:parentId/items/:id/order`.
 
 ---
 

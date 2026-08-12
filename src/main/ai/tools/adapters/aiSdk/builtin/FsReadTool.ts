@@ -1,0 +1,317 @@
+/**
+ * fs_read — read-back companion for the context-build persistence layer.
+ * Ported from PR #14916's `fs/readFile.ts`, reduced to text-only and
+ * re-scoped from any-absolute-path (via strict root containment) to a
+ * per-request exact-path allow-list: only blobs whose `<persisted-output>`
+ * markers appear in this request's prompt are readable
+ * (`RequestContext.persistedOutputPaths`).
+ */
+import fsp from 'node:fs/promises'
+import { isAbsolute, resolve } from 'node:path'
+
+import { loggerService } from '@logger'
+import { isTextByContent } from '@main/utils/file'
+import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
+import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
+import { tool } from 'ai'
+import * as z from 'zod'
+
+import { makeTextFieldCodec } from '../../../outputCodec'
+import { getToolCallContext } from '../context'
+import type { ToolEntry } from '../types'
+
+const logger = loggerService.withContext('FsReadTool')
+
+/** Whole-file reads above this are rejected; paging args bypass the cap. */
+const SIZE_CAP_BYTES = 5 * MB
+/** Absolute ceiling, paging or not — the read path decodes the whole file
+ *  into memory before slicing, so paging must not unlock unbounded files. */
+const PAGED_SIZE_CAP_BYTES = 50 * MB
+/**
+ * Default max chars returned per call. Above this the tool returns a structured
+ * error with a file-specific recommended `limit` — fs_read must handle
+ * its own oversize natively (it is `truncatable: false`; letting the
+ * persistence layer store an fs_read result would loop: persisted file
+ * → fs_read → still too large → persist again).
+ * See {@link CONTEXT_PERSIST_THRESHOLD_CHARS} for the shared constant rationale.
+ *
+ * P2-B made the persist threshold a user setting, so the effective cap now
+ * rides the request (`RequestContext.toolOutputCharCap`) and this constant is
+ * only the fallback for synthetic / IPC-driven invocations that carry no
+ * request context.
+ */
+const READ_OUTPUT_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
+const DEFAULT_READ_LIMIT = 2_000
+
+const inputSchema = z.object({
+  path: z.string().min(1).describe('Absolute file path. Relative paths are rejected.'),
+  offset: z.number().int().min(1).optional().describe('1-indexed line number to start reading at. Default: 1.'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      `Maximum number of lines to return. Default: ${DEFAULT_READ_LIMIT}. No schema upper bound — ` +
+        `the per-call output cap (the configured tool-output threshold, ${READ_OUTPUT_CHAR_CAP} chars by ` +
+        `default) is the real gate; an oversized page reports the exact cap and a recommended limit.`
+    )
+})
+
+const outputSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('text'),
+    text: z.string(),
+    startLine: z.number().int(),
+    endLine: z.number().int(),
+    totalLines: z.number().int()
+  }),
+  z.object({
+    kind: z.literal('error'),
+    code: z.enum([
+      'relative-path',
+      'access-denied',
+      'not-found',
+      'not-a-file',
+      'binary',
+      'too-large',
+      'output-too-large',
+      'offset-out-of-range',
+      'parse-error'
+    ]),
+    message: z.string()
+  })
+])
+
+export type FsReadOutput = z.infer<typeof outputSchema>
+
+/**
+ * Exact-path admission against the request's persisted-output allow-list
+ * (blobs whose markers appear in this request's prompt). Realpath both sides
+ * so macOS `/var` → `/private/var` folding and similar indirections can't
+ * defeat the comparison. Membership is exact — the blob directory also holds
+ * user attachments, so no directory-level containment is granted. (A
+ * workspace containment root may return when the chat runtime gains one,
+ * P2-B+.)
+ */
+async function resolveAgainstAllowedPaths(
+  requestedPath: string,
+  allowedPaths: ReadonlySet<string> | undefined
+): Promise<string | null> {
+  if (!allowedPaths || allowedPaths.size === 0) return null
+  // Literal membership first, no FS involved — so a marker path whose blob
+  // vanished still resolves and reports `not-found` downstream instead of a
+  // misleading access-denied.
+  const normalized = resolve(requestedPath)
+  if (allowedPaths.has(normalized)) return normalized
+  let requestedReal: string
+  try {
+    requestedReal = await fsp.realpath(requestedPath)
+  } catch {
+    // A path that doesn't resolve can't match an existing allow-listed blob.
+    return null
+  }
+  for (const allowed of allowedPaths) {
+    try {
+      if ((await fsp.realpath(allowed)) === requestedReal) return requestedReal
+    } catch {
+      // Allow-listed blob no longer on disk — skip.
+    }
+  }
+  return null
+}
+
+interface TextReadResult {
+  text: string
+  startLine: number
+  endLine: number
+  totalLines: number
+}
+
+/** cat -n shape: 6-pad line numbers + tab. Lines are returned in full — there
+ *  is no per-line truncation; the per-call output is bounded by
+ *  READ_OUTPUT_CHAR_CAP as a whole (see executeFsRead), matching Claude Code's
+ *  Read (whole lines, output gated in aggregate, never chopped mid-line).
+ *  Format ported from #14916's readers/text.ts — the model pattern-matches it. */
+function formatLines(content: string, offset: number | undefined, limit: number | undefined): TextReadResult {
+  const lines = content.split('\n')
+  // A file ending in '\n' yields a trailing '' element ("a\nb\n" → ["a","b",""]); drop it so
+  // totalLines counts real lines and the model isn't told to page for a phantom empty line.
+  // (An empty file stays [''] → totalLines 1.)
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
+  const totalLines = lines.length
+  const startIndex = Math.max(0, (offset ?? 1) - 1)
+  const endIndex = Math.min(startIndex + (limit ?? DEFAULT_READ_LIMIT), totalLines)
+  const text = lines
+    .slice(startIndex, endIndex)
+    .map((line, i) => `${String(startIndex + i + 1).padStart(6, ' ')}\t${line}`)
+    .join('\n')
+  return { text, startLine: startIndex + 1, endLine: endIndex, totalLines }
+}
+
+/** Exported for direct testing (the tool's execute delegates here). */
+export async function executeFsRead(
+  input: { path: string; offset?: number; limit?: number },
+  allowedPaths?: ReadonlySet<string>,
+  /** Resolved persist threshold for the request; falls back to the shared default. */
+  charCap: number = READ_OUTPUT_CHAR_CAP
+): Promise<FsReadOutput> {
+  const { path: requestedPath, offset, limit } = input
+
+  if (!isAbsolute(requestedPath)) {
+    return { kind: 'error', code: 'relative-path', message: `Path must be absolute. Got: ${requestedPath}` }
+  }
+
+  const absolutePath = await resolveAgainstAllowedPaths(requestedPath, allowedPaths)
+  if (!absolutePath) {
+    logger.warn('fs_read denied: path outside allowed roots', { requestedPath })
+    return {
+      kind: 'error',
+      code: 'access-denied',
+      message: 'Access denied: path is not a persisted output of this conversation.'
+    }
+  }
+
+  let stats: Awaited<ReturnType<typeof fsp.stat>>
+  try {
+    stats = await fsp.stat(absolutePath)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') {
+      return { kind: 'error', code: 'not-found', message: `File not found: ${requestedPath}` }
+    }
+    if (code === 'EACCES' || code === 'EPERM') {
+      return { kind: 'error', code: 'access-denied', message: `Access denied by the OS: ${requestedPath}` }
+    }
+    return { kind: 'error', code: 'parse-error', message: err instanceof Error ? err.message : String(err) }
+  }
+
+  if (!stats.isFile()) {
+    return { kind: 'error', code: 'not-a-file', message: `Not a regular file: ${requestedPath}` }
+  }
+
+  if (stats.size > PAGED_SIZE_CAP_BYTES) {
+    return {
+      kind: 'error',
+      code: 'too-large',
+      message: `File is ${stats.size} bytes — above the absolute cap (${PAGED_SIZE_CAP_BYTES}); cannot be read even with paging.`
+    }
+  }
+
+  const hasPagingArgs = offset !== undefined || limit !== undefined
+  if (!hasPagingArgs && stats.size > SIZE_CAP_BYTES) {
+    return {
+      kind: 'error',
+      code: 'too-large',
+      message:
+        `File is ${stats.size} bytes (cap ${SIZE_CAP_BYTES} for whole-file reads). ` +
+        `Pass \`offset\`/\`limit\` to page through it.`
+    }
+  }
+
+  try {
+    // Encoding-aware sniff (isbinaryfile + chardet) rather than a bare NUL
+    // probe, so UTF-16 text files pass — readTextFileWithAutoEncoding below
+    // can decode them.
+    if (!(await isTextByContent(AbsoluteFilePathSchema.parse(absolutePath)))) {
+      return { kind: 'error', code: 'binary', message: `Cannot read binary file: ${requestedPath}` }
+    }
+
+    const content = await readTextFileWithAutoEncoding(absolutePath)
+    const result = formatLines(content, offset, limit)
+
+    if (result.startLine > result.totalLines) {
+      return {
+        kind: 'error',
+        code: 'offset-out-of-range',
+        message: `offset ${offset} is past end of file — it has only ${result.totalLines} lines.`
+      }
+    }
+
+    if (result.text.length > charCap) {
+      const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
+      if (returnedLines === 1) {
+        // A single physical line exceeds the per-call cap. Paging is line-based,
+        // so lowering `limit` can't subdivide it and fs_read has no byte-range
+        // read — return an honest error (never silently truncate) so the model
+        // works from the inline head/tail excerpt instead of assuming a full read.
+        return {
+          kind: 'error',
+          code: 'output-too-large',
+          message:
+            `Line ${result.startLine} alone is ${result.text.length} chars — above the per-call cap (${charCap}). ` +
+            `It is a single physical line (e.g. heavily minified JSON), so \`offset\`/\`limit\` paging cannot subdivide it ` +
+            `and fs_read has no byte-range read. This line can't be retrieved in full here — reason from the inline ` +
+            `head/tail excerpt, or narrow the upstream tool's output.`
+        }
+      }
+      const avgPerLine = Math.max(1, Math.round(result.text.length / returnedLines))
+      const safeLimit = Math.max(1, Math.floor((charCap - 200) / avgPerLine))
+      return {
+        kind: 'error',
+        code: 'output-too-large',
+        message:
+          `Output ${result.text.length} chars across lines ${result.startLine}-${result.endLine} of ${result.totalLines} ` +
+          `(avg ~${avgPerLine} chars/line including the line-number prefix) exceeds the per-call cap (${charCap}). ` +
+          `For THIS file request at most \`limit: ${safeLimit}\` lines per call, stepping with \`offset\` ` +
+          `(first \`offset: 1, limit: ${safeLimit}\`, then \`offset: ${safeLimit + 1}\`, …).`
+      }
+    }
+
+    return { kind: 'text', ...result }
+  } catch (err) {
+    return { kind: 'error', code: 'parse-error', message: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+const fsReadTool = tool({
+  description: `Read a text file by absolute path.
+
+Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Markers from earlier turns work too (persisted outputs live as long as their message does). Only paths from this conversation's markers are readable; reads elsewhere return access-denied.
+
+Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Lines are returned in full (never truncated mid-line); the per-call output is bounded as a whole, and oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. The one input it can't subdivide is a single physical line larger than that cap (e.g. heavily minified JSON) — line paging can't split one line and there is no byte-range read, so that case is reported as \`output-too-large\`; reason from the inline head/tail excerpt for such inputs.
+
+When reading a persisted output to summarize, analyze, or act on it, read sequential pages (advance \`offset\` to the returned \`endLine\` + 1) until you have covered 100% of the content. Before summarizing or drawing conclusions, state what fraction you actually read — and if you did not read all of it (including the single-oversized-line case), say so explicitly rather than implying full coverage.
+
+The persistence layer applies to non-read tools only; this tool never persists its own output — narrow the read (smaller \`limit\`) instead.`,
+  inputSchema,
+  outputSchema,
+  toModelOutput: ({ output }) => {
+    if (output.kind === 'error') {
+      return { type: 'error-text' as const, value: `[Error: ${output.code}] ${output.message}` }
+    }
+    const remaining = output.totalLines - output.endLine
+    const tail =
+      remaining > 0
+        ? `\n\n[showing lines ${output.startLine}-${output.endLine} of ${output.totalLines}; ${remaining} more — call again with offset=${output.endLine + 1} to continue]`
+        : ''
+    return { type: 'text' as const, value: `${output.text}${tail}` }
+  },
+  execute: async (input, options) => {
+    const { request } = getToolCallContext(options)
+    return executeFsRead(input, request.persistedOutputPaths, request.toolOutputCharCap)
+  }
+})
+
+export function createFsReadToolEntry(): ToolEntry {
+  return {
+    name: FS_READ_TOOL_NAME,
+    // In-flight exempt: fs_read handles oversize natively (output-too-large +
+    // paging), and truncating its result mid-loop would route the model back
+    // through fs_read in a loop. The codec applies at persist time only (lane
+    // rule in trimToolOutputs.ts), keeping an oversized page echo out of
+    // message.data. At the default configuration it never fires — the output
+    // is capped at READ_OUTPUT_CHAR_CAP == the persist threshold and the
+    // persist gate is strictly `>` — and when a lowered threshold does trim,
+    // repeated reads of the same page dedup onto one echo blob by content hash
+    // (not the source blob: the echo carries cat -n line-number formatting).
+    truncatable: false,
+    codec: makeTextFieldCodec({ textKey: 'text' }),
+    namespace: 'fs',
+    description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',
+    defer: 'never',
+    tool: fsReadTool
+  }
+}

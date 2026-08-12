@@ -284,9 +284,23 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
         this.desiredEnabled = enabled
+        // The reconciler can settle without running deactivate()/onActivate() (disable while
+        // never activated; rapid false→true), so keep the pool in sync directly here.
+        // Both calls are idempotent.
+        if (!enabled) {
+          wm.suspendPool(WindowType.SelectionAction)
+        } else if (this.isActivated) {
+          wm.resumePool(WindowType.SelectionAction)
+        }
         this.reconciler.request()
       })
     })
+
+    // The pool is warmup:'eager' — suspend before allReady so the warmup skips it while the
+    // feature is off; onActivate()'s resumePool() re-enables it.
+    if (!preferenceService.get('feature.selection.enabled')) {
+      wm.suspendPool(WindowType.SelectionAction)
+    }
   }
 
   protected onAllReady(): void {
@@ -608,7 +622,7 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] a hacky way
     // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
     // so we just don't set `skipTransformProcessType: true` when in self app
-    const isSelf = ['com.github.Electron', 'com.cherryai.cherrystudio'].includes(programName)
+    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
 
     if (!isSelf) {
       // [macOS] an ugly hacky way

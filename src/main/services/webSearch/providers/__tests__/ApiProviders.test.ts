@@ -5,6 +5,7 @@ import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  extractReadableMarkdown: vi.fn(),
   fetch: vi.fn(),
   fetchRemoteText: vi.fn(),
   loggerWarn: vi.fn(),
@@ -30,6 +31,10 @@ vi.mock('electron', () => ({
 
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: mocks.fetchRemoteText
+}))
+
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: mocks.extractReadableMarkdown }
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -162,6 +167,12 @@ describe('main web search API providers', () => {
   })
 
   beforeEach(() => {
+    mocks.extractReadableMarkdown.mockReset()
+    mocks.extractReadableMarkdown.mockImplementation(async (html: string) =>
+      html.includes('<div></div>')
+        ? { title: '', content: '' }
+        : { title: 'Resolved Page Title', content: 'Resolved content from the target page.' }
+    )
     fetchMock.mockReset()
     fetchRemoteTextMock.mockReset()
     mocks.loggerWarn.mockReset()
@@ -446,6 +457,110 @@ describe('main web search API providers', () => {
 
     const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
     expect(url).toBe('https://r.jinaai.cn/https://example.com/article')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('retries a failed China Jina Reader request through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValueOnce(createTextResponse('mirror unavailable', 'text/plain', 503)).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jinaai.cn/https://example.com/article',
+      'https://r.jina.ai/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      'Jina Reader preferred host failed; retrying alternate built-in host',
+      {
+        providerId: 'jina',
+        error: 'Jina Reader fetch failed: HTTP 503 mirror unavailable'
+      }
+    )
+  })
+
+  it('retries a failed global Jina Reader request through the China mirror', async () => {
+    mocks.isInChina.mockResolvedValue(false)
+    fetchMock.mockResolvedValueOnce(createTextResponse('global unavailable', 'text/plain', 403)).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jina.ai/https://example.com/article',
+      'https://r.jinaai.cn/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
+  })
+
+  it('retries empty China Jina Reader content through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValueOnce(createJsonResponse({ code: 200, data: { content: '  ' } })).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jinaai.cn/https://example.com/article',
+      'https://r.jina.ai/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
   })
 
   it('routes Jina search URL to the China mirror when the user is in mainland China', async () => {
@@ -522,8 +637,58 @@ describe('main web search API providers', () => {
     expect(url).toBe('https://reader.example.com/https://example.com/article')
   })
 
+  it('does not retry a failed custom Jina Reader host through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockRejectedValue(new Error('custom reader failed'))
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://reader.example.com'
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+      'custom reader failed'
+    )
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://reader.example.com/https://example.com/article'])
+  })
+
+  it('does not retry a caller-aborted China Jina Reader request through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    const abortController = new AbortController()
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    fetchMock.mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true })
+        })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+    const request = provider.fetchUrls('https://example.com/article', runtimeConfig, { signal: abortController.signal })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    abortController.abort(abortError)
+
+    await expect(request).rejects.toBe(abortError)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://r.jinaai.cn/https://example.com/article'])
+  })
+
   it('throws when Jina Reader returns empty content', async () => {
-    fetchMock.mockResolvedValue(
+    const emptyResponse = () =>
       createJsonResponse({
         code: 200,
         data: {
@@ -532,7 +697,7 @@ describe('main web search API providers', () => {
           text: '\n'
         }
       })
-    )
+    fetchMock.mockResolvedValueOnce(emptyResponse()).mockResolvedValueOnce(emptyResponse())
 
     const provider = createProviderDriver(
       JinaProvider,
@@ -550,7 +715,9 @@ describe('main web search API providers', () => {
   })
 
   it('includes Jina Reader upstream error body for HTTP failures', async () => {
-    fetchMock.mockResolvedValue(createTextResponse('unauthorized reader token', 'text/plain', 401))
+    fetchMock
+      .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
+      .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
 
     const provider = createProviderDriver(
       JinaProvider,
@@ -891,7 +1058,7 @@ describe('main web search API providers', () => {
     await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
   })
 
-  it('matches Bocha request and normalized response snapshots from fixtures', async () => {
+  it('accepts nullable Bocha fields and normalizes content fallbacks from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
     const provider = createProviderDriver(
@@ -940,6 +1107,24 @@ describe('main web search API providers', () => {
               "sourceInput": "hello",
               "title": "Bocha Title",
               "url": "https://bocha.example/result",
+            },
+            {
+              "content": "Bocha Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Summary Title",
+              "url": "https://bocha.example/summary-result",
+            },
+            {
+              "content": "Bocha Preferred Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Preferred Summary Title",
+              "url": "https://bocha.example/preferred-summary-result",
+            },
+            {
+              "content": "",
+              "sourceInput": "hello",
+              "title": "Bocha Empty Content Title",
+              "url": "https://bocha.example/empty-content-result",
             },
           ],
         },
@@ -1126,7 +1311,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1156,6 +1341,7 @@ describe('main web search API providers', () => {
             "accept": "application/json, text/event-stream",
             "content-type": "application/json",
             "http-referer": "https://cherry-ai.com",
+            "x-api-key": "test-key",
             "x-title": "Cherry Studio",
           },
           "method": "POST",
@@ -1181,6 +1367,67 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('sends the Exa API key as an x-api-key header when configured', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
+
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiKeys: ['exa-mcp-key'],
+        apiHost: 'https://mcp.exa.ai/mcp'
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    const [, init] = fetchMock.mock.lastCall as [string, RequestInit]
+    expect(new Headers(init.headers).get('x-api-key')).toBe('exa-mcp-key')
+  })
+
+  it('omits the x-api-key header when no API key is configured', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
+
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiKeys: [],
+        apiHost: 'https://mcp.exa.ai/mcp'
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    const [, init] = fetchMock.mock.lastCall as [string, RequestInit]
+    expect(new Headers(init.headers).get('x-api-key')).toBeNull()
+  })
+
+  it.each([
+    { apiHost: '', code: 'api_host_missing' },
+    { apiHost: 'not-a-url', code: 'api_host_invalid' }
+  ])('rejects Exa MCP API Host configuration before fetching: $code', async ({ apiHost, code }) => {
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('skips malformed Exa MCP SSE frames and keeps parsing later frames', async () => {
     fetchMock.mockResolvedValue(
       createTextResponse(
@@ -1199,7 +1446,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1230,7 +1477,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1261,7 +1508,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1336,7 +1583,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1488,6 +1735,109 @@ describe('main web search API providers', () => {
       expect(result.results).toHaveLength(2)
       expect(result.results[0].content).toBe('Fallback Description')
       expect(result.results[1].content).toBe('')
+    })
+
+    it('matches Firecrawl scrape requests and parsed content snapshots', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-scrape-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['firecrawl-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.example' }]
+        })
+      )
+
+      const result = await provider.fetchUrls('https://example.com', runtimeConfig)
+
+      expect({
+        fetchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
+        result
+      }).toMatchInlineSnapshot(`
+        {
+          "fetchRequest": {
+            "body": {
+              "formats": [
+                "markdown",
+              ],
+              "url": "https://example.com",
+            },
+            "headers": {
+              "authorization": "Bearer firecrawl-key",
+              "content-type": "application/json",
+              "http-referer": "https://cherry-ai.com",
+              "x-title": "Cherry Studio",
+            },
+            "method": "POST",
+            "url": "https://api.firecrawl.example/v2/scrape",
+          },
+          "result": {
+            "capability": "fetchUrls",
+            "inputs": [
+              "https://example.com",
+            ],
+            "providerId": "firecrawl",
+            "query": "https://example.com",
+            "results": [
+              {
+                "content": "# Example Domain
+
+        This domain is for use in documentation examples without needing permission. Avoid use in operations.
+
+        [Learn more](https://iana.org/domains/example)",
+                "sourceInput": "https://example.com",
+                "title": "Example Domain",
+                "url": "https://example.com",
+              },
+            ],
+          },
+        }
+      `)
+    })
+
+    it('scrapes without an api key using the free quota', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-scrape-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: [],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.dev' }]
+        })
+      )
+
+      const result = await provider.fetchUrls('https://example.com', runtimeConfig)
+
+      expect(result.results[0].title).toBe('Example Domain')
+      const request = toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined])
+      expect(request.headers.authorization).toBeUndefined()
+    })
+
+    it('rejects scrape responses that report failure or return no markdown', async () => {
+      fetchMock
+        .mockResolvedValueOnce(createJsonResponse({ success: false, error: 'Rate limit exceeded' }))
+        .mockResolvedValueOnce(createJsonResponse({ success: true, data: { markdown: '   ' } }))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['test-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.example' }]
+        })
+      )
+
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+        'Firecrawl scrape failed: Rate limit exceeded'
+      )
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+        'Firecrawl scrape returned empty content for https://example.com/article'
+      )
     })
   })
 })

@@ -14,65 +14,6 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 
-const LEGACY_RENDERER_CSS_VARS = [
-  '--color-text-1',
-  '--color-text-2',
-  '--color-text-3',
-  '--color-text',
-  '--color-text-secondary',
-  '--color-text-soft',
-  '--color-text-light',
-  '--color-background-soft',
-  '--color-background-mute',
-  '--color-background-opacity',
-  '--color-border-soft',
-  '--color-border-mute',
-  '--color-error',
-  '--color-link',
-  '--color-primary-bg',
-  '--color-fill-secondary',
-  '--color-fill-2',
-  '--color-bg-base',
-  '--color-bg-1',
-  '--color-code-background',
-  '--color-inline-code-background',
-  '--color-inline-code-text',
-  '--color-hover',
-  '--color-active',
-  '--color-frame-border',
-  '--color-group-background',
-  '--color-reference',
-  '--color-reference-text',
-  '--color-reference-background',
-  '--color-list-item',
-  '--color-list-item-hover',
-  '--color-highlight',
-  '--color-background-highlight',
-  '--color-background-highlight-accent',
-  '--navbar-background-mac',
-  '--navbar-background',
-  '--modal-background',
-  '--chat-background',
-  '--chat-background-user',
-  '--chat-background-assistant',
-  '--chat-text-user',
-  '--list-item-border-radius',
-  '--color-gray-1',
-  '--color-gray-2',
-  '--color-gray-3',
-  '--color-icon-white',
-  '--color-primary-1',
-  '--color-primary-6',
-  '--color-status-success',
-  '--color-status-error',
-  '--color-status-warning'
-]
-
-const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
-  `(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
-  'g'
-)
-
 // --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
 const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 const PAGE_DOMAINS = fs
@@ -131,6 +72,26 @@ const boundarySettings = {
 // Two independent gates: block1 (layer edges) is enforced as error — Stage 1 cleared it; block2 (sibling pages) stays warn until features-ization.
 const RENDERER_BOUNDARY = 'error'
 const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
+
+// --- import bans (@typescript-eslint/no-restricted-imports) ---
+// Flat config replaces a rule wholesale rather than merging it, so every ban that
+// applies to the same files must live in ONE `patterns` array under ONE rule name.
+// To add a ban: define it here and list it in the scope block(s) below — never reach
+// for a second rule name (e.g. the base `no-restricted-imports`) to dodge the override.
+// To exempt a single sanctioned call site, put an eslint-disable comment on its import.
+const BAN_RENDERER_FROM_MAIN = {
+  group: ['@renderer', '@renderer/**', '**/renderer/**'],
+  message:
+    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+}
+// Only reaches src/main + src/preload (below). `tests/**` is globally ignored by this
+// config, so the out-of-src harness is not covered — it goes through applyMigrations by
+// convention, not by enforcement.
+const BAN_DRIZZLE_MIGRATOR = {
+  group: ['drizzle-orm/*/migrator'],
+  message:
+    "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
+}
 
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
@@ -475,6 +436,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'packages/**/storybook-static/**',
       'v2-refactor-temp/**'
     ]
   },
@@ -496,6 +458,70 @@ export default defineConfig([
             '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
         }
       ]
+    }
+  },
+  // Path brand integrity — `as AbsoluteFilePath` / `as CanonicalFilePath` forge the
+  // brands, skipping the validation each asserts. `AbsoluteFilePath` asserts shape
+  // validation (build via AbsoluteFilePathSchema.parse); `CanonicalFilePath` asserts
+  // the byte-faithful lexical form that backs the external-path dedup key
+  // (build via the canonicalizeFilePath() factory). A forged
+  // `as CanonicalFilePath` silently bypasses canonicalization and can write a
+  // ghost-duplicate key, so the stronger brand is guarded too.
+  // Exemptions: test fixtures; and one deliberate raw-OS-path regime — the
+  // tree builder (tree/**) holds raw chokidar/OS event paths that are compared
+  // byte-for-byte against event paths and are trusted as-is, so they `as AbsoluteFilePath`
+  // rather than routing through validation.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/main/services/file/tree/**',
+      'src/**/__tests__/**',
+      'src/**/__mocks__/**',
+      'src/**/*.test.*'
+    ],
+    plugins: {
+      'filepath-brand': {
+        rules: {
+          'no-as-filepath': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as AbsoluteFilePath` / `as CanonicalFilePath` casts. Both are Zod-derived brands: AbsoluteFilePath asserts shape validation (absolute path, no null bytes), CanonicalFilePath additionally asserts the byte-faithful lexical form backing the dedup key. Forging either bypasses its validation. Construct via AbsoluteFilePathSchema.parse() / canonicalizeFilePath().',
+                recommended: true
+              },
+              messages: {
+                noAsFilePath:
+                  '`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema\'s absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                noAsCanonicalFilePath:
+                  '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
+              }
+            },
+            create(context) {
+              // Matches both `x as T` (TSAsExpression) and `<T>x` (TSTypeAssertion).
+              // Limitation: name-based, so an aliased import (`import { AbsoluteFilePath as AFP }`
+              // then `x as AFP`) is not caught — aliasing a brand solely to forge it is not a
+              // real-world pattern, and resolving aliases would require full scope analysis.
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'AbsoluteFilePath') {
+                  context.report({ node, messageId: 'noAsFilePath' })
+                } else if (ann.typeName.name === 'CanonicalFilePath') {
+                  context.report({ node, messageId: 'noAsCanonicalFilePath' })
+                }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
     }
   },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
@@ -650,6 +676,8 @@ export default defineConfig([
     }
   },
   {
+    // Import bans for main/preload — see the BAN_* definitions above for each one's rationale.
+    //
     // Boundary guard: the main process and preload must not import renderer code.
     // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
     // Both the `@renderer` alias and relative `**/renderer/**` paths are banned; the
@@ -657,18 +685,7 @@ export default defineConfig([
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@renderer', '@renderer/**', '**/renderer/**'],
-              message:
-                'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
-            }
-          ]
-        }
-      ]
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
@@ -782,65 +799,6 @@ export default defineConfig([
     plugins: { naming: namingPlugin },
     rules: {
       'naming/path-case': 'error'
-    }
-  },
-  // renderer legacy css var migration warnings
-  {
-    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
-    ignores: [
-      'src/renderer/**/*.test.*',
-      'src/renderer/**/__tests__/**',
-      'src/renderer/**/__mocks__/**'
-    ],
-    plugins: {
-      'renderer-styles': {
-        rules: {
-          'no-legacy-css-vars': {
-            meta: {
-              type: 'suggestion',
-              docs: {
-                description:
-                  'Warn when renderer code references legacy CSS compatibility variables instead of the shared theme contract.',
-                recommended: true
-              },
-              messages: {
-                legacyVar:
-                  'Legacy renderer CSS variable "{{variable}}" is deprecated. Prefer @cherrystudio/ui theme contract variables or Tailwind semantic utilities instead.'
-              }
-            },
-            create(context) {
-              function reportIfLegacyCssVar(node, text) {
-                const matches = text.matchAll(LEGACY_RENDERER_CSS_VAR_REGEX)
-                for (const match of matches) {
-                  const variable = match[1]
-                  if (!variable) continue
-                  context.report({
-                    node,
-                    messageId: 'legacyVar',
-                    data: { variable }
-                  })
-                }
-              }
-
-              return {
-                Literal(node) {
-                  if (typeof node.value !== 'string') return
-                  reportIfLegacyCssVar(node, node.value)
-                },
-                TemplateElement(node) {
-                  reportIfLegacyCssVar(node, node.value.raw)
-                },
-                JSXText(node) {
-                  reportIfLegacyCssVar(node, node.value)
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    rules: {
-      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
   // Schema key naming convention (cache, preferences, paths & IPC route/event keys)

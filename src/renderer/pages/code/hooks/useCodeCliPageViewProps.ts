@@ -1,6 +1,5 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
@@ -21,7 +20,6 @@ import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { useApiGatewayProvider } from './useApiGatewayProvider'
 import { useBinaryActions } from './useBinaryActions'
-import { useBunInstallationCache } from './useBunInstallationCache'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
@@ -47,7 +45,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     }),
     [t]
   )
-  useBunInstallationCache()
   const {
     configs,
     selectedCliTool,
@@ -67,10 +64,16 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
-  const { providers } = useProviders()
+  const { providers, isLoading: isProvidersLoading } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
-    useConfigMetadata(selectedCliTool, providers)
+  const {
+    filterProviders,
+    makeModelFilter,
+    resolveProviderMeta,
+    resolveProviderMetaForTool,
+    gatewayModelsById,
+    isGatewayModelsLoading
+  } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
 
   // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
   // provider display name when no model applies (own login, Claude detailed models).
@@ -141,18 +144,38 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
-  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
-  const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+  // Local busy Sets give instant feedback; snapshot operations cover mutations
+  // initiated in another window or before this page mounted.
+  const mergedInstallingTools = useMemo(() => {
+    const merged = new Set<string>(installingTools)
+    for (const tool of CLI_TOOLS) {
+      const status = statuses[tool.value]
+      if (status?.operation?.status === 'installing') merged.add(tool.value)
+    }
+    return merged
+  }, [installingTools, statuses])
+  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
+    installed: false,
+    source: 'none',
+    canUpgrade: false
+  }
+  // Only surface install failures here — the dialog is labeled "install error"
+  // and offers a retry-install action. Remove failures are reported by their own
+  // toast in useBinaryActions, so gating on the action avoids mislabeling a
+  // failed uninstall as an install error.
+  const installError =
+    versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install'
+      ? versionStatus.operation.error
+      : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    !!cliPreset && versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
+    versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
     toolName,
-    isToolInstalled: versionStatus.installed,
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
@@ -160,7 +183,9 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     setCurrentProvider,
     setCurrentCliConfigConnection,
     makeModelFilter,
-    apiGatewayProvider: apiGatewayBundle
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
+    isGatewayModelsLoading
   })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,
@@ -209,7 +234,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
       onSelectTool: selectTool,
       toMeta,
       statuses,
-      installingTools,
+      installingTools: mergedInstallingTools,
       upgradingTools,
       providerSummaries
     },
@@ -219,14 +244,15 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           activeMeta,
           versionStatus,
           versionCard: {
-            visible: !!cliPreset,
+            visible: true,
             canLaunch,
             launching: launchDialog.launching || openClawGateway.launching || openClawGateway.starting,
             running: openClawGateway.running,
             stopping: openClawGateway.stopping
           },
-          installingTools,
+          installingTools: mergedInstallingTools,
           upgradingTools,
+          installError,
           providerState: {
             providerless: isProviderlessTool,
             showSelectionHint: showProviderSelectionHint
@@ -236,9 +262,21 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
           resolveProviderMeta,
-          onInstall: () => void install(selectedCliTool),
+          // A failed update carries its target so Retry repeats the same targeted
+          // install; a name-only retry would hit the applied no-op and clear the
+          // failure without ever re-attempting the update.
+          onInstall: () =>
+            void install(
+              selectedCliTool,
+              versionStatus.operation?.status === 'failed' ? versionStatus.operation.targetVersion : undefined
+            ),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          onRemove: () => removeDialog.requestRemove(selectedCliTool),
+          // Uninstall authority is the live application fact: offer removal only
+          // when the fixed CLI's exact recipe is applied or broken.
+          onRemove:
+            versionStatus.applicationStatus === 'applied' || versionStatus.applicationStatus === 'broken'
+              ? () => removeDialog.requestRemove(selectedCliTool)
+              : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

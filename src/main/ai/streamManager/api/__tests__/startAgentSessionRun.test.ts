@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '../../types'
@@ -26,8 +27,14 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
+const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({ sessionGetById: vi.fn(), runtimeBusy: vi.fn(() => false) }))
+
 vi.mock('../../context/AgentChatContextProvider', () => ({
   agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: sessionGetById }
 }))
 
 // startAgentSessionRun reaches for `application.get('AiStreamManager')`; hand it a real
@@ -37,6 +44,7 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'AiStreamManager') return managerHolder.current
+      if (name === 'AgentSessionRuntimeService') return { isSessionBusy: runtimeBusy }
       throw new Error(`startAgentSessionRun.test: unexpected application.get('${name}')`)
     }
   }
@@ -61,6 +69,8 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     events.length = 0
     prepareResolvers.length = 0
     prepareDispatchMock.mockClear()
+    sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
+    runtimeBusy.mockReset().mockReturnValue(false)
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
     const manager = new Ctor()
@@ -126,5 +136,60 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     await run
 
     expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [primary, extra] }))
+  })
+
+  it('returns busy before preparing or injecting task listeners into a live user stream', async () => {
+    const manager = managerHolder.current as ManagerInstance
+    vi.spyOn(manager, 'hasLiveStream').mockReturnValue(true)
+
+    await expect(
+      startAgentSessionRun({
+        sessionId: 's',
+        userParts: [text('scheduled')],
+        listeners: [listener('task')],
+        requireIdle: { expectedAgentId: 'agent-1' }
+      })
+    ).resolves.toEqual({ mode: 'not-started', reason: 'busy' })
+
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns busy when the runtime becomes active during preparation', async () => {
+    prepareDispatchMock.mockRejectedValueOnce(
+      DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn') as never
+    )
+
+    await expect(
+      startAgentSessionRun({
+        sessionId: 's',
+        userParts: [text('scheduled')],
+        listeners: [listener('task')],
+        requireIdle: { expectedAgentId: 'agent-1' }
+      })
+    ).resolves.toEqual({ mode: 'not-started', reason: 'busy' })
+
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('places task listeners before the runtime terminal listener', async () => {
+    const runtimeTerminal = listener('agent-runtime:s')
+    prepareDispatchMock.mockImplementationOnce(async (primary: StreamListener, req: { topicId: string }) => ({
+      topicId: req.topicId,
+      models: [],
+      listeners: [primary, runtimeTerminal],
+      isMultiModel: false
+    }))
+    const task = listener('task')
+    const channel = listener('channel')
+
+    await startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('scheduled')],
+      listeners: [task, channel],
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+
+    expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [task, channel, runtimeTerminal] }))
   })
 })

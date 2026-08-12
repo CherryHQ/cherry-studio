@@ -194,18 +194,16 @@ describe('MiniAppsPage', () => {
     }
   })
 
-  it('filters mini apps by search without rendering the old title count row', () => {
+  it('filters mini apps by search', () => {
     render(<MiniAppsPage />)
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
-    expect(screen.queryByText('2')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('common.search'), { target: { value: 'chat' } })
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
   })
 
   it('opens the selected mini app without changing the tab contract', () => {

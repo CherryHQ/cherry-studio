@@ -1,12 +1,19 @@
+import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
-import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
+import AgentComposer, { type AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { Model } from '@shared/data/types/model'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 interface AgentComposerSlotProps {
   agentId?: string
+  activeAgent?: GetAgentResponse
+  activeModel?: Model
+  workspaceWarning?: string
   isMultiSelectMode: boolean
   session: AgentSessionEntity
   sessionId: string
@@ -15,16 +22,15 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
-  canChangeAgent?: boolean
-  workspaceId?: string | null
-  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  workspaceChanging?: boolean
-  canChangeModel?: boolean
   composerContext: ComposerContextValue
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
+  activeAgent,
+  activeModel,
+  workspaceWarning,
   isMultiSelectMode,
   session,
   sessionId,
@@ -33,31 +39,31 @@ export default function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
-  canChangeAgent,
-  workspaceId,
-  onWorkspaceChange,
-  workspaceChanging,
-  canChangeModel,
-  composerContext
+  composerContext,
+  composerLaunchOptions
 }: AgentComposerSlotProps) {
+  const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
         agentId={agentId}
         sessionId={sessionId}
         sessionOverride={session}
+        resolvedAgent={activeAgent}
+        resolvedModel={activeModel}
+        resolvedWorkspaceWarning={workspaceWarning ?? null}
+        externalContextControls
         sendMessage={sendMessage}
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
-        canChangeAgent={canChangeAgent}
-        workspaceId={workspaceId}
-        onWorkspaceChange={onWorkspaceChange}
-        workspaceChanging={workspaceChanging}
-        canChangeModel={canChangeModel}
+        compactWhenSingleLine={compactWhenSingleLine}
+        launchOptions={composerLaunchOptions}
       />
     ) : undefined
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

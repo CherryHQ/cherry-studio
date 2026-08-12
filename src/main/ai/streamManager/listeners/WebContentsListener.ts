@@ -1,3 +1,4 @@
+import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
@@ -50,9 +51,6 @@ export class WebContentsListener implements StreamListener {
     private readonly topicId: string
   ) {
     this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
-    // Clear the coalesce timer if the window dies between chunks — without
-    // this hook a quiet stream end leaks the timer.
-    this.wc.once('destroyed', () => this.discardPending())
   }
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
@@ -97,7 +95,7 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.emit('ai.stream_done', {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -112,7 +110,7 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.emit('ai.stream_done', {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -128,7 +126,7 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
-    this.emit('ai.stream_error', {
+    this.emit('ai.stream.error', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -164,11 +162,11 @@ export class WebContentsListener implements StreamListener {
 
   private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) return
-    this.emit('ai.stream_chunk', {
+    this.emit('ai.stream.chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
       anchorMessageId,
-      chunk
+      chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
   }
 

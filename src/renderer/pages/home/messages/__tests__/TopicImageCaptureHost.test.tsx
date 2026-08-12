@@ -26,6 +26,10 @@ vi.mock('@renderer/components/chat/messages/MessageImageCaptureHost', () => ({
     ready ? <div data-testid={testId}>capture host</div> : null
 }))
 
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: () => ({ assistant: { id: 'assistant-a' } })
+}))
+
 vi.mock('../homeMessageListAdapter', async () => {
   const { useMessageEditing } = (await vi.importActual('@renderer/components/chat/editing/MessageEditingContext')) as {
     useMessageEditing: () => unknown
@@ -98,15 +102,15 @@ describe('TopicImageCaptureHost', () => {
     const offPathUser = createMessage('user-off-path', 'user', '2026-01-01T00:00:01.000Z', { siblingsGroupId: 1 })
     const olderModelA = createMessage('assistant-model-a-old', 'assistant', '2026-01-01T00:00:02.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-a'
+      modelId: 'provider::model-a'
     })
     const activeModelA = createMessage('assistant-model-a-active', 'assistant', '2026-01-01T00:00:03.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-a'
+      modelId: 'provider::model-a'
     })
     const modelB = createMessage('assistant-model-b', 'assistant', '2026-01-01T00:00:04.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-b'
+      modelId: 'provider::model-b'
     })
 
     dataApiGetMock.mockResolvedValueOnce({
@@ -125,5 +129,22 @@ describe('TopicImageCaptureHost', () => {
       'assistant-model-b'
     ])
     expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, true, false])
+  })
+
+  it('omits persisted empty user messages from the captured conversation', async () => {
+    const visibleUser = createMessage('user-visible', 'user', '2026-01-01T00:00:00.000Z')
+    const awaitingInput = createMessage('user-awaiting-input', 'user', '2026-01-01T00:00:01.000Z', {
+      parentId: 'assistant-anchor',
+      data: { parts: [] }
+    })
+
+    dataApiGetMock.mockResolvedValueOnce({
+      items: [{ message: visibleUser }, { message: awaitingInput }],
+      nextCursor: undefined
+    })
+
+    const messages = await getTopicImageCaptureMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['user-visible'])
   })
 })

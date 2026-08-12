@@ -1,6 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { getModelSupportedReasoningEffortOptions } from '@renderer/utils/model'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
@@ -27,6 +27,7 @@ const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   default: 'assistants.settings.reasoning_effort.default',
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
+  max: 'assistants.settings.reasoning_effort.max',
   medium: 'assistants.settings.reasoning_effort.medium',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   none: 'assistants.settings.reasoning_effort.off',
@@ -122,11 +123,22 @@ function DetailRow({ label, value }: { label: ReactNode; value?: ReactNode }) {
   )
 }
 
-function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelectorModelItem; providerName: string }) {
+function ModelSelectorDetailCardBody({
+  item,
+  provider,
+  providerName
+}: {
+  item: ModelSelectorModelItem
+  provider: Provider
+  providerName: string
+}) {
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
-  const tags = useMemo(() => getModelDisplayTags(model), [model])
-  const reasoningEfforts = formatReasoningEfforts(getModelSupportedReasoningEffortOptions(model), t)
+  const tags = useMemo(() => getModelDisplayTags(model, undefined, provider), [model, provider])
+  const reasoningEfforts = formatReasoningEfforts(
+    deriveThinkingOptions(model)?.filter((option) => option !== 'default'),
+    t
+  )
   const imageModes = formatImageGenerationModes(model, t)
   const hasTokenDetails = model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
@@ -216,7 +228,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         collisionPadding={DETAIL_CARD_COLLISION_PADDING}
         portalContainer={portalContainer ?? undefined}
         className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
-        <ModelSelectorDetailCardBody item={item} providerName={providerName} />
+        <ModelSelectorDetailCardBody item={item} provider={provider} providerName={providerName} />
       </HoverCardContent>
     </HoverCard>
   )

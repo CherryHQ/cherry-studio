@@ -147,6 +147,7 @@ export const InstalledSkillSchema = z.object({
   sourceUrl: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
+  version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
   isEnabled: z.boolean(),
@@ -177,6 +178,10 @@ export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
 }
 
+export interface SkillImportSystemOptions {
+  directoryPath: string
+}
+
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
 
 // ============================================================================
@@ -198,4 +203,24 @@ export interface LocalSkill {
   name: string
   description?: string
   filename: string
+}
+
+export interface SystemSkillPlacement {
+  sourceId: string
+  sourceName: string
+  directoryPath: string
+}
+
+export type SystemSkillStatus = 'available' | 'registered' | 'conflict'
+
+/** A skill found in a known system-level CLI skill directory. */
+export interface SystemSkillCandidate {
+  id: string
+  name: string
+  description?: string
+  filename: string
+  directoryPath: string
+  placements: SystemSkillPlacement[]
+  status: SystemSkillStatus
+  registeredSkillId?: string
 }

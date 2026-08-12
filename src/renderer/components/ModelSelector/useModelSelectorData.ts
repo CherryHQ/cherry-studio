@@ -4,7 +4,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getSearchMatchScore } from '@renderer/utils/model'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -53,7 +53,7 @@ function getModelIdentifier(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: string[]) {
+function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   if (prioritizedProviderIds.length === 0) {
     return providers
   }
@@ -69,6 +69,7 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 }
 
 export function useModelSelectorData({
+  enabled = true,
   selectedModelIds = [],
   maxSelectedCount,
   searchText,
@@ -77,8 +78,16 @@ export function useModelSelectorData({
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const { providers, isLoading: isProvidersLoading, refetch: refetchProviders } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels({ enabled: true })
+  const {
+    providers,
+    isLoading: isProvidersLoading,
+    refetch: refetchProviders
+  } = useProviders({ enabled: true }, { enabled })
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -86,7 +95,7 @@ export function useModelSelectorData({
     pinnedIds: rawPinnedIds,
     refetch: refetchPinnedModels,
     togglePin
-  } = usePins('model')
+  } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
@@ -138,13 +147,16 @@ export function useModelSelectorData({
   }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
 
   const availableTags = useMemo(() => {
-    const selectableModels = [...modelsByProvider.values()].flat()
-    if (selectableModels.length === 0) {
+    if (modelsByProvider.size === 0) {
       return EMPTY_TAGS
     }
 
-    return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => modelMatchesDisplayTag(model, tag)))
-  }, [modelsByProvider])
+    return MODEL_SELECTOR_TAGS.filter((tag) =>
+      sortedProviders.some((provider) =>
+        (modelsByProvider.get(provider.id) ?? []).some((model) => modelMatchesDisplayTag(model, tag, provider))
+      )
+    )
+  }, [modelsByProvider, sortedProviders])
 
   const selectableModelsById = useMemo(() => {
     const entries = [...modelsByProvider.values()].flat().map((model) => [model.id, model] as const)
@@ -220,13 +232,14 @@ export function useModelSelectorData({
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
-    const finalModelFilter = (model: Model) => (!showTagFilter || tagFilter(model)) && baseModelFilter(model)
+    const finalModelFilter = (model: Model) =>
+      (!showTagFilter || tagFilter(model, providerById.get(model.providerId))) && baseModelFilter(model)
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
     // result so duplicate-name detection and the list below share one pass per provider.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
       sortedProviders.map((provider) => [
         provider.id,
-        searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
+        searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
     const duplicateNamesByProvider = new Map<string, Set<string>>(
@@ -275,7 +288,7 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID
+        canNavigateToSettings: isProviderSettingsListVisibleProvider(provider)
       })
 
       items.push(

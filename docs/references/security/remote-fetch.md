@@ -20,6 +20,8 @@ Electron `net.fetch` uses Chromium's network stack and follows the app/session p
 
 For direct untrusted fetches, Cherry Studio uses a Node HTTP(S) request path that pins the connection to a validated public DNS answer. This intentionally prioritizes SSRF protection over full Chromium session proxy compatibility for these direct-provider requests. Proxy-compatible fetching can be added later only if the connection guard remains enforced for the address that is actually used.
 
+Callers migrating from `net.fetch` must treat this as a user-visible compatibility change: `fetchRemoteText` does not inherit Chromium session proxy settings. Do not add a caller-specific `net.fetch` fallback, because that would reopen the DNS time-of-check/time-of-use gap. Citation previews intentionally degrade to empty preview content on proxy-only networks while keeping the citation title and link usable.
+
 ## Redirects
 
-Redirects are rejected. If redirect support is added later, every hop must repeat the same URL validation, DNS resolution, private-address rejection, and pinned connection process, with a strict hop limit.
+Redirects are rejected by default. Callers may opt into a strict hop limit; every followed hop repeats URL validation, DNS resolution, private-address rejection, and pinned connection setup before opening the next request.

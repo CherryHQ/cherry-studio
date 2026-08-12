@@ -309,36 +309,6 @@ export function isCursorPaginationResponse<T>(
 }
 
 /**
- * Subscription options for real-time data updates
- */
-export interface SubscriptionOptions {
-  /** Path pattern to subscribe to */
-  path: string
-  /** Filters to apply to subscription */
-  filters?: Record<string, any>
-  /** Whether to receive initial data */
-  includeInitial?: boolean
-  /** Custom subscription metadata */
-  metadata?: Record<string, any>
-}
-
-/**
- * Subscription callback function
- */
-export type SubscriptionCallback<T = any> = (data: T, event: SubscriptionEvent) => void
-
-/**
- * Subscription event types
- */
-export enum SubscriptionEvent {
-  CREATED = 'created',
-  UPDATED = 'updated',
-  DELETED = 'deleted',
-  INITIAL = 'initial',
-  ERROR = 'error'
-}
-
-/**
  * Middleware interface
  */
 export interface Middleware {
@@ -384,7 +354,7 @@ export interface ServiceOptions {
 // API Schema Type Utilities
 // ============================================================================
 
-import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './paths'
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath, TemplateApiPaths } from './paths'
 import type { ApiSchemas } from './schemas/apiSchemas'
 
 // Re-export for external use
@@ -560,3 +530,115 @@ export type ApiImplementation = {
  * leakage) while keeping the exhaustiveness guarantee inside that scope.
  */
 export type HandlersFor<Schemas> = Pick<ApiImplementation, Extract<keyof Schemas, keyof ApiImplementation>>
+
+// ============================================================================
+// Data Change Notification Protocol
+// ============================================================================
+
+/**
+ * Template paths that declare a GET method — the read models of the API.
+ * These are the only legal targets of a data change notification: a POST-only
+ * path (e.g. '/messages/:id/siblings') has no readable state to converge on.
+ */
+export type GetMethodApiPaths = {
+  [K in TemplateApiPaths]: ApiSchemas[K] extends { GET: any } ? K : never
+}[TemplateApiPaths]
+
+/**
+ * GET paths classified as collections, derived from the GET response shape:
+ * a bare array or a pagination response (cursor or offset) is a collection,
+ * everything else is a scalar.
+ *
+ * `InferPaginationMode` alone is not enough — collections like '/tags' and
+ * '/pins' return bare arrays. Wrapper-object list responses that do NOT
+ * extend a pagination type (e.g. '/search/entities') deliberately degrade to
+ * {@link ScalarGetPaths}: coarser but still correct (no `kind` = whole-value
+ * refetch), and an attempt to express membership/order against them is
+ * rejected by the type system instead of being silently wrong.
+ *
+ * The membership of this union is pinned by a snapshot type test
+ * (`__tests__/dataChange.types.test.ts`) so a schema change that flips a
+ * path's classification surfaces as a reviewable diff.
+ */
+export type CollectionGetPaths = {
+  [K in GetMethodApiPaths]: ResponseForPath<K, 'GET'> extends
+    | readonly unknown[]
+    | CursorPaginationResponse<any>
+    | OffsetPaginationResponse<any>
+    ? K
+    : never
+}[GetMethodApiPaths]
+
+/** GET paths whose response is a single value — everything not a collection. */
+export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
+
+/**
+ * One entry of a DataApi data change notification.
+ *
+ * After a business write successfully commits, the owning main-process data
+ * service broadcasts which DataApi read models changed and in what way; each
+ * renderer consumer subscribes and decides its own convergence action
+ * (revalidate / rebuild / ignore). SQLite remains the single source of truth —
+ * an effect carries no entity rows, no field diffs, no CRUD verbs and no
+ * commands; renderers re-GET when they need facts.
+ *
+ * Shape rules (illegal states are unrepresentable in this union):
+ * - scalar endpoint: no `kind` — the whole value may have changed, refetch if
+ *   mounted.
+ * - `projection`: projected content of rows already in the result set changed;
+ *   membership and order did not.
+ * - `membership`: membership of families constrained on `dimension` may have
+ *   changed. Omitted `dimension` = existence change (create/delete), affecting
+ *   every family of the endpoint.
+ * - `order`: position inside families sorted by the `dimension` ordering
+ *   profile may have changed; membership did not. `dimension` is required.
+ *
+ * Field semantics:
+ * - `dimension` is canonical query vocabulary owned by each domain: for
+ *   `order` an ordering-profile identifier (a `sortBy` value such as
+ *   'createdAt' / 'lastActivityAt' / 'orderKey', 'pinned' for the pinned
+ *   stream, or the endpoint's single implicit profile); for `membership` the
+ *   query-parameter name that defines the family ('search' / 'assistantId' /
+ *   ...). Domains export the canonical constants from their shared schema
+ *   module and use the same symbol on both publish and consume sides; mapping
+ *   tests must assert emitted dimensions are members of the canonical set.
+ * - `entityIds` always holds primary keys of the entities the endpoint
+ *   returns (e.g. '/pins' uses `Pin.id`, never `Pin.entityId`). Plural — a
+ *   batch operation emits one entry.
+ *
+ * The three kinds are facets, NOT mutually exclusive: one write commonly emits
+ * several entries for the same endpoint (e.g. a rename is projection +
+ * membership:'search'). Emit an effect whenever the endpoint's response value
+ * may change; provably unchanged (early return, idempotent hit) may skip.
+ * Omitted hints (`dimension`, `entityIds`) mean "no claim — assume relevant",
+ * never "no impact": hints only narrow, they never widen.
+ *
+ * Effects are shared read-only values: within one window every listener
+ * receives the same object instances, so the fields are `readonly` — never
+ * mutate an effect in a listener.
+ */
+export type DataApiDataChangeEffect =
+  | {
+      readonly endpoint: ScalarGetPaths
+      readonly kind?: never
+      readonly dimension?: never
+      readonly entityIds?: readonly string[]
+    }
+  | {
+      readonly endpoint: CollectionGetPaths
+      readonly kind: 'projection'
+      readonly dimension?: never
+      readonly entityIds?: readonly string[]
+    }
+  | {
+      readonly endpoint: CollectionGetPaths
+      readonly kind: 'membership'
+      readonly dimension?: string
+      readonly entityIds?: readonly string[]
+    }
+  | {
+      readonly endpoint: CollectionGetPaths
+      readonly kind: 'order'
+      readonly dimension: string
+      readonly entityIds?: readonly string[]
+    }

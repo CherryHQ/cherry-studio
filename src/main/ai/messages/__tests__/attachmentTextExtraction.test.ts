@@ -1,3 +1,4 @@
+import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -86,10 +87,27 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     expect(decodeTextMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
-  it('falls back to text decode when the entry has no ext', async () => {
+  it('falls back to text decode for legacy-encoded text when the entry has no ext', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
-    decodeTextMock.mockReturnValueOnce('plain')
-    expect(await extractDocumentText('e1')).toBe('plain')
+    const text = '这是一个没有扩展名的 GBK 文本文件，用于验证自动编码检测。'
+    const content = iconv.encode(text, 'gbk')
+    readMock.mockResolvedValueOnce({ content })
+    expect(await extractDocumentText('e1')).toBe(text)
+    expect(decodeTextMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects ambiguous short legacy-encoded files instead of returning mojibake', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    readMock.mockResolvedValueOnce({ content: iconv.encode('中文', 'big5') })
+    expect(await extractDocumentText('e1')).toBeNull()
+    expect(decodeTextMock).not.toHaveBeenCalled()
+  })
+
+  it('does not decode an extensionless binary file as text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    readMock.mockResolvedValueOnce({ content: Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj') })
+    expect(await extractDocumentText('e1')).toBeNull()
+    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('caches by entry version and skips re-extraction on hit', async () => {

@@ -381,7 +381,7 @@ async function ensureExternalEntry(
   // Phase 1b.1 同步廉价 canonicalize: path.resolve + NFC + trailing-sep strip.
   // 不含 fs.realpath（case-insensitive FS 去重由 Phase 2 视用户反馈补）。
   // 是 upsert/查询的唯一 key 来源。
-  const canonicalPath = canonicalizeExternalPath(params.externalPath);
+  const canonicalPath = canonicalizeAbsolutePath(params.externalPath);
   // External 恒非 trashed（fe_external_no_delete CHECK），所以不需要 includeTrashed。
   const existing = await fileEntryService.findByExternalPath(canonicalPath);
   if (existing) return existing; // name/ext 来自 externalPath，不会漂移；size 不存
@@ -1025,7 +1025,7 @@ Phase 1a ──→ Phase 1b.1 ──→ Phase 1b.2 ──→ Phase 1b.3 ──�
 **不在本期**：
 
 - FileManager / ops / internal / watcher / danglingCache / orphanSweep 任何运行时逻辑
-- `canonicalizeExternalPath` 实现（契约与签名 Phase 1a 锁定，实现在 1b.1）
+- `canonicalizeAbsolutePath` 实现（契约与签名 Phase 1a 锁定，实现在 1b.1）
 - `versionCache` 运行时（只定义 interface）
 - 任何 Dexie → SQLite 数据搬运
 - renderer 切换调用路径
@@ -1040,8 +1040,8 @@ Phase 1a ──→ Phase 1b.1 ──→ Phase 1b.2 ──→ Phase 1b.3 ──�
 
 - `FileEntryService` / `FileRefService` CRUD 实现（纯 DB；read 路径完整，write 可保留 stub）
 - `ops/fs.ts` 的 `read` / `stat` / `exists` / `metadata` / `contentHash`（xxhash-128）
-- `ops/path.ts` 的 `resolvePhysicalPath`（已存在）+ `isUnderInternalStorage` guard
-- `canonicalizeExternalPath` 真实现（`path.resolve` + NFC + trailing-sep strip）+ 8-10 条边界测试（NFC/NFD / trailing / `./a/../a` / Windows `\\` / 盘符大小写）
+- `ops/path.ts` 的 `resolvePhysicalPath`（已存在）
+- `canonicalizeAbsolutePath` 真实现（`path.resolve` + NFC + trailing-sep strip）+ 8-10 条边界测试（NFC/NFD / trailing / `./a/../a` / Windows `\\` / 盘符大小写）
 - `FileManager.get*` / `read*` / `getMetadata` / `getUrl` / `findByExternalPath` / `ensureExternalEntry`（upsert-only，不写 FS）
 - `internal/content/read.ts` / `internal/content/hash.ts`（含 `*ByPath` 变体）
 - `dispatchHandle(handle, byEntryFn, byPathFn)` helper 的读路径分派骨架
@@ -1199,7 +1199,7 @@ Vercel AI SDK Files API 稳定后：
 | Painting 的 file_ref 暂缺                                                      | 文件页无法追溯 painting 引用            | 文件条目本身已存在可访问；随 Painting 重构补建                                                                                                                                                                                                          |
 | Phase 1 内 deferred-to-Phase-2 stub 的 `throw NotImplemented` 影响上游         | 开发期阻塞                              | Phase 1 不切换 renderer 调用路径；剩余 stub（`fs.compressImage` / `path.resolvePath` / `path.isNotEmptyDir` / `shell.open` / `shell.showInFolder` / `search.listDirectory`）在 Phase 2 各自消费方迁移时一并实现并 feature-flag 切换                       |
 | External entry 物理文件外部丢失                                                | entry 变 dangling                       | DanglingCache + File IPC `getDanglingState` / `batchGetDanglingStates` 给 UI 展示；不自动清理 file_ref（用户手动处理）                                                                                                                                 |
-| `externalPath` 大小写不敏感 FS 导致同文件双 entry（macOS APFS / Windows NTFS） | 文件页用户看到两份同文件、file_ref 分裂 | Phase 1b.1 `canonicalizeExternalPath` 做同步廉价规范化（resolve + NFC + trailing-sep），**刻意不做** `fs.realpath` case 去重——支配性来源（dialog / drag-drop）本就给 OS-canonical 值；收到真实用户报告后再 additively 扩展 + one-off migration 合并重复行 |
+| `externalPath` 大小写不敏感 FS 导致同文件双 entry（macOS APFS / Windows NTFS） | 文件页用户看到两份同文件、file_ref 分裂 | Phase 1b.1 `canonicalizeAbsolutePath` 做同步廉价规范化（resolve + NFC + trailing-sep），**刻意不做** `fs.realpath` case 去重——支配性来源（dialog / drag-drop）本就给 OS-canonical 值；收到真实用户报告后再 additively 扩展 + one-off migration 合并重复行 |
 
 ---
 
@@ -1358,7 +1358,7 @@ relinkExternalEntry(id: FileEntryId, newPath: FilePath): Promise<FileEntry>;
 
 - **不触碰 FS**——与 `rename` 明确区分（"追认已移动" vs "主动移动"）
 - 保留 `id` 与所有 `file_ref`
-- 调用 `canonicalizeExternalPath` 归一化新路径
+- 调用 `canonicalizeAbsolutePath` 归一化新路径
 - 同步更新 DanglingCache 反向索引（旧 path 移除、新 path 添加、状态重置）
 - `name` / `ext` 作为 `externalPath` 的投影自动跟更新
 

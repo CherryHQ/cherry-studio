@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/DataApiService', () => ({
@@ -110,5 +110,25 @@ describe('agentSessionExport', () => {
       provider: 'stored-provider',
       group: ''
     })
+  })
+
+  it('stops paging at maxMessages instead of walking the whole session', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [createSessionMessage({ id: 'newest', role: 'user' })],
+        nextCursor: 'older'
+      })
+      .mockResolvedValueOnce({
+        items: [createSessionMessage({ id: 'older', role: 'user' })],
+        nextCursor: undefined
+      })
+
+    const messages = await getAgentSessionMessagesForExport(
+      { id: 'session-a', agentId: 'agent-a', name: 'Session A' },
+      { maxMessages: 1 }
+    )
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(1)
+    expect(messages.map((message) => message.id)).toEqual(['newest'])
   })
 })

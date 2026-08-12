@@ -6,6 +6,9 @@ import { prepareWindow } from '../prepareWindow'
 const { initI18nMock } = vi.hoisted(() => ({ initI18nMock: vi.fn(async () => {}) }))
 vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 
+const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
+vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -25,6 +28,13 @@ describe('prepareWindow', () => {
     expect(preferenceService.preload).toHaveBeenCalledExactlyOnceWith(['ui.theme_mode', 'app.language'])
     expect(preferenceService.preloadAll).not.toHaveBeenCalled()
     expect(initI18nMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
+    const pending = prepareWindow({ preference: 'all' })
+
+    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
+    return pending
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {

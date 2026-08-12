@@ -62,8 +62,8 @@ export const VENDOR_PATTERNS = {
   /** Tencent Hunyuan family — `hunyuan-*`, the `hy-*` SKUs, and the versioned `hyN` namespace (`hy3-preview`). */
   hunyuan: /^(?:hunyuan|hy-|hy\d)/i,
 
-  /** Moonshot / Kimi family. */
-  kimi: /^(?:kimi|moonshot)/i,
+  /** Moonshot / Kimi family, including Kimi Code's bare K3 model IDs. */
+  kimi: /^(?:kimi|moonshot|k3(?:[-_.]|$))/i,
 
   /** DeepSeek family. */
   deepseek: /^deepseek/i,

@@ -192,6 +192,115 @@ describe('fetchRemoteText', () => {
     expect(response.destroy).toHaveBeenCalledOnce()
   })
 
+  it('follows an opted-in redirect through a newly validated and pinned connection', async () => {
+    const redirectResponse = Object.assign(new EventEmitter(), {
+      statusCode: 302,
+      headers: { location: 'https://cdn.example.com/article' },
+      resume: vi.fn(),
+      destroy: vi.fn()
+    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    const finalResponse = Object.assign(new EventEmitter(), {
+      statusCode: 200,
+      headers: {},
+      resume: vi.fn(),
+      destroy: vi.fn()
+    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    const requests = [redirectResponse, finalResponse]
+    httpsRequestMock.mockImplementation((options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+      const response = requests.shift()
+      if (!response) throw new Error('Unexpected HTTPS request')
+
+      queueMicrotask(() => {
+        callback(response)
+        if (response === finalResponse) {
+          response.emit('data', Buffer.from('redirected content'))
+          response.emit('end')
+        }
+      })
+
+      return Object.assign(new EventEmitter(), { end: vi.fn(), destroy: vi.fn(), options })
+    })
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '1.1.1.1', family: 4 }])
+
+    await expect(
+      fetchRemoteText('https://example.com/start', {
+        headers: {
+          Authorization: 'Bearer secret',
+          Cookie: 'session=secret',
+          'User-Agent': 'Custom Agent'
+        },
+        maxRedirects: 1
+      })
+    ).resolves.toBe('redirected content')
+
+    expect(lookupMock).toHaveBeenNthCalledWith(1, 'example.com', { all: true })
+    expect(lookupMock).toHaveBeenNthCalledWith(2, 'cdn.example.com', { all: true })
+    expect(httpsRequestMock).toHaveBeenCalledTimes(2)
+
+    const initialOptions = httpsRequestMock.mock.calls[0]?.[0] as RequestOptions
+    const redirectedOptions = httpsRequestMock.mock.calls[1]?.[0] as RequestOptions
+    expect(initialOptions.headers).toMatchObject({
+      authorization: 'Bearer secret',
+      cookie: 'session=secret',
+      'user-agent': 'Custom Agent'
+    })
+    expect(redirectedOptions.headers).toMatchObject({ host: 'cdn.example.com', 'user-agent': 'Custom Agent' })
+    expect(redirectedOptions.headers).not.toHaveProperty('authorization')
+    expect(redirectedOptions.headers).not.toHaveProperty('cookie')
+    expect(redirectedOptions.signal).toBe(initialOptions.signal)
+
+    const callback = vi.fn()
+    redirectedOptions.lookup?.('cdn.example.com', {}, callback)
+    expect(callback).toHaveBeenCalledWith(null, '1.1.1.1', 4)
+  })
+
+  it('rejects a redirect whose destination resolves to a private address before opening the next request', async () => {
+    const redirectResponse = Object.assign(new EventEmitter(), {
+      statusCode: 302,
+      headers: { location: 'https://private.example/article' },
+      resume: vi.fn(),
+      destroy: vi.fn()
+    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+      queueMicrotask(() => callback(redirectResponse))
+      return Object.assign(new EventEmitter(), { end: vi.fn(), destroy: vi.fn() })
+    })
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }])
+
+    await expect(fetchRemoteText('https://example.com/start', { maxRedirects: 1 })).rejects.toThrow(/DNS resolved/)
+
+    expect(httpsRequestMock).toHaveBeenCalledOnce()
+    expect(redirectResponse.listenerCount('data')).toBe(0)
+  })
+
+  it('stops after the configured number of redirects without buffering the excess response', async () => {
+    const responses = Array.from({ length: 2 }, () =>
+      Object.assign(new EventEmitter(), {
+        statusCode: 302,
+        headers: { location: '/next' },
+        resume: vi.fn(),
+        destroy: vi.fn()
+      })
+    ) as Array<IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }>
+    httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+      const response = responses[httpsRequestMock.mock.calls.length - 1]
+      if (!response) throw new Error('Unexpected HTTPS request')
+      queueMicrotask(() => callback(response))
+      return Object.assign(new EventEmitter(), { end: vi.fn(), destroy: vi.fn() })
+    })
+
+    await expect(fetchRemoteText('https://example.com/start', { maxRedirects: 1 })).rejects.toThrow('HTTP error: 302')
+
+    expect(httpsRequestMock).toHaveBeenCalledTimes(2)
+    expect(responses[1]?.listenerCount('data')).toBe(0)
+    expect(responses[1]?.resume).toHaveBeenCalledOnce()
+    expect(responses[1]?.destroy).toHaveBeenCalledOnce()
+  })
+
   it('rejects non-2xx responses before registering body accumulation', async () => {
     const { response } = mockHttpsResponse({
       body: Buffer.alloc(1024 * 1024 * 2),

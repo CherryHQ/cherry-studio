@@ -4,6 +4,8 @@ import {
   CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
+  gatewayExpectedModel,
+  gatewayModelIdFromAddress,
   safeCreateUniqueModelId,
   stripClaudeOneMMarker
 } from '@renderer/pages/code/cliConfig'
@@ -92,6 +94,7 @@ export interface ClaudeConfigFieldsProps {
   providerId?: string
   modelFilter?: (model: Model) => boolean
   onSettingsNavigate?: (navigate: () => void) => void
+  gatewayModels?: Map<UniqueModelId, Model>
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -125,13 +128,28 @@ function setOneMMarker(value: string, enabled: boolean): string {
   return enabled ? `${base} ${ONE_M_MARKER}` : base
 }
 
-function getRawModelId(uniqueModelId: UniqueModelId | undefined): string {
-  return uniqueModelId && isUniqueModelId(uniqueModelId) ? parseUniqueModelId(uniqueModelId).modelId : ''
+function getRawModelId(
+  uniqueModelId: UniqueModelId | undefined,
+  gatewayModels: Map<UniqueModelId, Model> | undefined
+): string {
+  if (!uniqueModelId || !isUniqueModelId(uniqueModelId)) return ''
+  if (!gatewayModels) return parseUniqueModelId(uniqueModelId).modelId
+  const model = gatewayModels.get(uniqueModelId)
+  return model ? (gatewayExpectedModel(uniqueModelId, model.apiModelId) ?? '') : ''
 }
 
-function toProviderModelId(providerId: string | undefined, modelId: string): UniqueModelId | undefined {
+function toProviderModelId(
+  providerId: string | undefined,
+  modelId: string,
+  gatewayModels: Map<UniqueModelId, Model> | undefined
+): UniqueModelId | undefined {
   // modelId comes from a user-typed env value; never throw in a render path.
-  return providerId && modelId ? safeCreateUniqueModelId(providerId, modelId) : undefined
+  if (!modelId) return undefined
+  return gatewayModels
+    ? gatewayModelIdFromAddress(modelId, gatewayModels)
+    : providerId
+      ? safeCreateUniqueModelId(providerId, modelId)
+      : undefined
 }
 
 export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
@@ -140,7 +158,8 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   section = 'all',
   providerId,
   modelFilter,
-  onSettingsNavigate
+  onSettingsNavigate,
+  gatewayModels
 }) => {
   const { t } = useTranslation()
   const [showAllToggles, setShowAllToggles] = useState(false)
@@ -260,7 +279,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllToggles((expanded) => !expanded)}
-                className="h-auto min-h-0 rounded-full border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:border-border hover:text-foreground">
+                className="h-auto min-h-0 rounded-full border-border-subtle px-2.5 py-1 text-[11px] text-muted-foreground hover:border-border hover:text-foreground">
                 {showAllToggles ? t('code.collapse') : t('code.more')}
               </Button>
             )}
@@ -279,19 +298,19 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
               <div key={field.roleKey} className="flex items-center gap-2">
                 <span className="w-14 shrink-0 text-foreground text-sm">{t(field.labelKey)}</span>
                 <ClaudeRoleModelSelector
-                  value={toProviderModelId(providerId, roleModelId)}
+                  value={toProviderModelId(providerId, roleModelId, gatewayModels)}
                   placeholder={t('settings.models.empty')}
                   filter={modelFilter}
                   onSettingsNavigate={onSettingsNavigate}
                   onSelect={(nextModelId) => {
-                    const nextRawModelId = getRawModelId(nextModelId)
+                    const nextRawModelId = getRawModelId(nextModelId, gatewayModels)
                     updateModelRole(field, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
                   }}
                 />
                 <div className="flex w-16 shrink-0 justify-end">
                   {field.supports1M && roleModelId && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-muted-foreground/55">1M</span>
+                      <span className="text-[11px] text-foreground-tertiary">1M</span>
                       <Checkbox
                         size="sm"
                         aria-label="1M"

@@ -20,7 +20,8 @@ import {
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -29,9 +30,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -120,6 +123,11 @@ export const finishTopicRenaming = (topicId: string) => {
 // hard-capping at one large page.
 const MESSAGES_PAGE_SIZE = 200
 
+function isRenderableTopicMessage(message: SharedMessage): boolean {
+  const parts = message.data.parts ?? []
+  return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
+}
+
 /**
  * Load and return all messages for a topic.
  *
@@ -138,12 +146,19 @@ const MESSAGES_PAGE_SIZE = 200
  *
  * Used by one-off consumers (export, knowledge analysis, topic rename
  * pre-check). The main chat UI reads messages via `useTopicMessages`.
+ *
+ * `maxMessages` stops paging once that many of the newest messages are in
+ * hand, for consumers (composer references) that only need a recent tail.
  */
-export async function getTopicMessages(id: string): Promise<MessageExportView[]> {
+export async function getTopicMessages(
+  id: string,
+  options: { maxMessages?: number } = {}
+): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
     let assistantId = ''
     let cursor: string | undefined
+    let collected = 0
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
@@ -155,17 +170,22 @@ export async function getTopicMessages(id: string): Promise<MessageExportView[]>
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        pageMessages.push(convertSharedMessage(item.message, assistantId))
+        if (isRenderableTopicMessage(item.message)) {
+          pageMessages.push(convertSharedMessage(item.message, assistantId))
+        }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            pageMessages.push(convertSharedMessage(sibling, assistantId))
+            if (isRenderableTopicMessage(sibling)) {
+              pageMessages.push(convertSharedMessage(sibling, assistantId))
+            }
           }
         }
       }
       pages.push(pageMessages)
+      collected += pageMessages.length
 
       cursor = response.nextCursor
-    } while (cursor)
+    } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
     return pages.reverse().flat()
   } catch (error: unknown) {
@@ -220,14 +240,26 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
+  // A load-all source must refresh every loaded page once the chain is complete,
+  // but it should fetch only the new page while the chain is growing. SWR
+  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
+  // would re-fetch every previous page. Disable both growth-time behaviors;
+  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
+  // complete. Progressive pagination retains SWR's first-page revalidation.
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts?.enabled
+    enabled: opts?.enabled,
+    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
+
+  useEffect(() => {
+    setRevalidateAllPages(loadAll && isFullyLoaded)
+  }, [loadAll, isFullyLoaded])
 
   // Auto-paginate to completion when the caller wants the full list. The
   // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
@@ -300,6 +332,7 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
+  const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
@@ -369,6 +402,53 @@ export function useTopicMutations() {
     [closeConversationTabs, deleteByAssistantTrigger]
   )
 
+  /**
+   * Drag-move a topic: re-home it to another assistant (when `assistantId` is
+   * given) and anchor its position. The cache orchestration lives here so
+   * pages don't track a second active-topic state:
+   *
+   * - The assistant PATCH response is written straight into `/topics/:id`
+   *   before ordering, so an open conversation on the moved topic re-resolves
+   *   its assistant (composer/model/capabilities) immediately. If the topic is
+   *   no longer active this only updates the moved topic's own cache — it
+   *   cannot snap the selection back.
+   * - Revalidation of `/topics` (+ `/topics/:id` on an assistant change) is a
+   *   single combined pass deferred until after both writes, so an optimistic
+   *   reorder overlay clears once at the final position instead of flashing
+   *   the row back to its old order mid-flight.
+   *
+   * Rethrows on failure after reconciling caches with server truth when the
+   * assistant PATCH may have committed.
+   */
+  const moveTopic = useCallback(
+    async (
+      topicId: string,
+      { assistantId, anchor }: { assistantId?: string | null; anchor: OrderRequest }
+    ): Promise<void> => {
+      const assistantChanged = assistantId !== undefined
+      const refreshKeys = assistantChanged ? ['/topics', `/topics/${topicId}`] : '/topics'
+
+      try {
+        if (assistantChanged) {
+          const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
+          await writeCache(`/topics/${topicId}`, topic)
+        }
+        await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
+        await invalidate(refreshKeys)
+      } catch (err) {
+        if (assistantChanged) {
+          try {
+            await invalidate(refreshKeys)
+          } catch (refreshErr) {
+            logger.error('Failed to refresh topics after partial topic move', { refreshErr, topicId })
+          }
+        }
+        throw err
+      }
+    },
+    [invalidate, writeCache]
+  )
+
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
       const results = await Promise.allSettled(
@@ -386,6 +466,7 @@ export function useTopicMutations() {
     deleteTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
+    moveTopic,
     batchUpdateTopics,
     refreshTopics,
     isCreating,
@@ -395,13 +476,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `ai.topic_auto_renamed` and invalidates the renamed
+ * Listens for `ai.topic.auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────
@@ -430,12 +511,14 @@ export function useActiveTopic({
   passive = false
 }: UseActiveTopicOptions) {
   // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
-  // without waiting for the full topic history to paginate in. The rail keeps its own
-  // loadAll source; this hook only needs the one active row.
-  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
-    passive || !activeTopicId ? undefined : activeTopicId
-  )
+  // loadAll `/topics` list. The entry route chooses the id without waiting for topic
+  // history pagination; this hook then loads only that active row while the rail keeps
+  // its own loadAll source.
+  const {
+    topic: apiActiveTopic,
+    isLoading: isActiveTopicQueryLoading,
+    error
+  } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
       activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
@@ -506,5 +589,5 @@ export function useActiveTopic({
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.
   const isLoading = !activeTopic && isActiveTopicQueryLoading
-  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, error, topicSource }
 }

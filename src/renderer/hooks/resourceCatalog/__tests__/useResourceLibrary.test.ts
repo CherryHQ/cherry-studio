@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   useAgentList: vi.fn(),
   useSkillList: vi.fn(),
   usePromptList: vi.fn(),
-  useTagList: vi.fn()
+  useGroups: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
@@ -36,8 +36,8 @@ vi.mock('@renderer/hooks/resourceCatalog/promptAdapter', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useTagList: mocks.useTagList
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: mocks.useGroups
 }))
 
 vi.mock('react-i18next', () => ({
@@ -60,12 +60,50 @@ function renderResourceLibrary(options: Partial<Parameters<typeof useResourceLib
   return renderHook(() =>
     useResourceLibrary({
       resourceType: 'assistant',
-      activeTag: null,
+      activeGroupId: null,
       search: '',
       sort: 'updatedAt',
       ...options
     })
   )
+}
+
+const assistantListItem = {
+  id: 'assistant-1',
+  name: 'Assistant',
+  description: '',
+  emoji: '💬',
+  modelName: null,
+  groupId: null,
+  createdAt: '2026-04-27T00:00:00.000Z',
+  updatedAt: '2026-04-27T00:00:00.000Z'
+}
+
+const agentListItem = {
+  id: 'agent-1',
+  name: 'Agent',
+  description: '',
+  configuration: {},
+  model: 'anthropic::claude-sonnet-4-5',
+  modelName: null,
+  createdAt: '2026-04-27T00:00:00.000Z',
+  updatedAt: '2026-04-27T00:00:00.000Z'
+}
+
+const skillListItem = {
+  id: 'skill-1',
+  name: '网页摘要',
+  description: '自动提取网页核心内容',
+  folderName: 'web-summary',
+  source: 'marketplace',
+  sourceUrl: null,
+  namespace: null,
+  author: null,
+  sourceTags: [],
+  contentHash: 'hash',
+  isEnabled: false,
+  createdAt: '2026-04-27T00:00:00.000Z',
+  updatedAt: '2026-04-27T00:00:00.000Z'
 }
 
 describe('useResourceLibrary', () => {
@@ -75,8 +113,8 @@ describe('useResourceLibrary', () => {
     mocks.useAgentList.mockReturnValue(listResult([]))
     mocks.useSkillList.mockReturnValue(listResult([]))
     mocks.usePromptList.mockReturnValue(listResult([]))
-    mocks.useTagList.mockReturnValue({
-      tags: [],
+    mocks.useGroups.mockReturnValue({
+      groups: [],
       isLoading: false,
       error: undefined,
       refetch: vi.fn()
@@ -84,20 +122,7 @@ describe('useResourceLibrary', () => {
   })
 
   it('uses backend-resolved model names for assistant resource cards', () => {
-    mocks.useAssistantList.mockReturnValue(
-      listResult([
-        {
-          id: 'assistant-1',
-          name: 'Assistant',
-          description: '',
-          emoji: '💬',
-          modelName: 'GPT-4o',
-          tags: [],
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
-        }
-      ])
-    )
+    mocks.useAssistantList.mockReturnValue(listResult([{ ...assistantListItem, modelName: 'GPT-4o' }]))
 
     const { result } = renderResourceLibrary()
 
@@ -108,21 +133,31 @@ describe('useResourceLibrary', () => {
     expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: false, search: undefined })
   })
 
-  it('uses backend-resolved model names for agent resource cards', () => {
-    mocks.useAgentList.mockReturnValue(
-      listResult([
+  it('maps assistant group ids to group names', () => {
+    mocks.useGroups.mockReturnValue({
+      groups: [
         {
-          id: 'agent-1',
-          name: 'Agent',
-          description: '',
-          configuration: {},
-          model: 'anthropic::claude-sonnet-4-5',
-          modelName: 'Claude Sonnet 4.5',
+          id: 'group-work',
+          entityType: 'assistant',
+          name: 'Work',
+          orderKey: 'a0',
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
         }
-      ])
-    )
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mocks.useAssistantList.mockReturnValue(listResult([{ ...assistantListItem, groupId: 'group-work' }]))
+
+    const { result } = renderResourceLibrary()
+
+    expect(result.current.allResources).toMatchObject([{ id: 'assistant-1', groupId: 'group-work', groupName: 'Work' }])
+  })
+
+  it('uses backend-resolved model names for agent resource cards', () => {
+    mocks.useAgentList.mockReturnValue(listResult([{ ...agentListItem, modelName: 'Claude Sonnet 4.5' }]))
 
     const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
@@ -135,14 +170,10 @@ describe('useResourceLibrary', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
-          id: 'agent-1',
+          ...agentListItem,
           name: 'Cherry Assistant',
-          description: '',
           configuration: { builtin_role: 'assistant' },
-          model: null,
-          modelName: null,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
+          model: null
         }
       ])
     )
@@ -157,14 +188,10 @@ describe('useResourceLibrary', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
-          id: 'agent-1',
+          ...agentListItem,
           name: 'Cherry Assistant',
-          description: '',
           configuration: { builtin_role: 'assistant' },
-          model: null,
-          modelName: null,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
+          model: null
         }
       ])
     )
@@ -176,20 +203,7 @@ describe('useResourceLibrary', () => {
   })
 
   it('omits the agent card model when the backend cannot resolve a modelName', () => {
-    mocks.useAgentList.mockReturnValue(
-      listResult([
-        {
-          id: 'agent-1',
-          name: 'Agent',
-          description: '',
-          configuration: {},
-          model: 'anthropic::claude-sonnet-4-5',
-          modelName: null,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
-        }
-      ])
-    )
+    mocks.useAgentList.mockReturnValue(listResult([agentListItem]))
 
     const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
@@ -198,18 +212,7 @@ describe('useResourceLibrary', () => {
 
   it('uses the default agent avatar for blank stored agent avatars', () => {
     mocks.useAgentList.mockReturnValue(
-      listResult([
-        {
-          id: 'agent-1',
-          name: 'Agent',
-          description: '',
-          configuration: { avatar: '   ' },
-          model: 'anthropic::claude-sonnet-4-5',
-          modelName: 'Claude Sonnet 4.5',
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
-        }
-      ])
+      listResult([{ ...agentListItem, configuration: { avatar: '   ' }, modelName: 'Claude Sonnet 4.5' }])
     )
 
     const { result } = renderResourceLibrary({ resourceType: 'agent' })
@@ -221,19 +224,9 @@ describe('useResourceLibrary', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([
         {
-          id: 'skill-1',
-          name: '网页摘要',
-          description: '自动提取网页核心内容',
-          folderName: 'web-summary',
-          source: 'marketplace',
-          sourceUrl: null,
-          namespace: null,
+          ...skillListItem,
           author: 'CherryStudio',
-          sourceTags: ['metadata-only'],
-          contentHash: 'hash',
-          isEnabled: false,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
+          sourceTags: ['metadata-only']
         }
       ])
     )
@@ -241,39 +234,31 @@ describe('useResourceLibrary', () => {
     const { result } = renderResourceLibrary({ resourceType: 'skill' })
     const skill = result.current.allResources.find((resource) => resource.type === 'skill')
 
-    expect(skill?.tag).toBeUndefined()
+    expect(skill?.groupName).toBeUndefined()
   })
 
-  it('passes skill search to the backend and ignores activeTag', () => {
+  it('passes skill search to the backend and ignores activeGroupId', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([
         {
+          ...skillListItem,
           id: 'skill-filtered',
-          name: '网页摘要',
           description: '由 /skills 返回',
           folderName: 'backend-filtered',
-          source: 'marketplace',
-          sourceUrl: null,
-          namespace: null,
-          author: null,
-          sourceTags: [],
-          contentHash: 'filtered-hash',
-          isEnabled: false,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
+          contentHash: 'filtered-hash'
         }
       ])
     )
 
     const { result } = renderResourceLibrary({
       resourceType: 'skill',
-      activeTag: '生产力',
+      activeGroupId: '11111111-1111-4111-8111-111111111111',
       search: ' summary '
     })
 
     expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: true, search: 'summary' })
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, tagIds: undefined }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
     expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
   })
 
@@ -293,7 +278,7 @@ describe('useResourceLibrary', () => {
 
     const { result } = renderResourceLibrary({
       resourceType: 'prompt',
-      activeTag: '生产力',
+      activeGroupId: '11111111-1111-4111-8111-111111111111',
       search: ' 日报 '
     })
 
@@ -309,40 +294,23 @@ describe('useResourceLibrary', () => {
     ])
   })
 
-  it('resolves the selected assistant tag to tagIds for filtered list reads', () => {
+  it('forwards the selected assistant group id to filtered list reads', () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
     mocks.useAssistantList.mockImplementation((query?: ResourceListQuery) => {
-      if (query?.tagIds) return listResult([])
-      return listResult([
-        {
-          id: 'assistant-1',
-          name: 'Assistant',
-          description: '',
-          emoji: '💬',
-          modelName: 'GPT-4o',
-          tags: [{ id: 'tag-1', name: 'work', color: '#3b82f6' }],
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
-        }
-      ])
+      if (query?.groupId) return listResult([])
+      return listResult([{ ...assistantListItem, modelName: 'GPT-4o', groupId }])
     })
 
-    renderResourceLibrary({ activeTag: 'work' })
+    renderResourceLibrary({ activeGroupId: groupId })
 
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, tagIds: ['tag-1'] }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, groupId }])
   })
 
-  it('returns an empty list when a selected assistant tag cannot be resolved', () => {
-    const { result } = renderResourceLibrary({ activeTag: 'missing' })
-
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, tagIds: undefined }])
-    expect(result.current.resources).toEqual([])
-  })
-
-  it('ignores activeTag for non-assistant resources', () => {
-    renderResourceLibrary({ resourceType: 'agent', activeTag: 'work' })
+  it('ignores activeGroupId for non-assistant resources', () => {
+    renderResourceLibrary({ resourceType: 'agent', activeGroupId: '11111111-1111-4111-8111-111111111111' })
 
     expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, tagIds: undefined }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
   })
 })

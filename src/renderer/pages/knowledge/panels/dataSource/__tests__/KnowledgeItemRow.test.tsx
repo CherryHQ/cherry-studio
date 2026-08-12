@@ -10,9 +10,14 @@ import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const mockUseSharedCacheValue = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  useSharedCacheValue: (...args: unknown[]) => mockUseSharedCacheValue(...args)
 }))
 
 vi.mock('@renderer/utils/time', () => ({
@@ -164,32 +169,35 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string) =>
-      (
-        ({
-          'knowledge.data_source.status.ready': '就绪',
-          'knowledge.data_source.status.error': '失败',
-          'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
-          'knowledge.data_source.status.embedding': '向量化中',
-          'knowledge.data_source.status.chunking': '分块中',
-          'knowledge.data_source.status.pending': '等待中',
-          'knowledge.data_source.actions.preview_source': '预览原文',
-          'knowledge.data_source.actions.view_chunks': '查看 Chunks',
-          'knowledge.data_source.actions.reindex': '重新索引',
-          'knowledge.data_source.actions.delete': '删除',
-          'knowledge.data_source.delete_failed': '删除数据源失败',
-          'knowledge.data_source.preview.failed': '预览原文失败',
-          'knowledge.data_source.reindex_failed': '数据源重新索引失败',
-          'knowledge.data_source.filters.file': '文件',
-          'knowledge.data_source.filters.note': '笔记',
-          'knowledge.data_source.filters.directory': '目录',
-          'knowledge.data_source.filters.url': '链接',
-          'knowledge.data_source.table.select_row': '选择行',
-          'knowledge.data_source.table.open_row': '打开行',
-          'common.more': '更多',
-          'knowledge.rag.file_processing': '文件处理'
-        }) as Record<string, string>
-      )[key] ?? key
+    t: (key: string, options?: Record<string, number>) => {
+      if (key === 'knowledge.data_source.status.copying') {
+        return `复制中 ${options?.percent}%`
+      }
+      const translations: Record<string, string> = {
+        'knowledge.data_source.status.ready': '就绪',
+        'knowledge.data_source.status.error': '失败',
+        'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
+        'knowledge.data_source.status.embedding': '向量化中',
+        'knowledge.data_source.status.chunking': '分块中',
+        'knowledge.data_source.status.pending': '等待中',
+        'knowledge.data_source.actions.preview_source': '预览原文',
+        'knowledge.data_source.actions.view_chunks': '查看 Chunks',
+        'knowledge.data_source.actions.reindex': '重新索引',
+        'knowledge.data_source.actions.delete': '删除',
+        'knowledge.data_source.delete_failed': '删除数据源失败',
+        'knowledge.data_source.preview.failed': '预览原文失败',
+        'knowledge.data_source.reindex_failed': '数据源重新索引失败',
+        'knowledge.data_source.filters.file': '文件',
+        'knowledge.data_source.filters.note': '笔记',
+        'knowledge.data_source.filters.directory': '目录',
+        'knowledge.data_source.filters.url': '链接',
+        'knowledge.data_source.table.select_row': '选择行',
+        'knowledge.data_source.table.open_row': '打开行',
+        'common.more': '更多',
+        'knowledge.rag.file_processing': '文件处理'
+      }
+      return translations[key] ?? key
+    }
   })
 }))
 
@@ -211,6 +219,7 @@ describe('KnowledgeItemRow', () => {
       isLoading: false,
       error: undefined
     })
+    mockUseSharedCacheValue.mockReturnValue(undefined)
   })
 
   it('renders the file title from the knowledge item path', () => {
@@ -266,10 +275,72 @@ describe('KnowledgeItemRow', () => {
     expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
   })
 
+  it('omits the preview-original action for notes while keeping chunk viewing when completed', () => {
+    render(<KnowledgeItemRow item={createNoteItem({ id: 'note-1' })} {...defaultHandlers} />)
+
+    fireEvent.contextMenu(screen.getByRole('row'))
+
+    // Notes have no external source to preview — their text opens via the row's primary click.
+    expect(screen.queryByRole('button', { name: '预览原文' })).not.toBeInTheDocument()
+    // Chunks remain reachable as a separate advanced action once the note is indexed.
+    expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
+  })
+
   it('renders the processing status label for in-flight items', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'reading' })} {...defaultHandlers} />)
 
     expect(screen.getByText('文件处理')).toBeInTheDocument()
+  })
+
+  it('shows the embedding percentage next to the status label while embedding', () => {
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
+
+    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.embedding_progress.file-1')
+    expect(screen.getByText('向量化中 42%')).toBeInTheDocument()
+  })
+
+  it('shows the bare embedding label while the job has not published a percentage yet', () => {
+    // Read-only subscription: an absent key reads as undefined (e.g. before the
+    // first batch lands, or for a run that reuses every stored vector).
+    mockUseSharedCacheValue.mockReturnValue(undefined)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('向量化中')).toBeInTheDocument()
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+  })
+
+  it('shows the copy percentage while preparing a directory', () => {
+    mockUseSharedCacheValue.mockReturnValue(38)
+
+    render(
+      <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
+    )
+
+    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.directory_copy_progress.directory-1')
+    expect(screen.getByText('复制中 38%')).toBeInTheDocument()
+  })
+
+  it('shows the pending label before directory copy progress is available', () => {
+    render(
+      <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
+    )
+
+    expect(screen.getByText('等待中')).toBeInTheDocument()
+  })
+
+  it('does not subscribe to the progress key at all for non-embedding rows', () => {
+    // The subscription lives in a child only mounted while embedding, so ordinary
+    // completed/failed rows never touch (or create) the shared-cache key.
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('就绪')).toBeInTheDocument()
+    expect(screen.queryByText(/42%/)).not.toBeInTheDocument()
+    expect(mockUseSharedCacheValue).not.toHaveBeenCalled()
   })
 
   it('calls onClick when the row is clicked', () => {
@@ -288,7 +359,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
-  it('does not activate a non-completed note (no external target until its chunk view is ready)', () => {
+  it('activates a non-completed note so its original content can be viewed regardless of index state', () => {
     const handleClick = vi.fn()
 
     render(
@@ -301,7 +372,7 @@ describe('KnowledgeItemRow', () => {
 
     fireEvent.click(screen.getByRole('row'))
 
-    expect(handleClick).not.toHaveBeenCalled()
+    expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
   it.each(['processing', 'failed'] as const)(
@@ -387,7 +458,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('is not keyboard-activatable for a non-completed note', () => {
+  it('is keyboard-activatable for a non-completed note', () => {
     const handleClick = vi.fn()
 
     render(
@@ -400,11 +471,11 @@ describe('KnowledgeItemRow', () => {
 
     const row = screen.getByRole('row')
 
-    expect(row).not.toHaveAttribute('tabindex')
+    expect(row).toHaveAttribute('tabindex', '0')
 
     fireEvent.keyDown(row, { key: 'Enter' })
 
-    expect(handleClick).not.toHaveBeenCalled()
+    expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
   it('reveals the same actions via the more button and right-click', () => {
@@ -460,39 +531,6 @@ describe('KnowledgeItemRow', () => {
     )
 
     fireEvent.contextMenu(screen.getByRole('row'))
-
-    expect(handleClick).not.toHaveBeenCalled()
-  })
-
-  it('opens the context menu with placeholder actions', () => {
-    render(
-      <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        {...defaultHandlers}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('row'))
-
-    expect(screen.getByRole('button', { name: '预览原文' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
-  })
-
-  it('does not call onClick when a more menu action is clicked', () => {
-    const handleClick = vi.fn()
-
-    render(
-      <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        {...defaultHandlers}
-        onClick={handleClick}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('row'))
-    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
     expect(handleClick).not.toHaveBeenCalled()
   })

@@ -60,7 +60,7 @@ const Scrollbar = ({
       onScroll={combinedOnScroll}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
       }}>
       {children}
     </div>

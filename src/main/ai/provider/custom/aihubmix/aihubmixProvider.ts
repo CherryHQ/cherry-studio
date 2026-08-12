@@ -16,36 +16,18 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
+import { resolveAihubmixChatFamily } from './aihubmixRouting'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
 
-// AiHubMix dispatches on raw API model ids. Keep these predicates string-based: the shared
-// `@shared/utils/model` helpers resolve the raw id via getRawModelId → parseUniqueModelId, which
-// THROWS ('Invalid UniqueModelId format') on a bare API id with no `::`. A fabricated
-// `{ id: modelId } as Model` would therefore CRASH on every OpenAI-routed model here — it doesn't
-// merely lack metadata. (The chat-completion-only list below has no shared string source, so it
-// stays local too.)
-const isOpenAILLM = (modelId: string): boolean => {
-  const id = modelId.toLowerCase()
-  return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
-}
-
-const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
-  const id = modelId.toLowerCase()
-  return (
-    id.includes('gpt-4o-search-preview') ||
-    id.includes('gpt-4o-mini-search-preview') ||
-    id.includes('o1-mini') ||
-    id.includes('o1-preview')
-  )
-}
-
 export interface AihubmixProviderSettings {
   apiKey?: string
   baseURL?: string
+  endpointBaseURLs?: Partial<Record<EndpointType, string>>
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -60,6 +42,9 @@ export interface AihubmixProvider extends ProviderV3 {
 
 export function createAihubmix(options: AihubmixProviderSettings = {}): AihubmixProvider {
   const { baseURL = 'https://aihubmix.com/v1', fetch: customFetch } = options
+  const chatBaseURL = options.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
+  const responsesBaseURL = options.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_RESPONSES] ?? chatBaseURL
+  const anthropicBaseURL = options.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? baseURL
 
   const resolveApiKey = () =>
     loadApiKey({ apiKey: options.apiKey, environmentVariableName: 'AIHUBMIX_API_KEY', description: 'AiHubMix' })
@@ -75,13 +60,18 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     ...options.headers
   })
 
-  const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const chatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
+  const responsesUrl = ({ path }: { path: string; modelId: string }) =>
+    `${withoutTrailingSlash(responsesBaseURL)}${path}`
+
+  const rootURL = (withoutTrailingSlash(baseURL) ?? baseURL).replace(/\/v1$/, '')
+  const geminiBaseURL = options.endpointBaseURLs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] ?? `${rootURL}/gemini/v1beta`
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
     return new AnthropicMessagesLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.anthropic`,
-      baseURL,
+      baseURL: anthropicBaseURL,
       headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),
       fetch: customFetch,
       supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
@@ -98,7 +88,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     const headers = authHeaders()
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
-      baseURL: 'https://aihubmix.com/gemini/v1beta',
+      baseURL: geminiBaseURL,
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
       fetch: customFetch,
       generateId: () => `${AIHUBMIX_PROVIDER_NAME}-${Date.now()}`,
@@ -108,16 +98,16 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAICompatibleChatLanguageModel(modelId, {
-      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
-      url,
+      provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
+      url: chatUrl,
       headers: authHeaders,
       fetch: customFetch
     })
 
   const createOpenAIChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAIChatLanguageModel(modelId, {
-      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
-      url,
+      provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
+      url: chatUrl,
       headers: authHeaders,
       fetch: customFetch
     })
@@ -125,31 +115,25 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   const createResponsesModel = (modelId: string): LanguageModelV3 =>
     new OpenAIResponsesLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.openai-response`,
-      url,
+      url: responsesUrl,
       headers: authHeaders,
       fetch: customFetch,
       fileIdPrefixes: ['file-']
     })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    if (modelId.startsWith('claude')) {
-      return createAnthropicModel(modelId)
-    }
-    if (
-      (modelId.startsWith('gemini') || modelId.startsWith('imagen')) &&
-      !modelId.endsWith('no-think') &&
-      !modelId.endsWith('-search') &&
-      !modelId.includes('embedding')
-    ) {
-      return createGeminiModel(modelId)
-    }
-    if (isOpenAILLM(modelId)) {
-      if (isOpenAIChatCompletionOnly(modelId)) {
+    switch (resolveAihubmixChatFamily(modelId)) {
+      case 'anthropic':
+        return createAnthropicModel(modelId)
+      case 'gemini':
+        return createGeminiModel(modelId)
+      case 'openai-chat':
         return createOpenAIChatModel(modelId)
-      }
-      return createResponsesModel(modelId)
+      case 'openai-responses':
+        return createResponsesModel(modelId)
+      case 'compat':
+        return createOpenAICompatibleChatModel(modelId)
     }
-    return createOpenAICompatibleChatModel(modelId)
   }
 
   const provider = (modelId: string) => createChatModel(modelId)
@@ -160,18 +144,18 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   provider.embeddingModel = (modelId: string) =>
     new OpenAICompatibleEmbeddingModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.embedding`,
-      url,
+      url: chatUrl,
       headers: authHeaders,
       fetch: customFetch
     })
 
   provider.imageModel = (modelId: string) =>
-    createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers: authHeaders, fetch: customFetch })
+    createAihubmixImageModel(modelId, { baseURL: chatBaseURL, resolveApiKey, headers: authHeaders, fetch: customFetch })
 
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.speech`,
-      url,
+      url: chatUrl,
       headers: authHeaders,
       fetch: customFetch
     })
@@ -179,7 +163,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   provider.rerankingModel = (modelId: string) =>
     new OpenAICompatibleRerankingModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.rerank`,
-      url,
+      url: chatUrl,
       headers: authHeaders,
       fetch: customFetch
     })

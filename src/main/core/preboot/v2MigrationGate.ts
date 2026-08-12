@@ -1,3 +1,14 @@
+/**
+ * TEMPORARY convenience gate — deleted wholesale once all users have
+ * migrated off v1 (see data/migration/v2/).
+ *
+ * Do NOT use this file as a sample for preboot work. Its shape — a fat
+ * orchestrating gate holding a whole domain's flow inside core/preboot/ —
+ * is tolerated only because it is throwaway. Permanent capabilities invert
+ * this: the domain entry point owns the orchestration, and core/preboot/
+ * keeps no domain files (see core/preboot/README.md, Membership criteria).
+ */
+
 import { application } from '@application'
 import {
   evaluateCandidateVersion,
@@ -220,7 +231,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       // to write the completed status. Set the initial stage so the
       // renderer picks it up via GetProgress on mount.
       setVersionIncompatible(versionCheck.reason, versionCheck.details)
-      registerMigrationIpcHandlers(paths.userData)
+      registerMigrationIpcHandlers(paths)
 
       try {
         await app.whenReady()
@@ -245,7 +256,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     if (dataLocation) setDataLocationNotice(dataLocation)
 
     logger.info('Data Migration v2 needed, starting migration process')
-    registerMigrationIpcHandlers(paths.userData)
+    registerMigrationIpcHandlers(paths)
 
     try {
       await app.whenReady()

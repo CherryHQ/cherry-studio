@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -101,6 +101,44 @@ export class McpServerService {
     return rowToMcpServer(row)
   }
 
+  createMany(dtos: CreateMcpServerDto[]): McpServer[] {
+    const created = application.get('DbService').withWriteTx((tx) => {
+      const names = new Set<string>()
+      for (const dto of dtos) {
+        this.validateName(dto.name)
+        if (names.has(dto.name)) {
+          throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
+        }
+        names.add(dto.name)
+      }
+
+      const existing = tx
+        .select({ name: mcpServerTable.name })
+        .from(mcpServerTable)
+        .where(inArray(mcpServerTable.name, [...names]))
+        .get()
+      if (existing) {
+        throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
+      }
+
+      return dtos.map(({ sortOrder, isActive, ...rest }) => {
+        const [row] = tx
+          .insert(mcpServerTable)
+          .values({
+            ...rest,
+            sortOrder: sortOrder ?? 0,
+            isActive: isActive ?? false
+          })
+          .returning()
+          .all()
+        return row
+      })
+    })
+
+    logger.info('Created MCP servers', { count: created.length })
+    return created.map(rowToMcpServer)
+  }
+
   /**
    * Update an existing MCP server
    */
@@ -154,7 +192,7 @@ export class McpServerService {
     // reject delete() — the server row is already gone. Log the un-refreshed
     // agents so warm sessions can be reconciled, then swallow.
     try {
-      agentService.emitAgentUpdatedForIds(affectedAgentIds)
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'mcps')
     } catch (error) {
       logger.error('MCP server deleted but agent refresh failed; affected agents may retain stale tool policy', {
         mcpServerId: id,

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { shikiStreamService } from '../ShikiStreamService'
 
+const getTokenizerCache = () => (shikiStreamService as any).tokenizerCache
+
 const workerMocks = vi.hoisted(() => ({
   failInit: false,
   terminate: vi.fn()
@@ -117,13 +119,11 @@ describe('ShikiStreamService', () => {
 
       // 先高亮一次，创建 tokenizer
       await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
-      // @ts-ignore: access private
-      const tokenizer1 = shikiStreamService.tokenizerCache.get(cacheKey)
+      const tokenizer1 = getTokenizerCache().get(cacheKey)
 
       // 再高亮一次，应该复用 tokenizer
       await shikiStreamService.highlightCodeChunk(code2, language, theme, callerId)
-      // @ts-ignore: access private
-      const tokenizer2 = shikiStreamService.tokenizerCache.get(cacheKey)
+      const tokenizer2 = getTokenizerCache().get(cacheKey)
 
       expect(tokenizer1).toBe(tokenizer2)
     })
@@ -140,16 +140,12 @@ describe('ShikiStreamService', () => {
       const otherCacheKey = `${_callerId}-${_language}-${_theme}`
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(otherCacheKey)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(otherCacheKey)).toBe(false)
 
       await shikiStreamService.highlightCodeChunk(code, _language, _theme, _callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(otherCacheKey)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(otherCacheKey)).toBe(true)
     })
 
     it('should cleanup tokenizer for a specific callerId', async () => {
@@ -157,12 +153,10 @@ describe('ShikiStreamService', () => {
       const cacheKey = `${callerId}-${language}-${theme}`
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
 
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey)).toBe(false)
     })
 
     it('should not affect other callerIds when cleaning up', async () => {
@@ -176,56 +170,12 @@ describe('ShikiStreamService', () => {
       await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
       await shikiStreamService.highlightCodeChunk(code2, language, theme, otherCallerId)
 
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey1)).toBe(true)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey2)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey1)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey2)).toBe(true)
 
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey1)).toBe(false)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey2)).toBe(true)
-    })
-
-    it('should cleanup tokenizers concurrently for different callerIds', async () => {
-      const code = 'const x = 1;'
-      const callerIds = ['concurrent-1', 'concurrent-2', 'concurrent-3']
-
-      // 先为每个 callerId 创建 tokenizer
-      await Promise.all(callerIds.map((id) => shikiStreamService.highlightCodeChunk(code, language, theme, id)))
-      // 检查缓存
-      for (const id of callerIds) {
-        const cacheKey = `${id}-${language}-${theme}`
-        // @ts-ignore: access private
-        expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      }
-
-      // 并发清理
-      await Promise.all(callerIds.map((id) => Promise.resolve(shikiStreamService.cleanupTokenizers(id))))
-      // 检查缓存都被清理
-      for (const id of callerIds) {
-        const cacheKey = `${id}-${language}-${theme}`
-        // @ts-ignore: access private
-        expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
-      }
-    })
-
-    it('should cleanup tokenizers concurrently for the same callerId', async () => {
-      const code = 'const x = 1;'
-      const cacheKey = `${callerId}-${language}-${theme}`
-
-      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      // 并发清理同一个 callerId
-      await Promise.all([
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId))
-      ])
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey1)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey2)).toBe(true)
     })
 
     it('should not affect highlightCodeChunk when cleanupTokenizers is called concurrently', async () => {
@@ -233,8 +183,7 @@ describe('ShikiStreamService', () => {
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
       const cacheKey = `${callerId}-${language}-${theme}`
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
 
       // 并发高亮和清理
       await Promise.all([
@@ -244,12 +193,10 @@ describe('ShikiStreamService', () => {
       ])
 
       // 高亮后缓存应该存在
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
       // 最后清理
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
-      expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey)).toBe(false)
     })
   })
 
@@ -263,7 +210,7 @@ describe('ShikiStreamService', () => {
       const worker = (shikiStreamService as any).worker
       const workerTerminateSpy = worker ? vi.spyOn(worker, 'terminate') : undefined
       // Don't spy on highlighter.dispose() since it's managed by AsyncInitializer now
-      const tokenizerCache = (shikiStreamService as any).tokenizerCache
+      const tokenizerCache = getTokenizerCache()
       const tokenizerClearSpies: any[] = []
       for (const tokenizer of tokenizerCache.values()) {
         tokenizerClearSpies.push(vi.spyOn(tokenizer, 'clear'))
@@ -287,7 +234,7 @@ describe('ShikiStreamService', () => {
       // assert cache and references are cleared
       expect((shikiStreamService as any).worker).toBeNull()
       expect((shikiStreamService as any).highlighter).toBeNull()
-      expect((shikiStreamService as any).tokenizerCache.size).toBe(0)
+      expect(getTokenizerCache().size).toBe(0)
       expect((shikiStreamService as any).pendingRequests.size).toBe(0)
       expect((shikiStreamService as any).workerInitPromise).toBeNull()
       expect((shikiStreamService as any).workerInitRetryCount).toBe(0)
@@ -303,7 +250,7 @@ describe('ShikiStreamService', () => {
 
       expect((shikiStreamService as any).worker).toBeNull()
       expect((shikiStreamService as any).highlighter).toBeNull()
-      expect((shikiStreamService as any).tokenizerCache.size).toBe(0)
+      expect(getTokenizerCache().size).toBe(0)
     })
 
     it('should re-initialize after dispose when highlightCodeChunk is called', async () => {

@@ -20,14 +20,16 @@ Decided per file part in `prepareChatMessages`
 | Attachment | Native when | What the model receives |
 |---|---|---|
 | image | model is vision | native image part (inline) |
-| image | non-vision | OCR text, inline (capped) |
+| image | non-vision, OCR finds text | OCR text, inline (capped) |
+| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
-| audio | model is audio-capable | native audio part (inline) |
+| extensionless | — | decoded text when content is text; otherwise unsupported note |
+| audio | model and resolved endpoint are audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
-| video | model is video-capable | native video part (inline) |
+| video | model and resolved endpoint are video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
 | other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
@@ -38,15 +40,20 @@ Decided per file part in `prepareChatMessages`
   File-API upload for large files would slot in behind the same signature.)
 - Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
   — so they get a short note instead.
-- Any per-file failure (missing entry, parse error, unconfigured OCR, failed
-  materialization) degrades to a `[could not read this file].` note rather than
-  dropping the file or failing the request.
+- A non-vision image only degrades to OCR text when OCR actually finds text.
+  Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
+  raises a localized error before opening the provider request. The user can
+  select a vision-capable model or remove the image and try again.
+- Any per-file failure (missing entry, parse error, failed materialization)
+  degrades to a `[could not read this file].` note rather than dropping the
+  file or failing the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
-Only `fileEntryId`-backed (first-party chat) attachments are routed. Gateway /
-external file parts (no `fileEntryId`) are left untouched, so the OpenAI-
-compatible passthrough is unaffected.
+Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
+external file parts (no `fileEntryId`) are still eagerly materialized, but
+image/audio/video parts are omitted when native support is false. Other
+gateway/external file types keep their existing behavior.
 
 ## The cap (the only context guard)
 
@@ -72,9 +79,20 @@ Default cap ≈ 8k chars/file (tunable).
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
+- Claude Code exposes the same read operation through the Cherry Assistant-only
+  `assistant-files` MCP server. Its model-facing handles are stable, opaque
+  hashes of FileEntry ids. The server rebuilds its allow-list from the current
+  session transcript when each tool call runs, so deleting a message revokes
+  access immediately. Ordinary Claude Code Agents receive neither this server
+  nor its attachment manifest.
 - Because native media is kept inline (never routed through the tool),
   `read_file` carries no media result — no `toModelOutput` base64 re-read, no
   resend re-materialization.
+
+Cherry Assistant also gets approval-gated `save_attachment` from the same
+session-scoped server. It writes only new paths inside the session workspace and
+never overwrites an existing file. No attachment state or write tools are added
+to the shared chat runtime or to ordinary Agents.
 
 ## Extraction & OCR
 
@@ -89,22 +107,25 @@ the feature, keeping processor/handler internals in that domain. Both
 content version (30 min), so the eager every-turn pass over history doesn't
 re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `FileManager.read` (PDF via `pdf-parse`, office via
-`officeparser`/`word-extractor`, text via `decodeTextWithAutoEncoding`) and
-dispatches on the `FileEntry` canonical `ext`.
+`officeparser`/`word-extractor`, known text extensions via
+`decodeTextWithAutoEncoding`, and extensionless text via
+`decodeTextBufferIfText`) and dispatches on the `FileEntry` canonical `ext`.
 
 ## Capability resolution
 
 `resolveNativeFileSupport`
 (`src/main/ai/runtime/aiSdk/params/nativeFileSupport.ts`) derives the
-"native" column from `(provider, model)`: image/audio/video ride on the model
-capability alone (`isVision` / `isAudio` / `isVideo`, `@shared/utils/model`),
-while PDF additionally requires a first-party provider (`supportsNativePdf`).
-There is no `pdf-compatibility` middleware — native PDFs pass through inline,
-non-native PDFs go through extraction.
+"native" column from `(provider, model, resolved endpoint/runtime converter)`:
+image rides on the model capability (`isVision`, `@shared/utils/model`);
+audio/video require both the model capability and support from the selected AI
+SDK converter. PDF additionally requires a first-party provider
+(`supportsNativePdf`). There is no `pdf-compatibility` middleware — native PDFs
+pass through inline, non-native PDFs go through extraction.
 
 ## Invariants
 
 - Content visibility never depends on a tool call.
 - `fileEntryId` never reaches the model (filename in, filename out).
 - Native modalities keep provider-native handling.
+- Known non-vision models never receive native image parts.
 - Per-turn context is bounded by the cap.

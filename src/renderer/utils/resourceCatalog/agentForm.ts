@@ -29,6 +29,8 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
+  knowledgeBaseIds: string[]
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
@@ -100,6 +102,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
@@ -129,16 +132,12 @@ export interface AgentDiffResult {
  * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
  * `null` when no editable agent field changed.
  *
- * `configuration` is merged onto the existing `agent.configuration` so unrelated
- * keys that we don't surface in the form (plugin-specific settings, etc.) are
- * preserved. Only the configuration keys we actually edit participate in the
- * diff.
+ * `configuration` contains only the keys edited by this form. Main merges those
+ * keys into the latest persisted configuration inside the write transaction.
+ * `max_turns` is explicitly removed whenever this form changes configuration,
+ * because that retired field is intentionally not surfaced by the dialog.
  */
-export function diffAgentUpdate(
-  baseline: AgentFormState,
-  next: AgentFormState,
-  agent: AgentDetail
-): AgentDiffResult | null {
+export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
   let dirty = false
 
@@ -170,6 +169,10 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
+  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+    dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
   if (skillUpdates.length > 0) {
     dto.skillUpdates = skillUpdates
@@ -180,7 +183,7 @@ export function diffAgentUpdate(
     dirty = true
   }
 
-  const cfgPatch: Record<string, unknown> = {}
+  const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
 
   if (baseline.avatar !== next.avatar) {
@@ -188,7 +191,7 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.permissionMode !== next.permissionMode) {
-    cfgPatch.permission_mode = next.permissionMode || 'default'
+    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true
   }
   if (baseline.envVarsText !== next.envVarsText) {
@@ -208,7 +211,7 @@ export function diffAgentUpdate(
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
+    dto.configuration = { ...cfgPatch, max_turns: undefined }
     dirty = true
   }
 
@@ -217,16 +220,16 @@ export function diffAgentUpdate(
   return { dto }
 }
 
-function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...configuration }
-  delete rest.max_turns
-  return rest
-}
-
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
 }
 
 function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
@@ -258,12 +261,8 @@ export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
  * Resolve the current form into a save intent. Returns `null` when
  * there's nothing to do.
  */
-export function diffAgentSaveIntent(
-  form: AgentFormState,
-  baseline: AgentFormState,
-  agent: AgentDetail
-): AgentSaveIntent | null {
-  const result = diffAgentUpdate(baseline, form, agent)
+export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
+  const result = diffAgentUpdate(baseline, form)
   if (!result) return null
   return {
     kind: 'update',

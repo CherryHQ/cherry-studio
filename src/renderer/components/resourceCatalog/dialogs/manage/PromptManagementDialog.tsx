@@ -127,14 +127,15 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
             <DialogTitle>{t('settings.prompts.title')}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-5 pb-3">
+          <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-5 pb-3">
             <div className="relative min-w-0 flex-1">
-              <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+              <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-tertiary" />
               <Input
+                autoFocus
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('library.toolbar.search_placeholder')}
-                className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
+                className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-muted-foreground"
               />
               {search ? (
                 <Button
@@ -142,7 +143,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
                   size="icon-sm"
                   aria-label={t('common.clear')}
                   onClick={() => setSearch('')}
-                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
+                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground hover:text-foreground">
                   <X size={12} />
                 </Button>
               ) : null}
@@ -154,7 +155,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
             </Button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
             {error ? (
               <div className="flex min-h-full items-center justify-center">
                 <Alert
@@ -252,10 +253,10 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
       aria-label={prompt.title}
       onClick={onEdit}
       onKeyDown={(event) => activateOnKeyDown(event, onEdit)}
-      className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card p-3 transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm">
+      className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card p-3 transition-[border-color,box-shadow] hover:border-border-subtle hover:shadow-sm">
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium text-foreground text-sm leading-5">{prompt.title}</div>
-        <div className="mt-0.5 line-clamp-2 text-foreground-secondary text-xs leading-5">{summary}</div>
+        <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</div>
       </div>
       <div className="flex shrink-0 items-center gap-1" onClick={(event) => event.stopPropagation()}>
         <Button
@@ -263,7 +264,7 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
           size="icon-sm"
           aria-label={t('common.edit')}
           onClick={onEdit}
-          className="text-foreground-muted hover:text-foreground">
+          className="text-muted-foreground hover:text-foreground">
           <Pencil size={12} />
         </Button>
         <Button
@@ -271,7 +272,7 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
           size="icon-sm"
           aria-label={t('common.delete')}
           onClick={onDelete}
-          className="text-foreground-muted hover:bg-error-bg hover:text-error-text">
+          className="text-muted-foreground hover:bg-error-subtle hover:text-error-subtle-foreground">
           <Trash2 size={12} />
         </Button>
       </div>

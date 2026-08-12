@@ -5,6 +5,10 @@
  * deliberately does NOT — the `app.user.avatar` preference is its only
  * persisted copy.
  *
+ * That split is exactly why `cleanupPolicy` is a required argument here rather
+ * than inherited from the DB default — see the note on
+ * {@link prepareBase64ImageFileEntry}.
+ *
  * v1 stored these as base64 data URLs (provider logos in Dexie under
  * `image://provider-<id>`, custom mini-app logos in `custom-minapps.json`, the
  * avatar under `image://avatar`). v2 keeps them on disk as normalized WebP
@@ -21,12 +25,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
+import { insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')
@@ -52,15 +57,30 @@ type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
 
 export interface PreparedEntityImageFile<R extends EntityImageDescriptor = EntityImageDescriptor> {
   id: FileEntryId
-  physicalPath: FilePath
+  physicalPath: AbsoluteFilePath
   fileEntry: InsertFileEntryRow
   ref: R
 }
 
+/**
+ * `cleanupPolicy` is required, with no default, for the same reason every live
+ * creation surface requires it (file-entry-cleanup.md §4.1): retention hinges on
+ * how the id is held, which only the caller knows. Migrated images must land on
+ * the *same* policy their live counterparts get from `bindLogoImage` /
+ * `withCreatedImageEntry` — a ref-backed provider / mini-app logo is
+ * `delete_when_unreferenced` (reclaimed when its owner row, and thus the logo
+ * ref, is gone or the slot is replaced), while the avatar is `manual` because it
+ * has no ref table at all and the anti-join would otherwise reclaim it on sight.
+ *
+ * Letting this fall through to the DB default (`'manual'`) is the failure this
+ * parameter exists to prevent: the logo would survive its owner forever, with the
+ * WebP on disk, and no runtime path would ever make it a cleanup candidate again.
+ */
 export async function prepareBase64ImageFileEntry<R extends EntityImageDescriptor>(
   filesDataDir: string,
   ref: R,
-  value: string
+  value: string,
+  cleanupPolicy: CleanupPolicy
 ): Promise<PreparedEntityImageFile<R> | null> {
   const match = BASE64_DATA_URL_RE.exec(value)
   // Not a data URL (plain url / icon ref / emoji) — caller keeps it as-is.
@@ -79,7 +99,7 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
   }
 
   const id = uuidv7()
-  const physicalPath = path.join(filesDataDir, `${id}.webp`) as FilePath
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, `${id}.webp`))
   try {
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, webp)
@@ -94,6 +114,7 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
         name: ref.role,
         ext: 'webp',
         size: webp.length,
+        cleanupPolicy,
         externalPath: null,
         deletedAt: null,
         createdAt: now,
@@ -133,7 +154,7 @@ export function insertPreparedImageRefTx(
   tx: Pick<DbType, 'insert'>,
   image: PreparedEntityImageFile<EntityImageRef>
 ): void {
-  insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
+  insertSingleFileRefTx(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
 }
 
 /**
