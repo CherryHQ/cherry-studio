@@ -358,7 +358,7 @@
         "stop_run_task": "停止任务",
         "stop_run_task_failed": "停止任务失败",
         "task_count": "{{completed}} / {{total}} 已完成",
-        "tasks": "任务",
+        "task_progress_compact": "步骤 {{current}}/{{total}}",
         "tool_uses_one": "{{count}} 次工具调用",
         "tool_uses_other": "{{count}} 次工具调用",
         "tools_active": "活跃",

@@ -84,6 +84,9 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  CircularProgress: ({ value }: { value: number }) => (
+    <span data-testid="circular-progress" data-value={String(value)} />
+  ),
   ConfirmDialog: ({
     cancelText,
     confirmLoading,
@@ -116,7 +119,11 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     ) : null,
   HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  HoverCardContent: ({ children }: PropsWithChildren) => <div data-testid="status-shortcut-preview">{children}</div>,
+  HoverCardContent: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
+    <div className={className} data-testid="status-shortcut-preview">
+      {children}
+    </div>
+  ),
   HoverCardTrigger: ({ children }: PropsWithChildren) =>
     isValidElement(children) ? (
       // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
@@ -320,7 +327,7 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: PropsWithChildren) => <div>{children}</div>
+  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -380,14 +387,44 @@ vi.mock('motion/react', () => ({
 
 // A stable `t` identity mirrors production react-i18next; a fresh closure per render
 // would invalidate the provider's scope memo and break render-isolation assertions.
-const stableT = (key: string) => key
+const stableT = (key: string, values?: Record<string, unknown>) =>
+  key === 'agent.right_pane.status.task_progress_compact' ? `Step ${values?.current}/${values?.total}` : key
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: stableT })
 }))
 
-import { AgentRightPane, useAgentRightPaneActions } from '../AgentRightPane'
+import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
+
+function createTaskPart(sequence: number, subject: string): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: `task-create-${sequence}`,
+    toolName: 'TaskCreate',
+    state: 'input-available',
+    input: { subject }
+  } as unknown as CherryMessagePart
+}
+
+function updateTaskPart(
+  sequence: number,
+  taskId: string,
+  status: 'completed' | 'in_progress',
+  activeForm?: string
+): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: `task-update-${sequence}`,
+    toolName: 'TaskUpdate',
+    state: 'input-available',
+    input: { taskId, status, activeForm }
+  } as unknown as CherryMessagePart
+}
+
+function createTaskMessages(parts: CherryMessagePart[], status: 'pending' | 'success'): CherryUIMessage[] {
+  return [{ id: 'm1', role: 'assistant', parts, metadata: { status } }] as CherryUIMessage[]
+}
 
 function TestAgentRightPane({
   children,
@@ -517,6 +554,86 @@ describe('AgentRightPane', () => {
       nodeById: fileTreeModelState.nodeById
     }))
     getToolResultMock.mockReturnValue('Loaded flow result')
+  })
+
+  it('renders the current task plan above the composer and hides it after completion', () => {
+    const parts = [
+      createTaskPart(1, 'Collect context'),
+      createTaskPart(2, 'Build a capsule with a long wrapping task title'),
+      updateTaskPart(1, '1', 'completed'),
+      updateTaskPart(2, '2', 'in_progress', 'Building capsule')
+    ]
+    const messages = createTaskMessages(parts, 'pending')
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const capsule = screen.getByTestId('agent-task-progress-capsule')
+    const progress = within(capsule).getByRole('progressbar')
+    const details = screen.getByTestId('agent-task-progress-details')
+
+    expect(capsule).toHaveClass('justify-center')
+    expect(progress).toHaveAttribute('aria-valuenow', '1')
+    expect(progress).toHaveAttribute('aria-valuemax', '2')
+    expect(within(capsule).getByText('Step 2/2')).toBeInTheDocument()
+    expect(capsule.querySelector('[tabindex="0"]')).toHaveClass('gap-1.5', 'px-2.5')
+    expect(details.parentElement).toHaveClass('w-64')
+    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '50')
+    expect(
+      within(details).getByText('Building capsule').closest('li')?.querySelector('.animate-spin')
+    ).toBeInTheDocument()
+    expect(within(details).getByText('Building capsule')).toHaveClass('whitespace-normal', 'wrap-break-word')
+
+    const completedParts = [...parts, updateTaskPart(3, '2', 'completed')]
+    const completedMessages = createTaskMessages(completedParts, 'success')
+
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={completedMessages} partsByMessageId={{ m1: completedParts }}>
+        <AgentTaskProgressCapsule />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(within(screen.getByTestId('right-pane')).queryByText('Collect context')).toBeNull()
+  })
+
+  it('infers the first pending task as active only while the assistant turn is running', () => {
+    const parts = [createTaskPart(1, 'Collect context'), createTaskPart(2, 'Build capsule')]
+    const messages = createTaskMessages(parts, 'pending')
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+      </TestAgentRightPane>
+    )
+
+    const capsule = screen.getByTestId('agent-task-progress-capsule')
+    expect(within(capsule).getByText('Step 1/2')).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('agent-task-progress-details'))
+        .getByText('Collect context')
+        .closest('li')
+        ?.querySelector('.animate-spin')
+    ).toBeInTheDocument()
+
+    const settledMessages = createTaskMessages(parts, 'success')
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={settledMessages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByTestId('agent-task-progress-details').querySelector('.animate-spin')).toBeNull()
   })
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
@@ -1098,15 +1215,8 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
-  it('keeps declared artifacts directly under the task plan instead of below the run sections', () => {
+  it('keeps declared artifacts ahead of run sections', () => {
     const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'task-1',
-        toolName: 'TaskCreate',
-        state: 'input-available',
-        input: { subject: 'Build the deck' }
-      },
       {
         type: 'dynamic-tool',
         toolCallId: 'artifacts-1',
@@ -1140,7 +1250,6 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     const sectionOrder = [
-      screen.getByText('agent.right_pane.status.tasks'),
       screen.getByText('agent.right_pane.info.artifacts'),
       screen.getByTestId('context-usage'),
       screen.getByText('agent.right_pane.info.shell_tasks')
@@ -1154,13 +1263,6 @@ describe('AgentRightPane', () => {
 
   it('hides the artifacts section when the workspace cannot open files', () => {
     const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'task-1',
-        toolName: 'TaskCreate',
-        state: 'input-available',
-        input: { subject: 'Build the deck' }
-      },
       {
         type: 'dynamic-tool',
         toolCallId: 'artifacts-1',
@@ -1179,7 +1281,6 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    expect(screen.getByText('agent.right_pane.status.tasks')).toBeInTheDocument()
     expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
   })
 
