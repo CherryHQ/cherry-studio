@@ -1,3 +1,5 @@
+import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -225,6 +227,23 @@ describe('aiHandlers — streaming', () => {
       'requires a managed window'
     )
     expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
+    aiStreamManager.dispatch.mockRejectedValue(
+      new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+    )
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'regenerate-message', topicId: 't', parentAnchorId: 'u1' } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_STREAM_ADMISSION_REJECTED,
+      data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
+    })
   })
 
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
