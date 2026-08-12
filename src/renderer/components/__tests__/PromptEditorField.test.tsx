@@ -193,6 +193,18 @@ describe('PromptEditorField', () => {
     expect(editorFrame).toHaveClass('flex-col', 'border-border')
   })
 
+  // Regression guard for #18377: the prompt preview container must carry the
+  // `prompt-preview` scope class so the scoped CSS rule can restore visible
+  // line breaks (global `.markdown p { white-space: normal }` collapses soft
+  // newlines; the scoped override re-enables pre-wrap here only).
+  it('marks the preview container with the prompt-preview scope class (#18377)', () => {
+    render(<PromptEditorField label={<span>Prompt</span>} value="Line one\nLine two" onChange={vi.fn()} />)
+
+    const preview = screen.getByTestId('markdown').parentElement
+
+    expect(preview).toHaveClass('prompt-preview')
+  })
+
   it('does not submit a parent form when toggling preview', () => {
     const onSubmit = vi.fn()
 
