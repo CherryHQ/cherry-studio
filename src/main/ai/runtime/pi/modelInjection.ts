@@ -101,7 +101,7 @@ export function buildPiProviderInjection(provider: Provider, model: Model, apiKe
 
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   const modelId = model.apiModelId ?? model.id
-  const modelConfig = buildPiModelConfig(model, modelId, api)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api)
 
   const providerConfig: ProviderConfig = {
     name: provider.name,
@@ -174,7 +174,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
-function buildPiModelConfig(model: Model, id: string, api: PiApi): ProviderModelConfig {
+function buildPiModelConfig(provider: Provider, model: Model, id: string, api: PiApi): ProviderModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
@@ -193,7 +193,9 @@ function buildPiModelConfig(model: Model, id: string, api: PiApi): ProviderModel
     // leave zeros — pi's tracking is unused here.
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: model.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
-    maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS
+    maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
+    // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
+    ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
     // thinkingLevelMap intentionally omitted: Cherry does not wire pi
     // thinking-level control in v1 (see capability matrix).
   }

@@ -54,6 +54,29 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.contextWindow).toBe(200_000)
   })
 
+  it('preserves empty thinking signatures for CherryIN Anthropic-compatible models', () => {
+    const provider = makeProvider({
+      id: 'cherryin',
+      name: 'CherryIN',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+        'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
+      }
+    })
+    const model = makeModel({
+      id: 'cherryin::agent/deepseek-v4-flash',
+      apiModelId: 'agent/deepseek-v4-flash',
+      capabilities: ['function-call', 'reasoning'],
+      endpointTypes: ['anthropic-messages', 'openai-chat-completions']
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('anthropic-messages')
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
+  })
+
   it('maps an OpenAI-compatible provider (chat-completions)', () => {
     const provider = makeProvider({
       id: 'deepseek',

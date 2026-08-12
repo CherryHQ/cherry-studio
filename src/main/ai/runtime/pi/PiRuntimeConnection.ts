@@ -34,8 +34,9 @@ import type {
 import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
 import { buildMcpToolDefinitions } from './piMcpToolAdapter'
-import { loadPiAi, loadPiOpenAiResponsesApi, loadPiSdk } from './piSdk'
+import { loadPiAi, loadPiAnthropicMessagesApi, loadPiOpenAiResponsesApi, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
+import { withCherryInThinkingReplay } from './piThinkingReplay'
 import { AUTONOMY_TOOL_NAMES, buildAutonomyToolDefinitions } from './piToolAdapter'
 import { type PiAiStreamFns, withTransportStream } from './piTransportStream'
 import { createPiProviderExtension } from './providerExtension'
@@ -114,7 +115,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // in-hand before the sync `streamSimple` is invoked, so load them here.
     const providerConfig = injection.transportAdapter
       ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
-      : injection.providerConfig
+      : injection.providerName === 'cherryin' && injection.providerConfig.api === 'anthropic-messages'
+        ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
+        : injection.providerConfig
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
     // global auth.json/models.json. The real key is a runtime override; the
