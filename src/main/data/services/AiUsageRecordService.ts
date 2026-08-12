@@ -1211,9 +1211,11 @@ function computedCost(
   if (!pricing) return undefined
 
   if (input.modality === 'image') {
-    if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
-    const amount = input.imageCount * pricing.perImage.price
-    return { amount, breakdown: { image: amount } }
+    if (pricing.perImage) {
+      if (pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
+      const amount = input.imageCount * pricing.perImage.price
+      return { amount, breakdown: { image: amount } }
+    }
   }
   if (input.modality === 'rerank') return undefined
 

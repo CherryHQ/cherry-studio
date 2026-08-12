@@ -409,6 +409,35 @@ describe('ModelService.update', () => {
     expect(row.pricing).toEqual(pricing)
   })
 
+  it('keeps a token-only pricing override over a per-image preset baseline', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 },
+          perImage: { price: 0.05 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    const pricing = {
+      input: { perMillionTokens: 5, currency: 'USD' as const },
+      output: { perMillionTokens: 15, currency: 'USD' as const }
+    }
+
+    modelService.update('openai', 'gpt-4o', { pricing })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    const runtimePricing = modelService.getByKey('openai', 'gpt-4o').pricing
+    expect(row.pricing).toEqual(pricing)
+    expect(runtimePricing).toEqual(pricing)
+    expect(runtimePricing).not.toHaveProperty('perImage')
+  })
+
   it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 

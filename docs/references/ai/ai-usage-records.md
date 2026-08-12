@@ -241,19 +241,25 @@ is frozen into the context before the call. There is no default-currency
 fallback or completion-time provider lookup. Otherwise the frozen pricing
 snapshot is used.
 
-Computed language cost is emitted only when every non-zero usage bucket can be
-priced. Cache read/write use their own rates or the input rate, and uncached
-input is derived by subtracting cache buckets when necessary so input is not
-charged twice. When input-token pricing tiers are configured, the invocation's
-all-in input token count selects the tier with the greatest
+Computed token cost is emitted only when every non-zero usage bucket can be
+priced. Language and embedding calls use this calculation directly. Cache
+read/write use their own rates or the input rate, and uncached input is derived
+by subtracting cache buckets when necessary so input is not charged twice.
+When input-token pricing tiers are configured, the invocation's all-in input
+token count selects the tier with the greatest
 `minInputTokens` that does not exceed that count. That tier prices the whole
 invocation; tiers are not progressive. A count exactly on a boundary enters
-the new tier. If the input count is unavailable, tiered language cost remains
-unpriced rather than assuming the base tier. Per-image pricing is used only
-when a runtime model actually
-supplies `pricing.perImage`; current preset/settings producers normally do not,
-so image calls without provider-reported cost remain unpriced. Pixel pricing
-also stays unpriced without a reliable pixel count.
+the new tier. If the input count is unavailable, tiered token cost remains
+unpriced rather than assuming the base tier.
+
+For image calls, `perImage.unit === 'image'` takes precedence over token rates
+and prices the returned `imageCount`. If `perImage` is absent, the service falls
+back to the same token calculation when the provider returned image usage. A
+configured `perImage.unit === 'pixel'` explicitly stays unpriced rather than
+falling back to tokens because the runtime has no reliable pixel count. Custom
+async image transports currently record `imageCount` but no provider token
+usage, so token fallback is unavailable for those calls.
+
 Provider cost breakdown is saved only when complete and equal to the reported
 total.
 
@@ -451,8 +457,11 @@ global SWR focus/reconnect revalidation is disabled.
 - Rerank is counted but may have null usage and cost.
 - Topic duplication copies content and message-owned timing only. It does not
   duplicate usage/cost/provider-performance facts under new message ids.
-- Image calls remain unpriced unless the provider reports a trusted cost or
-  the runtime model has explicit per-image pricing.
+- Custom async image calls cannot use token fallback because their transports
+  do not report token usage; they need trusted provider cost or per-image
+  pricing to be priced.
+- Pixel-priced image calls remain unpriced because no reliable pixel count is
+  captured.
 - Historical serving keys cannot be reconstructed and remain `unknown`.
 - Estimated local cost is not an invoice, and currencies are not converted.
 

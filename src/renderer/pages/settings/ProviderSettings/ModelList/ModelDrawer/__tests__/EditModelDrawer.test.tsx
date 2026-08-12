@@ -1,4 +1,4 @@
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { CURRENCY, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -247,6 +247,62 @@ describe('EditModelDrawer pricing', () => {
       cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
       inputTokenTiers: model.pricing?.inputTokenTiers,
       perImage: { price: 0.04, unit: 'image' },
+      perMinute: { price: 0.2 }
+    })
+  })
+
+  it('saves per-image pricing only after an image model has a valid price', async () => {
+    const user = userEvent.setup()
+    const model = makePricingModel()
+    model.capabilities = [MODEL_CAPABILITY.IMAGE_GENERATION]
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await user.click(screen.getByLabelText('currency-image'))
+
+    expect(updateModelMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('models.price.validation_price')
+
+    await user.type(screen.getByLabelText('models.price.per_image'), '0.04')
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
+      input: { perMillionTokens: 3, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
+      perImage: { price: 0.04, unit: 'image' }
+    })
+  })
+
+  it('shows image pricing when an image endpoint is selected', async () => {
+    const user = userEvent.setup()
+    const model = makePricingModel()
+    model.id = 'cherryin::claude-4-sonnet'
+    model.providerId = 'cherryin'
+    model.endpointTypes = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    useProviderMock.mockReturnValue({ provider: { id: 'cherryin', name: 'CherryIN' } })
+    render(<EditModelDrawer providerId="cherryin" open onClose={vi.fn()} model={model} />)
+
+    expect(screen.queryByLabelText('models.price.image_calculation')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'endpoint_type.image-generation' }))
+
+    expect(screen.getByLabelText('models.price.image_calculation')).toBeInTheDocument()
+  })
+
+  it('switches back to token pricing without losing other pricing fields', async () => {
+    const user = userEvent.setup()
+    const model = makeTieredPricingModel()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await user.click(screen.getByLabelText('currency-token'))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
+      input: { perMillionTokens: 3, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
+      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
+      inputTokenTiers: model.pricing?.inputTokenTiers,
       perMinute: { price: 0.2 }
     })
   })

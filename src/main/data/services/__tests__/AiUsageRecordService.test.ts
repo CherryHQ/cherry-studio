@@ -427,7 +427,80 @@ describe('AiUsageRecordService', () => {
     ).toMatchObject({ cost: null, costCurrency: null, costSource: null })
   })
 
-  it('keeps incomplete token pricing, pixel pricing, and untrusted provider cost unpriced', () => {
+  it('uses per-image pricing instead of token pricing for image calls', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'per-image-priced',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 100,
+            outputPerMillionTokens: 200,
+            perImage: { price: 0.25, unit: 'image' },
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        modality: 'image',
+        usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+        imageCount: 2
+      })
+    )
+
+    expect(
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'per-image-priced')).get()
+    ).toMatchObject({
+      cost: 0.5,
+      costCurrency: 'USD',
+      costSource: 'computed',
+      costBreakdown: { image: 0.5 }
+    })
+  })
+
+  it('falls back to token pricing for image calls without per-image pricing', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'token-priced-image',
+        modality: 'image',
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000 },
+        imageCount: 2
+      })
+    )
+
+    expect(
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'token-priced-image')).get()
+    ).toMatchObject({
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed',
+      costBreakdown: { input: 1, output: 1 }
+    })
+  })
+
+  it('does not fall back to token pricing when pixel pricing is configured', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'pixel-image',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            perImage: { price: 0.000001, unit: 'pixel' },
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        modality: 'image',
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000 },
+        imageCount: 2
+      })
+    )
+
+    expect(
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'pixel-image')).get()
+    ).toMatchObject({ cost: null, costCurrency: null, costSource: null })
+  })
+
+  it('keeps incomplete token pricing and untrusted provider cost unpriced', () => {
     aiUsageRecordService.recordInvocations([
       invocation({
         requestId: 'missing-output-price',
@@ -441,19 +514,6 @@ describe('AiUsageRecordService', () => {
         usage: { outputTokens: 10 }
       }),
       invocation({
-        requestId: 'pixel-image',
-        context: context({
-          pricingSnapshot: {
-            currency: 'USD',
-            perImage: { price: 0.000001, unit: 'pixel' },
-            capturedAt: '2026-07-28T00:00:00.000Z'
-          }
-        }),
-        modality: 'image',
-        usage: undefined,
-        imageCount: 2
-      }),
-      invocation({
         requestId: 'untrusted-provider-cost',
         context: context({ pricingSnapshot: null, trustProviderReportedCost: false }),
         usage: undefined,
@@ -462,7 +522,7 @@ describe('AiUsageRecordService', () => {
     ])
 
     const rows = dbh.db.select().from(aiUsageRecordTable).all()
-    for (const requestId of ['missing-output-price', 'pixel-image', 'untrusted-provider-cost']) {
+    for (const requestId of ['missing-output-price', 'untrusted-provider-cost']) {
       expect(rows.find((row) => row.requestId === requestId)).toMatchObject({
         cost: null,
         costCurrency: null,

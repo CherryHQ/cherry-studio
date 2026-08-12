@@ -138,6 +138,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
       providerId: args[0],
       modelId: 'test-model',
       imageCount: result.images?.length ?? 0,
+      ...(result.usage ? { usage: result.usage } : {}),
       metrics: { timeCompletionMs: 10 },
       completedAt: 100
     })
@@ -577,6 +578,29 @@ describe('AiService', () => {
           context: expect.objectContaining({ modelId: 'test-model' }),
           modality: 'image',
           imageCount: 1
+        })
+      )
+    })
+
+    it('records provider-reported image token usage', async () => {
+      const service = createService()
+      stubDirectImage(service)
+      mockGenerateImage.mockResolvedValue({
+        images: [{ base64: 'abc123', mediaType: 'image/png' }],
+        usage: { inputTokens: 11, outputTokens: 29, totalTokens: 40 }
+      })
+
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
+        paramValues: {}
+      })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'image',
+          usage: { inputTokens: 11, outputTokens: 29, totalTokens: 40 }
         })
       )
     })

@@ -56,6 +56,7 @@ describe('RuntimeExecutor provider-call observation', () => {
   it('emits one image event for every SDK batch', async () => {
     const doGenerate = vi.fn(async ({ n }: ImageModelV3CallOptions) => ({
       images: Array.from({ length: n }, () => 'AAAA'),
+      usage: { inputTokens: n, outputTokens: n * 2, totalTokens: n * 3 },
       warnings: [],
       response: { timestamp: new Date(), modelId: 'image-model', headers: undefined }
     }))
@@ -78,6 +79,11 @@ describe('RuntimeExecutor provider-call observation', () => {
     expect(doGenerate).toHaveBeenCalledTimes(3)
     expect(events).toHaveLength(3)
     expect(events.map((event) => (event.modality === 'image' ? event.imageCount : undefined))).toEqual([2, 2, 1])
+    expect(events.map((event) => (event.modality === 'image' ? event.usage : undefined))).toEqual([
+      { inputTokens: 2, outputTokens: 4, totalTokens: 6 },
+      { inputTokens: 2, outputTokens: 4, totalTokens: 6 },
+      { inputTokens: 1, outputTokens: 2, totalTokens: 3 }
+    ])
     expect(new Set(events.map((event) => event.requestId)).size).toBe(3)
   })
 

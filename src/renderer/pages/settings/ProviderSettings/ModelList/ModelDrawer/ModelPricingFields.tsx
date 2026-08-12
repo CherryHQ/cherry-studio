@@ -13,6 +13,8 @@ import {
   clearModelPricingDraftError,
   createModelPricingDraft,
   getModelPricingCurrencySymbol,
+  type ImagePricingMode,
+  isImagePricingMode,
   isModelPricingCurrencySymbol,
   MODEL_PRICING_CURRENCY_SYMBOLS,
   type ModelPricingCurrencySymbol,
@@ -21,25 +23,27 @@ import {
   type ModelPricingDraftErrors,
   type ModelPricingDraftField,
   type ModelPricingTierDraft,
+  type ModelPricingTierDraftField,
   removeModelPricingTier,
   updateModelPricingTier
 } from './modelPricing'
 
 interface ModelPricingFieldsProps {
   pricing: Model['pricing']
+  showImageOutputPricing: boolean
   onCommit: (pricing: NonNullable<Model['pricing']>) => void
 }
 
 interface TierPriceFieldProps {
   tierIndex: number
-  field: Exclude<ModelPricingDraftField, 'minInputTokens'>
+  field: Exclude<ModelPricingTierDraftField, 'minInputTokens'>
   label: string
   ariaLabel: string
   value: string
   currencySymbol: ModelPricingCurrencySymbol
   error?: string
   optional?: boolean
-  onChange: (field: ModelPricingDraftField, value: string) => void
+  onChange: (field: ModelPricingTierDraftField, value: string) => void
   onBlur: () => void
 }
 
@@ -98,7 +102,7 @@ interface ModelPricingTierFieldsProps {
   tierIndex: number
   currencySymbol: ModelPricingCurrencySymbol
   errors: Partial<Record<ModelPricingDraftField, string>>
-  onChange: (tierIndex: number, field: ModelPricingDraftField, value: string) => void
+  onChange: (tierIndex: number, field: ModelPricingTierDraftField, value: string) => void
   onBlur: () => void
   onRemove: (tierIndex: number) => void
 }
@@ -255,7 +259,7 @@ function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
   )
 }
 
-export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProps) {
+export function ModelPricingFields({ pricing, showImageOutputPricing, onCommit }: ModelPricingFieldsProps) {
   const { t } = useTranslation()
   const [currencySymbol, setCurrencySymbol] = useState<ModelPricingCurrencySymbol>(() =>
     getModelPricingCurrencySymbol(pricing)
@@ -274,9 +278,23 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
     [currencySymbol, onCommit, pricing]
   )
 
-  const handleTierChange = useCallback((tierIndex: number, field: ModelPricingDraftField, value: string) => {
+  const handleTierChange = useCallback((tierIndex: number, field: ModelPricingTierDraftField, value: string) => {
     setDraft((current) => updateModelPricingTier(current, tierIndex, field, value))
     setErrors((current) => clearModelPricingDraftError(current, tierIndex, field))
+  }, [])
+
+  const handleImagePricingModeChange = useCallback(
+    (mode: ImagePricingMode) => {
+      const nextDraft = { ...draft, imagePricingMode: mode }
+      setDraft(nextDraft)
+      commitDraft(nextDraft)
+    },
+    [commitDraft, draft]
+  )
+
+  const handlePerImagePriceChange = useCallback((value: string) => {
+    setDraft((current) => ({ ...current, perImagePrice: value }))
+    setErrors((current) => clearModelPricingDraftError(current, 0, 'perImagePrice'))
   }, [])
 
   const handleAddTier = useCallback(() => {
@@ -323,6 +341,71 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
           </Select>
         </div>
       </ProviderField>
+
+      {showImageOutputPricing ? (
+        <>
+          <ProviderField title={t('models.price.image_calculation')} titleClassName={drawerClasses.fieldTitle}>
+            <div className={drawerClasses.inlineRow}>
+              <Select
+                value={draft.imagePricingMode}
+                onValueChange={(nextValue) => {
+                  if (isImagePricingMode(nextValue)) {
+                    handleImagePricingModeChange(nextValue)
+                  }
+                }}>
+                <SelectTrigger aria-label={t('models.price.image_calculation')} className={drawerClasses.selectTrigger}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className={drawerClasses.selectContent}>
+                  <SelectItem value="token">{t('models.price.image_calculation_token')}</SelectItem>
+                  <SelectItem value="image">{t('models.price.image_calculation_image')}</SelectItem>
+                  {draft.imagePricingMode === 'pixel' ? (
+                    <SelectItem value="pixel" disabled>
+                      {t('models.price.image_calculation_pixel')}
+                    </SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+            </div>
+          </ProviderField>
+
+          <div className={drawerClasses.helpText}>{t('models.price.image_calculation_help')}</div>
+
+          {draft.imagePricingMode === 'image' ? (
+            <ProviderField
+              title={t('models.price.per_image')}
+              titleClassName={drawerClasses.fieldTitle}
+              className={drawerClasses.field}
+              help={
+                translatedErrors[0]?.perImagePrice ? (
+                  <div id="model-pricing-per-image-error" role="alert" className={drawerClasses.errorText}>
+                    {translatedErrors[0].perImagePrice}
+                  </div>
+                ) : null
+              }>
+              <div className={drawerClasses.responsiveValueRow}>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  aria-label={t('models.price.per_image')}
+                  aria-invalid={Boolean(translatedErrors[0]?.perImagePrice)}
+                  aria-describedby={translatedErrors[0]?.perImagePrice ? 'model-pricing-per-image-error' : undefined}
+                  value={draft.perImagePrice}
+                  placeholder="0.00"
+                  className={drawerClasses.input}
+                  onChange={(event) => handlePerImagePriceChange(event.target.value)}
+                  onBlur={() => commitDraft(draft)}
+                />
+                <span className={drawerClasses.valueSuffix}>
+                  {currencySymbol} / {t('models.price.image_unit')}
+                </span>
+              </div>
+            </ProviderField>
+          ) : null}
+        </>
+      ) : null}
 
       <div className={drawerClasses.helpText}>{t('models.price.cache_fallback_help')}</div>
 

@@ -12,6 +12,13 @@ export type ModelPricingDraftField =
   | 'outputPrice'
   | 'cacheReadPrice'
   | 'cacheWritePrice'
+  | 'perImagePrice'
+
+export type ModelPricingTierDraftField = Exclude<ModelPricingDraftField, 'perImagePrice'>
+
+export const IMAGE_PRICING_MODES = ['token', 'image', 'pixel'] as const
+
+export type ImagePricingMode = (typeof IMAGE_PRICING_MODES)[number]
 
 export type ModelPricingDraftError = 'invalidPrice' | 'invalidMinInputTokens' | 'minInputTokensNotIncreasing'
 
@@ -25,6 +32,8 @@ export interface ModelPricingTierDraft {
 
 export interface ModelPricingDraft {
   tiers: ModelPricingTierDraft[]
+  imagePricingMode: ImagePricingMode
+  perImagePrice: string
 }
 
 export type ModelPricingDraftErrors = Array<Partial<Record<ModelPricingDraftField, ModelPricingDraftError>>>
@@ -79,7 +88,9 @@ export function createModelPricingDraft(pricing: Model['pricing']): ModelPricing
           cacheWrite: tier.cacheWrite
         })
       )
-    ]
+    ],
+    imagePricingMode: pricing?.perImage?.unit === 'pixel' ? 'pixel' : pricing?.perImage ? 'image' : 'token',
+    perImagePrice: pricing?.perImage ? String(pricing.perImage.price) : ''
   }
 }
 
@@ -94,7 +105,7 @@ export function appendModelPricingTier(draft: ModelPricingDraft): ModelPricingDr
 export function updateModelPricingTier(
   draft: ModelPricingDraft,
   tierIndex: number,
-  field: ModelPricingDraftField,
+  field: ModelPricingTierDraftField,
   value: string
 ): ModelPricingDraft {
   return {
@@ -138,6 +149,10 @@ export function isModelPricingCurrencySymbol(value: string): value is ModelPrici
   return MODEL_PRICING_CURRENCY_SYMBOLS.includes(value as ModelPricingCurrencySymbol)
 }
 
+export function isImagePricingMode(value: string): value is ImagePricingMode {
+  return IMAGE_PRICING_MODES.includes(value as ImagePricingMode)
+}
+
 export function getModelPricingCurrencySymbol(pricing: Model['pricing']): ModelPricingCurrencySymbol {
   const flatPrices = pricing ? [pricing.input, pricing.output, pricing.cacheRead, pricing.cacheWrite] : []
   const tierPrices = (pricing?.inputTokenTiers ?? []).flatMap((tier) => [
@@ -176,6 +191,7 @@ function parsePrice(value: string, optional: boolean): { error?: ModelPricingDra
 function parseModelPricingDraft(draft: ModelPricingDraft): {
   errors: ModelPricingDraftErrors
   tiers?: ParsedModelPricingTier[]
+  perImagePrice?: number
 } {
   const errors: ModelPricingDraftErrors = draft.tiers.map(() => ({}))
   const tiersToParse = [...draft.tiers]
@@ -225,11 +241,16 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
     })
   }
 
+  const perImagePrice = draft.imagePricingMode === 'image' ? parsePrice(draft.perImagePrice, false) : {}
+  if (perImagePrice.error) {
+    errors[0].perImagePrice = perImagePrice.error
+  }
+
   if (errors.some((tierErrors) => Object.keys(tierErrors).length > 0)) {
     return { errors }
   }
 
-  return { errors, tiers: parsedTiers }
+  return { errors, tiers: parsedTiers, perImagePrice: perImagePrice.value }
 }
 
 function createPrice(perMillionTokens: number, currency: Currency) {
@@ -241,7 +262,7 @@ export function buildModelPricingFromDraft(
   draft: ModelPricingDraft,
   currencySymbol: ModelPricingCurrencySymbol
 ): { errors: ModelPricingDraftErrors; pricing?: ModelPricing } {
-  const { errors, tiers } = parseModelPricingDraft(draft)
+  const { errors, tiers, perImagePrice } = parseModelPricingDraft(draft)
   if (!tiers) {
     return { errors }
   }
@@ -254,6 +275,7 @@ export function buildModelPricingFromDraft(
   delete unmodifiedPricing.cacheRead
   delete unmodifiedPricing.cacheWrite
   delete unmodifiedPricing.inputTokenTiers
+  delete unmodifiedPricing.perImage
 
   const pricing: ModelPricing = {
     ...unmodifiedPricing,
@@ -271,7 +293,12 @@ export function buildModelPricingFromDraft(
             ...(tier.cacheWritePrice !== undefined ? { cacheWrite: createPrice(tier.cacheWritePrice, currency) } : {})
           }))
         }
-      : {})
+      : {}),
+    ...(draft.imagePricingMode === 'image' && perImagePrice !== undefined
+      ? { perImage: { price: perImagePrice, unit: 'image' as const } }
+      : draft.imagePricingMode === 'pixel' && currentPricing?.perImage?.unit === 'pixel'
+        ? { perImage: currentPricing.perImage }
+        : {})
   }
 
   return { errors, pricing }

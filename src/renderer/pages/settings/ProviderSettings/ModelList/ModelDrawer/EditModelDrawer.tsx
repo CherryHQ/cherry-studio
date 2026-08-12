@@ -4,7 +4,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -97,6 +97,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0]
   const modelPurpose = inferModelPurpose(purposeFields)
+  const hasImageEndpoint = endpointTypes.some(
+    (endpointType) =>
+      endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+  )
+  const showImageOutputPricing =
+    classification.primaryType === 'image' || hasImageEndpoint || model?.pricing?.perImage != null
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
@@ -493,6 +499,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 <ModelPricingFields
                   key={`${providerId}:${model.id}`}
                   pricing={model.pricing}
+                  showImageOutputPricing={showImageOutputPricing}
                   onCommit={handlePricingCommit}
                 />
               </div>
