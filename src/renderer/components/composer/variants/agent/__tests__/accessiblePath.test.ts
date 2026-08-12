@@ -1,7 +1,23 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { getAccessiblePathRelativePath, isPathWithinAccessiblePath } from '../accessiblePath'
+
+/**
+ * `getPathComparisonKey` is the only export here that reads the platform, so it
+ * is the only one loaded through a module mock. The containment helpers are
+ * platform-independent and use the static import above.
+ */
+async function loadWithPlatform(platform: { isMac: boolean; isWin: boolean; isLinux: boolean }) {
+  vi.resetModules()
+  vi.doMock('@renderer/utils/platform', () => platform)
+  return import('../accessiblePath')
+}
+
+afterEach(() => {
+  vi.resetModules()
+  vi.clearAllMocks()
+})
 
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const p = (value: string) => value as AbsoluteFilePath
@@ -91,5 +107,45 @@ describe('accessiblePath with un-canonicalizable input (UNC)', () => {
     expect(getAccessiblePathRelativePath(p('\\\\server\\share\\notes.md'), ps('C:\\workspace'))).toBe(
       '\\\\server\\share\\notes.md'
     )
+  })
+})
+
+describe('getPathComparisonKey', () => {
+  const LINUX = { isMac: false, isWin: false, isLinux: true }
+  const MACOS = { isMac: true, isWin: false, isLinux: false }
+
+  it('is case-sensitive on a case-sensitive platform', async () => {
+    const { getPathComparisonKey } = await loadWithPlatform(LINUX)
+
+    expect(getPathComparisonKey('/Workspace/docs')).not.toBe(getPathComparisonKey('/workspace/docs'))
+  })
+
+  it('folds case on a case-insensitive platform, after canonicalization', async () => {
+    const { getPathComparisonKey } = await loadWithPlatform(MACOS)
+
+    expect(getPathComparisonKey('/Workspace/Docs/./')).toBe(getPathComparisonKey('/workspace/docs'))
+  })
+
+  // The two below are what keying through `toPathKey` gains over an
+  // unconditional `\` → `/` fold: dedup must not merge paths that denote
+  // different files.
+
+  it('keeps a POSIX filename containing a backslash distinct from a nested path', async () => {
+    const { getPathComparisonKey } = await loadWithPlatform(LINUX)
+
+    expect(getPathComparisonKey('/workspace/a\\b.txt')).not.toBe(getPathComparisonKey('/workspace/a/b.txt'))
+  })
+
+  it('leaves an un-canonicalizable UNC path spelled as it came in', async () => {
+    const { getPathComparisonKey } = await loadWithPlatform(LINUX)
+
+    expect(getPathComparisonKey('\\\\server\\share\\a.txt')).toBe('\\\\server\\share\\a.txt')
+  })
+
+  it('falls back to the raw value for input that is not an absolute path', async () => {
+    const { getPathComparisonKey } = await loadWithPlatform(LINUX)
+
+    expect(getPathComparisonKey('')).toBe('')
+    expect(getPathComparisonKey('docs/notes.md')).toBe('docs/notes.md')
   })
 })

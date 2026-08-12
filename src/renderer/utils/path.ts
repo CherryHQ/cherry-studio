@@ -54,8 +54,13 @@ const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
  * These are predicates, not parsers: a path we cannot canonicalize is simply not
  * provably the same as, or inside, anything. So degrade to `null` rather than
  * throwing out of a predicate and taking the caller down with it.
+ *
+ * Exported because a consumer needing a `Set`/`Map` key, or a comparison looser
+ * than `isSamePath`, must reach the same form the primitives compare against —
+ * and hand-rolling it is exactly how the conditional fold above gets lost. A
+ * consumer that only asks "same?" or "inside?" should use those instead.
  */
-const toComparable = (path: AbsoluteFilePath): string | null => {
+export const toPathKey = (path: AbsoluteFilePath): string | null => {
   if (path.startsWith('//')) return null
   let canonical: string
   try {
@@ -71,8 +76,8 @@ const asPrefix = (path: string) => (path.endsWith('/') ? path : `${path}/`)
 
 /** True iff `a` and `b` denote the same path. Un-canonicalizable input → `false`. */
 export const isSamePath = (a: AbsoluteFilePath, b: AbsoluteFilePath): boolean => {
-  const left = toComparable(a)
-  return left !== null && left === toComparable(b)
+  const left = toPathKey(a)
+  return left !== null && left === toPathKey(b)
 }
 
 /**
@@ -82,8 +87,8 @@ export const isSamePath = (a: AbsoluteFilePath, b: AbsoluteFilePath): boolean =>
  * Un-canonicalizable input → `false`.
  */
 export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath): boolean => {
-  const childPath = toComparable(child)
-  const parentPath = toComparable(parent)
+  const childPath = toPathKey(child)
+  const parentPath = toPathKey(parent)
   if (childPath === null || parentPath === null || childPath === parentPath) return false
   return childPath.startsWith(asPrefix(parentPath))
 }
@@ -97,8 +102,8 @@ export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath):
  * paths, and verbatim for POSIX, where a backslash belongs to the filename.
  */
 export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): string | null => {
-  const fromPath = toComparable(from)
-  const toPath = toComparable(to)
+  const fromPath = toPathKey(from)
+  const toPath = toPathKey(to)
   if (fromPath === null || toPath === null) return null
   if (fromPath === toPath) return ''
   const prefix = asPrefix(fromPath)
