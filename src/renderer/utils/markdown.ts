@@ -2,8 +2,11 @@ import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
 import { unified } from 'unified'
-import type { Point } from 'unist'
 import { visit } from 'unist-util-visit'
+
+import { getCodeBlockId } from './markdownLight'
+
+export { getCodeBlockId }
 
 /**
  * 更彻底的查找方法，递归搜索所有子元素
@@ -159,10 +162,6 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
  * @param start 代码块节点的起始位置
  * @returns 代码块在 Markdown 字符串中的 ID
  */
-export function getCodeBlockId(start?: Point): string | null {
-  return start ? `${start.line}:${start.column}:${start.offset}` : null
-}
-
 /**
  * 更新Markdown字符串中的代码块内容。
  *

@@ -17,6 +17,7 @@ const mockReadText = vi.hoisted(() => vi.fn())
 const mockUsePlaceholderElapsedMs = vi.hoisted(() => vi.fn(() => 1000))
 const mockToolBlockGroupRender = vi.hoisted(() => vi.fn())
 const mockMessageToolsRender = vi.hoisted(() => vi.fn())
+const mockHtmlArtifactPopupHostRender = vi.hoisted(() => vi.fn())
 
 type MainTextBlockModule = {
   buildUserMessagePreview: (content: string) => { content: string; isTruncated: boolean }
@@ -76,6 +77,13 @@ vi.mock('motion/react', () => {
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/chat/HtmlArtifactPopupContext', () => ({
+  HtmlArtifactPopupHost: ({ children }: { children: React.ReactNode }) => {
+    mockHtmlArtifactPopupHostRender()
+    return <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
@@ -480,6 +488,7 @@ describe('MessagePartsRenderer', () => {
     mockTopicStreamState.status = undefined
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
+    mockHtmlArtifactPopupHostRender.mockClear()
     mockReadText.mockReset()
     mockReadText.mockResolvedValue('Pasted text preview')
     Object.defineProperty(window, 'api', {
@@ -495,6 +504,16 @@ describe('MessagePartsRenderer', () => {
     mockUsePlaceholderElapsedMs.mockClear()
     mockToolBlockGroupRender.mockClear()
     mockMessageToolsRender.mockClear()
+  })
+
+  it('owns one HTML artifact popup host for all message text parts', () => {
+    renderParts([
+      { type: 'text', text: 'First' },
+      { type: 'text', text: 'Second' }
+    ] as CherryMessagePart[])
+
+    expect(screen.getAllByTestId('mock-markdown')).toHaveLength(2)
+    expect(mockHtmlArtifactPopupHostRender).toHaveBeenCalledTimes(1)
   })
 
   afterEach(() => {
@@ -960,14 +979,14 @@ describe('MessagePartsRenderer', () => {
       expect(content).not.toContain('[cite:70536f0b-1]')
     })
 
-    it('renders video and error value parts', () => {
+    it('renders video and error value parts', async () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
         { type: 'data-video', data: { url: 'https://v.test/v.mp4' } },
         { type: 'data-error', data: { name: 'Err', message: 'boom' } }
       ] as unknown as CherryMessagePart[])
 
-      const videos = screen.getAllByTestId('mock-message-video')
+      const videos = await screen.findAllByTestId('mock-message-video')
       expect(videos[0]).toHaveAttribute('data-file-path', '/tmp/v.mp4')
       expect(videos[1]).toHaveAttribute('data-url', 'https://v.test/v.mp4')
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
@@ -997,15 +1016,15 @@ describe('MessagePartsRenderer', () => {
       expect(JSON.parse(block.getAttribute('data-cached-diagnosis') || 'null')).toEqual(diagnosis)
     })
 
-    it('does not move non-consecutive updates for the same video ahead of intervening content', () => {
+    it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },
         { type: 'text', text: 'between videos' },
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/second.mp4' } }
       ] as unknown as CherryMessagePart[])
 
+      expect(await screen.findAllByTestId('mock-message-video')).toHaveLength(2)
       const html = container.innerHTML
-      expect(screen.getAllByTestId('mock-message-video')).toHaveLength(2)
       expect(html.indexOf('first.mp4')).toBeLessThan(html.indexOf('between videos'))
       expect(html.indexOf('between videos')).toBeLessThan(html.indexOf('second.mp4'))
     })
@@ -1961,7 +1980,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 
-    it('does not lose special value parts around completed process history', () => {
+    it('does not lose special value parts around completed process history', async () => {
       renderParts([
         toolPart('read'),
         { type: 'data-code', data: { content: 'answer()', language: 'ts' } },
@@ -1982,7 +2001,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'visible error')
       expect(screen.getByTestId('mock-image-block')).toBeInTheDocument()
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
-      expect(screen.getByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
+      expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
   })
