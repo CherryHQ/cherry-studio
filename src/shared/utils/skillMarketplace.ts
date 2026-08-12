@@ -105,7 +105,18 @@ export type GithubSkillLocation = {
 const GITHUB_REPO_PART = /^[a-zA-Z0-9_.-]+$/
 
 function invalidDirectoryPart(part: string): boolean {
-  return !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\')
+  // A decoded `/` would silently change the directory depth the installer resolves, and `\` would do
+  // the same on Windows; neither can name a real GitHub entry, so reject rather than reinterpret.
+  return !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\') || part.includes('/')
+}
+
+/**
+ * Re-encode a decoded repo path for use in a URL. `GithubSkillLocation.directoryPath` is decoded so
+ * the installer can resolve it on disk; concatenating it raw would break the round-trip back through
+ * `parseGithubSkillUrl` (a `#` in a directory name turns the rest of the URL into a fragment).
+ */
+export function encodeGithubPath(directoryPath: string): string {
+  return directoryPath.split('/').map(encodeURIComponent).join('/')
 }
 
 /**
@@ -119,14 +130,18 @@ function invalidDirectoryPart(part: string): boolean {
  */
 export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null {
   let url: URL
+  let segments: string[]
   try {
     url = new URL(rawUrl.trim())
+    // Decoding belongs inside the guard: `new URL` accepts a lone `%`, but decoding one throws, and
+    // callers rely on invalid input returning null rather than raising mid-render.
+    segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   } catch {
     return null
   }
 
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
-  const [owner, repo, ...tail] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  const [owner, repo, ...tail] = segments
   const refAndPath =
     host === 'github.com' && (tail[0] === 'blob' || tail[0] === 'tree')
       ? tail.slice(1)
@@ -153,7 +168,7 @@ export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null
   if (!location) return null
 
   const { owner, repo, ref, directoryPath, name } = location
-  const canonicalUrl = `https://github.com/${owner}/${repo}/blob/${ref}/${directoryPath}/SKILL.md`
+  const canonicalUrl = `https://github.com/${owner}/${repo}/blob/${ref}/${encodeGithubPath(directoryPath)}/SKILL.md`
   return {
     slug: `${owner}/${repo}/${directoryPath}`,
     name,

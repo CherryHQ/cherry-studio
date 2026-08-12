@@ -25,7 +25,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import { parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -518,7 +518,7 @@ export class SkillService {
     logger.info('Installing from GitHub', { owner, repo, ref, directoryPath })
 
     const repoUrl = `https://github.com/${owner}/${repo}`
-    const sourceUrl = `${repoUrl}/tree/${ref}/${directoryPath}`
+    const sourceUrl = `${repoUrl}/tree/${ref}/${encodeGithubPath(directoryPath)}`
     const tempDir = await this.createTempDir('github')
 
     try {

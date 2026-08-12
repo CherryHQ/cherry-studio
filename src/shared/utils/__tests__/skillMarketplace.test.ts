@@ -31,9 +31,23 @@ describe('parseGithubSkillUrl', () => {
     ['a SKILL.md at the repo root', 'https://github.com/owner/repo/blob/main/SKILL.md'],
     ['a non-github host', 'https://gitlab.com/owner/repo/blob/main/skills/foo/SKILL.md'],
     ['a path that escapes the repo', 'https://github.com/owner/repo/blob/main/skills/../../etc/SKILL.md'],
+    ['a segment hiding a separator', 'https://github.com/owner/repo/blob/main/skills/foo%2F../SKILL.md'],
     ['plain keywords', 'resume review']
   ])('rejects %s', (_case, url) => {
     expect(parseGithubSkillUrl(url)).toBeNull()
+  })
+
+  it('returns null for malformed percent-encoding instead of throwing', () => {
+    // `new URL` accepts a lone `%`; decoding it throws. Callers validate input during render, so a
+    // raised URIError would replace the inline error with a crash.
+    expect(() => parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/%/SKILL.md')).not.toThrow()
+    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/%/SKILL.md')).toBeNull()
+  })
+
+  it('decodes escaped directory names', () => {
+    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')?.directoryPath).toBe(
+      'skills/foo#bar'
+    )
   })
 })
 
@@ -50,5 +64,16 @@ describe('buildGithubSkillResult', () => {
 
   it('returns null for input the installer could not resolve', () => {
     expect(buildGithubSkillResult('https://github.com/owner/repo')).toBeNull()
+  })
+
+  it('produces an install source the installer can parse back', () => {
+    // A raw `#` from a decoded directory name would turn the rest of the URL into a fragment, so the
+    // install side would reject a row the UI had already offered.
+    const result = buildGithubSkillResult('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
+
+    expect(result?.installSource).toBe('github:https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
+    expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(
+      parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
+    )
   })
 })
