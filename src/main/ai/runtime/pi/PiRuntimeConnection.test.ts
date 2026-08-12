@@ -32,12 +32,15 @@ const mocks = vi.hoisted(() => ({
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
   readdirSync: vi.fn(),
-  // autonomy collaborators
+  // agent MCP collaborators
   listChannels: vi.fn(),
   buildPromptParts: vi.fn(),
+  buildCitationsGuidance: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
-  buildAutonomyToolDefinitions: vi.fn(),
+  buildAgentMcpServers: vi.fn(),
+  warmMcpToolCatalogs: vi.fn(),
   buildMcpToolDefinitions: vi.fn(),
+  closeMcpBridge: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
   unsubscribe: vi.fn(),
@@ -86,19 +89,21 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: mocks.ensureAgentDataDirectory
 }))
+vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
+vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: class {
     buildPromptParts = mocks.buildPromptParts
   }
 }))
-vi.mock('./piToolAdapter', () => ({
-  buildAutonomyToolDefinitions: mocks.buildAutonomyToolDefinitions,
-  AUTONOMY_TOOL_NAMES: new Set(AUTONOMY_TOOL_NAMES)
-}))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
-// only how its output is merged into customTools and how the approval gate treats those names.
-vi.mock('./piMcpToolAdapter', () => ({ buildMcpToolDefinitions: mocks.buildMcpToolDefinitions }))
+// only how the complete server set becomes customTools and how the approval gate treats those names.
+vi.mock('./piMcpToolAdapter', () => ({
+  warmMcpToolCatalogs: mocks.warmMcpToolCatalogs,
+  buildMcpToolDefinitions: mocks.buildMcpToolDefinitions,
+  buildPiMcpToolName: (serverName: string, toolName: string) => `mcp__${serverName}__${toolName}`
+}))
 vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
 vi.mock('./piSdk', () => ({
   loadPiSdk: mocks.loadPiSdk,
@@ -227,14 +232,14 @@ beforeEach(() => {
   mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   mocks.listChannels.mockReturnValue([])
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
+  mocks.buildCitationsGuidance.mockReturnValue(undefined)
   mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
-  mocks.buildAutonomyToolDefinitions.mockReturnValue([
-    { name: 'mcp__cherry-tools__cron' },
-    { name: 'mcp__cherry-tools__notify' },
-    { name: 'mcp__cherry-tools__config' },
-    { name: 'mcp__agent-memory__memory' }
-  ])
-  mocks.buildMcpToolDefinitions.mockResolvedValue([])
+  mocks.buildAgentMcpServers.mockReturnValue({ 'cherry-tools': { name: 'cherry-tools', instance: {} } })
+  mocks.warmMcpToolCatalogs.mockResolvedValue(undefined)
+  mocks.buildMcpToolDefinitions.mockResolvedValue({
+    tools: AUTONOMY_TOOL_NAMES.map((name) => ({ name })),
+    close: mocks.closeMcpBridge
+  })
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.resolveInjection.mockResolvedValue({
@@ -796,6 +801,7 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unsubscribe).toHaveBeenCalledOnce()
     expect(mocks.abort).toHaveBeenCalledOnce()
     expect(mocks.dispose).toHaveBeenCalledOnce()
+    expect(mocks.closeMcpBridge).toHaveBeenCalledOnce()
     // The stream drains any buffered events (e.g. the initial resume-token) then completes.
     const iter = conn.events[Symbol.asyncIterator]()
     let done = false
@@ -948,7 +954,7 @@ describe('PiRuntimeConnection', () => {
   it('applies an exact camelCase MCP disable immediately during reconcile', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
-    mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: toolName }])
+    mocks.buildMcpToolDefinitions.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true
 
@@ -980,10 +986,14 @@ describe('PiRuntimeConnection', () => {
 
     it('merges bridged MCP tools after Cherry autonomy tools', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', mcps: ['srv-1', 'srv-2'] })
-      mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: 'mcp__srv__do', label: 'do' }])
+      mocks.buildMcpToolDefinitions.mockResolvedValue({
+        tools: [...AUTONOMY_TOOL_NAMES.map((name) => ({ name })), { name: 'mcp__srv__do', label: 'do' }],
+        close: mocks.closeMcpBridge
+      })
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(['srv-1', 'srv-2'])
+      expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledWith(['srv-1', 'srv-2'])
+      expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
         { name: 'mcp__cherry-tools__cron' },
         { name: 'mcp__cherry-tools__notify' },
@@ -994,6 +1004,25 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, 'mcp__srv__do'])
     })
 
+    it('passes the turn knowledge selection to the complete MCP set and rebuilds when its scope changes', async () => {
+      const knowledgeInput = { ...input, knowledgeBaseIds: ['kb-1'] }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', knowledgeBaseIds: ['kb-1', 'kb-2'] })
+      const conn = await new PiRuntimeConnection(knowledgeInput).start()
+
+      expect(mocks.buildCitationsGuidance).toHaveBeenCalledWith({ web: true, kb: true })
+      expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        false,
+        undefined,
+        null,
+        AGENT_DATA_PATH,
+        ['kb-1']
+      )
+      await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-1'] })).resolves.toBe('current')
+      await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-2'] })).resolves.toBe('rebuild')
+    })
+
     it('preserves an exact camelCase MCP disabled id in startup excludeTools and the live gate', async () => {
       const toolName = 'mcp__githubServer__searchIssues'
       mocks.getAgent.mockReturnValue({
@@ -1002,7 +1031,7 @@ describe('PiRuntimeConnection', () => {
         mcps: ['srv-1'],
         disabledTools: [toolName]
       })
-      mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: toolName }])
+      mocks.buildMcpToolDefinitions.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.createOpts?.excludeTools).toEqual([toolName])
@@ -1013,7 +1042,10 @@ describe('PiRuntimeConnection', () => {
 
     it('never auto-approves bridged MCP tool names', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', mcps: ['srv-1'] })
-      mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: 'mcp__srv__do', label: 'do' }])
+      mocks.buildMcpToolDefinitions.mockResolvedValue({
+        tools: [...AUTONOMY_TOOL_NAMES.map((name) => ({ name })), { name: 'mcp__srv__do', label: 'do' }],
+        close: mocks.closeMcpBridge
+      })
       const conn = await new PiRuntimeConnection(input).start()
 
       const handler = gateHandler()
@@ -1035,7 +1067,7 @@ describe('PiRuntimeConnection', () => {
     })
   })
 
-  describe('agent autonomy', () => {
+  describe('agent MCP context', () => {
     const agentSession = {
       id: 'sess-1',
       agentId: 'agent-1',
@@ -1055,15 +1087,14 @@ describe('PiRuntimeConnection', () => {
       expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
         ['AGENT PROMPT']
       )
-      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledWith(
-        {
-          agentId: 'agent-1',
-          workspaceSource: { type: 'user', workspaceId: 'ws-1' },
-          workspacePath: WORKSPACE,
-          getKnowledgeBaseIds: expect.any(Function),
-          sourceChannelId: undefined
-        },
-        { agentId: 'agent-1', agentDataPath: AGENT_DATA_PATH }
+      expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
+        agentSession,
+        expect.objectContaining({ id: 'agent-1' }),
+        false,
+        undefined,
+        null,
+        AGENT_DATA_PATH,
+        undefined
       )
       expect(mocks.createOpts?.customTools).toEqual([
         { name: 'mcp__cherry-tools__cron' },
@@ -1093,9 +1124,14 @@ describe('PiRuntimeConnection', () => {
       ])
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledWith(
-        expect.objectContaining({ sourceChannelId: 'chan-1' }),
-        expect.anything()
+      expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
+        agentSession,
+        expect.objectContaining({ id: 'agent-1' }),
+        false,
+        undefined,
+        { id: 'chan-1' },
+        AGENT_DATA_PATH,
+        undefined
       )
     })
 
@@ -1131,7 +1167,7 @@ describe('PiRuntimeConnection', () => {
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.createOpts?.customTools).toHaveLength(4)
-      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledOnce()
+      expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
         ['AGENT PROMPT\n\nBe helpful.']

@@ -35,19 +35,18 @@ import {
   provisionBuiltinAgent
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
-import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
-import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer from '@main/ai/mcp/servers/assistant'
-import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
-import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import SkillsServer from '@main/ai/mcp/servers/skills'
+import {
+  buildAgentMcpServers,
+  type LinkedChannelSnapshot,
+  type McpServerSnapshotMap
+} from '@main/ai/runtime/agentMcpServers'
 import {
   AgentSessionWorkspaceError,
   assertAgentSessionWorkspaceDirectory,
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
-import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
+import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -82,10 +81,8 @@ import {
 } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -435,8 +432,7 @@ export interface ClaudeCodeSessionOptions {
   fastMode?: boolean
 }
 
-export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
-export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
+export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 
 // ── Main builder ────────────────────────────────────────────────────
 
@@ -1469,98 +1465,18 @@ export function buildMcpServers(
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, McpServerConfig> | undefined {
-  const mcpList: Record<string, McpServerConfig> = {}
-
-  // 1. Agent-configured MCP servers (user-added via UI)
-  const mcpIds = agent.mcps
-  if (mcpIds && mcpIds.length > 0) {
-    for (const mcpId of mcpIds) {
-      try {
-        const serverSnapshot = mcpServerSnapshots?.get(mcpId)
-        if (mcpServerSnapshots && !serverSnapshot) {
-          throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
-        }
-        const sdkServer = createMcpBridgeServer(mcpId, serverSnapshot)
-        mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
-      } catch (error) {
-        logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
-      }
-    }
-  }
-
-  // 3. Cherry tools — builtin lookups plus the agent autonomy tools (cron / notify / config),
-  // which register only because the agent context is passed. Use `agent.id` instead of
-  // `session.agentId` so TS can see the value is non-null after the upstream
-  // orphan check in buildClaudeCodeSessionSettings.
-  const sourceChannelId =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
-  let workspaceSource: AgentSessionWorkspaceSource
-  switch (session.workspace.type) {
-    case AGENT_WORKSPACE_TYPE.USER:
-      workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
-      break
-    case AGENT_WORKSPACE_TYPE.SYSTEM:
-      workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-      break
-    default: {
-      const exhaustive: never = session.workspace.type
-      throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
-    }
-  }
-  mcpList['cherry-tools'] = {
-    type: 'sdk',
-    name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer({
-      agentId: agent.id,
-      agentDataPath,
-      sessionId: session.id,
-      workspaceSource,
-      workspacePath: session.workspace.path,
-      sourceChannelId,
-      canAccessAllKnowledgeBases: () => agentService.getAgent(agent.id)?.configuration?.builtin_role === 'assistant',
-      getKnowledgeBaseIds: () => {
-        const liveAgent = agentService.getAgent(agent.id)
-        return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
-      }
-    }).mcpServer
-  }
-
-  // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
-  // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
-  // "log completion" step (and all memory writes) have no backing server.
-  const memoryServer = new AgentMemoryServer(agent.id, agentDataPath)
-  mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
-
-  // skills — deterministic marketplace search + install (the find-skills skill drives these).
-  // install_skill clones and installs exactly one skill into the managed library via SkillService,
-  // so a model only needs one tool call instead of a correct multi-step shell sequence.
-  mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
-
-  logger.debug('Injected cherry-tools + agent-memory MCP servers', {
-    agentId: agent.id,
-    totalMcpServers: Object.keys(mcpList).length
-  })
-
-  // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
-  if (assistantMcpEnabled) {
-    const assistantServer = new AssistantServer(agent.model ?? undefined)
-    mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
-    const fileToolsServer = new AssistantFileToolsServer({
-      sessionId: session.id,
-      workspacePath: session.workspace.path
-    })
-    mcpList['assistant-files'] = {
-      type: 'sdk',
-      name: 'assistant-files',
-      instance: fileToolsServer.mcpServer
-    }
-    logger.debug('Cherry Assistant: injected assistant MCP server', {
-      agentId: session.agentId,
-      totalMcpServers: Object.keys(mcpList).length
-    })
-  }
-
-  return Object.keys(mcpList).length > 0 ? mcpList : undefined
+  const servers = buildAgentMcpServers(
+    session,
+    agent,
+    assistantMcpEnabled,
+    mcpServerSnapshots,
+    linkedChannelSnapshot,
+    agentDataPath,
+    selectedKnowledgeBaseIds
+  )
+  return Object.fromEntries(
+    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+  )
 }
 
 function addMcpToolMetadataAlias(
@@ -1658,15 +1574,6 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
   }
 
   return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
-}
-
-function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
-  try {
-    const channels = channelService.listChannels({ agentId })
-    return channels.find((ch) => ch.sessionId === sessionId)?.id
-  } catch {
-    return undefined
-  }
 }
 
 /**

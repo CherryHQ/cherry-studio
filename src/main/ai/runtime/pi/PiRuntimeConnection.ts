@@ -16,16 +16,27 @@ import type {
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { PromptBuilder } from '@main/ai/agents/prompt'
-import type { MemoryToolContext } from '@main/ai/agents/tools/memoryTools'
+import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import {
+  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import {
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -41,7 +52,12 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
-import { buildMcpToolDefinitions } from './piMcpToolAdapter'
+import {
+  buildMcpToolDefinitions,
+  buildPiMcpToolName,
+  type PiMcpToolBridge,
+  warmMcpToolCatalogs
+} from './piMcpToolAdapter'
 import {
   loadPiAi,
   loadPiAnthropicMessagesApi,
@@ -51,13 +67,23 @@ import {
 } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
-import { AUTONOMY_TOOL_NAMES, buildAutonomyToolDefinitions } from './piToolAdapter'
 import { type PiAiStreamFns, withTransportStream } from './piTransportStream'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
+const toPiMcpRuntimeName = (runtimeName: string): string => {
+  const [, serverName, toolName] = runtimeName.split('__')
+  return buildPiMcpToolName(serverName, toolName)
+}
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
+  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
+  buildPiMcpToolName('agent-memory', 'memory'),
+  buildPiMcpToolName('skills', 'search_skills'),
+  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
+  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
+])
 /** Agent persona assembler, shared across pi connections (mtime-cached reads). */
 const promptBuilder = new PromptBuilder()
 
@@ -70,6 +96,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
   private session?: AgentSession
+  private mcpBridge?: PiMcpToolBridge
   private unsubscribe?: () => void
   private resumeToken?: string
   private lastStopReason?: string
@@ -115,7 +142,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    this.connectionSignature = buildPiConnectionSignature(agent, this.input.modelId)
+    this.connectionSignature = buildPiConnectionSignature(agent, this.input.modelId, this.input.knowledgeBaseIds)
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId
@@ -170,11 +197,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
     const instructions = agent.instructions?.trim()
+    const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
+    const isToolEnabled = (serverName: string, toolName: string) =>
+      !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
+    const citationsGuidance = buildCitationsGuidance({
+      web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
+      kb:
+        (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+        (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
+    })
     const promptOverrides = await buildAgentPromptOverrides(
       workspacePath,
       agentDataPath,
       agent.configuration,
-      instructions
+      instructions,
+      citationsGuidance
     )
     const resourceLoader = new pi.DefaultResourceLoader({
       cwd: workspacePath,
@@ -205,9 +242,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
           getPermissionMode: () => this.permissionMode,
           isDisabled: (toolName) => this.disabledTools.has(toolName),
-          // Scheduled/headless autonomy tools cannot wait for a renderer approval prompt.
-          // disabledTools still hard-blocks them at fire-time.
-          autoApprovedTools: AUTONOMY_TOOL_NAMES
+          // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
+          // disabledTools hard-blocks every class at fire-time.
+          autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS
         })
       ],
       // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
@@ -219,28 +256,48 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
 
-    // Cherry-owned autonomy tools are auto-approved for headless turns; third-party MCP tools
-    // remain approval-gated even though both are presented to pi as custom tools.
-    const autonomyTools = buildAutonomyToolDefinitions(...buildAutonomyToolContexts(agent.id, session, agentDataPath))
-    const mcpTools = await buildMcpToolDefinitions(agent.mcps ?? [])
-    const customTools = [...autonomyTools, ...mcpTools]
+    // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
+    // assistant tools, and user-configured servers all cross the same protocol adapter.
+    const linkedChannel = resolveLinkedChannel(agent.id, session.id)
+    const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
+    await warmMcpToolCatalogs(agent.mcps ?? [])
+    this.mcpBridge = await buildMcpToolDefinitions(
+      buildAgentMcpServers(
+        session,
+        agent,
+        assistantMcpEnabled,
+        undefined,
+        linkedChannel ? { id: linkedChannel.id } : null,
+        agentDataPath,
+        this.input.knowledgeBaseIds
+      )
+    )
+    const customTools = this.mcpBridge.tools
 
-    const { session: piSession } = await pi.createAgentSession({
-      cwd: workspacePath,
-      agentDir,
-      authStorage,
-      modelRegistry,
-      settingsManager,
-      sessionManager,
-      resourceLoader,
-      model,
-      // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
-      tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
-      customTools,
-      // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
-      // them live so a mid-session disable is enforced.
-      ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
-    })
+    let piSession: AgentSession
+    try {
+      const created = await pi.createAgentSession({
+        cwd: workspacePath,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+        sessionManager,
+        resourceLoader,
+        model,
+        // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
+        tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
+        customTools,
+        // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
+        // them live so a mid-session disable is enforced.
+        ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
+      })
+      piSession = created.session
+    } catch (error) {
+      await this.mcpBridge.close()
+      this.mcpBridge = undefined
+      throw error
+    }
 
     this.session = piSession
     this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
@@ -336,7 +393,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
    * permission-mode changes wait for an idle boundary. Any spawn-frozen difference is
    * rebuilt by the host at the next safe boundary.
    */
-  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: {
+    modelId: UniqueModelId
+    knowledgeBaseIds?: readonly string[]
+  }): Promise<AgentRuntimeReconcileResult> {
     const agent = agentService.getAgent(this.input.agentId)
     if (!agent?.model) return 'invalid'
 
@@ -353,7 +413,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (buildPiConnectionSignature(agent, input.modelId) !== this.connectionSignature) return 'rebuild'
+    if (buildPiConnectionSignature(agent, input.modelId, input.knowledgeBaseIds) !== this.connectionSignature) {
+      return 'rebuild'
+    }
     return policyChanged ? 'patched' : 'current'
   }
 
@@ -388,6 +450,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.session?.dispose()
     this.session = undefined
+    await this.mcpBridge?.close()
+    this.mcpBridge = undefined
     this.eventQueue.close()
   }
 
@@ -578,61 +642,20 @@ async function buildAgentPromptOverrides(
   workspacePath: string,
   agentDataPath: string,
   config: AgentConfiguration | undefined,
-  instructions: string | undefined
+  instructions: string | undefined,
+  citationsGuidance: string | undefined
 ): Promise<{ systemPrompt?: string; appendSystemPrompt?: string }> {
   const parts = await promptBuilder.buildPromptParts(workspacePath, config, Boolean(instructions), agentDataPath)
-  const appendSystemPrompt = [parts.context, instructions].filter(Boolean).join('\n\n')
+  const appendSystemPrompt = [parts.context, instructions, citationsGuidance].filter(Boolean).join('\n\n')
   return {
     ...(parts.base.kind === 'custom' ? { systemPrompt: parts.base.content } : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {})
   }
 }
 
-function buildAutonomyToolContexts(
-  agentId: string,
-  session: AgentSessionEntity,
-  agentDataPath: string
-): [
-  {
-    agentId: string
-    workspaceSource: AgentSessionWorkspaceSource
-    workspacePath: string
-    getKnowledgeBaseIds: () => string[]
-    sourceChannelId?: string
-  },
-  MemoryToolContext
-] {
-  const workspacePath = session.workspace.path
-  return [
-    {
-      agentId,
-      workspaceSource: toWorkspaceSource(session),
-      workspacePath,
-      getKnowledgeBaseIds: () => [],
-      sourceChannelId: resolveSourceChannel(agentId, session.id)
-    },
-    { agentId, agentDataPath }
-  ]
-}
-
-/** Map the session's workspace to the source discriminated union the claw tools persist. */
-function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSource {
-  switch (session.workspace.type) {
-    case AGENT_WORKSPACE_TYPE.USER:
-      return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
-    case AGENT_WORKSPACE_TYPE.SYSTEM:
-      return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    default: {
-      const exhaustive: never = session.workspace.type
-      throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
-    }
-  }
-}
-
-/** The channel whose linked session is this one, if any — scopes notify/cron default delivery. */
-function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
+function resolveLinkedChannel(agentId: string, sessionId: string): { id: string } | undefined {
   try {
-    return channelService.listChannels({ agentId }).find((channel) => channel.sessionId === sessionId)?.id
+    return channelService.listChannels({ agentId }).find((channel) => channel.sessionId === sessionId)
   } catch {
     return undefined
   }
@@ -670,12 +693,17 @@ function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boole
 }
 
 /** Spawn-frozen Pi inputs, intentionally excluding the approval gate's live permission mode. */
-function buildPiConnectionSignature(agent: AgentEntity, modelId: UniqueModelId): string {
+function buildPiConnectionSignature(
+  agent: AgentEntity,
+  modelId: UniqueModelId,
+  selectedKnowledgeBaseIds?: readonly string[]
+): string {
   const agentFacts = { ...agent, updatedAt: undefined }
   const configurationFacts = { ...agent.configuration, permission_mode: undefined }
   return JSON.stringify({
     agent: { ...agentFacts, configuration: configurationFacts },
-    modelId
+    modelId,
+    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
   })
 }
 

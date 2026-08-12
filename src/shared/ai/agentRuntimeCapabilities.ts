@@ -103,8 +103,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,
     heartbeat: true,
-    knowledgeBases: false,
-    // Selected MCP servers are bridged as approval-gated pi custom tools.
+    knowledgeBases: true,
+    // The complete session MCP set is bridged into approval-gated Pi custom tools.
     mcp: true,
     skills: true,
     claudeRegistryTools: false,
