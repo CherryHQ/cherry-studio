@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => {
     listenCalls = 0
     disposed = false
     topicOpen = false
+    terminalAttemptWatermark: number | undefined
 
     constructor(readonly topicId: string) {
       subs.set(topicId, this)
@@ -58,9 +59,15 @@ const mocks = vi.hoisted(() => {
         let controller!: ReadableStreamDefaultController<unknown>
         const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
         branch = { executionId, attemptId, anchorMessageId, stream, controller, closed: false }
-        if (this.#terminalFor(executionId, anchorMessageId, attemptId)) {
+        if (
+          this.#terminalFor(executionId, anchorMessageId, attemptId) ||
+          (attemptId !== undefined &&
+            this.terminalAttemptWatermark !== undefined &&
+            attemptId <= this.terminalAttemptWatermark)
+        ) {
           branch.closed = true
           controller.close()
+          return branch
         }
         this.branches.set(key, branch)
       }
@@ -196,6 +203,9 @@ const mocks = vi.hoisted(() => {
     }
 
     retire(branches: ReadonlyArray<{ executionId: string; attemptId: number; anchorMessageId?: string }>) {
+      for (const { attemptId } of branches) {
+        this.terminalAttemptWatermark = Math.max(this.terminalAttemptWatermark ?? 0, attemptId)
+      }
       for (const cb of [...this.retirementCbs]) cb(branches)
       for (const { executionId, attemptId, anchorMessageId } of branches) {
         this.unregister(executionId, anchorMessageId, attemptId)

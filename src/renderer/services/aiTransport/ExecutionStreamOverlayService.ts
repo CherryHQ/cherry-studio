@@ -576,7 +576,7 @@ export class ExecutionStreamOverlayService {
           terminateOnError: false,
           onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
         })) {
-          if (cancelled) break
+          if (cancelled) continue
           const sharedParts = shareSettledPartReferences(
             last?.parts as CherryMessagePart[] | undefined,
             snapshot.parts as CherryMessagePart[]

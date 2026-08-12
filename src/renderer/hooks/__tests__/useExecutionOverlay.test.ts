@@ -69,6 +69,9 @@ const { fake } = vi.hoisted(() => {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)
     },
+    onBranchesRetired() {
+      return () => {}
+    },
     onTopicStateChange() {
       return () => {}
     },
