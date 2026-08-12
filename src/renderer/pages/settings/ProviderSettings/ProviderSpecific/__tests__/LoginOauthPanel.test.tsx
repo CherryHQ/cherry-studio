@@ -2,6 +2,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
+import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -9,20 +10,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LoginOauthPanel from '../LoginOauthPanel'
 
-const { requestMock, tMock, updateProviderMock } = vi.hoisted(() => ({
+const { requestMock, tMock, invalidateProviderCacheMock, providerPatchMock } = vi.hoisted(() => ({
   requestMock: vi.fn(),
   tMock: (key: string) => key,
-  updateProviderMock: vi.fn().mockResolvedValue(undefined)
+  invalidateProviderCacheMock: vi.fn().mockResolvedValue(undefined),
+  providerPatchMock: vi.fn().mockResolvedValue(undefined)
 }))
+
+const PROVIDER_CACHE_PATHS = ['/providers', '/providers/codex', '/providers/codex/*']
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: tMock })
-}))
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ updateProvider: updateProviderMock })
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => requestMock(...args) }
@@ -37,10 +38,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockUseDataApiUtils.resetMocks()
+  mockUseInvalidateCache.mockReturnValue(invalidateProviderCacheMock)
+  MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/providers/:providerId', providerPatchMock)
 })
 
 describe('LoginOauthPanel', () => {
-  it('mirrors the main-process enable into the renderer cache after sign-in', async () => {
+  it('invalidates provider DataApi reads after sign-in', async () => {
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
       if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
@@ -54,12 +58,39 @@ describe('LoginOauthPanel', () => {
     const signInButton = await screen.findByText('settings.provider.codex.sign_in_button')
     await user.click(signInButton)
 
-    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
+    await waitFor(() => expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS))
+    expect(providerPatchMock).not.toHaveBeenCalled()
     expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
     expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success')
   })
 
-  it('resets auth to api-key and disables the provider in the cache on logout', async () => {
+  it('invalidates provider DataApi reads when sign-in completes after unmount', async () => {
+    let resolveSignIn: (account: { accountId: string | null }) => void = () => {}
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
+      if (channel === 'oauth.sign_in') {
+        return new Promise((resolve) => {
+          resolveSignIn = resolve
+        })
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+    const user = userEvent.setup()
+
+    const { unmount } = render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' }))
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' }))
+
+    unmount()
+    resolveSignIn({ accountId: null })
+
+    await waitFor(() => expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS))
+    expect(providerPatchMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('invalidates provider DataApi reads after logout', async () => {
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(true)
       if (channel === 'oauth.get_account') return Promise.resolve({ accountId: 'acc-1' })
@@ -74,9 +105,8 @@ describe('LoginOauthPanel', () => {
     const logoutButton = await screen.findByText('settings.provider.oauth.logout')
     await user.click(logoutButton)
 
-    await waitFor(() =>
-      expect(updateProviderMock).toHaveBeenCalledWith({ authConfig: { type: 'api-key' }, isEnabled: false })
-    )
+    await waitFor(() => expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS))
+    expect(providerPatchMock).not.toHaveBeenCalled()
     expect(popup.confirm).toHaveBeenCalled()
     expect(requestMock).toHaveBeenCalledWith('oauth.logout', { providerId: 'codex' })
   })
@@ -114,7 +144,8 @@ describe('LoginOauthPanel', () => {
 
     expect(await screen.findByText('settings.provider.codex.logged_in')).toBeInTheDocument()
     expect(requestMock).toHaveBeenCalledTimes(4)
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS)
+    expect(providerPatchMock).not.toHaveBeenCalled()
     expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
   })
 

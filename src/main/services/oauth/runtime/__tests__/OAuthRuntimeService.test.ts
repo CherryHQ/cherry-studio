@@ -4,16 +4,21 @@ const h = vi.hoisted(() => {
   const providerStore = new Map<string, { authConfig?: unknown; isEnabled?: boolean }>()
   const refreshMock = vi.fn()
   const afterPersistMock = vi.fn()
+  const clientMock = {
+    refresh: refreshMock,
+    createAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st', codeVerifier: 'cv' })),
+    exchangeCode: vi.fn()
+  }
+  const createClientMock = vi.fn<
+    (context?: { signal?: AbortSignal }) => typeof clientMock | Promise<typeof clientMock>
+  >(() => clientMock)
   return {
     providerStore,
     refreshMock,
     afterPersistMock,
+    createClientMock,
     // One controllable fake OAuth client shared by every provider definition.
-    clientMock: {
-      refresh: refreshMock,
-      createAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st', codeVerifier: 'cv' })),
-      exchangeCode: vi.fn()
-    },
+    clientMock,
     transportMock: {
       tryAcquire: vi.fn(() => true),
       waitForAuthorizationCode: vi
@@ -64,7 +69,7 @@ vi.mock('../providerDefinitions', () => ({
         type: 'loopback',
         config: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' }
       },
-      createClient: () => h.clientMock,
+      createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
       extractAccountId: () => null
     },
     cherryin: {
@@ -96,6 +101,7 @@ describe('OAuthRuntimeService', () => {
     vi.clearAllMocks()
     h.refreshMock.mockReset()
     h.afterPersistMock.mockReset()
+    h.createClientMock.mockReset().mockReturnValue(h.clientMock)
     h.transportMock.tryAcquire.mockReset().mockReturnValue(true)
     h.transportMock.waitForAuthorizationCode.mockReset().mockResolvedValue('auth-code')
     h.transportMock.close.mockReset()
@@ -409,6 +415,35 @@ describe('OAuthRuntimeService', () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
     await expect(service.signIn('codex')).resolves.toEqual({ accountId: null })
     expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(2)
+    expect(h.transportMock.close).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels while client discovery is pending and allows an immediate retry', async () => {
+    let discoverySignal: AbortSignal | undefined
+    let rejectDiscovery: (error: Error) => void = () => {}
+    h.createClientMock.mockImplementationOnce((context) => {
+      discoverySignal = context?.signal
+      return new Promise((_resolve, reject) => {
+        rejectDiscovery = reject
+        context?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+
+    const firstOutcome = service.signIn('codex').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(h.createClientMock).toHaveBeenCalledTimes(1))
+    if (!discoverySignal) {
+      rejectDiscovery(new Error('test cleanup'))
+      await firstOutcome
+    }
+    expect(discoverySignal).toBeInstanceOf(AbortSignal)
+
+    await service.cancelSignIn('codex')
+    expect(discoverySignal?.aborted).toBe(true)
+    expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+    await expect(service.signIn('codex')).resolves.toEqual({ accountId: null })
+    expect(h.createClientMock).toHaveBeenCalledTimes(2)
     expect(h.transportMock.close).toHaveBeenCalledTimes(2)
   })
 

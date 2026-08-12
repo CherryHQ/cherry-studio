@@ -146,7 +146,7 @@ export class OAuthRuntimeService extends BaseService {
   ): Promise<OAuthAccount> => {
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
     try {
-      const client = await definition.createClient()
+      const client = await definition.createClient({ signal })
       if (controller.signal.aborted) {
         throw new OAuthSignInCancelledError(definition.providerId)
       }

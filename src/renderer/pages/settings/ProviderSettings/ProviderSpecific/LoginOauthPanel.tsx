@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -30,7 +30,7 @@ interface LoginOauthPanelProps {
  */
 const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAccountId = false }) => {
   const { t } = useTranslation()
-  const { updateProvider } = useProvider(providerId)
+  const invalidateCache = useInvalidateCache()
   const ns = `settings.provider.${i18nNs}`
 
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
@@ -48,16 +48,22 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     }
   }, [])
 
+  const refreshProviderData = useCallback(
+    () => invalidateCache(['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`]),
+    [invalidateCache, providerId]
+  )
+
   const applySignInSuccess = useCallback(
     async (account: { accountId: string | null }) => {
-      if (!mountedRef.current) return
-      setLoggedIn(true)
-      setAccountId(account.accountId)
-      // The main process enabled the provider; mirror it into the renderer cache.
-      await updateProvider({ isEnabled: true })
+      if (mountedRef.current) {
+        setLoggedIn(true)
+        setAccountId(account.accountId)
+      }
+      // The main process owns the write; revalidate this window's DataApi reads.
+      await refreshProviderData()
       if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
     },
-    [ns, t, updateProvider]
+    [ns, refreshProviderData, t]
   )
 
   const startSignIn = useCallback((): Promise<void> => {
@@ -159,9 +165,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     setLoggingOut(true)
     try {
       await ipcApi.request('oauth.logout', { providerId })
-      // The main process reset auth to api-key and disabled the provider;
-      // mirror it into the renderer cache (DataApi does not auto-sync).
-      await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
+      await refreshProviderData()
       setLoggedIn(false)
       setAccountId(null)
       toast.success(t('settings.provider.oauth.logout_success'))
@@ -171,7 +175,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     } finally {
       setLoggingOut(false)
     }
-  }, [providerId, t, updateProvider])
+  }, [providerId, refreshProviderData, t])
 
   if (loggedIn === null) {
     return (
