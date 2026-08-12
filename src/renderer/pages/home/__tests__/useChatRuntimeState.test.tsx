@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
+  turnSend: vi.fn(),
+  runtimeState: null as ReturnType<typeof useChatRuntimeState> | null
 }))
 
 vi.mock('@logger', () => ({
@@ -80,7 +82,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: (config: unknown) => {
     mocks.turnControllerConfig = config
-    return { send: vi.fn(), phase: 'idle' }
+    return { send: mocks.turnSend, phase: 'idle' }
   }
 }))
 
@@ -156,7 +158,7 @@ function RuntimeHost({
   messages?: CherryUIMessage[]
 }) {
   const topic = useMemo(() => makeTopic(topicId), [topicId])
-  useChatRuntimeState({
+  mocks.runtimeState = useChatRuntimeState({
     topic,
     isHistoryLoading: false,
     initialMessages: messages,
@@ -190,6 +192,20 @@ describe('useChatRuntimeState', () => {
     mocks.liveMessageIds = []
     mocks.liveAssistants = []
     mocks.overlayOnFinish = null
+    mocks.runtimeState = null
+  })
+
+  it('keeps sendMessage stable across runtime rerenders', async () => {
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    const sendMessage = mocks.runtimeState?.sendMessage
+
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(mocks.runtimeState?.sendMessage).toBe(sendMessage)
+    await act(async () => {
+      await mocks.runtimeState?.sendMessage('hello')
+    })
+    expect(mocks.turnSend).toHaveBeenCalledWith({ text: 'hello', options: undefined })
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {

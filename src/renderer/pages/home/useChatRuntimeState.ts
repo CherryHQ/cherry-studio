@@ -301,7 +301,7 @@ export function useChatRuntimeState({
     }),
     [cache.rollbackBranch, refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<
+  const { phase: turnPhase, send } = useConversationTurnController<
     ChatTurnInput,
     { topicId: string; parentAnchorId: string | null }
   >({
@@ -458,21 +458,21 @@ export function useChatRuntimeState({
       isHistoryLoading ||
       isTopicStreamPending ||
       isTopicAwaitingApproval ||
-      turnController.phase === 'persisting' ||
-      turnController.phase === 'opening',
+      turnPhase === 'persisting' ||
+      turnPhase === 'opening',
     assistant
   })
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        await turnController.send({ text, options })
+        await send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [turnController]
+    [send]
   )
 
   return {
