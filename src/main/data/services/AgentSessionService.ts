@@ -297,9 +297,31 @@ export class AgentSessionService {
     return this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.taskScheduleId, taskScheduleId))
   }
 
-  /** Clear bindings before an agent FK detaches its sessions. */
-  clearTaskSchedulesForAgentTx(tx: DbOrTx, agentId: string): string[] {
-    const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+  /** Prepare session-owned changes before the caller deletes an agent row. */
+  prepareForAgentDeletionTx(
+    tx: DbOrTx,
+    agentId: string,
+    options: { deleteSessions: boolean }
+  ): {
+    sessionIds: string[]
+    taskScheduleIds: string[]
+    changeKind: 'membership' | 'projection'
+  } {
+    const sessions = tx
+      .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.agentId, agentId))
+      .all()
+    const taskScheduleIds = sessions.flatMap((session) => (session.taskScheduleId ? [session.taskScheduleId] : []))
+
+    if (options.deleteSessions) {
+      return {
+        sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false }),
+        taskScheduleIds,
+        changeKind: 'membership'
+      }
+    }
+
     if (taskScheduleIds.length > 0) {
       this.updateTaskScheduleRelationTx(
         tx,
@@ -307,7 +329,11 @@ export class AgentSessionService {
         and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
-    return taskScheduleIds
+    return {
+      sessionIds: sessions.map((session) => session.id),
+      taskScheduleIds,
+      changeKind: 'projection'
+    }
   }
 
   /** Relation maintenance is not session activity and must not affect recency restore. */
