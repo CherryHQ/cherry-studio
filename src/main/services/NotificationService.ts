@@ -72,7 +72,6 @@ export class NotificationService extends BaseService {
     const focusedWindow = fullChromeWindows.find((window) => window.isFocused)
 
     if (!focusedWindow) {
-      if (fullChromeWindows.length === 0) return
       if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     }
 

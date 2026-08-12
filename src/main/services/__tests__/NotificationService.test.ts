@@ -188,18 +188,31 @@ describe('NotificationService', () => {
     )
   })
 
-  it('does not notify in the background when the preference is disabled or no full-chrome window exists', () => {
+  it('does not notify in the background when the preference is disabled', () => {
     mocks.preferenceGet.mockReturnValue(false)
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
     emitCompletion({ turnId: 'turn-disabled' })
     expect(mocks.electronNotifications).toHaveLength(0)
+  })
 
-    mocks.preferenceGet.mockReturnValue(true)
+  it('notifies without a full-chrome window and delegates its click to cold-start navigation', () => {
     mocks.getWindowInfosByType.mockReturnValue([])
+
     emitCompletion({ turnId: 'turn-windowless' })
-    expect(mocks.electronNotifications).toHaveLength(0)
+
+    expect(mocks.electronNotifications).toHaveLength(1)
+    expect(mocks.electronNotifications[0].options).toEqual({
+      title: 'Assistant response complete',
+      body: 'Research notes'
+    })
+
+    mocks.electronNotifications[0].click?.()
+    expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+      { conversationType: 'assistant', conversationId: 'topic-1' },
+      'Research notes'
+    )
   })
 
   it('preserves the existing click behavior for unrelated system notifications', async () => {
