@@ -199,6 +199,27 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
   } satisfies CherryUIMessage
 }
 
+function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | undefined): void {
+  if (modelIds && new Set(modelIds).size !== modelIds.length) {
+    throw new Error('mentionedModelIds must not contain duplicate model ids')
+  }
+}
+
+function isReplyGroupAnchor(
+  messageId: string,
+  topicId: string,
+  parentAnchorId: string,
+  siblingsGroupId: number
+): boolean {
+  const message = messageService.getById(messageId)
+  return (
+    message.role === 'assistant' &&
+    message.topicId === topicId &&
+    message.parentId === parentAnchorId &&
+    message.siblingsGroupId === siblingsGroupId
+  )
+}
+
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
 
@@ -212,6 +233,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
+
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
 
@@ -298,18 +321,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     if (liveGroupAppendMessageId) {
+      const parentAnchorId = req.parentAnchorId
+      if (!parentAnchorId) {
+        throw new Error(`'regenerate-message' requires parentAnchorId`)
+      }
       if (models.length !== 1) {
         throw new Error('A live reply group can append exactly one model at a time')
       }
       const target = messageService.getById(liveGroupAppendMessageId)
-      if (target.role !== 'assistant' || target.topicId !== req.topicId || target.parentId !== req.parentAnchorId) {
+      if (target.role !== 'assistant' || target.topicId !== req.topicId || target.parentId !== parentAnchorId) {
         throw new Error('Live reply-group target does not belong to the requested topic/user anchor')
       }
       const sourceExecution = ctx.activeExecutions?.find(
         (execution) =>
           execution.anchorMessageId !== undefined &&
           (target.siblingsGroupId > 0
-            ? execution.siblingsGroupId === target.siblingsGroupId
+            ? execution.siblingsGroupId === target.siblingsGroupId &&
+              isReplyGroupAnchor(execution.anchorMessageId, req.topicId, parentAnchorId, target.siblingsGroupId)
             : execution.anchorMessageId === target.id)
       )
       if (!sourceExecution?.anchorMessageId) {
@@ -328,6 +356,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
     // for non-regenerate, so passing undefined parentAnchorId is harmless.
     const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+    if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
+      throw new Error('Live reply-group append did not resolve a parent and sibling group')
+    }
+    const preparedLiveExecutionChange =
+      liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: liveGroupSourceAnchorMessageId,
+            parentAnchorId: req.parentAnchorId,
+            siblingsGroupId,
+            activateFallback: true
+          }
+        : undefined
     const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
@@ -457,9 +498,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        liveExecutionChange: liveGroupSourceAnchorMessageId
-          ? { mode: 'append', groupAnchorMessageId: liveGroupSourceAnchorMessageId, activateFallback: true }
-          : undefined,
+        liveExecutionChange: preparedLiveExecutionChange,
         preserveActiveNode: Boolean(liveGroupAppendMessageId)
       }
     } catch (error) {
@@ -492,7 +531,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [model] = resolveModels([targetModelId], targetModelId)
     const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
     const manager = application.get('AiStreamManager')
-    await manager.awaitExecutionRetry(req.topicId, targetModelId, target.id, compatibleSiblingsGroupId)
+    await manager.awaitExecutionRetry(
+      req.topicId,
+      targetModelId,
+      target.id,
+      req.parentAnchorId,
+      compatibleSiblingsGroupId
+    )
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
@@ -535,6 +580,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.topicId,
         targetModelId,
         target.id,
+        req.parentAnchorId,
         compatibleSiblingsGroupId
       )
 
@@ -568,7 +614,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           admission.mode === 'replace-live'
             ? { mode: 'replace' }
             : admission.mode === 'append-live'
-              ? { mode: 'append', groupAnchorMessageId: admission.groupAnchorMessageId, activateFallback: false }
+              ? {
+                  mode: 'append',
+                  groupAnchorMessageId: admission.groupAnchorMessageId,
+                  parentAnchorId: req.parentAnchorId,
+                  siblingsGroupId: target.siblingsGroupId,
+                  activateFallback: false
+                }
               : undefined,
         preserveActiveNode: true
       }

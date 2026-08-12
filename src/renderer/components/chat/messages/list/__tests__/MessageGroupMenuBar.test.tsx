@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -173,5 +174,55 @@ describe('MessageGroupMenuBar', () => {
     )
 
     expect(document.querySelector('[data-tooltip-content="message.group.retry_failed"]')).toBeNull()
+  })
+
+  it('retries at most one failed reply per model with deterministic selection', async () => {
+    const user = userEvent.setup()
+    const regenerateMessage = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { regenerateMessage }
+    const failedMessages = [
+      {
+        ...messages[0],
+        id: 'gpt-selected-old',
+        status: 'error',
+        modelId: 'openai::gpt-4o',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...messages[0],
+        id: 'gpt-new',
+        status: 'error',
+        modelId: 'openai::gpt-4o',
+        createdAt: '2026-01-01T00:00:03.000Z'
+      },
+      {
+        ...messages[0],
+        id: 'claude-old',
+        status: 'paused',
+        modelId: 'anthropic::claude-sonnet',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      },
+      {
+        ...messages[0],
+        id: 'claude-new',
+        status: 'error',
+        modelId: 'anthropic::claude-sonnet',
+        createdAt: '2026-01-01T00:00:02.000Z'
+      }
+    ] as MessageListItem[]
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={failedMessages}
+        selectMessageId="gpt-selected-old"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
+
+    expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
   })
 })

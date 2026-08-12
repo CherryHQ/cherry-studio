@@ -85,6 +85,17 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
   })
 
+  it('rejects duplicate mentioned model ids before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects combining in-place retry with live reply-group append', () => {
     const combined = {
       trigger: 'regenerate-message',

@@ -30,7 +30,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-const { PersistenceListener } = await import('../PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
@@ -415,7 +415,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       onPersistFailed
     })
 
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
 
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
     expect(onPersistFailed).toHaveBeenCalledWith(

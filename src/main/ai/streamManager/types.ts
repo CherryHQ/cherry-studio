@@ -82,6 +82,8 @@ export interface StreamErrorResult {
 export interface StreamListener {
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
+  /** Orders terminal persistence before notifications and cleanup work after them. */
+  readonly terminalPhase?: 'persistence' | 'cleanup'
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
   onDone(result: StreamDoneResult): void | Promise<void>

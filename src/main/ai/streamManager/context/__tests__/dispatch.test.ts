@@ -199,7 +199,13 @@ describe('dispatchStreamRequest — steer', () => {
       models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
       listeners: [] as StreamListener[],
       reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-1', activateFallback: true },
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'assistant-1',
+        parentAnchorId: 'user-1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
       preserveActiveNode: true
     })
     const manager = makeManager(true)

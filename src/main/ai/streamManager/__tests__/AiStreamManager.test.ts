@@ -18,6 +18,7 @@ import type {
 
 class FakeListener implements StreamListener {
   readonly id: string
+  readonly terminalPhase?: 'persistence'
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
@@ -28,8 +29,9 @@ class FakeListener implements StreamListener {
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
 
-  constructor(id: string) {
+  constructor(id: string, terminalPhase?: 'persistence') {
     this.id = id
+    this.terminalPhase = terminalPhase
   }
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
@@ -59,9 +61,13 @@ class FakeListener implements StreamListener {
 // ── Mocks ───────────────────────────────────────────────────────────
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
+const mockGetMessageById = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/data/services/MessageService', () => ({
-  messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
+  messageService: {
+    create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
+    getById: mockGetMessageById
+  }
 }))
 
 // Default mock: never-closing stream so the execution loop parks in `reader.read()`
@@ -138,6 +144,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const { TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -232,6 +239,7 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
+    mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
 
@@ -322,6 +330,8 @@ describe('AiStreamManager', () => {
           listeners: [new FakeListener('l:a')]
         })
       ).toThrow('duplicate modelId')
+      expect(mockStreamText).not.toHaveBeenCalled()
+      expect(mgr.inspect('a')).toBeUndefined()
     })
 
     it('no-ops an enqueue-only send (empty models, not live) instead of throwing', () => {
@@ -671,6 +681,13 @@ describe('AiStreamManager', () => {
 
     it('rejects retry admission when the selected assistant is not in the current live reply group', async () => {
       const topicId = 'unrelated-retry-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
       mgr.send({
         topicId,
         models: [
@@ -682,12 +699,12 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:current')]
       })
 
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant')).rejects.toThrow(
-        "not part of this topic's live reply group"
-      )
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor')).rejects.toThrow(
-        "not part of this topic's live reply group"
-      )
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant', 'user-1')
+      ).rejects.toThrow("not part of this topic's live reply group")
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor', 'user-1')
+      ).rejects.toThrow("not part of this topic's live reply group")
       expect(() =>
         mgr.send({
           topicId,
@@ -709,6 +726,13 @@ describe('AiStreamManager', () => {
 
     it('admits another failed sibling into a retry stream for the same persisted reply group', async () => {
       const topicId = 'retry-all-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
       mgr.send({
         topicId,
         models: [
@@ -721,20 +745,26 @@ describe('AiStreamManager', () => {
         siblingsGroupId: 7
       })
 
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 7)).resolves.toEqual({
-        mode: 'append-live',
-        groupAnchorMessageId: 'assistant-a'
-      })
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 7)).rejects.toThrow(
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1', 7)
+      ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 'user-1', 7)).rejects.toThrow(
         "not part of this topic's live reply group"
       )
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b')).rejects.toThrow(
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1')).rejects.toThrow(
         "not part of this topic's live reply group"
       )
     })
 
     it('appends a new model execution after the existing live group without replacing its members', () => {
       const topicId = 'append-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
       mgr.send({
         topicId,
         models: [
@@ -761,9 +791,42 @@ describe('AiStreamManager', () => {
             }
           ],
           listeners: [],
-          liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'historical-assistant' }
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'historical-assistant',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
         })
       ).toThrow("append target is not part of the topic's current live reply group")
+
+      mockGetMessageById.mockImplementationOnce((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'another-user',
+        siblingsGroupId: 7
+      }))
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-c::model-c',
+              request: { ...req(topicId), messageId: 'assistant-c' }
+            }
+          ],
+          listeners: [],
+          siblingsGroupId: 7,
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).toThrow('append target is not part of the requested persisted reply group')
+      expect(mockStreamText).toHaveBeenCalledTimes(2)
 
       const appended = mgr.send({
         topicId,
@@ -775,7 +838,12 @@ describe('AiStreamManager', () => {
         ],
         listeners: [new FakeListener('l:append')],
         siblingsGroupId: 7,
-        liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
       })
 
       const snapshot = mgr.inspect(topicId)!
@@ -804,7 +872,12 @@ describe('AiStreamManager', () => {
           topicId,
           models: [{ modelId: 'provider-c::model-c', request: req(topicId) }],
           listeners: [],
-          liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
         })
       ).toThrow('already belongs')
       expect(mockStreamText).toHaveBeenCalledTimes(3)
@@ -833,7 +906,12 @@ describe('AiStreamManager', () => {
           }
         ],
         listeners: [new FakeListener('l:fallback')],
-        liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
       })
 
       expect(fallback.mode).toBe('started')
@@ -1011,6 +1089,51 @@ describe('AiStreamManager', () => {
       // Both listeners received onDone despite thrower throwing
       expect(thrower.doneResults).toHaveLength(1)
       expect(receiver.doneResults).toHaveLength(1)
+    })
+
+    it('waits for terminal persistence before notifying renderer listeners', async () => {
+      let releasePersistence!: () => void
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      const renderer = new FakeListener('wc:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer, persistence]
+      })
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      await Promise.resolve()
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(renderer.doneResults).toHaveLength(0)
+
+      releasePersistence()
+      await terminal
+      expect(renderer.doneResults).toHaveLength(1)
+    })
+
+    it('suppresses the original terminal notification after persistence surfaced an error', async () => {
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = () => {
+        throw new TerminalPersistenceError('write failed')
+      }
+      const renderer = new FakeListener('wc:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer, persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(renderer.doneResults).toHaveLength(0)
     })
 
     it('flushes trace spans for completed chat topics', async () => {

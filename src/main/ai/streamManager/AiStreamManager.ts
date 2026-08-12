@@ -33,6 +33,7 @@ import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispa
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
+import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeStreamLoop } from './pipeStreamLoop'
@@ -93,7 +94,9 @@ export interface SendModelSpec {
   abortController?: AbortController
 }
 
-type LiveExecutionChange = { mode: 'replace' } | { mode: 'append'; groupAnchorMessageId: string }
+type LiveExecutionChange =
+  | { mode: 'replace' }
+  | { mode: 'append'; groupAnchorMessageId: string; parentAnchorId: string; siblingsGroupId: number }
 type ExecutionRetryAdmission =
   | { mode: 'replace-live' }
   | { mode: 'append-live'; groupAnchorMessageId: string }
@@ -170,6 +173,21 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
 function isLiveStatus(status: ActiveStream['status']): boolean {
   return status === 'pending' || status === 'streaming'
+}
+
+function isPersistedReplyGroupAnchor(
+  messageId: string,
+  topicId: string,
+  parentAnchorId: string,
+  siblingsGroupId?: number
+): boolean {
+  const message = messageService.getById(messageId)
+  return (
+    message.role === 'assistant' &&
+    message.topicId === topicId &&
+    message.parentId === parentAnchorId &&
+    (siblingsGroupId === undefined || message.siblingsGroupId === siblingsGroupId)
+  )
 }
 
 function toActiveExecution(exec: StreamExecution): ActiveExecution {
@@ -556,6 +574,14 @@ export class AiStreamManager extends BaseService {
    * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
+    const inputModelIds = new Set<UniqueModelId>()
+    for (const { modelId } of input.models) {
+      if (inputModelIds.has(modelId)) {
+        throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
+      }
+      inputModelIds.add(modelId)
+    }
+
     const existing = this.activeStreams.get(input.topicId)
     const liveExecutionChange = input.liveExecutionChange
 
@@ -575,6 +601,17 @@ export class AiStreamManager extends BaseService {
         )
       ) {
         throw new Error("send(): append target is not part of the topic's current live reply group")
+      }
+      if (
+        liveExecutionChange.mode === 'append' &&
+        !isPersistedReplyGroupAnchor(
+          liveExecutionChange.groupAnchorMessageId,
+          input.topicId,
+          liveExecutionChange.parentAnchorId,
+          liveExecutionChange.siblingsGroupId
+        )
+      ) {
+        throw new Error('send(): append target is not part of the requested persisted reply group')
       }
       if (liveExecutionChange.mode === 'replace') {
         if (!previous || previous.anchorMessageId !== model.request.messageId) {
@@ -663,9 +700,6 @@ export class AiStreamManager extends BaseService {
     const executions = new Map<UniqueModelId, StreamExecution>()
 
     for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
-      if (executions.has(modelId)) {
-        throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
-      }
       const exec = this.createAndLaunchExecution(
         input.topicId,
         modelId,
@@ -816,8 +850,13 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     anchorMessageId: string,
+    parentAnchorId: string,
     compatibleSiblingsGroupId?: number
   ): Promise<ExecutionRetryAdmission> {
+    if (!isPersistedReplyGroupAnchor(anchorMessageId, topicId, parentAnchorId, compatibleSiblingsGroupId)) {
+      throw new Error('Retry target does not belong to the requested persisted reply group')
+    }
+
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { mode: 'start-new' }
 
@@ -826,12 +865,21 @@ export class AiStreamManager extends BaseService {
       if (isLiveStatus(stream.status)) {
         const compatibleExecution =
           compatibleSiblingsGroupId !== undefined
-            ? [...stream.executions.values()].find(
-                (candidate) =>
-                  candidate.anchorMessageId !== anchorMessageId &&
-                  candidate.anchorMessageId !== undefined &&
-                  candidate.siblingsGroupId === compatibleSiblingsGroupId
-              )
+            ? [...stream.executions.values()].find((candidate) => {
+                if (
+                  candidate.anchorMessageId === anchorMessageId ||
+                  candidate.anchorMessageId === undefined ||
+                  candidate.siblingsGroupId !== compatibleSiblingsGroupId
+                ) {
+                  return false
+                }
+                return isPersistedReplyGroupAnchor(
+                  candidate.anchorMessageId,
+                  topicId,
+                  parentAnchorId,
+                  compatibleSiblingsGroupId
+                )
+              })
             : undefined
         if (!stream.executions.has(modelId) && compatibleExecution?.anchorMessageId) {
           return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
@@ -844,9 +892,13 @@ export class AiStreamManager extends BaseService {
       throw new Error('The selected assistant execution is not ready to retry')
     }
 
-    // WebContents is notified before persistence listeners. Do not reset the row or replace the
-    // listener id until the old loop has completed every terminal listener.
+    // Do not reset the row or replace the listener id until the old loop has completed every
+    // terminal listener.
     await execution.loopPromise
+
+    if (!isPersistedReplyGroupAnchor(anchorMessageId, topicId, parentAnchorId, compatibleSiblingsGroupId)) {
+      throw new Error('Retry target changed persisted reply groups before retry could start')
+    }
 
     const current = this.activeStreams.get(topicId)
     if (!current) return { mode: 'start-new' }
@@ -1290,10 +1342,9 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Surface a stream error to a topic's transport subscribers WITHOUT mutating execution
-   * state or re-running persistence. Used when a post-stream persist fails after the renderer
-   * was already told the turn succeeded — the DB row is driven to `error` separately, but the
-   * live bubble must not stay a success. Persistence listeners are skipped (they just failed and
-   * would loop). No-op once the stream has drained.
+   * state or re-running persistence. Used when terminal persistence fails: the DB row is driven
+   * to `error` separately and the original terminal event is suppressed. Persistence listeners
+   * are skipped because they just failed and would loop. No-op once the stream has drained.
    */
   broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
@@ -1782,8 +1833,8 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Skips dead listeners, catches throws. Awaits each listener so
-   * `PersistenceListener` writes complete before cleanup.
+   * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
+   * notification, while cleanup work remains last.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
@@ -1791,14 +1842,27 @@ export class AiStreamManager extends BaseService {
     invoke: (listener: StreamListener) => void | Promise<void>
   ): Promise<void> {
     const dead: string[] = []
-    for (const [id, listener] of stream.listeners) {
+    const listeners = [...stream.listeners]
+    const orderedListeners = [
+      ...listeners.filter(([, listener]) => listener.terminalPhase === 'persistence'),
+      ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),
+      ...listeners.filter(([, listener]) => listener.terminalPhase === 'cleanup')
+    ]
+    let suppressNotification = false
+
+    for (const [id, listener] of orderedListeners) {
       if (!listener.isAlive()) {
         dead.push(id)
         continue
       }
+      if (suppressNotification && listener.terminalPhase === undefined) continue
       try {
         await invoke(listener)
       } catch (err) {
+        if (listener.terminalPhase === 'persistence' && err instanceof TerminalPersistenceError) {
+          suppressNotification = true
+          continue
+        }
         logger.warn('Listener threw', { topicId: stream.topicId, listenerId: id, event, err })
       }
     }

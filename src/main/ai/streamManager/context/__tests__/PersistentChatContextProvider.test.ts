@@ -126,6 +126,26 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('rejects duplicate mentioned models before reserving any rows', async () => {
+    const childrenBefore = messageService.getChildrenByParentId('a1')
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'a1',
+          userMessageParts: [{ type: 'text', text: 'compare twice' }],
+          mentionedModelIds: [MODEL_ID, MODEL_ID]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('mentionedModelIds must not contain duplicate model ids')
+
+    expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
+  })
+
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
@@ -618,7 +638,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const appended = children.find((message) => message.modelId === appendedModelId)
     expect(appended).toMatchObject({ parentId: 'u1', status: 'pending', siblingsGroupId: 1 })
     expect(prepared).toMatchObject({
-      liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'a1', activateFallback: true },
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'a1',
+        parentAnchorId: 'u1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
       preserveActiveNode: true,
       siblingsGroupId: 1
     })
@@ -665,6 +691,57 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ).rejects.toThrow("The selected assistant is not part of this topic's live reply group")
 
     expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
+  })
+
+  it('rejects a live anchor with the same sibling id under another parent', async () => {
+    await dbh.db.insert(messageTable).values([
+      {
+        id: 'u2',
+        parentId: 'a1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'another turn' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: 'a3',
+        parentId: 'u2',
+        topicId: 'topic-1',
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'pending',
+        siblingsGroupId: 1,
+        modelId: MODEL_ID,
+        createdAt: 400,
+        updatedAt: 400
+      }
+    ])
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1',
+          appendToLiveGroupMessageId: 'a1',
+          mentionedModelIds: [createUniqueModelId('anthropic', 'claude-sonnet-4-5')]
+        },
+        {
+          hasLiveStream: true,
+          activeExecutions: [
+            {
+              modelId: MODEL_ID,
+              anchorMessageId: 'a3',
+              siblingsGroupId: 1
+            }
+          ]
+        }
+      )
+    ).rejects.toThrow("The selected assistant is not part of this topic's live reply group")
   })
 })
 

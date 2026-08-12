@@ -145,6 +145,13 @@ const aiStreamRegenerateShape = {
   fastMode: z.boolean().optional()
 }
 
+const mentionedModelIdsSchema = z
+  .array(UniqueModelIdSchema)
+  .refine((modelIds) => new Set(modelIds).size === modelIds.length, {
+    message: 'mentionedModelIds must not contain duplicate model ids'
+  })
+  .optional()
+
 export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
@@ -199,7 +206,7 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(UniqueModelIdSchema).optional()
+        mentionedModelIds: mentionedModelIdsSchema
       }),
       z.union([
         z.object({

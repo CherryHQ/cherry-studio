@@ -20,6 +20,8 @@ type PreparedLiveExecutionChange =
   | {
       mode: 'append'
       groupAnchorMessageId: string
+      parentAnchorId: string
+      siblingsGroupId: number
       /** Activate the reserved assistant if the live stream settles during preparation. */
       activateFallback: boolean
     }

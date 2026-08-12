@@ -178,7 +178,12 @@ export async function dispatchStreamRequest(
     preparedChange?.mode === 'replace'
       ? preparedChange
       : preparedChange?.mode === 'append' && canAppendToLiveStream
-        ? { mode: 'append' as const, groupAnchorMessageId: preparedChange.groupAnchorMessageId }
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: preparedChange.groupAnchorMessageId,
+            parentAnchorId: preparedChange.parentAnchorId,
+            siblingsGroupId: preparedChange.siblingsGroupId
+          }
         : undefined
 
   const result = manager.send({
