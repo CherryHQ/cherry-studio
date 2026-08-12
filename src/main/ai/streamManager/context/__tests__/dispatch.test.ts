@@ -34,7 +34,7 @@ vi.mock('../PersistentChatContextProvider', () => ({
     prepareDispatch: mocks.persistentPrepare
   }
 }))
-vi.mock('../../../runtime/claudeCode/settingsBuilder', () => ({
+vi.mock('../../../runtime/agentSessionWorkspace', () => ({
   isAgentSessionWorkspaceError: mocks.isWorkspaceErr
 }))
 

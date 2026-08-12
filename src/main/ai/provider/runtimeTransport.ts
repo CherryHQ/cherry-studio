@@ -12,9 +12,9 @@
  * never learns any grok/codex specifics.
  */
 import { application } from '@application'
-import type { PI_TRANSPORT_ADAPTER_PROVIDER_IDS } from '@shared/ai/piModelCompatibility'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+import type { RUNTIME_TRANSPORT_ADAPTER_PROVIDER_IDS } from '@shared/data/presets/runtimeTransport'
 
 import { buildCodexRequestHeaders, coerceCodexRequestJson } from './codex'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
@@ -70,10 +70,10 @@ const codexAdapter: ProviderTransportAdapter = {
 /**
  * Adapter registry, keyed by the SAME provider ids the shared compatibility
  * predicate exposes. The record type is derived from
- * {@link PI_TRANSPORT_ADAPTER_PROVIDER_IDS}, so adding an id there without an
+ * {@link RUNTIME_TRANSPORT_ADAPTER_PROVIDER_IDS}, so adding an id there without an
  * adapter here (or vice versa) is a compile error — the two cannot drift.
  */
-const TRANSPORT_ADAPTERS: Record<(typeof PI_TRANSPORT_ADAPTER_PROVIDER_IDS)[number], ProviderTransportAdapter> = {
+const TRANSPORT_ADAPTERS: Record<(typeof RUNTIME_TRANSPORT_ADAPTER_PROVIDER_IDS)[number], ProviderTransportAdapter> = {
   [GROK_CLI_PROVIDER_ID]: grokCliAdapter,
   [OPENAI_CODEX_PROVIDER_ID]: codexAdapter
 }

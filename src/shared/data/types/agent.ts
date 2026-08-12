@@ -10,17 +10,9 @@ export type {
   AgentBase,
   AgentConfiguration,
   AgentEntity,
+  AgentType,
   ScheduledTaskEntity,
   TaskRunLogEntity
 } from '../api/schemas/agents'
 export type { AgentSessionMessageEntity } from '../api/schemas/agentSessionMessages'
 export type { InstalledSkill } from '../api/schemas/skills'
-
-// ============================================================================
-// Core agent types (plain aliases for non-Zod consumers)
-// ============================================================================
-
-// Adding a third runtime? Add one AGENT_RUNTIME_CAPABILITIES entry in
-// @shared/ai/agentRuntimeCapabilities (compile-enforced) plus the runtime driver package.
-// Full checklist: docs/references/ai/adding-a-runtime.md
-export type AgentType = 'claude-code' | 'pi'

@@ -12,8 +12,7 @@
  * equivalent are unsupported for pi agents.
  */
 
-import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
-import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -29,13 +28,6 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
  * from this const, so the two cannot drift). Kept as a tuple so that derivation
  * stays exhaustive.
  */
-export const PI_TRANSPORT_ADAPTER_PROVIDER_IDS = [GROK_CLI_PROVIDER_ID, OPENAI_CODEX_PROVIDER_ID] as const
-
-/** Whether the provider is a login-based provider Cherry can drive via a pi transport adapter. */
-export function hasPiTransportAdapter(providerId: string): boolean {
-  return (PI_TRANSPORT_ADAPTER_PROVIDER_IDS as readonly string[]).includes(providerId)
-}
-
 /**
  * The subset of pi's `KnownApi` families Cherry can drive in v1. Kept as a
  * local literal union (not imported from the pi SDK) because pi is a main-only
@@ -114,7 +106,7 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   // (`grok-cli`/`openai-codex`), however, have a pi transport adapter that
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
-  if (isLoginBasedProvider(provider) && !hasPiTransportAdapter(provider.id)) return undefined
+  if (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) return undefined
   const endpointType = resolveEndpointType(provider, model)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)

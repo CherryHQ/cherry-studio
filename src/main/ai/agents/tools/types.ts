@@ -1,19 +1,8 @@
 /**
- * Runtime-neutral agent-autonomy tool definitions.
+ * Agent-autonomy tool definitions consumed by Cherry's in-process MCP servers.
  *
- * These types describe the soul/autonomy tools (cron, notify, config, memory)
- * in a form independent of any specific agent runtime. The same definitions are
- * wrapped for two runtimes:
- *
- * - Claude Code, via the SDK MCP servers in `@main/ai/mcp/servers` (ClawServer,
- *   WorkspaceMemoryServer) — thin adapters that expose these tools over MCP.
- * - pi, via the adapter in `@main/ai/runtime/pi` — maps these definitions to
- *   pi `ToolDefinition[]` (`customTools`).
- *
- * Canonical schema form is JSON Schema (the same object MCP uses as
- * `Tool.inputSchema`). MCP consumes it verbatim; the pi adapter passes it
- * straight through as a TypeBox `parameters` schema (pi validates plain JSON
- * Schema objects natively — see `@earendil-works/pi-ai` validation).
+ * Canonical schemas use the MCP-compatible JSON Schema form. Agent runtimes consume these tools
+ * through the runtime-neutral MCP server set; they do not wrap these definitions directly.
  */
 
 /** A single content block returned by a tool. Structurally shared by MCP and pi. */
