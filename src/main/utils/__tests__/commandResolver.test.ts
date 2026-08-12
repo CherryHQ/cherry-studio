@@ -1144,20 +1144,23 @@ describe('findCommandInShellEnv', () => {
 
     it('findExecutableInEnv should resolve npx.cmd via where.exe fallback', async () => {
       const { getShellEnv } = await import('../shellEnv')
-      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\nodejs' })
+      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\\nodejs' })
 
       // findCommandInShellEnv fails (spawn returns nothing useful)
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
-      mockChild.emit('close', 1)
+      // Defer the close event so it fires after findCommandInShellEnv attaches its listener
+      // (the await on getShellEnv yields to the microtask queue before spawn is called)
+      setTimeout(() => mockChild.emit('close', 1), 0)
 
       // findExecutable fallback: where.exe returns npx.cmd
-      vi.mocked(execFileSync).mockReturnValue('C:\Program Files\nodejs\npx.cmd
-')
+      // Return an object with toString('utf8') since the code treats the result as a Buffer
+      const whereResult = 'C:\\Program Files\\nodejs\\npx.cmd\r\n'
+      vi.mocked(execFileSync).mockReturnValue({ toString: () => whereResult } as never)
       vi.mocked(fs.existsSync).mockReturnValue(true)
 
       const result = await findExecutableInEnv('npx')
-      expect(result).toBe('C:\Program Files\nodejs\npx.cmd')
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
 
   })
