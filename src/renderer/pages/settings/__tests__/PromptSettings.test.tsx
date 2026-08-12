@@ -194,7 +194,7 @@ describe('PromptSettings', () => {
     expect(screen.getByText('Global prompt')).toBeInTheDocument()
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.prompts.visibility.global.badge')).toBeInTheDocument()
-    expect(screen.getByText('settings.prompts.visibility.restricted.badge')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.prompts.visibility.restricted.badge')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'common.edit Global prompt' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.delete Global prompt' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Global prompt' })).not.toBeInTheDocument()
