@@ -719,6 +719,7 @@ export class AgentService {
     const deleted = result.rowsAffected > 0
     if (deleted) {
       agentTaskService.notifyReadModelChange(affectedTaskScheduleIds)
+      agentSessionService.notifyReadModelChange(deletedSessionIds ?? [], 'membership')
       this._onAgentDeleted.fire({ agentId: id })
     }
     return { deleted, deletedSessionIds }

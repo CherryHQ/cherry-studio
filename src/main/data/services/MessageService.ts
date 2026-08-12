@@ -106,17 +106,6 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
   errorMessage: 'Invalid message search cursor'
 }
 
-function notifyTopicActivityChange(topicIds: readonly string[]): void {
-  if (topicIds.length === 0) return
-  const entityIds = [...new Set(topicIds)]
-  notifyDataApiDataChange([
-    { endpoint: '/topics', kind: 'projection', entityIds },
-    { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/topics/:id', entityIds },
-    { endpoint: '/topics/latest' }
-  ])
-}
-
 /**
  * Convert database row to Message entity.
  *
@@ -822,20 +811,8 @@ export class MessageService {
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    application
-      .get('DbService')
-      .getDb()
-      .update(messageTable)
-      .set({ status: 'error' })
-      .where(
-        and(
-          inArray(messageTable.id, ids),
-          eq(messageTable.role, 'assistant'),
-          eq(messageTable.status, 'pending'),
-          isNull(messageTable.deletedAt)
-        )
-      )
-      .run()
+    const db = application.get('DbService').getDb()
+    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
   }
 
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
@@ -1003,7 +980,7 @@ export class MessageService {
       return rowToMessage(row)
     })
     if (isConversationActivityRole(message.role)) {
-      notifyTopicActivityChange([message.topicId])
+      getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     }
     return message
   }
@@ -1096,7 +1073,6 @@ export class MessageService {
       }
 
       // Step 3: Insert the message using the resolved parentId.
-      const status = dto.status ?? 'pending'
       const createdAt = Date.now()
       const [row] = tx
         .insert(messageTable)
@@ -1105,7 +1081,7 @@ export class MessageService {
           parentId: resolvedParentId,
           role: dto.role,
           data: dto.data,
-          status,
+          status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
           messageSnapshot: dto.messageSnapshot,
@@ -1131,7 +1107,7 @@ export class MessageService {
       return rowToMessage(row)
     })
     if (isConversationActivityRole(message.role)) {
-      notifyTopicActivityChange([topicId])
+      getDataService('TopicService').notifyReadModelChange([topicId], 'projection')
     }
     return message
   }
@@ -1184,7 +1160,7 @@ export class MessageService {
       logger.info('Reserved message branch', { anchorId, branchId: row.id, topicId: anchor.topicId, activate })
       return rowToMessage(row)
     })
-    notifyTopicActivityChange([message.topicId])
+    getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     return message
   }
 
@@ -1244,7 +1220,6 @@ export class MessageService {
           resolvedParentId = dto.parentId
         }
 
-        const status = dto.status ?? 'pending'
         const createdAt = Date.now()
         const [row] = tx
           .insert(messageTable)
@@ -1253,7 +1228,7 @@ export class MessageService {
             parentId: resolvedParentId,
             role: dto.role,
             data: dto.data,
-            status,
+            status: dto.status ?? 'pending',
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
             messageSnapshot: dto.messageSnapshot,
@@ -1369,7 +1344,7 @@ export class MessageService {
 
       return { userMessage, placeholders }
     })
-    if (activityChanged) notifyTopicActivityChange([input.topicId])
+    if (activityChanged) getDataService('TopicService').notifyReadModelChange([input.topicId], 'projection')
     return result
   }
 
@@ -1485,7 +1460,7 @@ export class MessageService {
       return rowToMessage(row)
     })
 
-    if (activityChanged) notifyTopicActivityChange([message.topicId])
+    if (activityChanged) getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     return message
   }
 
@@ -1532,7 +1507,7 @@ export class MessageService {
         activityTopicId = row.topicId
       }
     })
-    if (activityTopicId) notifyTopicActivityChange([activityTopicId])
+    if (activityTopicId) getDataService('TopicService').notifyReadModelChange([activityTopicId], 'projection')
     aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
     const finalized = this.getById(id)
     if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
@@ -1627,7 +1602,7 @@ export class MessageService {
       }
     })
     if (result.activityTopicId) {
-      notifyTopicActivityChange([result.activityTopicId])
+      getDataService('TopicService').notifyReadModelChange([result.activityTopicId], 'projection')
       notifyDataApiDataChange([
         {
           endpoint: '/topics/:topicId/messages',
@@ -1764,7 +1739,7 @@ export class MessageService {
     activeNodeStrategy: ActiveNodeStrategy = 'parent',
     awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
-    const result = application.get('DbService').withWriteTx((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const [messageRow] = tx
         .select()
         .from(messageTable)
@@ -1857,7 +1832,6 @@ export class MessageService {
         newActiveNodeId
       }
     })
-    return result
   }
 
   private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
@@ -1933,7 +1907,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
-    const result = application.get('DbService').withWriteTx((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -1948,13 +1922,11 @@ export class MessageService {
       tx.delete(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
         .run()
-      const topicService = getDataService('TopicService')
-      topicService.clearActiveNodeTx(tx, topicId)
+      getDataService('TopicService').clearActiveNodeTx(tx, topicId)
 
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
     })
-    return result
   }
 
   /**

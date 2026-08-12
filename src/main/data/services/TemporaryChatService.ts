@@ -13,7 +13,6 @@
  */
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
@@ -27,6 +26,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
+import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
 
@@ -129,7 +129,6 @@ export class TemporaryChatService {
     this.assertAcceptableAppendDto(dto)
 
     const now = Date.now()
-    const status = dto.status ?? 'success'
     const row: TemporaryMessageRow = {
       id: messageId ?? uuidv7(),
       topicId,
@@ -141,7 +140,7 @@ export class TemporaryChatService {
       // defaults to 'pending'. Intentional: pending placeholders are rejected
       // at the temp boundary (see assertAcceptableAppendDto), so callers must
       // only post completed messages — defaulting to 'success' matches that.
-      status,
+      status: dto.status ?? 'success',
       siblingsGroupId: 0,
       modelId: dto.modelId ?? null,
       messageSnapshot: dto.messageSnapshot ?? null,
@@ -271,13 +270,7 @@ export class TemporaryChatService {
       throw err
     }
 
-    const entityIds = [topicId]
-    notifyDataApiDataChange([
-      { endpoint: '/topics', kind: 'membership', entityIds },
-      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      { endpoint: '/topics/:id', entityIds },
-      { endpoint: '/topics/latest' }
-    ])
+    topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized
     // projection from the records that were captured while the chat was

@@ -24,7 +24,7 @@ describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
   describe('search', () => {
-    it('returns lean topic items with assistant names resolved inline', async () => {
+    it('orders matching topics and exposes timestamps by conversation activity', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values({
         id: 'asst-search',
@@ -39,20 +39,23 @@ describe('TopicService', () => {
           name: 'Needle Old Topic',
           assistantId: 'asst-search',
           orderKey: 'a0',
-          updatedAt: 100
+          lastActivityAt: 100,
+          updatedAt: 300
         },
         {
           id: 'topic-search-new',
           name: 'Needle New Topic',
           assistantId: 'asst-search',
           orderKey: 'a1',
-          updatedAt: 200
+          lastActivityAt: 200,
+          updatedAt: 100
         },
         {
           id: 'topic-search-miss',
           name: 'Other Topic',
           assistantId: 'asst-search',
           orderKey: 'a2',
+          lastActivityAt: 300,
           updatedAt: 300
         }
       ])
@@ -65,7 +68,7 @@ describe('TopicService', () => {
           id: 'topic-search-new',
           title: 'Needle New Topic',
           subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.200Z',
+          lastActivityAt: '1970-01-01T00:00:00.200Z',
           target: { topicId: 'topic-search-new', assistantId: 'asst-search' }
         },
         {
@@ -73,12 +76,28 @@ describe('TopicService', () => {
           id: 'topic-search-old',
           title: 'Needle Old Topic',
           subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.100Z',
+          lastActivityAt: '1970-01-01T00:00:00.100Z',
           target: { topicId: 'topic-search-old', assistantId: 'asst-search' }
         }
       ])
       expect(result[0]).not.toHaveProperty('orderKey')
     })
+  })
+
+  it('keeps audit and activity timestamps unchanged for an older activity signal', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-stale-activity',
+      name: 'Stale activity',
+      orderKey: 'a0',
+      lastActivityAt: 500,
+      createdAt: 100,
+      updatedAt: 700
+    })
+
+    dbh.db.transaction((tx) => topicService.advanceLastActivityAtTx(tx, 'topic-stale-activity', 400))
+
+    const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-stale-activity'))
+    expect(row).toMatchObject({ lastActivityAt: 500, updatedAt: 700 })
   })
 
   it('creates and reuses a topic-level trace id', async () => {
@@ -99,6 +118,7 @@ describe('TopicService', () => {
       orderKey: 'a0'
     })
 
+    notifyDataApiDataChangeMock.mockClear()
     const updated = topicService.update('topic-name-only', {
       name: 'Manual topic name'
     })
@@ -108,6 +128,12 @@ describe('TopicService', () => {
       name: 'Manual topic name',
       isNameManuallyEdited: true
     })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics/:id', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics/latest' }
+    ])
   })
 
   it('routes topic updates through serialized write transactions', async () => {
@@ -474,11 +500,18 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
+      notifyDataApiDataChangeMock.mockClear()
       topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {

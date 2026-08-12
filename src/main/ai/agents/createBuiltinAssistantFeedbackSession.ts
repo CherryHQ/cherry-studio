@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -31,12 +30,6 @@ export function createBuiltinAssistantFeedbackSession(): AgentSessionEntity {
   if (ensured.created) {
     agentService.emitAgentCreated(ensured.agent)
   }
-  const entityIds = [sessionId]
-  notifyDataApiDataChange([
-    { endpoint: '/agent-sessions', kind: 'membership', entityIds },
-    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
-  ])
+  agentSessionService.notifyReadModelChange([sessionId], 'membership')
   return agentSessionService.getById(sessionId)
 }

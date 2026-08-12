@@ -510,7 +510,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('uses one timestamp for a batch of newly saved messages', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
     agentSessionMessageService.saveMessages({
       sessionId: SESSION_ID,

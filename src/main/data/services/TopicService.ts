@@ -49,16 +49,6 @@ const SQLITE_INSERT_CHUNK = 100
 type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
 
-function notifyTopicCreation(topicId: string): void {
-  const entityIds = [topicId]
-  notifyDataApiDataChange([
-    { endpoint: '/topics', kind: 'membership', entityIds },
-    { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/topics/:id', entityIds },
-    { endpoint: '/topics/latest' }
-  ])
-}
-
 function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
@@ -125,6 +115,17 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (topicIds.length === 0) return
+    const entityIds = [...new Set(topicIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind, entityIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/topics/:id', entityIds },
+      { endpoint: '/topics/latest' }
+    ])
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
@@ -170,7 +171,10 @@ export class TopicService {
   advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
     const updated = tx
       .update(topicTable)
-      .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
+      .set({
+        lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${topicTable.updatedAt}, ${timestamp})`
+      })
       .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
       .returning({ id: topicTable.id })
       .all()
@@ -204,13 +208,17 @@ export class TopicService {
     const messageService = getDataService('MessageService')
 
     const row = dbService.withWriteTx((tx) => {
+      const createdAt = Date.now()
       const topicRow = insertWithOrderKey(
         tx,
         topicTable,
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          activeNodeId: null
+          activeNodeId: null,
+          lastActivityAt: createdAt,
+          createdAt,
+          updatedAt: createdAt
         },
         {
           pkColumn: topicTable.id,
@@ -218,16 +226,10 @@ export class TopicService {
           scope: isNull(topicTable.deletedAt)
         }
       ) as TopicRow
-      const [initializedTopicRow] = tx
-        .update(topicTable)
-        .set({ lastActivityAt: topicRow.createdAt, updatedAt: topicRow.updatedAt })
-        .where(eq(topicTable.id, topicRow.id))
-        .returning()
-        .all()
       messageService.createRootMessageTx(tx, topicRow.id)
-      return initializedTopicRow
+      return topicRow
     })
-    notifyTopicCreation(row.id)
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -287,7 +289,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
-    notifyTopicCreation(copiedTopic.id)
+    this.notifyReadModelChange([copiedTopic.id], 'membership')
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
@@ -333,6 +335,7 @@ export class TopicService {
 
       return rowToTopic(row)
     })
+    this.notifyReadModelChange([id], 'projection')
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
@@ -346,7 +349,8 @@ export class TopicService {
    */
   delete(id: string): void {
     const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted topic', { id })
   }
@@ -354,6 +358,7 @@ export class TopicService {
   deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -558,12 +563,12 @@ export class TopicService {
         name: topicTable.name,
         assistantId: topicTable.assistantId,
         assistantName: assistantTable.name,
-        updatedAt: topicTable.updatedAt
+        lastActivityAt: topicTable.lastActivityAt
       })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(limit)
       .all()
 
@@ -572,7 +577,7 @@ export class TopicService {
       id: row.id,
       title: row.name,
       subtitle: row.assistantName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
     }))
   }
@@ -602,6 +607,7 @@ export class TopicService {
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 

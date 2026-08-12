@@ -50,17 +50,6 @@ const MESSAGE_CURSOR_CONFIG = {
   errorMessage: 'Invalid message cursor'
 }
 
-function notifyAgentSessionActivityChange(sessionIds: readonly string[]): void {
-  if (sessionIds.length === 0) return
-  const entityIds = [...new Set(sessionIds)]
-  notifyDataApiDataChange([
-    { endpoint: '/agent-sessions', kind: 'projection', entityIds },
-    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
-  ])
-}
-
 type SessionMessageSearchRow = {
   rowId: string
   sessionId: string
@@ -403,13 +392,7 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         tx.update(sessionMessagesTable)
           .set({ status: 'error', data: message.data, updatedAt })
-          .where(
-            and(
-              eq(sessionMessagesTable.id, message.id),
-              eq(sessionMessagesTable.role, 'assistant'),
-              eq(sessionMessagesTable.status, 'pending')
-            )
-          )
+          .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
       if (sessionIds.length > 0) {
@@ -596,7 +579,7 @@ export class AgentSessionMessageService {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
     if (result.activityTimestamp !== null) {
-      notifyAgentSessionActivityChange([params.sessionId])
+      agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
     }
     if (publishDataChange) {
       notifyDataApiDataChange([
@@ -640,7 +623,7 @@ export class AgentSessionMessageService {
       }
     }
     if (activityTimestamp !== null) {
-      notifyAgentSessionActivityChange([sessionId])
+      agentSessionService.notifyReadModelChange([sessionId], 'projection')
     }
     return saved
   }
@@ -723,7 +706,7 @@ export class AgentSessionMessageService {
     })
 
     if (applied) {
-      notifyAgentSessionActivityChange([sessionId])
+      agentSessionService.notifyReadModelChange([sessionId], 'projection')
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',

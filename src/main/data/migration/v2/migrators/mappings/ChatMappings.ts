@@ -559,9 +559,6 @@ export async function transformMessage(
     }
   }
 
-  const createdAt = parseTimestamp(oldMessage.createdAt)
-  const updatedAt = parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
-
   return {
     id: oldMessage.id,
     parentId,
@@ -585,8 +582,8 @@ export async function transformMessage(
       oldMessage.metrics,
       oldMessage.role === 'assistant' ? estimateLegacyRequestCount(blocks) : undefined
     ),
-    createdAt,
-    updatedAt
+    createdAt: parseTimestamp(oldMessage.createdAt),
+    updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   }
 }
 

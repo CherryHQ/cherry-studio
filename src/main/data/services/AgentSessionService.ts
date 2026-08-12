@@ -50,16 +50,6 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   getDataService('AgentTaskService').notifyReadModelChange(taskIds)
 }
 
-function notifyAgentSessionCreation(sessionId: string): void {
-  const entityIds = [sessionId]
-  notifyDataApiDataChange([
-    { endpoint: '/agent-sessions', kind: 'membership', entityIds },
-    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
-  ])
-}
-
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
@@ -96,6 +86,17 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (sessionIds.length === 0) return
+    const entityIds = [...new Set(sessionIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind, entityIds },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' }
+    ])
+  }
+
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -112,12 +113,12 @@ export class AgentSessionService {
         agentId: sessionsTable.agentId,
         agentName: agentsTable.name,
         name: sessionsTable.name,
-        updatedAt: sessionsTable.updatedAt
+        lastActivityAt: sessionsTable.lastActivityAt
       })
       .from(sessionsTable)
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(limit)
       .all()
 
@@ -126,7 +127,7 @@ export class AgentSessionService {
       id: row.id,
       title: row.name,
       subtitle: row.agentName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { sessionId: row.id, agentId: row.agentId }
     }))
   }
@@ -137,7 +138,7 @@ export class AgentSessionService {
       ...defaultHandlersFor('Session', id),
       foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
-    notifyAgentSessionCreation(id)
+    this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
 
@@ -195,7 +196,10 @@ export class AgentSessionService {
   advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
     const updated = tx
       .update(sessionsTable)
-      .set({ lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})` })
+      .set({
+        lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${sessionsTable.updatedAt}, ${timestamp})`
+      })
       .where(eq(sessionsTable.id, sessionId))
       .returning({ id: sessionsTable.id })
       .all()
@@ -472,6 +476,7 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
+    this.notifyReadModelChange([id], 'projection')
     return this.getById(id)
   }
 
@@ -508,6 +513,7 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
+    this.notifyReadModelChange([id], 'projection')
     return this.getById(id)
   }
 
@@ -589,6 +595,7 @@ export class AgentSessionService {
   delete(id: string): void {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
     publishTaskReadModelChanges(taskScheduleIds)
+    this.notifyReadModelChange([id], 'membership')
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -620,6 +627,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -635,6 +643,7 @@ export class AgentSessionService {
       return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -663,6 +672,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
