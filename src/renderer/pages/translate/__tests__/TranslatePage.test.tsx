@@ -2,6 +2,7 @@ import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -67,8 +68,8 @@ const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
 const historyFilesMock = vi.hoisted(() => ({
   files: {
-    source: { entryId: 'entry-source', path: '/tmp/paper.pdf' },
-    target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+    source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
+    target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
   } as TranslationFiles
 }))
 
@@ -512,8 +513,8 @@ describe('TranslatePage', () => {
     pdfHandleMock.cancel.mockReset()
     pdfHandleMock.start.mockReset()
     historyFilesMock.files = {
-      source: { entryId: 'entry-source', path: '/tmp/paper.pdf' },
-      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+      source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
     }
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -1649,7 +1650,7 @@ describe('TranslatePage', () => {
     ])
     historyFilesMock.files = {
       source: null,
-      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
     }
 
     render(<TranslatePage />)
