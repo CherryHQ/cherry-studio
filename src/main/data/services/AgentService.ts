@@ -231,12 +231,12 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   /**
-   * DB-only create primitive for main-process command orchestration.
+   * DB-only create primitive for caller-owned transaction composition.
    *
-   * The caller owns non-database side effects (for example provisioning the
-   * agent data directory) and supplies the already-reserved id.
+   * The caller supplies the reserved id, owns the commit boundary, and must
+   * publish `emitAgentCreated` once it commits.
    */
-  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+  createAgentWithIdTx(tx: DbOrTx, id: string, req: AgentCreateInput): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
@@ -265,10 +265,8 @@ export class AgentService {
       configuration: req.configuration
     }
 
-    // Validate referenced skills before opening the write tx so the main path
-    // reports the missing resource as Skill, not as the Agent FK fallback. The
-    // write tx rechecks the same IDs before inserting the agent to close the
-    // delete-after-prevalidation race.
+    // Validate referenced skills before the insert so the main path reports the
+    // missing resource as Skill, not as the Agent FK fallback.
     // AgentGlobalSkillService is resolved through the registry (not a direct import)
     // to keep this service↔service edge out of the static import graph — see
     // dataServiceRegistry.
@@ -277,43 +275,33 @@ export class AgentService {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
-    this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), knowledgeBaseIds)
+    globalSkillService.assertSkillsExistTx(tx, skillIds, 'create agent')
+    this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
 
-    const row = withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx((tx) => {
-          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
-          this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
-          const result = this.createAgentTx(tx, id, insertData)
-          // Insert junction rows for MCP associations
-          if (mcps.length > 0) {
-            tx.insert(agentMcpServerTable)
-              .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
-              .run()
-          }
-          // Insert junction rows for knowledge base associations
-          if (knowledgeBaseIds.length > 0) {
-            tx.insert(agentKnowledgeBaseTable)
-              .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
-              .run()
-          }
-          // Enable the selected global skills for the new agent. DB-only: workspace
-          // symlinks don't exist yet (no session/workspace at create time) and get
-          // reconciled later by SkillService when a workspace appears.
-          for (const skillId of skillIds) {
-            globalSkillService.upsertJoinTx(tx, id, skillId, true)
-          }
-          return result
-        }),
-      defaultHandlersFor('Agent', id)
-    )
+    const row = this.createAgentTx(tx, id, insertData)
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
+    // Insert junction rows for MCP associations
+    if (mcps.length > 0) {
+      tx.insert(agentMcpServerTable)
+        .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+        .run()
+    }
+    // Insert junction rows for knowledge base associations
+    if (knowledgeBaseIds.length > 0) {
+      tx.insert(agentKnowledgeBaseTable)
+        .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+        .run()
+    }
+    // Enable the selected global skills for the new agent. DB-only: workspace
+    // symlinks don't exist yet (no session/workspace at create time) and get
+    // reconciled later by SkillService when a workspace appears.
+    for (const skillId of skillIds) {
+      globalSkillService.upsertJoinTx(tx, id, skillId, true)
+    }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
-    this._onAgentCreated.fire({ agentId: id, agent })
-    return agent
+    return rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
   }
 
   createAgentTx(

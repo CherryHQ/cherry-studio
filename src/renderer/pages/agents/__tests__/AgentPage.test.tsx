@@ -100,6 +100,18 @@ const agentPageMocks = vi.hoisted(() => ({
     workspaceId?: string
     workspace?: { type?: string }
   }>,
+  /** Persisted rows the cached session list has not seen yet (e.g. the session seeded with a new agent). */
+  serverOnlySessions: [] as Array<{
+    id: string
+    agentId?: string
+    name: string
+    isNameManuallyEdited?: boolean
+    lastActivityAt?: string
+    createdAt?: string
+    updatedAt: string
+    workspaceId?: string
+    workspace?: { type?: string }
+  }>,
   sessionsFirstPageLoading: false,
   sessionsLoadingAll: false,
   sessionsFullyLoaded: true
@@ -700,6 +712,7 @@ describe('AgentPage', () => {
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.agentsLoading = false
     agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.serverOnlySessions = []
     agentPageMocks.sessionsFirstPageLoading = false
     agentPageMocks.sessionsLoadingAll = false
     agentPageMocks.sessionsFullyLoaded = true
@@ -720,9 +733,15 @@ describe('AgentPage', () => {
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
-    agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+    agentPageMocks.dataApiGet.mockImplementation(async (path: string, options?: { query?: { agentId?: string } }) => {
       if (path.startsWith('/agent-sessions/') && path.endsWith('/messages')) {
         return { items: [{ id: 'message-existing' }], nextCursor: undefined }
+      }
+      if (path === '/agent-sessions') {
+        // Server-side view: everything the cached list holds, plus rows it has not caught up with.
+        const agentId = options?.query?.agentId
+        const persisted = [...agentPageMocks.serverOnlySessions, ...agentPageMocks.classicLayoutSessions]
+        return { items: persisted.filter((session) => session.agentId === agentId), nextCursor: undefined }
       }
       if (path === '/agent-workspaces/workspace-next') return agentPageMocks.workspaceNext
       if (path === '/agent-workspaces/workspace-remembered') {
@@ -1438,7 +1457,7 @@ describe('AgentPage', () => {
         }
       })
     )
-    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalled()
+    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
     expect(agentPageMocks.setLastUsedWorkspaceId).not.toHaveBeenCalled()
   })
 
@@ -1477,6 +1496,35 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('activates the session seeded with the new agent instead of creating a second empty one', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.routeSearch = { sessionId: 'session-existing' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    // Agent creation seeds the agent's first session in the main process, so it is persisted but
+    // absent from the cached session list this render captured.
+    agentPageMocks.serverOnlySessions = [
+      {
+        id: 'session-seeded-with-agent',
+        agentId: 'agent-b',
+        name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-seeded-with-agent'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 

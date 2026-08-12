@@ -1,4 +1,5 @@
 import type { ISeeder } from '../types'
+import { AgentSessionBackfillSeeder } from './seeders/agentSessionBackfillSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
@@ -25,5 +26,7 @@ export const seeders: ISeeder[] = [
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
   new LocalModelSeeder(),
-  new MiniAppSeeder()
+  new MiniAppSeeder(),
+  // Last: it backfills whatever the seeders above just created but left session-less.
+  new AgentSessionBackfillSeeder()
 ]

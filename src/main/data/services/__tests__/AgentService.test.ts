@@ -11,6 +11,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
@@ -42,8 +43,14 @@ function captureError(fn: () => unknown): unknown {
   throw new Error('Expected the call to throw, but it returned normally')
 }
 
-function createAgentForTest(request: Parameters<typeof agentService.createAgentWithId>[1]) {
-  return agentService.createAgentWithId(randomUUID(), request)
+// Mirrors the command boundary in main/ai/agents/createAgent.ts: one write tx around the
+// primitive, with the same SQLite error mapping.
+function createAgentForTest(request: Parameters<typeof agentService.createAgentWithIdTx>[2]) {
+  const id = randomUUID()
+  return withSqliteErrors(
+    () => application.get('DbService').withWriteTx((tx) => agentService.createAgentWithIdTx(tx, id, request)),
+    defaultHandlersFor('Agent', id)
+  )
 }
 
 vi.mock('@main/apiServer/services/mcp', () => ({

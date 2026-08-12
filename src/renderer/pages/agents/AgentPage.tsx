@@ -636,9 +636,9 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
-        // A newly created agent starts without a user workspace. Reuse only a matching system
-        // placeholder; otherwise create a fresh system-backed session below.
-        const reuseCandidates = getSessionReuseCandidates()
+        // A newly created agent starts without a user workspace, so only a system placeholder can be
+        // reused. Read from the API: main seeds that first session, and the cached list is behind it.
+        const { items: reuseCandidates } = await dataApiService.get('/agent-sessions', { query: { agentId } })
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
           (candidate) => candidate.agentId === agentId && isSystemWorkspaceSession(candidate)
@@ -680,14 +680,7 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [
-      activateSession,
-      deleteDuplicateEmptySystemSessions,
-      getSessionReuseCandidates,
-      invalidateCache,
-      resolveCreateWorkspaceSource,
-      t
-    ]
+    [activateSession, deleteDuplicateEmptySystemSessions, invalidateCache, resolveCreateWorkspaceSource, t]
   )
 
   const handleHistorySessionSelect = useCallback(
