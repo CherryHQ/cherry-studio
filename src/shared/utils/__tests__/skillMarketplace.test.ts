@@ -1,15 +1,14 @@
-import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
 import { describe, expect, it } from 'vitest'
 
 describe('parseGithubSkillUrl', () => {
-  it('reads owner, repo, ref and skill directory from a blob URL', () => {
+  it('reads owner, repo and the undivided ref-and-path from a blob URL', () => {
     expect(
       parseGithubSkillUrl('https://github.com/Viy1204/recruiting-copilot/blob/main/skills/resume-review/SKILL.md')
     ).toEqual({
       owner: 'Viy1204',
       repo: 'recruiting-copilot',
-      ref: 'main',
-      directoryPath: 'skills/resume-review',
+      refAndDirectory: ['main', 'skills', 'resume-review'],
       name: 'resume-review'
     })
   })
@@ -18,8 +17,7 @@ describe('parseGithubSkillUrl', () => {
     expect(parseGithubSkillUrl('https://raw.githubusercontent.com/owner/repo/v2.1/plugins/a/b/skill.md')).toEqual({
       owner: 'owner',
       repo: 'repo',
-      ref: 'v2.1',
-      directoryPath: 'plugins/a/b',
+      refAndDirectory: ['v2.1', 'plugins', 'a', 'b'],
       name: 'b'
     })
   })
@@ -45,9 +43,11 @@ describe('parseGithubSkillUrl', () => {
   })
 
   it('decodes escaped directory names', () => {
-    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')?.directoryPath).toBe(
-      'skills/foo#bar'
-    )
+    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')?.refAndDirectory).toEqual([
+      'main',
+      'skills',
+      'foo#bar'
+    ])
   })
 })
 
@@ -66,14 +66,38 @@ describe('buildGithubSkillResult', () => {
     expect(buildGithubSkillResult('https://github.com/owner/repo')).toBeNull()
   })
 
-  it('produces an install source the installer can parse back', () => {
-    // A raw `#` from a decoded directory name would turn the rest of the URL into a fragment, so the
-    // install side would reject a row the UI had already offered.
-    const result = buildGithubSkillResult('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
+  // A raw `#` would turn the rest of the URL into a fragment, `?` into a query and `%` would throw on
+  // the way back, so the install side would reject a row the UI had already offered.
+  it.each(['foo%23bar', 'foo%3Fbar', 'foo%25bar', 'foo bar'])(
+    'produces an install source the installer can parse back (%s)',
+    (segment) => {
+      const url = `https://github.com/o/r/blob/main/skills/${segment}/SKILL.md`
+      const result = buildGithubSkillResult(url)
 
-    expect(result?.installSource).toBe('github:https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
-    expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(
-      parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')
-    )
+      expect(result).not.toBeNull()
+      expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(parseGithubSkillUrl(url))
+    }
+  )
+})
+
+describe('resolveRefFromSegments', () => {
+  it('prefers the longest ref the remote actually has', () => {
+    // Both refs exist; splitting at the first segment would clone `feature` and look for
+    // `foo/skills/demo` there.
+    expect(resolveRefFromSegments(['feature', 'feature/foo'], ['feature', 'foo', 'skills', 'demo'])).toEqual({
+      ref: 'feature/foo',
+      directoryPath: 'skills/demo'
+    })
+  })
+
+  it('keeps at least one segment for the skill directory', () => {
+    expect(resolveRefFromSegments(['main', 'main/skills'], ['main', 'skills'])).toEqual({
+      ref: 'main',
+      directoryPath: 'skills'
+    })
+  })
+
+  it('returns null when no ref matches, rather than guessing a boundary', () => {
+    expect(resolveRefFromSegments(['main'], ['a1b2c3', 'skills', 'demo'])).toBeNull()
   })
 })

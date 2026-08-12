@@ -25,7 +25,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import { encodeGithubPath, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -505,8 +505,8 @@ export class SkillService {
 
   /**
    * Install the one skill a GitHub SKILL.md URL points at. No registry is involved: the URL carries
-   * the repo, the ref, and the exact directory, and the shared parser is the same one the UI
-   * validates with.
+   * the repo and the path, and the shared parser is the same one the UI validates with. Where the
+   * ref ends is not in the URL, so it is resolved against the repo's own refs before cloning.
    */
   private async installFromGithub(identifier: string): Promise<InstalledSkill> {
     const location = parseGithubSkillUrl(identifier)
@@ -514,22 +514,48 @@ export class SkillService {
       throw new Error(`Invalid GitHub skill URL: ${identifier}`)
     }
 
-    const { owner, repo, ref, directoryPath } = location
+    const { owner, repo, refAndDirectory } = location
+    const repoUrl = `https://github.com/${owner}/${repo}`
+    const { ref, directoryPath } = await this.resolveGithubRef(repoUrl, refAndDirectory)
     logger.info('Installing from GitHub', { owner, repo, ref, directoryPath })
 
-    const repoUrl = `https://github.com/${owner}/${repo}`
-    const sourceUrl = `${repoUrl}/tree/${ref}/${encodeGithubPath(directoryPath)}`
+    const sourceUrl = `${repoUrl}/tree/${encodeGithubPath(`${ref}/${directoryPath}`)}`
     const tempDir = await this.createTempDir('github')
 
     try {
-      // ponytail: `--branch` takes a branch or tag, so a commit-SHA permalink fails loudly rather
-      // than silently installing a different revision. Fetch the SHA explicitly if that ever bites.
       await this.cloneRepository(repoUrl, tempDir, ref)
       const skillDir = await this.resolveSkillDirectory(tempDir, null, directoryPath)
       return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }
+  }
+
+  /**
+   * Ask the remote where the ref ends. A branch name may contain `/`, and the URL has no delimiter,
+   * so `blob/feature/foo/skills/demo/SKILL.md` is only unambiguous once the repo's refs are known.
+   * A commit-SHA permalink matches no ref and fails here rather than installing another revision.
+   */
+  private async resolveGithubRef(
+    repoUrl: string,
+    refAndDirectory: string[]
+  ): Promise<{ ref: string; directoryPath: string }> {
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const output = await executeCommand(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl], {
+      capture: true
+    })
+    const refNames = output.split('\n').flatMap((line) => {
+      const name = line.split('\t')[1]?.trim()
+      if (!name) return []
+      // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
+      return name.startsWith('refs/') && !name.endsWith('^{}') ? [name.replace(/^refs\/(heads|tags)\//, '')] : []
+    })
+
+    const resolved = resolveRefFromSegments(refNames, refAndDirectory)
+    if (!resolved) {
+      throw new Error(`No branch or tag in ${repoUrl} matches "${refAndDirectory.join('/')}"`)
+    }
+    return resolved
   }
 
   private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {

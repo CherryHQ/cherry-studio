@@ -96,18 +96,53 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
 export type GithubSkillLocation = {
   owner: string
   repo: string
-  ref: string
-  /** Repo-relative directory holding SKILL.md — the single skill that gets installed. */
-  directoryPath: string
+  /**
+   * Decoded segments between the repo and SKILL.md. A GitHub URL gives no delimiter between the ref
+   * and the path, and a branch may contain `/`, so where the ref ends is only knowable from the
+   * repo's actual refs — see `resolveRefFromSegments`.
+   */
+  refAndDirectory: string[]
+  /** Directory holding SKILL.md — the display name, wherever the ref turns out to end. */
   name: string
 }
 
 const GITHUB_REPO_PART = /^[a-zA-Z0-9_.-]+$/
 
-function invalidDirectoryPart(part: string): boolean {
-  // A decoded `/` would silently change the directory depth the installer resolves, and `\` would do
-  // the same on Windows; neither can name a real GitHub entry, so reject rather than reinterpret.
-  return !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\') || part.includes('/')
+function invalidPathPart(part: string): boolean {
+  // A decoded `/` would silently change the depth the installer resolves, `\` does the same on
+  // Windows, and a NUL cannot reach the filesystem; none can name a real GitHub entry.
+  return (
+    !part ||
+    part !== part.trim() ||
+    part === '.' ||
+    part === '..' ||
+    part.includes('\\') ||
+    part.includes('/') ||
+    part.includes('\0')
+  )
+}
+
+/**
+ * Split `refAndDirectory` at the boundary the repo's own refs prove, longest ref first: with both a
+ * `feature` branch and a `feature/foo` branch, `blob/feature/foo/skills/demo/SKILL.md` must resolve
+ * to the latter rather than silently installing a different revision's `foo/skills/demo`.
+ *
+ * @param refNames branch and tag names as reported by the remote, without their `refs/*` prefix
+ * @returns null when no ref matches — the caller must fail rather than guess a boundary
+ */
+export function resolveRefFromSegments(
+  refNames: Iterable<string>,
+  refAndDirectory: readonly string[]
+): { ref: string; directoryPath: string } | null {
+  const available = new Set(refNames)
+  // At least one segment must remain for the skill directory, so the ref can span at most length-1.
+  for (let length = refAndDirectory.length - 1; length >= 1; length--) {
+    const ref = refAndDirectory.slice(0, length).join('/')
+    if (available.has(ref)) {
+      return { ref, directoryPath: refAndDirectory.slice(length).join('/') }
+    }
+  }
+  return null
 }
 
 /**
@@ -150,16 +185,16 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
         : null
   if (!refAndPath) return null
 
-  const [ref, ...filePath] = refAndPath
-  const fileName = filePath.at(-1)
-  const directoryParts = filePath.slice(0, -1)
-  const name = directoryParts.at(-1)
+  const fileName = refAndPath.at(-1)
+  const refAndDirectory = refAndPath.slice(0, -1)
+  const name = refAndDirectory.at(-1)
 
-  if (!owner || !repo || !ref || fileName?.toLowerCase() !== 'skill.md' || !name) return null
-  if (![owner, repo, ref].every((part) => GITHUB_REPO_PART.test(part))) return null
-  if (directoryParts.some(invalidDirectoryPart)) return null
+  if (!owner || !repo || fileName?.toLowerCase() !== 'skill.md' || !name) return null
+  if (![owner, repo].every((part) => GITHUB_REPO_PART.test(part))) return null
+  // The shortest resolvable URL is one ref segment plus one directory segment.
+  if (refAndDirectory.length < 2 || refAndDirectory.some(invalidPathPart)) return null
 
-  return { owner, repo, ref, directoryPath: directoryParts.join('/'), name }
+  return { owner, repo, refAndDirectory, name }
 }
 
 /** Present a validated GitHub SKILL.md URL as an installable search result. */
@@ -167,10 +202,11 @@ export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null
   const location = parseGithubSkillUrl(rawUrl)
   if (!location) return null
 
-  const { owner, repo, ref, directoryPath, name } = location
-  const canonicalUrl = `https://github.com/${owner}/${repo}/blob/${ref}/${encodeGithubPath(directoryPath)}/SKILL.md`
+  const { owner, repo, refAndDirectory, name } = location
+  const path = encodeGithubPath(refAndDirectory.join('/'))
+  const canonicalUrl = `https://github.com/${owner}/${repo}/blob/${path}/SKILL.md`
   return {
-    slug: `${owner}/${repo}/${directoryPath}`,
+    slug: `${owner}/${repo}/${refAndDirectory.join('/')}`,
     name,
     description: null,
     author: owner,

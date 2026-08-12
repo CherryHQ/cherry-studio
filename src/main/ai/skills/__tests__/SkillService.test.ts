@@ -26,6 +26,11 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn().mockResolvedValue({})
 }))
 
+const executeCommandMock = vi.hoisted(() => vi.fn())
+vi.mock('@main/utils/processRunner', () => ({
+  executeCommand: executeCommandMock
+}))
+
 import { SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -531,19 +536,27 @@ describe('SkillService', () => {
       expect(createTempDirSpy).not.toHaveBeenCalled()
     })
 
-    it('clones the ref from a github URL and installs only the directory it points at', async () => {
+    async function setupGithubInstall(remoteRefs: string[], skillDirParts: string[]) {
       const skillService = new SkillService()
       const cloneDir = await createTempDir('github-install-')
       vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(cloneDir as never)
+      executeCommandMock.mockResolvedValue(
+        remoteRefs.map((ref, index) => `${'0'.repeat(39)}${index}\trefs/heads/${ref}`).join('\n')
+      )
       const cloneSpy = vi
         .spyOn(skillService as never, 'cloneRepository')
         .mockImplementation(async (...args: unknown[]) => {
-          const skillDir = path.join(args[1] as string, 'skills', 'recruit-init')
+          const skillDir = path.join(args[1] as string, ...skillDirParts)
           await fs.promises.mkdir(skillDir, { recursive: true })
-          await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# recruit-init')
+          await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
         })
       const installSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
+      return { skillService, cloneSpy, installSpy }
+    }
+
+    it('clones the ref from a github URL and installs only the directory it points at', async () => {
+      const { skillService, cloneSpy, installSpy } = await setupGithubInstall(['dev'], ['skills', 'recruit-init'])
 
       await skillService.install({
         installSource: 'github:https://github.com/owner/repo/blob/dev/skills/recruit-init/SKILL.md'
@@ -556,6 +569,33 @@ describe('SkillService', () => {
         'marketplace',
         'https://github.com/owner/repo/tree/dev/skills/recruit-init'
       )
+    })
+
+    it('resolves a slash-bearing branch against the remote instead of splitting at the first segment', async () => {
+      // Both `feature` and `feature/foo` exist, so splitting the URL at the first segment would clone
+      // the wrong revision and look for `foo/skills/demo` in it.
+      const { skillService, cloneSpy, installSpy } = await setupGithubInstall(
+        ['feature', 'feature/foo'],
+        ['skills', 'demo']
+      )
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/feature/foo/skills/demo/SKILL.md'
+      })
+
+      expect(cloneSpy).toHaveBeenCalledWith('https://github.com/owner/repo', expect.any(String), 'feature/foo')
+      expect(installSpy).toHaveBeenCalledWith(expect.any(String), 'marketplace', expect.any(String))
+    })
+
+    it('fails a github URL whose ref matches no branch or tag', async () => {
+      const { skillService, cloneSpy } = await setupGithubInstall(['main'], ['skills', 'demo'])
+
+      await expect(
+        skillService.install({
+          installSource: `github:https://github.com/owner/repo/blob/${'a'.repeat(40)}/skills/demo/SKILL.md`
+        })
+      ).rejects.toThrow('No branch or tag')
+      expect(cloneSpy).not.toHaveBeenCalled()
     })
 
     it('rejects a github URL that does not point at a SKILL.md file before cloning', async () => {
