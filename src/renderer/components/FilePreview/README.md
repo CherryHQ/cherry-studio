@@ -196,6 +196,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   `null` when the selection clears. Plugins without such a mapping ignore the prop entirely.
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
+- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+  surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
+  `fileStamp`), which keeps holding one safe.
 - Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture); consumers reject
   stale references via `isSelectionReferenceStale` instead of silently re-anchoring.
 

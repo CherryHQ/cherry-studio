@@ -183,9 +183,11 @@ def extract_pdf(src: Path, anchor: dict, out_path: Path, out_format: str) -> Non
 
 
 def iter_shapes_recursive(shapes):
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
     for shape in shapes:
         yield shape
-        if shape.shape_type == 6:  # MSO_SHAPE_TYPE.GROUP
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
             yield from iter_shapes_recursive(shape.shapes)
 
 

@@ -134,6 +134,11 @@ def find_or_create_ordered(parent: ET.Element, tag: str, sort_key, key, attr_ref
     for child in parent.findall(tag):
         if child.get("r") == attr_ref:
             return child
+    # An r-less sibling's position is inferred from document order, so inserting a
+    # referenced element beside it could address the same cell twice. Refuse rather
+    # than risk a corrupt derived file.
+    if any(child.get("r") is None for child in parent.findall(tag)):
+        fail(f"worksheet has {tag.split('}')[-1]} elements without 'r' attributes; refusing to edit this workbook")
     created = ET.Element(tag, {"r": attr_ref})
     insert_at = len(list(parent))
     for position, child in enumerate(list(parent)):
