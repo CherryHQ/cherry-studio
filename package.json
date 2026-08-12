@@ -118,6 +118,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
+    "registry-js": "1.16.1",
     "selection-hook": "2.0.3",
     "sharp": "0.34.5",
     "smol-toml": "^1.7.0",
@@ -125,6 +126,7 @@
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
+    "which": "6.0.1",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -271,6 +273,7 @@
     "@types/unist": "3.0.3",
     "@types/use-sync-external-store": "^0.0.6",
     "@types/uuid": "^10.0.0",
+    "@types/which": "3.0.4",
     "@types/word-extractor": "^1",
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
@@ -347,6 +350,7 @@
     "franc-min": "^6.2.0",
     "fs-extra": "^11.2.0",
     "google-auth-library": "^9.15.1",
+    "gpt-tokenizer": "^3.4.0",
     "html-to-image": "^1.11.13",
     "html-to-text": "^9.0.5",
     "htmlparser2": "^10.0.0",

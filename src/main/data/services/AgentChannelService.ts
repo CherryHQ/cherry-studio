@@ -11,7 +11,12 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
+} from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -100,6 +105,38 @@ export class AgentChannelService {
       : database.select().from(channelsTable).all()
 
     return rows.map((row) => this.rowToEntity(row))
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return tx
+      .select({ id: channelsTable.id, name: channelsTable.name, workspace: channelsTable.workspace })
+      .from(channelsTable)
+      .all()
+      .filter((channel) => {
+        const workspace = AgentSessionWorkspaceSourceSchema.safeParse(channel.workspace)
+        return (
+          workspace.success &&
+          workspace.data.type === AGENT_WORKSPACE_TYPE.USER &&
+          workspace.data.workspaceId === workspaceId
+        )
+      })
+      .map(({ id, name }) => ({ id, name }))
+  }
+
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = this.listWorkspaceReferencesTx(tx, workspaceId)
+    if (references.length === 0) return references
+
+    tx.update(channelsTable)
+      .set({ workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })
+      .where(
+        inArray(
+          channelsTable.id,
+          references.map((channel) => channel.id)
+        )
+      )
+      .run()
+    return references
   }
 
   /**

@@ -9,7 +9,7 @@ import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -31,6 +31,7 @@ import {
   CancelledNotificationSchema,
   type GetPromptResult,
   LoggingMessageNotificationSchema,
+  type Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -50,6 +51,7 @@ import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
+import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -79,11 +81,49 @@ function buildStdioEnvironment(
   return env
 }
 
+function getAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
+}
+
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
-type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
-type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
+type CallToolArgs = {
+  serverId: string
+  name: string
+  args: any
+  callId?: string
+  /** Caller-isolation key (e.g. topicId) — abort-by-id only matches within the same scope. */
+  scope?: string
+  signal?: AbortSignal
+  /**
+   * Receives the upstream server's progress notifications. The renderer gets them
+   * unconditionally over IPC, so this is for callers outside it — currently the MCP bridge,
+   * relaying to a client that supplied a `progressToken`.
+   */
+  onProgress?: ProgressCallback
+}
+type RuntimeCallToolArgs = {
+  server: McpServer
+  name: string
+  args: any
+  callId?: string
+  scope?: string
+  signal?: AbortSignal
+  onProgress?: ProgressCallback
+}
+
+/**
+ * Registration key for `activeToolCalls`. AI SDK call ids are not process-wide unique
+ * (providers may reuse ids like "call_0" across topics), so a scoped caller's key is
+ * namespaced and an explicit abort must present the same scope — cancellation never
+ * reaches across scopes. NUL can occur in neither id, so the composite is unambiguous.
+ */
+function toolCallKey(callId: string, scope?: string): string {
+  return scope ? `${scope}\u0000${callId}` : callId
+}
+
+type ProgressCallback = (progress: Progress) => void
 type McpRuntimeState = McpRuntimeStatus['state']
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
@@ -229,7 +269,11 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  private activeToolCalls: Map<string, AbortController> = new Map()
+  // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
+  // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
+  // are namespaced, and every concurrent call registers its own controller under its key
+  // instead of overwriting the previous one.
+  private activeToolCalls: Map<string, Set<AbortController>> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
@@ -528,7 +572,7 @@ export class McpRuntimeService extends BaseService {
 
             if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
-              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
+              const npxPath = await findExecutableInEnv('npx')
 
               if (npxPath) {
                 // Use system npx
@@ -578,7 +622,7 @@ export class McpRuntimeService extends BaseService {
               }
             } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              const uvPath = await findExecutableInEnv(effectiveCommand)
 
               if (uvPath) {
                 // Use system uvx/uv
@@ -938,9 +982,11 @@ export class McpRuntimeService extends BaseService {
   }
 
   private abortActiveToolCalls() {
-    for (const [callId, controller] of this.activeToolCalls) {
-      controller.abort()
-      logger.debug(`Aborted active tool call during MCP runtime stop`, { callId })
+    for (const [key, controllers] of this.activeToolCalls) {
+      for (const controller of controllers) {
+        controller.abort()
+      }
+      logger.debug(`Aborted active tool call during MCP runtime stop`, { key })
     }
     this.activeToolCalls.clear()
   }
@@ -1129,18 +1175,42 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool({
+    serverId,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress
+  }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId })
+    return this.callToolByServer({ server, name, args, callId, scope, signal, onProgress })
   }
 
-  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+  public async callToolByServer({
+    server,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress
+  }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
+    const registrationKey = toolCallKey(toolCallId, scope)
     const abortController = new AbortController()
-    this.activeToolCalls.set(toolCallId, abortController)
+    const effectiveSignal = signal ? AbortSignal.any([abortController.signal, signal]) : abortController.signal
+    const controllersForKey = this.activeToolCalls.get(registrationKey) ?? new Set()
+    controllersForKey.add(abortController)
+    this.activeToolCalls.set(registrationKey, controllersForKey)
 
     const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
+        // Inside the try so an already-aborted signal still hits the finally cleanup below.
+        if (effectiveSignal.aborted) {
+          throw getAbortReason(effectiveSignal)
+        }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
           args: redactSensitive(args)
         })
@@ -1161,7 +1231,24 @@ export class McpRuntimeService extends BaseService {
         if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
-        const client = await this.getOrCreateClient(server)
+        // Client init (ping probe, transport connect, OAuth) has no unified timeout at this
+        // layer — release this call's wait on abort instead of blocking until it settles.
+        // The shared `pendingClients` init keeps running (only this caller's wait is released),
+        // and both racers are consumed, so the loser's late rejection is never unhandled.
+        // The listener is removed once the race settles: `once` only cleans up after an
+        // abort fires, and the composed signal is retained by the long-lived stream signal —
+        // leaving it installed would accumulate a closure per tool call.
+        let handleAbort: (() => void) | undefined
+        const client = await Promise.race([
+          this.getOrCreateClient(server),
+          new Promise<never>((_, reject) => {
+            handleAbort = (): void => reject(getAbortReason(effectiveSignal))
+            if (effectiveSignal.aborted) return handleAbort()
+            effectiveSignal.addEventListener('abort', handleAbort, { once: true })
+          })
+        ]).finally(() => {
+          if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
+        })
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
@@ -1171,20 +1258,42 @@ export class McpRuntimeService extends BaseService {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
             })
+            // Additional consumer outside the renderer; must not break the call or the
+            // broadcast above if it throws.
+            try {
+              onProgress?.(process)
+            } catch (error) {
+              getServerLogger(server, { tool: name, callId: toolCallId }).warn('Progress listener threw', {
+                error
+              })
+            }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           resetTimeoutOnProgress: server.longRunning,
           maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
-          signal: abortController.signal
+          signal: effectiveSignal
         })
         return result as McpCallToolResponse
       } catch (error) {
-        getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        if (isMcpCancellation(error, effectiveSignal)) {
+          // Expected cancellation (user stop / stream abort) — keep it out of error logs.
+          // A genuine failure that merely raced the abort does not match and stays error-level.
+          getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Tool call aborted`)
+        } else {
+          getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        }
         throw error
       } finally {
-        this.activeToolCalls.delete(toolCallId)
+        // Remove only this call's controller — a concurrent call sharing the key must stay abortable.
+        const controllers = this.activeToolCalls.get(registrationKey)
+        if (controllers) {
+          controllers.delete(abortController)
+          if (controllers.size === 0) {
+            this.activeToolCalls.delete(registrationKey)
+          }
+        }
       }
     }
 
@@ -1378,15 +1487,22 @@ export class McpRuntimeService extends BaseService {
   }
 
   // 实现 abortTool 方法
-  public async abortTool(callId: string) {
-    const activeToolCall = this.activeToolCalls.get(callId)
-    if (activeToolCall) {
-      activeToolCall.abort()
-      this.activeToolCalls.delete(callId)
-      logger.debug(`Aborted tool call`, { callId })
+  public async abortTool(callId: string, scope?: string) {
+    // Exact (scope, callId) match only — a colliding id registered under another scope
+    // (another topic's `call_0`) must never be collateral of this caller's cancel.
+    const key = toolCallKey(callId, scope)
+    const controllers = this.activeToolCalls.get(key)
+    if (controllers) {
+      // Within one scope a duplicated id is still ambiguous — abort every call under it:
+      // cancelling a same-scope sibling is recoverable; leaving one un-cancellable is not.
+      for (const controller of controllers) {
+        controller.abort()
+      }
+      this.activeToolCalls.delete(key)
+      logger.debug(`Aborted tool call`, { callId, scope })
       return true
     } else {
-      logger.warn(`No active tool call found for callId`, { callId })
+      logger.warn(`No active tool call found for callId`, { callId, scope })
       return false
     }
   }

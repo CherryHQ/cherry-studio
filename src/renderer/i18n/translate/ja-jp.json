@@ -4096,6 +4096,9 @@
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
     },
+    "retry": {
+      "status": "{{model}}を使用して再試行中 · 試行 {{attempt}}回目"
+    },
     "save": {
       "success": {
         "title": "保存に成功しました"
@@ -4464,14 +4467,27 @@
     },
     "pinned": "固定済み",
     "price": {
+      "add_tier": "[to be translated]:Add pricing tier",
+      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "キャッシュ読み取り価格",
+      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
+      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "入力価格",
       "million_tokens": "百万トークン",
+      "min_input_tokens": "[to be translated]:Starts at input tokens",
+      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "出力価格",
-      "price": "価格"
+      "price": "価格",
+      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
+      "tier": "[to be translated]:Tier {{index}}",
+      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "[to be translated]:Use input price",
+      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
+      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
+      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
     },
     "reasoning": "思考",
     "rerank_model": "リランクモデル",
@@ -7524,6 +7540,16 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルを選択し、推論モデルは避けてください。"
+      },
+      "retry": {
+        "backoff": "指数関数的バックオフ",
+        "description": "チャット、埋め込み、リランクの呼び出しを再試行します。チャットは他のモデルにフォールバックできます。",
+        "fallback_models": "フォールバックモデル",
+        "fallback_models_count": "{{count}} 個のモデルを選択中",
+        "fallback_models_description": "プライマリモデルが失敗した場合に順番に試行されるモデル",
+        "label": "モデル呼び出しの再試行",
+        "max_attempts": "最大再試行回数",
+        "tooltip": "再試行とフォールバックは、モデルがコンテンツのストリーミングを開始する前にのみ適用されます"
       },
       "toolbar": {
         "custom_add": "カスタム",

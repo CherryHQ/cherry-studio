@@ -39,8 +39,8 @@ re-read the table.
 Three pieces, all keyed by `providerId`:
 
 - **`OAuthRuntimeService`** — lifecycle service; the public surface
-  (`signIn` / `startDeepLinkFlow` / `getValidAccessToken` / `logout` /
-  `hasToken` / `getAccount`). Entity-agnostic except for the token store, which
+  (`signIn` / `joinActiveSignIn` / `cancelSignIn` / `startDeepLinkFlow` /
+  `getValidAccessToken` / `logout` / `hasToken` / `getAccount`). Entity-agnostic except for the token store, which
   it constructs internally today (`new ProviderAuthConfigOAuthTokenStore()`)
   rather than taking by injection — the `OAuthTokenStore` interface is the seam
   a future consumer would inject through (see "Extending").

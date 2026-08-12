@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   getSkillPluginDirectory: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
-  createSdkMcpServerInstance: vi.fn(),
+  createMcpBridgeServer: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   listMcpTools: vi.fn(),
@@ -128,8 +128,8 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
   AssistantFileToolsServer: mocks.createAssistantFileToolsServer
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
-  createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
+vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
+  createMcpBridgeServer: mocks.createMcpBridgeServer
 }))
 
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
@@ -383,7 +383,118 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
   })
 
-  it('aligns automatic compaction with a model context window supported by Claude Code', async () => {
+  // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
+  // context limit, so the declared budget plus the pinned request must never exceed the window.
+  it.each([
+    ['1M window, cap restating it (deepseek-v4-pro)', 1_048_600, 1_048_600],
+    ['1M window, real 393K cap (deepseek-v4-flash)', 1_048_576, 393_216],
+    ['1M window, no declared cap', 1_048_576, undefined],
+    ['256K window, 64K cap', 262_144, 64_000],
+    ['128K window, cap at half the window', 128_000, 64_000],
+    ['exactly at the Claude Code floor', 100_000, 8_192]
+  ])('keeps the budget plus its pinned request inside the window (%s)', async (_l, contextWindow, maxOutputTokens) => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow, maxOutputTokens }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow ?? 0
+    const pinned = Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    // The window is declared as itself; only the budget carries the reservation.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+    expect(pinned).toBeGreaterThanOrEqual(8_192)
+    // 33,000 is the CLI's own reserve, which moves the trigger below the declared budget.
+    expect(budget - 33_000 + pinned).toBeLessThanOrEqual(contextWindow)
+  })
+
+  // #18318: the budget subtracted the model's declared cap whole, which for the 83 catalog entries
+  // that restate their context window drove it to zero and floored a 1M model at 100K.
+  it('does not collapse a 1M model to the compaction floor', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(800_000)
+  })
+
+  // The CLI has no table for third-party models, so without the pin they would request its generic
+  // 32,000 however much the model actually supports.
+  it('pins a third-party output cap the CLI cannot know', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 65_536 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+  })
+
+  it('never pins above the ceiling the CLI would clamp to anyway', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
+  })
+
+  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+    // No context window declared — the percentage still applies.
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '80' })
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' } }
+    })
+    const overridden = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(overridden.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
+  })
+
+  it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -394,11 +505,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 128_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 128_000 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000' })
+    // The declared 64,000 plus a floored budget would outrun the window, so the request is held to
+    // the CLI default and the budget floors rather than being omitted.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000'
+    })
   })
 
-  it('clamps model context windows above Claude Code limits', async () => {
+  it('clamps the auto-compact window above Claude Code limits without shrinking the declared window', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -406,11 +521,12 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      { contextWindow: 1_048_576 }
+      // Wide enough that the budget would exceed the SDK's accepted maximum.
+      { contextWindow: 2_000_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 1_000_000 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(1_000_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
   })
 
   it.each([undefined, 64_000, 99_999])(
@@ -429,9 +545,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
       expect(settings.settings).not.toHaveProperty('autoCompactWindow')
       expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
+      // Without a budget there is nothing to reserve against, so the CLI keeps its own output default.
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_OUTPUT_TOKENS')
     }
   )
 
+  // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
   it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -443,10 +562,16 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: contextWindow })
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    expect(budget).toBeGreaterThanOrEqual(100_000)
+    expect(budget).toBeLessThanOrEqual(1_000_000)
+    // At the inclusive floor the window leaves no room above the budget; the request must stay
+    // usable rather than collapse to a token.
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
   })
 
+  // The CLI clamps `max_tokens` here, so pinning anything higher would reserve room no request can
+  // consume — which is how a catalog cap that restates the window used to reach the budget.
   it('preserves an explicit maximum context window environment override', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -470,8 +595,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 256_000 })
+    // The explicit override wins for the env var; the budget still tracks the real window.
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
@@ -505,7 +631,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {

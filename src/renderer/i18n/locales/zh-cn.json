@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
         "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+        "mentionOnlyHint": "开启后机器人只在被 @ 时回复。关闭后可在 QQ 开放平台开启「接收所有消息」，让机器人处理群内每一条消息。",
+        "mentionOnlyLabel": "仅 @ 消息",
         "title": "QQ",
         "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} 个",
+          "channels_count_other": "{{count}} 个",
+          "channels_empty": "没有频道需要调整。",
+          "channels_title": "将改为不使用工作目录的频道",
           "content": "删除该工作目录会同时删除该工作目录下的所有任务；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "disk_preserved": "磁盘上的目录及其中的文件不会被删除。",
           "error": {
             "failed": "删除工作目录失败"
           },
+          "more_count_one": "…以及另外 {{count}} 项",
+          "more_count_other": "…以及另外 {{count}} 项",
+          "preview": "删除工作目录「{{name}}」会删除其关联会话，并将关联频道和定时任务改为不使用工作目录。此操作不可撤销。",
+          "preview_failed": "无法加载删除影响范围，暂不能删除该工作目录",
+          "preview_loading": "正在加载删除影响范围…",
+          "sessions_count_one": "{{count}} 个",
+          "sessions_count_other": "{{count}} 个",
+          "sessions_empty": "没有会话会被删除。",
+          "sessions_title": "将一并删除的会话",
+          "tasks_count_one": "{{count}} 个",
+          "tasks_count_other": "{{count}} 个",
+          "tasks_empty": "没有定时任务需要调整。",
+          "tasks_title": "将改为不使用工作目录的定时任务",
           "title": "删除工作目录",
           "trigger": "删除工作目录"
         },
@@ -1544,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "文件",
+          "resources": "文件和文件夹",
           "skills": "Skills"
         },
         "description": "从文件、Agents 或 Skills 中选择",
+        "load_failed": "加载工作区资源失败",
         "loading": "加载中...",
-        "no_file_found": {
-          "description": "当前工作区没有可搜索的文件",
-          "label": "未找到文件"
-        },
         "no_items_found": {
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "文件与会话"
+        "no_resources_found": {
+          "description": "当前工作区没有可搜索的文件或文件夹",
+          "label": "未找到资源"
+        },
+        "title": "资源与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -2548,6 +2569,7 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
+    "image_unreadable_for_non_vision_model": "当前模型不支持图片，且 Cherry Studio 未能从附件中识别出有效文字。请选择支持图片的模型，或移除图片后重试。",
     "lastError": "最后错误",
     "maxEmbeddingsPerCall": "每次调用的最大嵌入",
     "message": "错误信息",
@@ -3196,7 +3218,6 @@
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",
-    "not_set": "未设置",
     "provider_not_found": "未找到服务商",
     "rag": {
       "chunk_overlap": "重叠大小",
@@ -3211,12 +3232,13 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
-      "download_local_embedding": "下载本地模型",
       "download_local_embedding_failed": "本地嵌入模型下载失败",
+      "download_local_model": "下载本地模型",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
       "file_processing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
+      "file_processing_none": "不使用",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
         "chunk_separator": "切分文本所用的分隔符（转义形式）。开启智能分段时作为额外切分点；关闭后仅按此分隔符切分。",
@@ -3230,6 +3252,8 @@
       },
       "processor": "处理服务商",
       "processor_not_configured": "未配置",
+      "processor_not_downloaded": "未下载",
+      "processor_unreachable": "服务未启动",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -4467,14 +4491,27 @@
     },
     "pinned": "已固定",
     "price": {
+      "add_tier": "添加价格档位",
+      "cache_fallback_help": "缓存价格留空时回退到本档输入价格；输入 0 表示免费。",
       "cache_read": "缓存读取价格",
+      "cache_write": "缓存写入价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
+      "field_for_tier": "第 {{index}} 档{{field}}",
       "input": "输入价格",
       "million_tokens": "百万 Token",
+      "min_input_tokens": "生效输入 Token 数",
+      "min_input_tokens_help": "边界包含该值，且必须大于上一档。",
       "output": "输出价格",
-      "price": "价格"
+      "price": "价格",
+      "remove_tier": "删除第 {{index}} 个价格档位",
+      "tier": "档位 {{index}}",
+      "tier_from": "从 {{boundary}} 个输入 Token 起（含）",
+      "use_input_price": "使用输入价格",
+      "validation_min_input_tokens": "请输入正整数。",
+      "validation_min_input_tokens_order": "本档起点必须大于上一档。",
+      "validation_price": "请输入大于或等于 0 的有效价格。"
     },
     "reasoning": "推理",
     "rerank_model": "重排模型",
@@ -4626,6 +4663,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字体设置",
+        "line_breaks": "换行方式",
+        "line_breaks_description": "开启后单个换行符将渲染为新的一行（类似 Obsidian）。关闭时换行符会被折叠为空格，直到出现空行才会分段。",
         "serif_font": "衬线字体",
         "show_table_of_contents": "显示目录大纲",
         "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
@@ -5393,6 +5432,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "回到顶部",
     "commands": {
       "blockMath": {
         "description": "插入数学公式",
@@ -6669,6 +6709,10 @@
       "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本地嵌入和 OCR 推理。",
+          "label": "硬件加速"
+        },
         "cancel": "取消",
         "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
         "download": "下载",
@@ -6976,6 +7020,7 @@
       },
       "command": "命令",
       "config_description": "配置模型上下文协议服务器",
+      "copyLogs": "复制日志",
       "customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
       "deleteError": "删除服务器失败",
       "deleteServer": "删除服务器",
@@ -7029,6 +7074,7 @@
       },
       "logoUrl": "标志网址",
       "logs": "日志",
+      "logsHint": "MCP 服务器进程的日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -8125,10 +8171,12 @@
       "label": "按键",
       "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建对话",
+      "next_tab": "下一个标签页",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "open_tab_in_new_window": "在新窗口中打开标签页",
       "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
+      "prev_tab": "上一个标签页",
       "print": "打印",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名对话",
@@ -8245,8 +8293,12 @@
             "description": "高级文件还原引擎。",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "完全在本机将 PDF 转换为 Markdown。带文本层的文档直接解析，扫描版回退到本地 OCR 模型。",
+            "name": "本地文档解析"
+          },
           "local_paddleocr": {
-            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。首次使用请先在「环境依赖」中下载模型（约 140MB）。",
+            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。",
             "name": "本地 PaddleOCR",
             "status": {
               "local": "完全本地离线运行"
