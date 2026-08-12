@@ -1,3 +1,5 @@
+import { fileTypeFromBuffer } from 'file-type'
+
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
@@ -18,4 +20,17 @@ export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> 
     .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
     .webp()
     .toBuffer()
+}
+
+/**
+ * Re-encode image bytes to PNG, passing them through untouched when they already are one — for
+ * consumers that only decode PNG. Throws on input sharp cannot decode (BMP, or non-image bytes).
+ */
+export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
+  if ((await fileTypeFromBuffer(bytes))?.mime === 'image/png') {
+    return bytes
+  }
+
+  const sharp = (await import('sharp')).default
+  return sharp(bytes).png().toBuffer()
 }

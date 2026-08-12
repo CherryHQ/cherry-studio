@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyHint": "When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
@@ -1562,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Files",
+          "resources": "Files & Folders",
           "skills": "Skills"
         },
         "description": "Select from files, agents, or skills",
+        "load_failed": "Failed to load workspace resources",
         "loading": "Loading...",
-        "no_file_found": {
-          "description": "No searchable files in the current workspace",
-          "label": "No File Found"
-        },
         "no_items_found": {
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Files & Sessions"
+        "no_resources_found": {
+          "description": "No searchable files or folders in the current workspace",
+          "label": "No Resources Found"
+        },
+        "title": "Resources & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2566,6 +2569,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "image_unreadable_for_non_vision_model": "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
@@ -3214,7 +3218,6 @@
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
-    "not_set": "Not Set",
     "provider_not_found": "Provider not found",
     "rag": {
       "chunk_overlap": "Overlap Size",
@@ -3229,12 +3232,13 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Top K",
-      "download_local_embedding": "Download Local Model",
       "download_local_embedding_failed": "Failed to download the local embedding model",
+      "download_local_model": "Download Local Model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "file_processing_none": "Don't use",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_separator": "Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
@@ -3248,6 +3252,8 @@
       },
       "processor": "Processing Provider",
       "processor_not_configured": "Not configured",
+      "processor_not_downloaded": "Not downloaded",
+      "processor_unreachable": "Service not running",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -6690,6 +6696,10 @@
       "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "Hardware acceleration"
+        },
         "cancel": "Cancel",
         "description": "Models that run locally on your device — download once, then use offline with no API key.",
         "download": "Download",
@@ -6997,6 +7007,7 @@
       },
       "command": "Command",
       "config_description": "Configure Model Context Protocol servers",
+      "copyLogs": "Copy logs",
       "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
       "deleteError": "Failed to delete server",
       "deleteServer": "Delete Server",
@@ -7050,6 +7061,7 @@
       },
       "logoUrl": "Logo URL",
       "logs": "Logs",
+      "logsHint": "Logs from the MCP server process",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -8146,10 +8158,12 @@
       "label": "Key",
       "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Conversation",
+      "next_tab": "Next Tab",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "open_tab_in_new_window": "Open Tab in New Window",
       "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
+      "prev_tab": "Previous Tab",
       "print": "Print",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Conversation",
@@ -8266,8 +8280,12 @@
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "Local Document"
+          },
           "local_paddleocr": {
-            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
+            "description": "PaddleOCR (PP-OCRv6 medium) running inside the app — fully offline, no API key, and recognition happens on a background thread so the UI stays responsive.",
             "name": "Local PaddleOCR",
             "status": {
               "local": "Runs fully on your device"

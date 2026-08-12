@@ -7,6 +7,7 @@ import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
 const mockUsePreference = vi.fn()
+const mockUseAvailableFileProcessors = vi.hoisted(() => vi.fn())
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
@@ -17,6 +18,10 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (...args: unknown[]) => mockUsePreference(...args)
+}))
+
+vi.mock('@renderer/hooks/useAvailableFileProcessors', () => ({
+  useAvailableFileProcessors: () => mockUseAvailableFileProcessors()
 }))
 
 vi.mock('@logger', () => ({
@@ -31,6 +36,7 @@ vi.mock('@renderer/i18n/label', () => ({
   getFileProcessorLabelKey: (id: string) =>
     (
       ({
+        'local-document': 'Local Document',
         paddleocr: 'PaddleOCR',
         mineru: 'MinerU',
         doc2x: 'Doc2X',
@@ -88,6 +94,10 @@ describe('useKnowledgeRagConfig', () => {
         }
       }
     ])
+    mockUseAvailableFileProcessors.mockReturnValue({
+      processorIds: new Set(['paddleocr', 'local-document', 'mineru', 'doc2x', 'mistral', 'open-mineru']),
+      status: 'ready'
+    })
   })
 
   it('marks unconfigured document processors as unavailable and exposes the save mutation', async () => {
@@ -97,12 +107,20 @@ describe('useKnowledgeRagConfig', () => {
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
+    // `statusLabel` is what the row shows on the right; it must track `disabled`
+    // so an unconfigured processor says why rather than looking merely greyed out.
     expect(result.current.fileProcessorOptions).toEqual([
-      { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
-      { value: 'mineru', label: 'MinerU', disabled: true },
-      { value: 'doc2x', label: 'Doc2X', disabled: true },
-      { value: 'mistral', label: 'Mistral', disabled: true },
-      { value: 'open-mineru', label: 'Open MinerU', disabled: false }
+      {
+        value: 'local-document',
+        label: 'Local Document',
+        disabled: false,
+        statusLabel: undefined
+      },
+      { value: 'paddleocr', label: 'PaddleOCR', disabled: false, statusLabel: undefined },
+      { value: 'mineru', label: 'MinerU', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'doc2x', label: 'Doc2X', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'mistral', label: 'Mistral', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'open-mineru', label: 'Open MinerU', disabled: false, statusLabel: undefined }
     ])
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']
@@ -156,6 +174,39 @@ describe('useKnowledgeRagConfig', () => {
       disabled: false
     })
   })
+
+  it('offers only processors reported as supported by main', () => {
+    mockUseAvailableFileProcessors.mockReturnValue({
+      processorIds: new Set(['paddleocr', 'mineru']),
+      status: 'ready'
+    })
+
+    const { result } = renderHook(() =>
+      useKnowledgeRagConfig(createKnowledgeBase({ fileProcessorId: 'local-document' }))
+    )
+
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).toEqual(['paddleocr', 'mineru'])
+  })
+
+  it.each(['loading', 'error'] as const)(
+    'keeps only the persisted processor visible and disabled when support is %s',
+    (status) => {
+      mockUseAvailableFileProcessors.mockReturnValue({ processorIds: new Set(), status })
+
+      const { result } = renderHook(() =>
+        useKnowledgeRagConfig(createKnowledgeBase({ fileProcessorId: 'local-document' }))
+      )
+
+      expect(result.current.fileProcessorOptions).toEqual([
+        {
+          value: 'local-document',
+          label: 'Local Document',
+          disabled: true,
+          statusLabel: undefined
+        }
+      ])
+    }
+  )
 
   it('includes an explicit embedding model override in the patch body', async () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
