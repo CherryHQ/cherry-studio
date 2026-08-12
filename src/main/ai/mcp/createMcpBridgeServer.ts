@@ -11,6 +11,7 @@ import {
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  type Progress,
   type Prompt as SdkPrompt,
   ReadResourceRequestSchema,
   type ReadResourceResult,
@@ -20,7 +21,19 @@ import {
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
-const logger = loggerService.withContext('SdkMcpBridge')
+const logger = loggerService.withContext('McpBridge')
+
+export interface McpBridgeOptions {
+  /**
+   * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
+   *
+   * Only true for a transport that can actually carry a server→client notification. The
+   * stateless HTTP proxy cannot: every request builds and closes its own bridge, so there
+   * is no stream to deliver on and the capability would be a promise the client trusts and
+   * never receives.
+   */
+  listChanged?: boolean
+}
 
 function toSdkTool(tool: McpTool): SdkTool {
   const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
@@ -62,9 +75,9 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  * proxying tool/resource/prompt list and call requests to an existing MCP
  * server managed by `McpRuntimeService`.
  *
- * The returned instance is designed for use with the Claude Agent SDK's
- * in-memory (`type: 'sdk'`) transport, keeping all communication
- * within the Electron main process.
+ * Two consumers: the Claude Agent SDK's in-memory (`type: 'sdk'`) transport, keeping all
+ * communication within the Electron main process; and the API gateway's `/v1/mcps/:id/mcp`
+ * route, which fronts it with a stateless Streamable HTTP transport for external clients.
  *
  * Tool-list consistency model: the SDK snapshots this bridge's tools ONCE per session
  * (standard MCP — `tools/list` at connect, then only on `tools/list_changed`), so the
@@ -79,7 +92,11 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  *   round-trip heals a session that started on a cold cache — including servers whose
  *   connect outlives the session-build warm — with zero blocking anywhere.
  */
-export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
+export function createMcpBridgeServer(
+  mcpId: string,
+  serverSnapshot?: McpServerEntity,
+  { listChanged = true }: McpBridgeOptions = {}
+): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
@@ -87,10 +104,12 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
 
   const sdkServer = new McpServer(
     { name: serverConfig.name, version: '0.1.0' },
-    // `listChanged: true` is load-bearing twice over: the SDK client only attaches its
-    // re-list handler for servers that declared it, and the local `sendToolListChanged`
-    // below throws a capability error without it.
-    { capabilities: { tools: { listChanged: true }, resources: {}, prompts: {} } }
+    // `listChanged` is load-bearing twice over: the SDK client only attaches its re-list
+    // handler for servers that declared it, and the local `sendToolListChanged` below
+    // throws a capability error without it. Declaring it on a transport that cannot
+    // deliver the notification is worse than not declaring it — the client would trust a
+    // heal that never comes and serve a stale tool list indefinitely.
+    { capabilities: { tools: listChanged ? { listChanged: true } : {}, resources: {}, prompts: {} } }
   )
 
   // Use the low-level Server to set raw request handlers because this bridge
@@ -109,6 +128,9 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
   const previousOnInitialized = rawServer.oninitialized
   rawServer.oninitialized = () => {
     previousOnInitialized?.()
+    // Nothing to relay through on a transport that declared no `listChanged`; subscribing
+    // anyway would only build notifications the client never asked for and cannot receive.
+    if (!listChanged) return
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
       rawServer.sendToolListChanged().catch((error) => {
@@ -117,9 +139,9 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
         // session missed an invalidation (it re-syncs only if the cache changes again), so
         // keep it visible at warn.
         if (error instanceof Error && error.message.includes('Not connected')) {
-          logger.debug('SDK bridge: tools/list_changed raced transport teardown', { mcpId })
+          logger.debug('MCP bridge: tools/list_changed raced transport teardown', { mcpId })
         } else {
-          logger.warn('SDK bridge: failed to send tools/list_changed', { mcpId, error })
+          logger.warn('MCP bridge: failed to send tools/list_changed', { mcpId, error })
         }
       })
     })
@@ -133,33 +155,47 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing tools', { mcpId })
+      logger.debug('MCP bridge: listing tools', { mcpId })
       const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
         tools: tools.map(toSdkTool)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list tools', { mcpId, error })
+      logger.error('MCP bridge: failed to list tools', { mcpId, error })
       throw error
     }
   })
 
   rawServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    // Relay upstream progress only when the client asked for it — the protocol keys
+    // progress notifications to the token it supplied, so without one there is nothing
+    // to address them to.
+    const progressToken = request.params._meta?.progressToken
+    const onProgress =
+      progressToken === undefined
+        ? undefined
+        : (progress: Progress) => {
+            extra
+              .sendNotification({ method: 'notifications/progress', params: { ...progress, progressToken } })
+              .catch((error) => logger.debug('MCP bridge: progress notification dropped', { mcpId, error }))
+          }
+
     try {
-      logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
+      logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
         args: request.params.arguments,
+        onProgress,
         signal: extra.signal
       })
       return result as CallToolResult
     } catch (error) {
       if (isMcpCancellation(error, extra.signal)) {
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
-        logger.debug('SDK bridge: tool call aborted', { mcpId, tool: request.params.name })
+        logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
-        logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+        logger.error('MCP bridge: failed to call tool', { mcpId, tool: request.params.name, error })
       }
       throw error
     }
@@ -167,13 +203,13 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
 
   rawServer.setRequestHandler(ListResourcesRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing resources', { mcpId })
+      logger.debug('MCP bridge: listing resources', { mcpId })
       const resources = await application.get('McpCatalogService').listResources(serverConfig.id)
       return {
         resources: resources.map(toSdkResource)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list resources', { mcpId, error })
+      logger.error('MCP bridge: failed to list resources', { mcpId, error })
       throw error
     }
   })
@@ -185,26 +221,26 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
   rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params
     try {
-      logger.debug('SDK bridge: reading resource', { mcpId, uri })
+      logger.debug('MCP bridge: reading resource', { mcpId, uri })
       const { contents } = await application.get('McpRuntimeService').getResource({ serverId: serverConfig.id, uri })
       return {
         contents: contents.map(toSdkResourceContents)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to read resource', { mcpId, uri, error })
+      logger.error('MCP bridge: failed to read resource', { mcpId, uri, error })
       throw error
     }
   })
 
   rawServer.setRequestHandler(ListPromptsRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing prompts', { mcpId })
+      logger.debug('MCP bridge: listing prompts', { mcpId })
       const prompts = await application.get('McpCatalogService').listPrompts(serverConfig.id)
       return {
         prompts: prompts.map(toSdkPrompt)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list prompts', { mcpId, error })
+      logger.error('MCP bridge: failed to list prompts', { mcpId, error })
       throw error
     }
   })
@@ -212,14 +248,14 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
   rawServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const { name, arguments: args } = request.params
     try {
-      logger.debug('SDK bridge: getting prompt', { mcpId, prompt: name })
+      logger.debug('MCP bridge: getting prompt', { mcpId, prompt: name })
       return await application.get('McpRuntimeService').getPrompt({
         serverId: serverConfig.id,
         name,
         args
       })
     } catch (error) {
-      logger.error('SDK bridge: failed to get prompt', { mcpId, prompt: name, error })
+      logger.error('MCP bridge: failed to get prompt', { mcpId, prompt: name, error })
       throw error
     }
   })

@@ -24,7 +24,8 @@ export const FeishuAgentChannelConfigSchema = z.strictObject({
 export const QQAgentChannelConfigSchema = z.strictObject({
   app_id: z.string(),
   client_secret: z.string(),
-  allowed_chat_ids: z.array(z.string()).optional()
+  allowed_chat_ids: z.array(z.string()).optional(),
+  mention_only: z.boolean().optional()
 })
 
 export const WeChatAgentChannelConfigSchema = z.strictObject({
