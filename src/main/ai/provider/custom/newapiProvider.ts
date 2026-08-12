@@ -14,6 +14,7 @@
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
 import {
   OpenAICompatibleChatLanguageModel,
@@ -24,8 +25,12 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
+import { VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { getLowerBaseModelName } from '@shared/utils/model'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
+
+const isOpenAIVendorModelId = (modelId: string): boolean => VENDOR_PATTERNS.openai.test(getLowerBaseModelName(modelId))
 
 export type NewApiEndpointType =
   | 'openai'
@@ -99,13 +104,22 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
     })
   }
 
-  const createResponsesModel = (modelId: string) =>
-    new OpenAIResponsesLanguageModel(modelId, {
-      provider: `${NEWAPI_PROVIDER_NAME}.openai-response`,
-      url,
-      headers: authHeaders,
-      fetch: customFetch
-    })
+  // OpenAI-vendor ids keep the first-party model (store / serviceTier / encrypted reasoning);
+  // other vendors get the spec-neutral Open Responses dialect under the same 'openai' namespace.
+  const createResponsesModel = (modelId: string): LanguageModelV3 =>
+    isOpenAIVendorModelId(modelId)
+      ? new OpenAIResponsesLanguageModel(modelId, {
+          provider: `${NEWAPI_PROVIDER_NAME}.openai-response`,
+          url,
+          headers: authHeaders,
+          fetch: customFetch
+        })
+      : createOpenResponses({
+          url: `${withoutTrailingSlash(baseURL)}/responses`,
+          name: 'openai',
+          headers: authHeaders(),
+          fetch: customFetch
+        })(modelId)
 
   const createCompatibleModel = (modelId: string) =>
     new OpenAICompatibleChatLanguageModel(modelId, {

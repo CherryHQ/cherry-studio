@@ -1,6 +1,7 @@
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import type { OpenAIProviderSettings } from '@ai-sdk/openai'
 import {
   OpenAICompletionLanguageModel,
@@ -89,7 +90,6 @@ export interface CherryInProvider extends ProviderV3 {
   (modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
   languageModel(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
   chat(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
-  responses(modelId: string): LanguageModelV3
   completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
   embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
   embeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
@@ -109,8 +109,13 @@ const resolveApiKey = (options: CherryInProviderSettings): string =>
     description: 'CherryIN'
   })
 
+// Mirrors VENDOR_PATTERNS.openai (LLM ids) from @cherrystudio/provider-registry, which this
+// published package cannot depend on. Tested against the lowercased namespace-stripped id.
+const OPENAI_VENDOR_MODEL_ID = /\bgpt\b|^o[134]|^chatgpt|^codex/i
+
 const isAnthropicModel = (modelId: string) => ANTHROPIC_PREFIX.test(modelId)
 const isGeminiModel = (modelId: string) => GEMINI_PREFIX.test(modelId)
+const isOpenAIVendorModelId = (modelId: string) => OPENAI_VENDOR_MODEL_ID.test(modelId.split('/').pop() ?? modelId)
 const isQwenImageModel = (modelId: string) => {
   const normalized = modelId.toLowerCase()
   return normalized.includes('qwen') && normalized.includes('image')
@@ -156,6 +161,9 @@ const resolveConfiguredHeaders = (headers?: HeadersInput): Record<string, Header
 }
 
 const toBearerToken = (authorization?: string) => (authorization ? authorization.replace(/^Bearer\s+/i, '') : undefined)
+
+const compactHeaders = (headers: Record<string, HeaderValue>): Record<string, string> =>
+  Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => entry[1] != null))
 
 const normalizePersonGeneration = (value: unknown) => {
   if (typeof value !== 'string') return undefined
@@ -305,6 +313,29 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       fetch
     })
 
+  // OpenAI-vendor ids keep the first-party model (store / serviceTier / encrypted reasoning);
+  // other vendors get the spec-neutral Open Responses dialect under the same 'openai' namespace.
+  const createResponsesModelByVendor = (modelId: string, settings: OpenAIProviderSettings = {}) => {
+    if (isOpenAIVendorModelId(modelId)) {
+      return new OpenAIResponsesLanguageModel(modelId, {
+        provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
+        url,
+        headers: () => ({
+          ...getJsonHeaders(),
+          ...settings.headers
+        }),
+        fetch
+      })
+    }
+    // createOpenResponses only takes static headers, so build the provider per model creation.
+    return createOpenResponses({
+      url: `${withoutTrailingSlash(baseURL)}/responses`,
+      name: 'openai',
+      headers: compactHeaders({ ...getJsonHeaders(), ...settings.headers }),
+      fetch
+    })(modelId)
+  }
+
   const createChatModelByModelId = (modelId: string, settings: OpenAIProviderSettings = {}) => {
     if (isAnthropicModel(modelId)) {
       return createAnthropicModel(modelId)
@@ -312,15 +343,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     if (isGeminiModel(modelId)) {
       return createGeminiModel(modelId)
     }
-    return new OpenAIResponsesLanguageModel(modelId, {
-      provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
-      url,
-      headers: () => ({
-        ...getJsonHeaders(),
-        ...settings.headers
-      }),
-      fetch
-    })
+    return createResponsesModelByVendor(modelId, settings)
   }
 
   const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
@@ -338,15 +361,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
         throw new Error('Use rerankingModel() for jina-rerank endpoint type')
       case 'openai-response':
       default:
-        return new OpenAIResponsesLanguageModel(modelId, {
-          provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
-          url,
-          headers: () => ({
-            ...getJsonHeaders(),
-            ...settings.headers
-          }),
-          fetch
-        })
+        return createResponsesModelByVendor(modelId, settings)
     }
   }
 
@@ -368,16 +383,6 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       headers: () => ({
         ...getJsonHeaders(),
         ...settings.headers
-      }),
-      fetch
-    })
-
-  const createResponsesModel = (modelId: string) =>
-    new OpenAIResponsesLanguageModel(modelId, {
-      provider: `${CHERRYIN_PROVIDER_NAME}.responses`,
-      url,
-      headers: () => ({
-        ...getJsonHeaders()
       }),
       fetch
     })
@@ -446,7 +451,6 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   provider.languageModel = createChatModel
   provider.chat = createOpenAIChatModel
 
-  provider.responses = createResponsesModel
   provider.completion = createCompletionModel
 
   provider.embedding = createEmbeddingModel
