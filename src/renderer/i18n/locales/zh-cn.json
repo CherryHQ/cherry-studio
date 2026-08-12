@@ -3845,10 +3845,17 @@
     "skill_marketplace": {
       "empty_description": "搜索在线技能源，查找可安装的技能。",
       "empty_title": "搜索技能",
+      "github_empty_description": "粘贴某个技能 SKILL.md 文件的链接，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "从 GitHub 安装",
+      "github_url_invalid": "请粘贴以 SKILL.md 结尾的 GitHub 链接",
+      "github_url_label": "GitHub SKILL.md 链接",
+      "github_url_placeholder": "GitHub 链接，以 /SKILL.md 结尾",
       "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
       "no_results_title": "未找到技能",
       "search_failed_description": "搜索失败,请稍后重试。",
+      "search_label": "搜索技能",
       "search_placeholder": "搜索技能...",
+      "source_label": "技能来源",
       "title": "在线搜索技能"
     },
     "sort": {
