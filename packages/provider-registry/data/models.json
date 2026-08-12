@@ -1503,6 +1503,34 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
       "contextWindow": 262144,
+      "family": "qwen",
+      "id": "qwen3-5-4b",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Qwen3.5 4B",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 262144,
       "id": "qwen3-5-9b",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
@@ -21027,5 +21055,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "406889b05c8b2726"
+  "version": "c6c4dc125631d7e1"
 }
