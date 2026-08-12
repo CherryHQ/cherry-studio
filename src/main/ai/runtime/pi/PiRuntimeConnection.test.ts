@@ -11,6 +11,13 @@ const AGENT_DATA_PATH = '/cherry/Data/Agents/agent-1'
 const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
+const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']
+const AUTONOMY_TOOL_NAMES = [
+  'mcp__cherry-tools__cron',
+  'mcp__cherry-tools__notify',
+  'mcp__cherry-tools__config',
+  'mcp__agent-memory__memory'
+]
 
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -77,12 +84,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
 }))
 vi.mock('./piToolAdapter', () => ({
   buildAutonomyToolDefinitions: mocks.buildAutonomyToolDefinitions,
-  AUTONOMY_TOOL_NAMES: new Set([
-    'mcp__cherry-tools__cron',
-    'mcp__cherry-tools__notify',
-    'mcp__cherry-tools__config',
-    'mcp__agent-memory__memory'
-  ])
+  AUTONOMY_TOOL_NAMES: new Set(AUTONOMY_TOOL_NAMES)
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how its output is merged into customTools and how the approval gate treats those names.
@@ -721,7 +723,7 @@ describe('PiRuntimeConnection', () => {
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
-    expect(mocks.createOpts?.tools).toEqual(['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'])
+    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
@@ -841,6 +843,7 @@ describe('PiRuntimeConnection', () => {
         { name: 'mcp__agent-memory__memory' },
         { name: 'mcp__srv__do', label: 'do' }
       ])
+      expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, 'mcp__srv__do'])
     })
 
     it('never auto-approves bridged MCP tool names', async () => {

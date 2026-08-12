@@ -205,9 +205,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       sessionManager,
       resourceLoader,
       model,
-      // pi defaults to read/bash/edit/write only; Cherry exposes grep/find/ls too,
-      // so opt into the full built-in set explicitly.
-      tools: [...PI_BUILTIN_TOOL_NAMES],
+      // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
+      tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
       customTools,
       // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
       // them live so a mid-session disable is enforced.
