@@ -156,6 +156,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0
+      registry-js:
+        specifier: 1.16.1
+        version: 1.16.1
       selection-hook:
         specifier: 2.0.3
         version: 2.0.3
@@ -177,6 +180,9 @@ importers:
       turndown:
         specifier: 7.2.0
         version: 7.2.0
+      which:
+        specifier: 6.0.1
+        version: 6.0.1
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -610,6 +616,9 @@ importers:
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
+      '@types/which':
+        specifier: 3.0.4
+        version: 3.0.4
       '@types/word-extractor':
         specifier: ^1
         version: 1.0.6
@@ -838,6 +847,9 @@ importers:
       google-auth-library:
         specifier: ^9.15.1
         version: 9.15.1(encoding@0.1.13)
+      gpt-tokenizer:
+        specifier: ^3.4.0
+        version: 3.4.0
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
@@ -6981,6 +6993,9 @@ packages:
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
+  '@types/which@3.0.4':
+    resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
+
   '@types/word-extractor@1.0.6':
     resolution: {integrity: sha512-NDrvZXGJi7cTKXGr8GTP08HiqiueggR1wfHZvBj1sfL8e52qecBSlvl1rBWrvOY0LLkk1DISkKVlFqMTfipLbQ==}
 
@@ -9876,6 +9891,9 @@ packages:
   got@11.8.6:
     resolution: {integrity: sha512-6tfZ91bOr7bOXnK7PRDCGBLa1H4U080YHNaAQ2KsMGlLEzRbk44nsZF2E1IeRc3vtJHPVbKCYgdFbaGO2ljd8g==}
     engines: {node: '>=10.19.0'}
+
+  gpt-tokenizer@3.4.0:
+    resolution: {integrity: sha512-wxFLnhIXTDjYebd9A9pGl3e31ZpSypbpIJSOswbgop5jLte/AsZVDvjlbEuVFlsqZixVKqbcoNmRlFDf6pz/UQ==}
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -19907,6 +19925,8 @@ snapshots:
 
   '@types/uuid@10.0.0': {}
 
+  '@types/which@3.0.4': {}
+
   '@types/word-extractor@1.0.6':
     dependencies:
       '@types/node': 24.10.4
@@ -23534,6 +23554,8 @@ snapshots:
       lowercase-keys: 2.0.0
       p-cancelable: 2.1.1
       responselike: 2.0.1
+
+  gpt-tokenizer@3.4.0: {}
 
   graceful-fs@4.2.11: {}
 
