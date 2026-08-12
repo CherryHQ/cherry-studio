@@ -165,7 +165,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // global auth.json/models.json. The real key is a runtime override; the
     // registered provider config carries only the placeholder (plan D1).
     const runtimeProviderName = `${injection.providerName}:${this.input.sessionId}`
-    const runtimeApi = `cherry-${this.input.sessionId}-${injection.api}` as NonNullable<ProviderConfig['api']>
+    const runtimeApi = `cherry-${this.input.sessionId}-${injection.api}`
     const isolatedProviderConfig: ProviderConfig = {
       ...providerConfig,
       api: runtimeApi,
