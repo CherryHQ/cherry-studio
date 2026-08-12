@@ -4390,6 +4390,12 @@
         "title": "隱藏"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"

@@ -219,6 +219,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
@@ -370,6 +372,10 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         setMiniAppShow(false)
       }
 
+      if (splitMiniAppId === appId) {
+        setSplitMiniAppId('')
+      }
+
       clearWebviewState(appId)
 
       for (const tab of tabsContext?.tabs ?? []) {
@@ -382,8 +388,10 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     },
     [
       currentMiniAppId,
+      splitMiniAppId,
       openedOneOffMiniApp,
       setCurrentMiniAppId,
+      setSplitMiniAppId,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
@@ -501,10 +509,14 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
     miniAppShow,
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
+    setSplitOpen,
+    setSplitMiniAppId,
     setMiniAppShow,
     setOpenedOneOffMiniApp,
     isLoading,

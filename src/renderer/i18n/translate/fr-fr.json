@@ -4390,6 +4390,12 @@
         "title": "Cacher"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "Mini-programme",
     "unpin_failed": "Échec du détachement de la mini-application",
     "update_partial_failure": "{{failed}} sur {{total}} mises à jour ont échoué"

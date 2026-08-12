@@ -4390,6 +4390,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "Mini programa",
     "unpin_failed": "Error al desanclar la miniaplicación",
     "update_partial_failure": "{{failed}} de {{total}} actualizaciones fallaron"

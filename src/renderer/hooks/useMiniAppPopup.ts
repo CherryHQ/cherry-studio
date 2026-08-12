@@ -128,9 +128,13 @@ export const useMiniAppPopup = () => {
     openedKeepAliveMiniApps,
     openedOneOffMiniApp,
     miniAppShow,
+    currentMiniAppId,
+    splitMiniAppId,
     setOpenedKeepAliveMiniApps,
     setOpenedOneOffMiniApp,
     setCurrentMiniAppId,
+    setSplitOpen,
+    setSplitMiniAppId,
     setMiniAppShow
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
@@ -159,8 +163,11 @@ export const useMiniAppPopup = () => {
       const id = miniAppIdFromTabUrl(tab.url)
       if (id) ids.add(id)
     }
+    // The split pane shows an app that owns no tab of its own, so nothing else
+    // stops the cap from evicting the webview the user is reading beside.
+    if (splitMiniAppId) ids.add(splitMiniAppId)
     return ids
-  }, [tabs, tabsContext])
+  }, [tabs, tabsContext, splitMiniAppId])
   const pinnedMiniAppIdsRef = useRef(pinnedMiniAppIds)
   pinnedMiniAppIdsRef.current = pinnedMiniAppIds
 
@@ -228,6 +235,44 @@ export const useMiniAppPopup = () => {
     [openMiniApp]
   )
 
+  /**
+   * Show `app` in the split pane beside the active one.
+   *
+   * Unlike {@link openMiniApp}, this loads the app into the keep-alive pool
+   * *without* claiming `currentMiniAppId` — the split pane sits next to the
+   * active mini app rather than replacing it. The pane owns no route, so no
+   * `MiniAppPage` mounts to register the app itself.
+   */
+  const openMiniAppInSplit = useCallback(
+    (app: MiniApp) => {
+      const list = keepAliveRef.current
+      if (!list.some((item) => item.appId === app.appId)) {
+        // Exempt the pane the user is already reading: without this, filling
+        // the split on a full pool can evict the app right next to it.
+        const pinnedIds = pinnedMiniAppIdsRef.current
+        const exempt =
+          pinnedIds === null ? null : currentMiniAppId ? new Set([...pinnedIds, currentMiniAppId]) : pinnedIds
+        const { keep, evicted } = evictWithPinExemption(list, Math.max(cap - 1, 0), exempt)
+        setOpenedKeepAliveMiniApps([...keep, app])
+        for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
+      }
+      setSplitMiniAppId(app.appId)
+      setSplitOpen(true)
+    },
+    [cap, currentMiniAppId, setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen]
+  )
+
+  /** Split the view and leave the new pane awaiting a pick. */
+  const openSplit = useCallback(() => {
+    setSplitOpen(true)
+  }, [setSplitOpen])
+
+  /** Leave split view. Apps stay in the pool; only the pane closes. */
+  const closeSplit = useCallback(() => {
+    setSplitOpen(false)
+    setSplitMiniAppId('')
+  }, [setSplitMiniAppId, setSplitOpen])
+
   /** Open a miniapp by id (look up the miniapp in allApps from DataApi) */
   const openMiniAppById = useCallback(
     (id: string, keepAlive: boolean = false) => {
@@ -252,10 +297,22 @@ export const useMiniAppPopup = () => {
         setOpenedOneOffMiniApp(null)
       }
 
+      if (splitMiniAppId === appid) {
+        setSplitMiniAppId('')
+      }
+
       setCurrentMiniAppId('')
       setMiniAppShow(false)
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [
+      openedOneOffMiniApp,
+      splitMiniAppId,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      setCurrentMiniAppId,
+      setSplitMiniAppId,
+      setMiniAppShow
+    ]
   )
 
   /** Close all miniApps (popup hides and all miniApps unloaded) */
@@ -264,11 +321,12 @@ export const useMiniAppPopup = () => {
     setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
+    setSplitMiniAppId('')
     setMiniAppShow(false)
     // Mirrors LRU.clear() firing disposeAfter per entry: clean up webviews +
     // close any tab still open for each previously kept-alive app.
     for (const app of list) evictMiniApp(app.appId)
-  }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
+  }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setSplitMiniAppId, setMiniAppShow])
 
   /** Hide the miniapp popup (only one-off miniapp unloaded) */
   const hideMiniAppPopup = useCallback(() => {
@@ -347,6 +405,9 @@ export const useMiniAppPopup = () => {
     openMiniApp,
     openMiniAppKeepAlive,
     openMiniAppById,
+    openMiniAppInSplit,
+    openSplit,
+    closeSplit,
     closeMiniApp,
     hideMiniAppPopup,
     closeAllMiniApps,

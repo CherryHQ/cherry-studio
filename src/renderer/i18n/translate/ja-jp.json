@@ -4390,6 +4390,12 @@
         "title": "非表示"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "ミニアプリ",
     "unpin_failed": "ミニアプリのピン留め解除に失敗しました",
     "update_partial_failure": "{{total}}件中{{failed}}件の更新に失敗しました"

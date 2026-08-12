@@ -4390,6 +4390,12 @@
         "title": "Απόκρυψη"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "Μικρόπρογραμμα",
     "unpin_failed": "Αποτυχία αποκαρφιτσώματος mini-app",
     "update_partial_failure": "{{failed}} από τις {{total}} ενημερώσεις απέτυχαν"

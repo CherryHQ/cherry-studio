@@ -4390,6 +4390,12 @@
         "title": "Ausblenden"
       }
     },
+    "split": {
+      "already_open": "[to be translated]:Already shown in the other pane",
+      "apps_unsupported": "[to be translated]:not supported yet",
+      "close": "[to be translated]:Close split view",
+      "open": "[to be translated]:Split view"
+    },
     "title": "Mini-Apps",
     "unpin_failed": "Fehler beim Lösen der Mini-App",
     "update_partial_failure": "{{failed}} von {{total}} Aktualisierungen sind fehlgeschlagen"

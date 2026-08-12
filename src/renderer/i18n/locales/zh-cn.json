@@ -4414,6 +4414,12 @@
         "title": "隐藏"
       }
     },
+    "split": {
+      "already_open": "已在另一侧显示",
+      "apps_unsupported": "暂不支持",
+      "close": "关闭分屏",
+      "open": "分屏"
+    },
     "title": "小程序",
     "unpin_failed": "取消固定小程序失败",
     "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
