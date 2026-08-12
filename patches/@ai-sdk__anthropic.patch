@@ -77,7 +77,7 @@ index fe20f4d..e58418f 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index b408db2..7cbffe6 100644
+index b408db2..613ff6d 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1521,7 +1521,7 @@ async function prepareTools({
@@ -85,20 +85,94 @@ index b408db2..7cbffe6 100644
            name: tool.name,
            description: tool.description,
 -          input_schema: tool.inputSchema,
-+          input_schema: sanitizeJsonSchema(tool.inputSchema),
++          input_schema: sanitizeJsonSchema(tool.inputSchema, supportsStrictTools === true && tool.strict === true),
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
-@@ -3272,7 +3272,7 @@ function sanitizeSchema(schema) {
+@@ -3199,17 +3199,18 @@ var DESCRIPTION_CONSTRAINT_KEYS = [
+   "maxProperties",
+   "not"
+ ];
+-function sanitizeJsonSchema(schema) {
+-  return sanitizeSchema(schema);
++function sanitizeJsonSchema(schema, strictTool) {
++  return sanitizeSchema(schema, strictTool);
+ }
+-function sanitizeDefinition(definition) {
++function sanitizeDefinition(definition, strictTool) {
+   if (typeof definition === "boolean" || !isPlainObject(definition)) {
+     return definition;
+   }
+-  return sanitizeSchema(definition);
++  return sanitizeSchema(definition, strictTool);
+ }
+-function sanitizeSchema(schema) {
++function sanitizeSchema(schema, strictTool) {
+   const result = {};
++  const sanitizeChild = (definition) => sanitizeDefinition(definition, strictTool);
+   const schemaWithDefs = schema;
+   if (schema.$ref != null) {
+     return { $ref: schema.$ref };
+@@ -3239,18 +3240,18 @@ function sanitizeSchema(schema) {
+     result.type = schema.type;
+   }
+   if (schema.anyOf != null) {
+-    result.anyOf = schema.anyOf.map(sanitizeDefinition);
++    result.anyOf = schema.anyOf.map(sanitizeChild);
+   } else if (schema.oneOf != null) {
+-    result.anyOf = schema.oneOf.map(sanitizeDefinition);
++    result.anyOf = schema.oneOf.map(sanitizeChild);
+   }
+   if (schema.allOf != null) {
+-    result.allOf = schema.allOf.map(sanitizeDefinition);
++    result.allOf = schema.allOf.map(sanitizeChild);
+   }
+   if (schema.definitions != null) {
+     result.definitions = Object.fromEntries(
+       Object.entries(schema.definitions).map(([name, definition]) => [
+         name,
+-        sanitizeDefinition(definition)
++        sanitizeChild(definition)
+       ])
+     );
+   }
+@@ -3259,7 +3260,7 @@ function sanitizeSchema(schema) {
+     resultWithDefs.$defs = Object.fromEntries(
+       Object.entries(schemaWithDefs.$defs).map(([name, definition]) => [
+         name,
+-        sanitizeDefinition(definition)
++        sanitizeChild(definition)
+       ])
+     );
+   }
+@@ -3268,17 +3269,23 @@ function sanitizeSchema(schema) {
+       result.properties = Object.fromEntries(
+         Object.entries(schema.properties).map(([name, definition]) => [
+           name,
+-          sanitizeDefinition(definition)
++          sanitizeChild(definition)
          ])
        );
      }
 -    result.additionalProperties = false;
-+    result.additionalProperties = schema.additionalProperties === true ? true : false;
++    if (strictTool !== false) {
++      result.additionalProperties = false;
++    } else if (isPlainObject(schema.additionalProperties)) {
++      result.additionalProperties = sanitizeChild(schema.additionalProperties);
++    } else {
++      result.additionalProperties = schema.additionalProperties === true;
++    }
      if (schema.required != null) {
        result.required = schema.required;
      }
-@@ -3468,7 +3468,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+   if (schema.items != null) {
+-    result.items = Array.isArray(schema.items) ? schema.items.map(sanitizeDefinition) : sanitizeDefinition(schema.items);
++    result.items = Array.isArray(schema.items) ? schema.items.map(sanitizeChild) : sanitizeChild(schema.items);
+   }
+   if (typeof schema.format === "string" && SUPPORTED_STRING_FORMATS.has(schema.format)) {
+     result.format = schema.format;
+@@ -3468,7 +3475,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -107,7 +181,7 @@ index b408db2..7cbffe6 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3561,12 +3561,12 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3561,12 +3568,12 @@ var AnthropicMessagesLanguageModel = class {
      const sendThinking = isThinking || thinkingType === "disabled";
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
@@ -122,7 +196,7 @@ index b408db2..7cbffe6 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3737,7 +3737,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3737,7 +3744,9 @@ var AnthropicMessagesLanguageModel = class {
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -134,7 +208,7 @@ index b408db2..7cbffe6 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 168f139..7365bc0 100644
+index 168f139..66419e5 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1536,7 +1536,7 @@ async function prepareTools({
@@ -142,20 +216,94 @@ index 168f139..7365bc0 100644
            name: tool.name,
            description: tool.description,
 -          input_schema: tool.inputSchema,
-+          input_schema: sanitizeJsonSchema(tool.inputSchema),
++          input_schema: sanitizeJsonSchema(tool.inputSchema, supportsStrictTools === true && tool.strict === true),
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
-@@ -3313,7 +3313,7 @@ function sanitizeSchema(schema) {
+@@ -3240,17 +3240,18 @@ var DESCRIPTION_CONSTRAINT_KEYS = [
+   "maxProperties",
+   "not"
+ ];
+-function sanitizeJsonSchema(schema) {
+-  return sanitizeSchema(schema);
++function sanitizeJsonSchema(schema, strictTool) {
++  return sanitizeSchema(schema, strictTool);
+ }
+-function sanitizeDefinition(definition) {
++function sanitizeDefinition(definition, strictTool) {
+   if (typeof definition === "boolean" || !isPlainObject(definition)) {
+     return definition;
+   }
+-  return sanitizeSchema(definition);
++  return sanitizeSchema(definition, strictTool);
+ }
+-function sanitizeSchema(schema) {
++function sanitizeSchema(schema, strictTool) {
+   const result = {};
++  const sanitizeChild = (definition) => sanitizeDefinition(definition, strictTool);
+   const schemaWithDefs = schema;
+   if (schema.$ref != null) {
+     return { $ref: schema.$ref };
+@@ -3280,18 +3281,18 @@ function sanitizeSchema(schema) {
+     result.type = schema.type;
+   }
+   if (schema.anyOf != null) {
+-    result.anyOf = schema.anyOf.map(sanitizeDefinition);
++    result.anyOf = schema.anyOf.map(sanitizeChild);
+   } else if (schema.oneOf != null) {
+-    result.anyOf = schema.oneOf.map(sanitizeDefinition);
++    result.anyOf = schema.oneOf.map(sanitizeChild);
+   }
+   if (schema.allOf != null) {
+-    result.allOf = schema.allOf.map(sanitizeDefinition);
++    result.allOf = schema.allOf.map(sanitizeChild);
+   }
+   if (schema.definitions != null) {
+     result.definitions = Object.fromEntries(
+       Object.entries(schema.definitions).map(([name, definition]) => [
+         name,
+-        sanitizeDefinition(definition)
++        sanitizeChild(definition)
+       ])
+     );
+   }
+@@ -3300,7 +3301,7 @@ function sanitizeSchema(schema) {
+     resultWithDefs.$defs = Object.fromEntries(
+       Object.entries(schemaWithDefs.$defs).map(([name, definition]) => [
+         name,
+-        sanitizeDefinition(definition)
++        sanitizeChild(definition)
+       ])
+     );
+   }
+@@ -3309,17 +3310,23 @@ function sanitizeSchema(schema) {
+       result.properties = Object.fromEntries(
+         Object.entries(schema.properties).map(([name, definition]) => [
+           name,
+-          sanitizeDefinition(definition)
++          sanitizeChild(definition)
          ])
        );
      }
 -    result.additionalProperties = false;
-+    result.additionalProperties = schema.additionalProperties === true ? true : false;
++    if (strictTool !== false) {
++      result.additionalProperties = false;
++    } else if (isPlainObject(schema.additionalProperties)) {
++      result.additionalProperties = sanitizeChild(schema.additionalProperties);
++    } else {
++      result.additionalProperties = schema.additionalProperties === true;
++    }
      if (schema.required != null) {
        result.required = schema.required;
      }
-@@ -3509,7 +3509,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+   if (schema.items != null) {
+-    result.items = Array.isArray(schema.items) ? schema.items.map(sanitizeDefinition) : sanitizeDefinition(schema.items);
++    result.items = Array.isArray(schema.items) ? schema.items.map(sanitizeChild) : sanitizeChild(schema.items);
+   }
+   if (typeof schema.format === "string" && SUPPORTED_STRING_FORMATS.has(schema.format)) {
+     result.format = schema.format;
+@@ -3509,7 +3516,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -164,7 +312,7 @@ index 168f139..7365bc0 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3602,12 +3602,12 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3602,12 +3609,12 @@ var AnthropicMessagesLanguageModel = class {
      const sendThinking = isThinking || thinkingType === "disabled";
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
@@ -179,7 +327,7 @@ index 168f139..7365bc0 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3778,7 +3778,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3778,7 +3785,9 @@ var AnthropicMessagesLanguageModel = class {
            details: "topP is not supported when thinking is enabled"
          });
        }

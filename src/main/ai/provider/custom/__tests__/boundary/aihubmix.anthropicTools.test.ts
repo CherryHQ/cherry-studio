@@ -19,7 +19,7 @@ import { captureWithFetch } from './captureRequest'
  * (`minItems`/`maxItems`/`minLength`/`maxLength`/...) and folds the dropped
  * constraints into the node `description`, keeping `type`/`items`/`required`.
  */
-function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOptions {
+function callOptionsWithToolSchema(inputSchema: unknown, strict?: boolean): LanguageModelV3CallOptions {
   return {
     prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
     tools: [
@@ -27,7 +27,8 @@ function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOpt
         type: 'function',
         name: 'web_fetch',
         description: 'Fetch URLs',
-        inputSchema
+        inputSchema,
+        strict
       }
     ]
   } as unknown as LanguageModelV3CallOptions
@@ -83,6 +84,54 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
     const urls = urlsSchemaFrom(req.body)
     expect(urls.minLength).toBeUndefined()
     expect(urls.maxLength).toBeUndefined()
+  })
+
+  it('preserves schema-valued catchalls unless strict mode is actually supported', async () => {
+    const catchallSchema = {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            fields: { type: 'object', properties: {}, additionalProperties: {} }
+          },
+          required: ['fields']
+        }
+      },
+      required: ['data']
+    }
+
+    const nonStrictRequest = await captureWithFetch((fetch) =>
+      createAihubmix({ apiKey: 'sk', fetch })
+        .languageModel('claude-sonnet-4-6')
+        .doStream(callOptionsWithToolSchema(catchallSchema))
+    )
+    const strictRequest = await captureWithFetch((fetch) =>
+      createAihubmix({ apiKey: 'sk', fetch })
+        .languageModel('claude-sonnet-4-6')
+        .doStream(callOptionsWithToolSchema(catchallSchema, true))
+    )
+    const unsupportedStrictRequest = await captureWithFetch((fetch) =>
+      createAihubmix({ apiKey: 'sk', fetch })
+        .languageModel('claude-sonnet-4-0')
+        .doStream(callOptionsWithToolSchema(catchallSchema, true))
+    )
+
+    const fieldsSchemaFrom = (body: unknown) => {
+      const inputSchema = (body as { tools: Array<{ input_schema: Record<string, unknown> }> }).tools[0].input_schema
+      const data = (inputSchema.properties as Record<string, { properties: Record<string, unknown> }>).data
+      return {
+        additionalProperties: inputSchema.additionalProperties,
+        fields: data.properties.fields as { additionalProperties?: unknown }
+      }
+    }
+
+    const nonStrictSchema = fieldsSchemaFrom(nonStrictRequest.body)
+    expect(nonStrictSchema.fields.additionalProperties).toEqual({})
+    expect(nonStrictSchema.additionalProperties).toBe(false)
+    expect(fieldsSchemaFrom(strictRequest.body).fields.additionalProperties).toBe(false)
+    expect(fieldsSchemaFrom(unsupportedStrictRequest.body).fields.additionalProperties).toEqual({})
+    expect((unsupportedStrictRequest.body as { tools: Array<{ strict?: boolean }> }).tools[0].strict).toBeUndefined()
   })
 
   // `tool_invoke` carries an open `params` object (additionalProperties:true) so the model can pass

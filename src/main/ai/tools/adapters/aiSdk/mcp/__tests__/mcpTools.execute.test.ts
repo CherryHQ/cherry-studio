@@ -35,14 +35,19 @@ vi.mock('@main/data/services/McpServerService', () => ({
 // Import AFTER vi.mock so the mocks bind correctly.
 const { syncMcpToolsToRegistry } = await import('../mcpTools')
 
-function mcpTool(serverId: string, name: string, description = '') {
+function mcpTool(
+  serverId: string,
+  name: string,
+  description = '',
+  inputSchema: Record<string, unknown> = { type: 'object', properties: {} }
+) {
   return {
     id: `mcp__${serverId}__${name}`,
     serverId,
     serverName: serverId,
     name,
     description,
-    inputSchema: { type: 'object', properties: {} }
+    inputSchema
   }
 }
 
@@ -51,9 +56,12 @@ function activeServer(id: string, disabledAutoApproveTools: string[] = []) {
 }
 
 /** Register a single tool via the production sync path and return its SDK execute fn. */
-async function registerToolExecute(reg: ToolRegistry) {
+async function registerToolExecute(
+  reg: ToolRegistry,
+  inputSchema: Record<string, unknown> = { type: 'object', properties: {} }
+) {
   list.mockReturnValue({ items: [activeServer('s1')] })
-  listTools.mockReturnValue([mcpTool('s1', 't')])
+  listTools.mockReturnValue([mcpTool('s1', 't', '', inputSchema)])
   await syncMcpToolsToRegistry(reg)
   const entry = reg.getByName('mcp__s1__t')
   if (!entry) throw new Error('expected mcp__s1__t to be registered')
@@ -123,6 +131,34 @@ describe('mcpTools execute wrapper', () => {
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
+  })
+
+  it('forwards catchall field values unchanged to the MCP runtime', async () => {
+    const reg = new ToolRegistry()
+    const execute = await registerToolExecute(reg, {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            fields: { type: 'object', properties: {}, additionalProperties: {} }
+          }
+        }
+      }
+    })
+    const args = { data: { fields: { Title: 'Quarterly plan', Count: 3 } } }
+
+    getById.mockReturnValue(activeServer('s1'))
+    callTool.mockResolvedValue({ isError: false, content: [{ type: 'text', text: 'ok' }] } as McpCallToolResponse)
+
+    await execute(args, { toolCallId: 'call-catchall' } as any)
+
+    expect(callTool).toHaveBeenCalledExactlyOnceWith({
+      serverId: 's1',
+      name: 't',
+      args,
+      callId: 'call-catchall'
+    })
   })
 
   it('executes the explicitly selected server when display names normalize alike', async () => {
