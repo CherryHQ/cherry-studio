@@ -65,6 +65,15 @@ const { fake } = vi.hoisted(() => {
       }
       branches.delete(key)
     },
+    cancelBranch(executionId: string, anchorMessageId?: string) {
+      const b = branches.get(keyOf(executionId, anchorMessageId))
+      if (b) b.closed = true
+      try {
+        b?.controller.error()
+      } catch {
+        /* already closed */
+      }
+    },
     onExecutionTerminal(cb: (id: string, t: ExecutionTerminal) => void) {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)

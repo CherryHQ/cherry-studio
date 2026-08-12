@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     readonly terminalCbs = new Set<TerminalCb>()
     readonly retirementCbs = new Set<RetirementCb>()
     readonly topicStateCbs = new Set<() => void>()
+    readonly cancelledBranchKeys: string[] = []
     listenCalls = 0
     disposed = false
     topicOpen = false
@@ -111,6 +112,15 @@ const mocks = vi.hoisted(() => {
       }
       this.branches.delete(key)
       this.terminalByKey.delete(key)
+    }
+
+    cancelBranch(executionId: string, anchorMessageId?: string, attemptId?: number) {
+      const key = this.#key(executionId, anchorMessageId, attemptId)
+      this.cancelledBranchKeys.push(key)
+      const branch = this.branches.get(key)
+      if (!branch || branch.closed) return
+      branch.closed = true
+      branch.controller.error()
     }
 
     onExecutionTerminal(cb: TerminalCb) {
@@ -408,6 +418,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     expect(onFinish).toHaveBeenCalledTimes(1)
     expect(onFinish).toHaveBeenCalledWith(B, expect.objectContaining({ attemptId: 2, isError: false }))
+    expect(sub.cancelledBranchKeys).toEqual([JSON.stringify([A, 'anchor-a', 1])])
 
     service.syncExecutions(TOPIC, consumer, [], seed)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], seed)

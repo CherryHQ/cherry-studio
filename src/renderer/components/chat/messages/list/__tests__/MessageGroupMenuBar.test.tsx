@@ -8,7 +8,8 @@ import MessageGroupMenuBar from '../MessageGroupMenuBar'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
-  partsMap: {} as Record<string, Array<{ type: string; [key: string]: unknown }>>
+  partsMap: {} as Record<string, Array<{ type: string; [key: string]: unknown }>>,
+  t: vi.fn((...args: [key: string, options?: unknown]) => args[0])
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -25,7 +26,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: mocks.t
   })
 }))
 
@@ -68,6 +69,7 @@ describe('MessageGroupMenuBar', () => {
   beforeEach(() => {
     mocks.actions = {}
     mocks.partsMap = {}
+    mocks.t.mockClear()
   })
 
   it('routes group deletion through confirm capability', () => {
@@ -226,5 +228,6 @@ describe('MessageGroupMenuBar', () => {
 
     expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
     expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
+    expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 2 })
   })
 })

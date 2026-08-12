@@ -558,6 +558,7 @@ export class ExecutionStreamOverlayService {
       anchorMessageId,
       cancel: () => {
         cancelled = true
+        entry.sub.cancelBranch(executionId, anchorMessageId, attemptId)
       },
       unregister: () => {
         offTerminal()
@@ -574,9 +575,11 @@ export class ExecutionStreamOverlayService {
           stream: branch,
           message: seed,
           terminateOnError: false,
-          onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
+          onError: (err) => {
+            if (!cancelled) logger.warn('readUIMessageStream error', { topicId, executionId, err })
+          }
         })) {
-          if (cancelled) continue
+          if (cancelled) break
           const sharedParts = shareSettledPartReferences(
             last?.parts as CherryMessagePart[] | undefined,
             snapshot.parts as CherryMessagePart[]

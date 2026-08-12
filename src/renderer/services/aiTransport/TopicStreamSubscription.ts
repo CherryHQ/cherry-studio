@@ -138,6 +138,17 @@ export class TopicStreamSubscription {
     }
   }
 
+  cancelBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): void {
+    const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
+    if (!branch || branch.closed) return
+    branch.closed = true
+    try {
+      branch.controller?.error()
+    } catch {
+      // already closed/errored — fine
+    }
+  }
+
   onExecutionTerminal(listener: TerminalListener): () => void {
     this.#terminalListeners.add(listener)
     for (const { executionId, terminal } of this.#terminalByBranchKey.values()) {
@@ -183,10 +194,7 @@ export class TopicStreamSubscription {
     let branch = this.#branches.get(key)
     if (!branch) {
       branch = createBranch(executionId, anchorMessageId, attemptId)
-      if (
-        this.#terminalFor(executionId, anchorMessageId, attemptId) ||
-        (this.#terminalAttemptWatermark !== undefined && attemptId <= this.#terminalAttemptWatermark)
-      ) {
+      if (this.#isBranchSettled(executionId, anchorMessageId, attemptId)) {
         this.#closeBranch(branch)
         return branch
       }
@@ -201,6 +209,13 @@ export class TopicStreamSubscription {
     attemptId: number
   ): ExecutionTerminal | undefined {
     return this.#terminalByBranchKey.get(branchKey(executionId, anchorMessageId, attemptId))?.terminal
+  }
+
+  #isBranchSettled(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): boolean {
+    return (
+      this.#terminalFor(executionId, anchorMessageId, attemptId) !== undefined ||
+      (this.#terminalAttemptWatermark !== undefined && attemptId <= this.#terminalAttemptWatermark)
+    )
   }
 
   #closeBranch(branch: Branch): void {
@@ -224,6 +239,7 @@ export class TopicStreamSubscription {
       })
       return
     }
+    if (this.#isBranchSettled(executionId, payload.anchorMessageId, attemptId)) return
     const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
     if (!branch.closed) branch.controller?.enqueue(payload.chunk)
   }
