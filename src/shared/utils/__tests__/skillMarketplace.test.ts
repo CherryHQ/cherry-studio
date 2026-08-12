@@ -35,11 +35,13 @@ describe('parseGithubSkillUrl', () => {
     expect(parseGithubSkillUrl(url)).toBeNull()
   })
 
-  it('returns null for malformed percent-encoding instead of throwing', () => {
-    // `new URL` accepts a lone `%`; decoding it throws. Callers validate input during render, so a
-    // raised URIError would replace the inline error with a crash.
-    expect(() => parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/%/SKILL.md')).not.toThrow()
-    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/%/SKILL.md')).toBeNull()
+  // `new URL` accepts every one of these; decoding them throws. Callers validate input during
+  // render, so a raised URIError would replace the inline error with a crash.
+  it.each(['%', '%ZZ', '%E0%A4%A'])('returns null for malformed percent-encoding (%s) instead of throwing', (bad) => {
+    const url = `https://github.com/o/r/blob/main/skills/${bad}/SKILL.md`
+
+    expect(() => parseGithubSkillUrl(url)).not.toThrow()
+    expect(parseGithubSkillUrl(url)).toBeNull()
   })
 
   it('decodes escaped directory names', () => {
