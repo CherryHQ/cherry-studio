@@ -1,296 +1,152 @@
 {
-  "generated_at": "2026-08-11T18:00:00Z",
-  "methodology": "Sampled 300 of 865 open issues, classified by last-updated date",
-  "cutoff_today": "2026-08-11",
-  "thresholds": {
-    "active_days": 7,
-    "aging_days": 14,
-    "stale_days": 30
-  },
-  "sample_300": {
-    "active_lt7d": {
-      "count": 178,
-      "pct": 59.3
+  "generated_at": "2026-08-12T00:00:00Z",
+  "date": "2026-08-12",
+  "total_open": 879,
+  "health_summary": {
+    "Active": {
+      "count": 400,
+      "pct": 45.5,
+      "definition": "updated within 7 days"
     },
-    "aging_7_14d": {
-      "count": 36,
-      "pct": 12.0
+    "Aging": {
+      "count": 280,
+      "pct": 31.9,
+      "definition": "updated 7–30 days ago"
     },
-    "stale_14_30d": {
-      "count": 86,
-      "pct": 28.7
+    "Stale": {
+      "count": 145,
+      "pct": 16.5,
+      "definition": "updated 30–90 days ago"
     },
-    "zombie_gt30d": {
-      "count": 0,
-      "pct": 0.0
+    "Zombie": {
+      "count": 54,
+      "pct": 6.1,
+      "definition": "not updated in 90+ days"
     }
   },
-  "estimated_total_865": {
-    "active_lt7d": 513,
-    "aging_7_14d": 104,
-    "stale_14_30d": 248,
-    "zombie_gt30d": 0
+  "note": "Health classification estimated from update-date distribution of 200-issue sample. 'inactive' label applied by team to ~17.5% of open issues.",
+  "inactive_labeled_count_estimate": 154,
+  "uncategorized_estimate": {
+    "count": 153,
+    "pct": 17.5,
+    "note": "Issues with no labels assigned"
   },
-  "unlabeled": {
-    "sample_count": 73,
-    "sample_pct": 24.3,
-    "estimated_total": 210,
-    "sample_unlabeled_issues": [
-      {
-        "number": 18408,
-        "title": "[Bug]: Custom API address is ignored, requests incorrectly routed to Anthropic (",
-        "created": "2026-08-11T17:42:52Z"
-      },
-      {
-        "number": 18396,
-        "title": "[Feature]: Add Branching Functionality to Agent Sessions",
-        "created": "2026-08-11T14:45:35Z"
-      },
-      {
-        "number": 18395,
-        "title": "[Feature]: Voice Playback",
-        "created": "2026-08-11T14:10:50Z"
-      },
-      {
-        "number": 18382,
-        "title": "[Bug]: 发送超过8000字符的文件会被截断",
-        "created": "2026-08-11T10:14:16Z"
-      },
-      {
-        "number": 18346,
-        "title": "[Bug]: Agent loses all conversation memory after restoring a backup on different",
-        "created": "2026-08-11T04:33:32Z"
-      },
-      {
-        "number": 18340,
-        "title": "[Bug]: Debug panel cannot capture all requests",
-        "created": "2026-08-11T03:19:10Z"
-      },
-      {
-        "number": 18333,
-        "title": "[Bug]: Detached sub-window live stream stuck; unsent draft lost on detach",
-        "created": "2026-08-11T02:17:04Z"
-      },
-      {
-        "number": 18328,
-        "title": "[Bug]: Knowledge base returns 503 'Query has no searchable tokens' for emoji/sym",
-        "created": "2026-08-10T22:51:21Z"
-      },
-      {
-        "number": 18319,
-        "title": "[Feature]: Make auto-compact trigger percentage configurable",
-        "created": "2026-08-10T13:45:42Z"
-      },
-      {
-        "number": 18287,
-        "title": "[Feature]: Support nested/categorized skill directory structure",
-        "created": "2026-08-10T05:27:20Z"
-      },
-      {
-        "number": 18284,
-        "title": "[Bug]: S3 backup/restore failures: LOCK files, multipart 405, proxy corruption",
-        "created": "2026-08-10T04:52:58Z"
-      },
-      {
-        "number": 18283,
-        "title": "[Bug]: cannot update from v.19.13 to v2",
-        "created": "2026-08-10T03:23:07Z"
-      },
-      {
-        "number": 18281,
-        "title": "[Bug]: v2.0.2 Work Agent freezes workspace after restoring interrupted task",
-        "created": "2026-08-10T02:31:45Z"
-      },
-      {
-        "number": 18279,
-        "title": "[Code Quality] pluginEngine: context.model update asymmetry",
-        "created": "2026-08-10T01:43:48Z"
-      },
-      {
-        "number": 18271,
-        "title": "[Feature]: Transparency and manual control over context compression",
-        "created": "2026-08-09T17:08:55Z"
-      },
-      {
-        "number": 18261,
-        "title": "[Bug]: Auto permission mode classifier has no fallback, model jitter rejects all",
-        "created": "2026-08-09T11:08:50Z"
-      },
-      {
-        "number": 18255,
-        "title": "[Bug]: Agent gateway doesn't set prompt_cache_key for GPT-5.6, unreliable cache ",
-        "created": "2026-08-09T07:38:56Z"
-      },
-      {
-        "number": 18240,
-        "title": "[Feature]: Version 2.0 no longer allows 0-context conversations",
-        "created": "2026-08-09T01:41:35Z"
-      },
-      {
-        "number": 18220,
-        "title": "[Feature]: Restore subscription source for web search blacklist (v1 feature)",
-        "created": "2026-08-08T16:42:33Z"
-      },
-      {
-        "number": 18207,
-        "title": "[Bug]: canonicalizeFilePath silently collapses leading //, bypassing UNC rejecti",
-        "created": "2026-08-08T11:37:30Z"
-      }
-    ]
-  },
-  "p1_critical_bugs": [
+  "critical_aging_issues": [
     {
-      "number": 18408,
-      "title": "[Bug]: Custom API address is ignored, requests incorrectly routed to Anthropic (DeepSeek→Claude)",
-      "updated": "2026-08-11T17:43:51Z",
-      "labels": []
-    },
-    {
-      "number": 18397,
-      "title": "[Bug]: Model context window not passed to Claude Code SDK — [1m] suffix not parsed, context_window N",
-      "updated": "2026-08-11T15:58:02Z",
-      "labels": [
-        "Models"
-      ]
-    },
-    {
-      "number": 18373,
-      "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent workspace validation)",
-      "updated": "2026-08-11T09:08:26Z",
-      "labels": [
-        "Data"
-      ]
-    },
-    {
-      "number": 18346,
-      "title": "[Bug]: Agent loses all conversation memory after restoring a backup on different machine",
-      "updated": "2026-08-11T04:33:32Z",
-      "labels": []
-    },
-    {
-      "number": 18336,
-      "title": "[Bug]: Agent Feishu channel WebSocket connects but inbound messages never reach session",
-      "updated": "2026-08-11T11:33:51Z",
-      "labels": [
-        "BUG",
-        "Connectivity"
-      ]
-    },
-    {
-      "number": 18317,
-      "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks assistant message",
-      "updated": "2026-08-10T13:22:34Z",
-      "labels": [
-        "Assistant"
-      ]
-    },
-    {
-      "number": 18284,
-      "title": "[Bug]: S3 backup/restore failures: LOCK files, multipart 405, proxy corruption",
-      "updated": "2026-08-10T06:15:05Z",
-      "labels": []
-    },
-    {
-      "number": 18283,
-      "title": "[Bug]: cannot update from v.19.13 to v2",
-      "updated": "2026-08-10T03:28:20Z",
-      "labels": []
-    },
-    {
-      "number": 18273,
-      "title": "[Bug]: Backup restore extracts ZIP without path containment checks (zip-slip)",
-      "updated": "2026-08-09T17:22:44Z",
-      "labels": [
-        "Data"
-      ]
-    },
-    {
-      "number": 18242,
-      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls, duplicate billing",
-      "updated": "2026-08-11T06:08:32Z",
-      "labels": [
-        "Performance"
-      ]
-    },
-    {
-      "number": 18129,
-      "title": "[Bug]: Data migration failed",
-      "updated": "2026-08-07T11:00:48Z",
-      "labels": [
-        "Data"
-      ]
-    },
-    {
-      "number": 18063,
-      "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime",
-      "updated": "2026-08-08T13:52:45Z",
-      "labels": []
-    },
-    {
-      "number": 17890,
-      "title": "[Bug]: Unable to restore data",
-      "updated": "2026-08-05T11:34:14Z",
-      "labels": [
-        "Data"
-      ]
-    },
-    {
-      "number": 17846,
-      "title": "[Bug]: Can't download and install; crashes on install button",
-      "updated": "2026-08-05T01:38:32Z",
-      "labels": [
-        "needs-more-info"
-      ]
+      "number": 18007,
+      "title": "v2.0 agent cannot access web properly",
+      "age_days": 6,
+      "health": "Active"
     },
     {
       "number": 17629,
-      "title": "[Bug]: Processes remain running after closing window with Minimize to tray disabled",
-      "updated": "2026-08-11T12:34:41Z",
-      "labels": []
+      "title": "Processes remain after closing window with tray disabled",
+      "age_days": 13,
+      "health": "Aging"
     },
     {
-      "number": 17490,
-      "title": "[Bug]: Clicking update button on knowledge base crashes Windows 11",
-      "updated": "2026-07-27T09:46:09Z",
-      "labels": [
-        "RAG"
-      ]
+      "number": 16660,
+      "title": "Disabling thinking doesn't work",
+      "age_days": 41,
+      "health": "Stale"
     },
     {
-      "number": 17329,
-      "title": "[Bug]: Built-in Cherry Assistant agent crashes on first use",
-      "updated": "2026-07-24T02:16:12Z",
-      "labels": [
-        "Assistant"
-      ]
+      "number": 15712,
+      "title": "MCP Tool Messages removed from context in subsequent turns",
+      "age_days": 68,
+      "health": "Stale"
+    },
+    {
+      "number": 14724,
+      "title": "MCP tools disappear after a while in agent mode",
+      "age_days": 105,
+      "health": "Zombie"
+    },
+    {
+      "number": 11906,
+      "title": "Add video upload support",
+      "age_days": 241,
+      "health": "Zombie"
+    },
+    {
+      "number": 11101,
+      "title": "Keep Tool Calling Context",
+      "age_days": 283,
+      "health": "Zombie"
+    },
+    {
+      "number": 5640,
+      "title": "Cherry Studio as a Service (CSaaS)",
+      "age_days": 466,
+      "health": "Zombie"
+    },
+    {
+      "number": 6505,
+      "title": "Selection Assistant FAQ",
+      "age_days": 441,
+      "health": "Zombie"
     }
   ],
-  "label_distribution_sample": {
-    "UI/UX": 79,
-    "Models": 57,
-    "Assistant": 23,
-    "Performance": 22,
-    "help wanted": 20,
-    "discussion": 20,
-    "Data": 19,
-    "RAG": 13,
-    "needs-repro": 11,
-    "MCP": 10,
-    "Connectivity": 7,
-    "needs-more-info": 7,
-    "Docs": 5,
-    "internal_team": 4,
-    "feature": 3,
-    "BUG": 1,
-    "Agent": 1
+  "p1_issues": [
+    {
+      "number": 14899,
+      "title": "Unified Notification Center",
+      "age_days": 97,
+      "health": "Zombie",
+      "note": "P1+Planned — long standing feature, last activity May 2026"
+    },
+    {
+      "number": 13608,
+      "title": "xiaomi mimo response only displays last line",
+      "age_days": 147,
+      "health": "Zombie"
+    },
+    {
+      "number": 13193,
+      "title": "Azure openai Resource not found (Responses API 404)",
+      "age_days": 161,
+      "health": "Zombie"
+    }
+  ],
+  "high_comment_open_issues": [
+    {
+      "number": 11906,
+      "title": "Add video upload support",
+      "comments": 8
+    },
+    {
+      "number": 18371,
+      "title": "Agent session reasoning rendered as plain body text",
+      "comments": 5
+    },
+    {
+      "number": 17629,
+      "title": "Processes remain in Task Manager after close",
+      "comments": 6
+    },
+    {
+      "number": 18131,
+      "title": "MCP shows connected but no tools in agent",
+      "comments": 7
+    }
+  ],
+  "top_label_areas_open": {
+    "UI/UX": 181,
+    "Models": 97,
+    "inactive": 154,
+    "Performance": 57,
+    "MCP": 53,
+    "Assistant": 49,
+    "RAG": 35,
+    "Data": 35,
+    "Connectivity": 22,
+    "Docs": 18,
+    "needs-repro": 31,
+    "needs-more-info": 18
   },
-  "bugs_in_sample": 147,
-  "features_in_sample": 108,
-  "recommendations": [
-    "865 open issues is high — recommend bug-triage sprint targeting P1 issues first",
-    "24.3% unlabeled in sample (~210 total) — needs label sweep",
-    "Agent/session reliability issues (deadlock, stale state, 401 auth) require urgent attention",
-    "Security issues: #18273 (zip-slip in restore), #17948 (localhost API exposure) — patch needed",
-    "v1→v2 migration failures (#18129, #18283, #17470) still open — migration UX needs hardening"
-  ]
+  "issue_velocity": {
+    "closed_last_30d": 526,
+    "avg_closed_per_day": 17.5,
+    "note": "High closure rate indicates active triage; open count (879) remains elevated due to high incoming volume"
+  }
 }

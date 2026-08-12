@@ -1,279 +1,113 @@
 {
-  "generated_at": "2026-08-11T18:00:00Z",
-  "total_discussion_in_sample": 20,
-  "discussions": [
+  "generated_at": "2026-08-12T00:00:00Z",
+  "date": "2026-08-12",
+  "data_source": "Inferred from GitHub issues with 'discussion' label + issue trending topics",
+  "total_discussion_issues": {
+    "open": 28,
+    "description": "Issues labeled as [Discussion] or having 'discussion' label"
+  },
+  "hot_topics": [
     {
-      "number": 17954,
-      "title": "[Discussion]: v2.0 Why was conversation history limit removed from Edit Assistant→Model",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Assistant",
-        "Performance"
+      "topic": "v2 regression / missing v1 features",
+      "issue_count": 45,
+      "examples": [
+        "#18220 - Restore subscription source for web search blacklist",
+        "#18196 - Restore Regenerate Conversation button",
+        "#18195 - Restore Export to Phone option",
+        "#18099 - Restore Save Only when editing messages",
+        "#18299 - Why can't v2.x modify answers like v1.9.x?"
       ],
-      "created": "2026-08-05T21:15:41Z",
-      "updated": "2026-08-06T10:08:00Z",
-      "comments": 4
+      "severity": "high"
     },
     {
-      "number": 17907,
-      "title": "[Discussion]: Restore mini programs to display in sidebar like v1.x",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "UI/UX"
+      "topic": "Performance / streaming lag",
+      "issue_count": 25,
+      "examples": [
+        "#18466 - Topic branch selection refetches full tree twice",
+        "#18465 - Streaming snapshots rerender Home composer tree",
+        "#18437 - Deferred MCP tools reminder causes context overflow",
+        "#18356 - UI scrolling lag after 20k tokens",
+        "#18242 - Multiple redundant model calls without cache"
       ],
-      "created": "2026-08-05T09:57:59Z",
-      "updated": "2026-08-05T14:16:09Z",
-      "comments": 2
+      "severity": "high"
     },
     {
-      "number": 17432,
-      "title": "[Discussion]: Clarify regression coverage for AI SDK Agent stream trajectories",
-      "labels": [
-        "help wanted",
-        "discussion"
+      "topic": "Agent session issues",
+      "issue_count": 30,
+      "examples": [
+        "#18007 - v2.0 agent cannot access web properly",
+        "#18131 - MCP shows connected but agent has no tools",
+        "#18346 - Agent loses memory after backup restore on different machine",
+        "#18336 - Feishu channel WebSocket connects but messages never reach session"
       ],
-      "created": "2026-07-26T06:54:42Z",
-      "updated": "2026-07-26T07:43:34Z",
-      "comments": 2
+      "severity": "critical"
     },
+    {
+      "topic": "Data migration from v1 to v2",
+      "issue_count": 18,
+      "examples": [
+        "#18283 - Cannot update from v1.9.13 to v2",
+        "#18129 - Data migration failed",
+        "#18187 - Migrated v1 files with trailing-space extension unreadable in v2"
+      ],
+      "severity": "high"
+    },
+    {
+      "topic": "MCP integration bugs",
+      "issue_count": 22,
+      "examples": [
+        "#18464 - MCP settings eagerly fetch inactive capability tabs",
+        "#18463 - Hidden MCP logs rerender entire settings form",
+        "#18131 - MCP server shows connected but no tools in agent",
+        "#18228 - Built-in filesystem MCP grep completely fails"
+      ],
+      "severity": "high"
+    }
+  ],
+  "unresolved_discussions": [
     {
       "number": 18363,
-      "title": "[Discussion]: AiStreamManager stale terminal callback root cause",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-11T07:41:58Z",
-      "updated": "2026-08-11T17:15:55Z",
-      "comments": 1
+      "title": "AiStreamManager 状态机身份与ownership结构问题",
+      "upvotes": 0,
+      "answers": 0,
+      "age_days": 1
     },
     {
-      "number": 18299,
-      "title": "[Discussion]: Why can't v2.x modify an answer (v1.9.x can)?",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-10T08:30:15Z",
-      "updated": "2026-08-10T17:36:29Z",
-      "comments": 1
-    },
-    {
-      "number": 18069,
-      "title": "[Discussion]: V2 portable version starts very slowly",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Performance"
-      ],
-      "created": "2026-08-07T02:53:19Z",
-      "updated": "2026-08-07T03:50:03Z",
-      "comments": 1
-    },
-    {
-      "number": 17191,
-      "title": "[Discussion]: The knowledge base invocation window has disappeared",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "UI/UX"
-      ],
-      "created": "2026-07-20T11:42:43Z",
-      "updated": "2026-07-23T04:38:06Z",
-      "comments": 1
-    },
-    {
-      "number": 18362,
-      "title": "[Discussion]: Custom OpenAI Compatible Provider Fails to Send Authorization Header",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Connectivity",
-        "Models"
-      ],
-      "created": "2026-08-11T07:32:08Z",
-      "updated": "2026-08-11T07:34:13Z",
-      "comments": 0
+      "number": 17090,
+      "title": "Knowledge Base Networking Issue",
+      "upvotes": 0,
+      "answers": 0,
+      "age_days": 27
     },
     {
       "number": 18327,
-      "title": "[Discussion]: Token/s generation speed and TTFT display missing since v2.0",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "UI/UX"
-      ],
-      "created": "2026-08-10T18:29:06Z",
-      "updated": "2026-08-10T18:31:10Z",
-      "comments": 0
+      "title": "Token/s generation speed and TTFT display missing since v2.0",
+      "upvotes": 0,
+      "answers": 0,
+      "age_days": 2
     },
     {
-      "number": 18241,
-      "title": "[Discussion]: How to collapse thinking content without aggregating to summary",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "UI/UX"
-      ],
-      "created": "2026-08-09T01:44:30Z",
-      "updated": "2026-08-09T01:46:33Z",
-      "comments": 0
+      "number": 18299,
+      "title": "Why can't v2.x modify answers like v1.9.x?",
+      "upvotes": 0,
+      "answers": 0,
+      "age_days": 2
     },
     {
-      "number": 18134,
-      "title": "[Discussion]: Was using V1, V2 migration keeps failing",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-07T12:32:06Z",
-      "updated": "2026-08-07T12:32:26Z",
-      "comments": 0
-    },
-    {
-      "number": 18067,
-      "title": "[Discussion]: Can phonetic symbols be added to selection translation?",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-07T02:51:17Z",
-      "updated": "2026-08-07T02:56:17Z",
-      "comments": 0
-    },
-    {
-      "number": 17981,
-      "title": "[Discussion]: Consider adopting expert team concept from workbuddy",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-06T04:45:45Z",
-      "updated": "2026-08-06T04:46:04Z",
-      "comments": 0
-    },
-    {
-      "number": 17961,
-      "title": "[Discussion]: Add platform prefix to release asset filenames",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-08-06T00:58:22Z",
-      "updated": "2026-08-06T00:58:22Z",
-      "comments": 0
-    },
-    {
-      "number": 17847,
-      "title": "[Discussion]: Reconnect on Failure",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Connectivity"
-      ],
-      "created": "2026-08-05T02:22:19Z",
-      "updated": "2026-08-05T02:24:22Z",
-      "comments": 0
-    },
-    {
-      "number": 17649,
-      "title": "[Discussion]: Should JobManager support cooperative safe points for backup quiescence?",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-07-30T08:23:29Z",
-      "updated": "2026-07-30T08:23:29Z",
-      "comments": 0
-    },
-    {
-      "number": 17389,
-      "title": "[Discussion]: Which sources may declare FileEntry reference?",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Data"
-      ],
-      "created": "2026-07-25T07:25:20Z",
-      "updated": "2026-07-25T07:50:57Z",
-      "comments": 0
-    },
-    {
-      "number": 17330,
-      "title": "[Discussion]: Define Agent system workspace directory lifecycle contract",
-      "labels": [
-        "Docs",
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-07-24T02:29:04Z",
-      "updated": "2026-07-24T02:31:09Z",
-      "comments": 0
-    },
-    {
-      "number": 17271,
-      "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "RAG",
-        "Assistant"
-      ],
-      "created": "2026-07-22T09:05:01Z",
-      "updated": "2026-07-22T09:07:13Z",
-      "comments": 0
-    },
-    {
-      "number": 17183,
-      "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ],
-      "created": "2026-07-20T03:47:05Z",
-      "updated": "2026-07-20T03:47:05Z",
-      "comments": 0
+      "number": 18362,
+      "title": "Custom OpenAI Provider Fails to Send Authorization Header",
+      "upvotes": 0,
+      "answers": 0,
+      "age_days": 1
     }
   ],
-  "themes": {
-    "v2_regressions": "Multiple discussions about v1→v2 feature regressions (history limit, mini programs, topic prompts, subscription sources)",
-    "agent_reliability": "Agent session stability, state machine ownership, and context management",
-    "performance": "Slow startup (portable), UI lag, redundant model calls",
-    "knowledge_base": "KB invocation, agent-KB connection, file ref handling",
-    "migration": "v1→v2 migration failures, schema drift, workspace root issues"
-  },
-  "top_engagement_discussions": [
-    {
-      "n": 17954,
-      "title": "v2.0 conversation history limit removed",
-      "comments": 4
-    },
-    {
-      "n": 17689,
-      "title": "MCP stdio server process leak",
-      "comments": 4
-    },
-    {
-      "n": 17629,
-      "title": "Processes remain after closing window",
-      "comments": 6
-    },
-    {
-      "n": 17485,
-      "title": "JavaScript error in main process",
-      "comments": 6
-    },
-    {
-      "n": 18298,
-      "title": "Knowledge Base Repeatedly Invoked on Every Request",
-      "comments": 2
-    },
-    {
-      "n": 18363,
-      "title": "AiStreamManager stale terminal callback root cause",
-      "comments": 1
-    }
-  ]
+  "newly_filed_today": {
+    "count": 8,
+    "highest_number": 18484,
+    "categories": [
+      "UI/UX regression",
+      "Performance",
+      "Models"
+    ]
+  }
 }

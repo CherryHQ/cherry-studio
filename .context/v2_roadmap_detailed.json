@@ -1,121 +1,172 @@
 {
-  "generated_at": "2026-08-11T18:00:00Z",
-  "v2_status": "active_development",
-  "current_version": "v2.0.3 (released, main branch)",
-  "branch_strategy": "main branch is v2 active development; v1 maintenance on 'v1' branch",
-  "open_prs_targeting_v2_branch": 0,
-  "open_prs_targeting_main": 100,
-  "merged_prs_today_aug11": 38,
-  "merged_prs_today_sample": [
-    "fix(doubao): normalize missing Responses annotations (#18392)",
-    "fix(system-ocr): transcode non-PNG images to PNG on Windows (#18361)",
-    "feat(agent-composer): support folder mentions (#18342)",
-    "fix(claude-code-runtime): budget auto-compaction against real request (#18338)",
-    "fix(window-manager): hide Dock icon on close-to-tray (#18366→#18186)",
-    "fix(tool-approval): advance multiple permission requests (#18312)",
-    "fix(image-viewer): bake rotation/flip into saved image (#18322)",
-    "feat(qq-channel): handle GROUP_MESSAGE_CREATE event (#18152)",
-    "fix(painting): keep size controls clear of nearby content (#18360)",
-    "fix(agent-session): discard crashed sessions resume tokens at boot reconcile (#18289)",
-    "fix(ai-stream): keep overflowed replay parseable after ring eviction (#18295)",
-    "fix(mcp-settings): allow copying MCP logs (#18249)",
-    "feat(api-gateway): add opt-in MCP sessions with server-to-client push (#18094)",
-    "feat(api-gateway): restore MCP-over-HTTP endpoints (#18080)",
-    "fix(agent-jobs): allow bounded scheduled task concurrency (#18355)"
-  ],
-  "key_areas_in_flight": {
-    "agent_reliability": {
-      "status": "active",
-      "open_issues": [
-        18317,
-        18336,
-        18363,
-        17587,
-        17486,
-        17485
-      ],
-      "description": "Agent session deadlocks, stale state machine, replay ring overflow, 401 auth failures"
+  "generated_at": "2026-08-12T00:00:00Z",
+  "date": "2026-08-12",
+  "v2_release_status": {
+    "current_version": "v2.0.3",
+    "status": "active_development",
+    "branch_model": "v2 dev branch merged to main; all new work targets main",
+    "v1_branch": "maintained for hotfixes only"
+  },
+  "v2_open_prs_targeting_v2": 0,
+  "v2_open_prs_targeting_main": "200+",
+  "v1_hotfix_open_prs": [
+    {
+      "number": 18247,
+      "title": "fix(notes): prevent deleted note from being recreated by pending autosave",
+      "author": "404-Page-Found"
     },
-    "knowledge_rag": {
-      "status": "active",
-      "open_issues": [
-        18232,
-        18267,
-        18298,
-        17689,
-        17141,
-        17170
-      ],
-      "description": "Embedding model mismatches, KB not updating on source change, redundant invocations, Windows tokenizer failure"
+    {
+      "number": 17715,
+      "title": "fix(chat): scroll to top correctly",
+      "author": "404-Page-Found"
     },
-    "migration_v1_to_v2": {
-      "status": "ongoing",
-      "open_issues": [
-        18129,
-        18283,
-        17470,
-        18187,
-        17695,
-        17709
-      ],
-      "description": "Schema drift, workspace root staleness, file ref GC issues, RC users migrated entries"
-    },
-    "security_and_data": {
-      "status": "needs_triage",
-      "open_issues": [
-        18273,
-        17948,
-        18207,
-        18206
-      ],
-      "description": "Zip-slip in backup restore, localhost API exposure, file URI security issues"
-    },
-    "performance": {
-      "status": "active",
-      "open_issues": [
-        18356,
-        17689,
-        18242,
-        17316,
-        17504
-      ],
-      "description": "20k-token scroll lag, MCP process leak, redundant model calls causing duplicate billing"
-    },
-    "mcp_expansion": {
-      "status": "active",
-      "recent_merges": [
-        "feat(api-gateway): add opt-in MCP sessions (#18094)",
-        "feat(api-gateway): restore MCP-over-HTTP endpoints (#18080)"
-      ],
-      "open_issues": [
-        18228,
-        17688,
-        17362,
-        17689
-      ],
-      "description": "MCP proxy/HTTP endpoints, process leak, grep failures"
-    },
-    "ui_regressions_from_v1": {
-      "status": "active",
-      "open_issues": [
-        18196,
-        18195,
-        18099,
-        17949,
-        17923,
-        18327
-      ],
-      "description": "Regenerate button, Export to Phone, Save only, topic prompt management, token/s display, mini programs"
+    {
+      "number": 17743,
+      "title": "fix(mcp): repair stale auto-install package args",
+      "author": "404-Page-Found"
     }
+  ],
+  "recently_merged_v2_prs_historical": {
+    "note": "v2 development branch was the pre-release track. Selected recent merges to main (post-v2.0.0):",
+    "sample": [
+      "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
+      "feat(settings): redesign settings navigation",
+      "refactor(knowledge): knowledge workflow jobs round2",
+      "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination",
+      "refactor(notes): migrate notes UI and data to v2",
+      "feat(translate): refresh translate page and shared drawer composition"
+    ]
   },
-  "velocity_estimate": {
-    "merges_aug11": 38,
-    "note": "High merge velocity today — 35+ PRs merged Aug 11 alone, many fixing v2.0.3 regressions"
+  "active_feature_areas": [
+    {
+      "area": "Performance",
+      "issues": [
+        "#18466 - Topic branch selection refetches full tree twice",
+        "#18465 - Streaming snapshots rerender Home composer tree",
+        "#18464 - MCP settings eagerly fetch inactive capability tabs",
+        "#18463 - Hidden MCP logs rerender entire settings form",
+        "#16478 - Lazy load markdown/math/mermaid rendering",
+        "#18356 - UI scrolling lag after 20k tokens"
+      ],
+      "open_count": 12,
+      "priority": "high"
+    },
+    {
+      "area": "Agent/MCP",
+      "issues": [
+        "#18007 - v2.0 agent cannot access web properly",
+        "#18131 - MCP shows connected but no tools in agent",
+        "#18437 - Deferred MCP tools reminder causes context overflow",
+        "#18336 - Feishu channel WebSocket inbound messages lost",
+        "#18463 - Hidden MCP logs rerender settings form",
+        "#15712 - MCP Tool Messages removed from context in subsequent turns"
+      ],
+      "open_count": 28,
+      "priority": "critical"
+    },
+    {
+      "area": "Data / Migration",
+      "issues": [
+        "#18373 - Data directory relocation leaves stale absolute paths",
+        "#18273 - Backup restore has zip-slip vulnerability",
+        "#18284 - S3 backup/restore failures",
+        "#18272 - Knowledge material filenames not sanitized (zip-slip on restore)",
+        "#18187 - Migrated v1 files with trailing-space extension unreadable",
+        "#18129 - Data migration failed"
+      ],
+      "open_count": 15,
+      "priority": "high"
+    },
+    {
+      "area": "Models / API",
+      "issues": [
+        "#18408 - Custom API address ignored, routed to Anthropic",
+        "#18399 - Regenerate fails to use currently selected model",
+        "#18341 - DeepSeek cannot accept/drop reasoning_effort",
+        "#18323 - Image panel hardcodes response_format, causes 400",
+        "#18150 - DeepSeek V4 Flash 0731 triggers errors",
+        "#18149 - Vertex AI Service Account always returns 404 in v2.0.2"
+      ],
+      "open_count": 22,
+      "priority": "high"
+    },
+    {
+      "area": "UI/UX Regressions from v1",
+      "issues": [
+        "#18220 - Restore subscription source for web search blacklist",
+        "#18196 - Restore Regenerate Conversation button",
+        "#18195 - Restore Export to Phone in Settings",
+        "#18099 - Restore Save Only when editing messages",
+        "#18484 - AI responses cannot be uniformly edited & saved",
+        "#18483 - Branch feature truncates instead of branching",
+        "#18474 - Code blocks not rendered during streaming",
+        "#18457 - Collapse Thinking still collapses when disabled"
+      ],
+      "open_count": 35,
+      "priority": "high"
+    },
+    {
+      "area": "RAG / Knowledge Base",
+      "issues": [
+        "#18298 - Knowledge base repeatedly invoked on every request",
+        "#18232 - Knowledge search 404 when embedding model diverges from UI",
+        "#18267 - Knowledge base doesn't update when source files change",
+        "#18442 - Request support for jpg/bmp/Office formats in KB",
+        "#17002 - Cannot add knowledge base"
+      ],
+      "open_count": 12,
+      "priority": "medium"
+    }
+  ],
+  "planned_features": [
+    {
+      "number": 14899,
+      "title": "Unified Notification Center",
+      "labels": [
+        "P1",
+        "Planned"
+      ],
+      "status": "planned"
+    },
+    {
+      "number": 11906,
+      "title": "Add video upload support",
+      "labels": [
+        "Planned",
+        "feature"
+      ],
+      "status": "planned"
+    },
+    {
+      "number": 12786,
+      "title": "Context progress indicator (token usage bar)",
+      "labels": [
+        "Planned",
+        "v2",
+        "UI/UX"
+      ],
+      "status": "likely_shipped_v2"
+    }
+  ],
+  "pr_velocity": {
+    "merged_last_30d": 93,
+    "avg_per_day": 3.1,
+    "open_prs": "200+",
+    "drafts": 3,
+    "note": "High merge velocity; most PRs target main (v2.x)"
   },
-  "blockers": [
-    "Agent session state machine reliability (root cause not yet addressed per #18363)",
-    "v1→v2 data migration failures still reported by users (#18129, #18283)",
-    "Security: zip-slip in backup restore (#18273) and localhost exposure (#17948) need patches",
-    "Compaction trigger token counting wrong for non-GPT tokenizers (#18351) causing silent data loss risk"
-  ]
+  "release_notes_signals": {
+    "recent_bugfixes_shipped": [
+      "v2.0.3 released with multiple agent/performance fixes",
+      "MCP tool context handling improvements",
+      "File manager and knowledge base refactors",
+      "Settings navigation redesign"
+    ],
+    "next_release_candidates": [
+      "Performance: reduce redundant re-renders (DeJeune's batch #18463-18467)",
+      "Agent reasoning display regression fix (#18371)",
+      "AI message edit regression (#18484, #18243)",
+      "Zip-slip security fix (#18273)"
+    ]
+  }
 }
