@@ -20,6 +20,13 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
+const commandResolverMock = vi.hoisted(() => ({
+  findExecutableInEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+}))
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutableInEnv: commandResolverMock.findExecutableInEnv
+}))
+
 // Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
 // a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
 const mcpSdkMock = vi.hoisted(() => {
