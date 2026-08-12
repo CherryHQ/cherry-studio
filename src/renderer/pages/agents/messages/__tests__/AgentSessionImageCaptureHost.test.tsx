@@ -1,14 +1,17 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const messageListProviderMock = vi.hoisted(() => vi.fn(() => ({}) as MessageListProviderValue))
 const messageCaptureMessagesMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    messages: [],
-    partsByMessageId: {}
-  }))
+  vi.fn((options: { loadMessages: () => Promise<unknown[]> }) => {
+    void options
+    return {
+      messages: [],
+      partsByMessageId: {}
+    }
+  })
 )
 const messageCaptureHostMock = vi.hoisted(() => vi.fn())
 const exportServiceMocks = vi.hoisted(() => ({
@@ -44,6 +47,10 @@ vi.mock('../agentMessageListAdapter', () => ({
 const { default: AgentSessionImageCaptureHost } = await import('../AgentSessionImageCaptureHost')
 
 describe('AgentSessionImageCaptureHost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('uses the session export title for offscreen image capture', () => {
     const session = {
       id: 'session-a',
@@ -75,5 +82,36 @@ describe('AgentSessionImageCaptureHost', () => {
         testId: 'agent-session-image-capture-host'
       })
     )
+  })
+
+  it('keeps the initial capture input stable while parent data references refresh', async () => {
+    const session = {
+      id: 'session-a',
+      agentId: 'agent-a',
+      name: 'Initial',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    } as AgentSessionEntity
+    const modelFallback = {
+      id: 'model-a',
+      name: 'Model A',
+      provider: 'provider-a'
+    }
+    exportServiceMocks.getAgentSessionMessagesForExport.mockResolvedValue([])
+
+    const view = render(<AgentSessionImageCaptureHost modelFallback={modelFallback} session={session} />)
+    const initialLoadMessages = messageCaptureMessagesMock.mock.calls.at(-1)?.[0].loadMessages
+
+    view.rerender(
+      <AgentSessionImageCaptureHost
+        modelFallback={{ ...modelFallback }}
+        session={{ ...session, name: 'Refreshed object' }}
+      />
+    )
+    const refreshedLoadMessages = messageCaptureMessagesMock.mock.calls.at(-1)?.[0].loadMessages
+
+    expect(refreshedLoadMessages).toBe(initialLoadMessages)
+    await refreshedLoadMessages?.()
+    expect(exportServiceMocks.getAgentSessionMessagesForExport).toHaveBeenCalledWith(session, { modelFallback })
   })
 })

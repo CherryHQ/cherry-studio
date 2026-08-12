@@ -18,6 +18,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
+    presentation: 'stream' as const,
     resolve,
     ...overrides
   }
@@ -36,7 +37,8 @@ describe('ToolApprovalRegistry', () => {
 
     expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toEqual({
       sessionId: 's1',
-      toolCallId: 'tc1'
+      toolCallId: 'tc1',
+      presentation: 'stream'
     })
     await expect(result).resolves.toEqual({ behavior: 'allow', updatedInput: { cmd: 'ls' } })
     expect(toolApprovalRegistry.size()).toBe(0)

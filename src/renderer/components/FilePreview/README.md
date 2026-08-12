@@ -1,15 +1,15 @@
 # FilePreview
 
-`FilePreview` is a read-only preview host for local files. Callers provide a file path and decide where the preview appears. The matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy; the matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
 
-The built-in plugins currently support images, PDF, Word (`.docx`), PowerPoint (`.pptx`), Markdown, and
-text/source files.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
-- Accept local absolute `FilePath` values only. POSIX and Windows paths are supported.
+- Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.
 - Do not pass relative paths, `file://` URLs, HTTP URLs, Base64 values, or in-memory data.
 - `FilePreview` lexically normalizes the path before resolving a plugin. It does not resolve symlinks or call `realpath`.
+- `FilePreview` calls `getMetadata` before selecting a plugin. Directories and inaccessible paths never reach a file plugin.
 - When a path comes from IPC or another untyped string source, validate it with `normalizeFilePreviewPath`. Do not bypass runtime validation with a type assertion.
 
 ```ts
@@ -25,12 +25,12 @@ Import `FilePreview` from the module root and place it in a parent with a define
 ```tsx
 import { Button } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { useTranslation } from 'react-i18next'
 
 interface FileDetailsProps {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   onBack: () => void
   refreshKey?: number
 }
@@ -60,6 +60,15 @@ The embedded host owns page-level interactions such as back, close, and file sel
 on the left and portals the active plugin toolbar to the right. Do not pass format controls through `header` or add
 `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
 
+Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
+stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
+so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
+transforms.
+
+All other callers default to `type="file"`. That type treats local HTML as untrusted, renders it with the
+script-less sandbox and strict CSP, and keeps the plugin-owned preview/source switch. Do not mark an arbitrary local
+file as an artifact merely to enable scripts.
+
 ## Tab Preview
 
 Use `useOpenFilePreviewTab` below `TabsProvider`. The hook normalizes the path, creates a URL-encoded `/app/file-preview?path=...` target, and uses the cross-platform basename as the tab title.
@@ -67,10 +76,10 @@ Use `useOpenFilePreviewTab` below `TabsProvider`. The hook normalizes the path, 
 ```tsx
 import { Button } from '@cherrystudio/ui'
 import { useOpenFilePreviewTab } from '@renderer/components/FilePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { useTranslation } from 'react-i18next'
 
-export function OpenPreviewButton({ filePath }: { filePath: FilePath }) {
+export function OpenPreviewButton({ filePath }: { filePath: AbsoluteFilePath }) {
   const { t } = useTranslation()
   const openFilePreviewTab = useOpenFilePreviewTab()
 
@@ -115,13 +124,15 @@ Descriptor rules:
 - `load` must resolve to a module with a default React component export. Keep large rendering libraries inside the lazy module rather than the descriptor.
 - The registry is static configuration. There is no runtime registration, priority, or caller override API.
 
-The plugin component receives the normalized path, extracted filename, and a required refresh key:
+The plugin component receives the normalized path, extracted filename, preflighted file metadata, and a required refresh key:
 
 ```ts
 interface FilePreviewPluginProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   fileName: string
+  metadata: FilePreviewFileMetadata
   refreshKey: number
+  type?: 'artifact' | 'file'
 }
 ```
 
@@ -132,7 +143,7 @@ import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { ExampleFilePreviewToolbar } from './ExampleFilePreviewToolbar'
 
-export default function ExampleFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function ExampleFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   // Load in an effect that depends on filePath and refreshKey. The plugin owns
   // file loading, view state, and toolbar actions here.
 
@@ -140,7 +151,7 @@ export default function ExampleFilePreview({ filePath, fileName, refreshKey }: F
     <FilePreviewLayout.Frame>
       <ExampleFilePreviewToolbar disabled={false} />
       <FilePreviewLayout.Content>
-        <div>{fileName}</div>
+        <div>{fileName} ({metadata.size} bytes)</div>
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )
@@ -157,7 +168,8 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: `filePath`, optional `header`, and optional `refreshKey`. Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, and optional `type`.
+Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -166,6 +178,9 @@ Keep the public `FilePreview` props minimal: `filePath`, optional `header`, and 
 - Keep the renderer and file-loading lifecycle inside the plugin directory. Do not wrap an existing page or legacy preview panel; migrate that caller to `FilePreview` later instead of coupling the new plugin back to it.
 - Represent mutually exclusive plugin views with an explicit union such as `'preview' | 'source'`, not several interacting booleans.
 - Keep plugin capabilities inside the plugin. Do not expose a toolbar slot to callers or make calling pages manage format-specific state.
+- `type="file"` is the default for arbitrary paths and must keep untrusted HTML script-less.
+- Use `type="artifact"` only for a development-artifact surface that intentionally runs generated HTML and owns the
+  source/edit experience. Plugins without an artifact-specific policy ignore it; their format controls remain visible.
 - Treat `header` as host-owned navigation and identity content only. When it is absent, the plugin toolbar remains
   centered in its own row for Tab and standalone previews.
 
@@ -173,10 +188,31 @@ This composition lets the same plugin work in embedded and tab hosts without for
 
 ## File I/O, States, and Errors
 
-- Plugins read files through `window.api`. Use `window.api.fs.readText` for text and `window.api.fs.read` for binary data.
-- When a plugin needs metadata or a size guard before reading, use the file IPC API with `createFilePathHandle(filePath)`.
+- Opening surfaces should classify a clicked path before choosing UI: open directories in the file browser without a preview selection; send concrete files to `FilePreview`; let missing or inaccessible file selections reach `FilePreview` so it can show the unavailable state.
+- `FilePreview` uses this routing model:
+
+| Target | Preview decision | Result |
+| --- | --- | --- |
+| Directory | No file plugin | File-browser surface; defensive folder state if passed directly |
+| Existing file with a registered binary plugin | Registered plugin | Inline preview |
+| Artifact HTML | HTML plugin with artifact policy | Interactive inline preview; host owns source/edit |
+| Existing text file with a registered text plugin | Registered plugin after content sniff | Inline preview |
+| Existing text file with no registered extension | Text fallback plugin | Source preview |
+| Existing binary file with no registered plugin | Unsupported | Explanation plus safe default-app action |
+| Missing or inaccessible path | Unavailable | Explanation without an open action |
+| Invalid or non-absolute path | Invalid | Explanation without an open action |
+
+- Use `window.api.fs.readText` for text. Use `window.api.fs.read` only for full binary reads that the plugin bounds
+  using the preflighted file size. Large or on-demand binary formats must use typed `ipcApi.request('file.read', ...)`
+  range reads instead of loading the entire file.
+- Transports that combine multiple range reads must cap the assembled range before allocating it and reject responses
+  whose `version` changes between reads or whose `version.size` differs from the preflighted `metadata.size`.
+- The PDF transport caps each assembled pdf.js range at 16 MiB. This is not a PDF file-size limit: larger files can
+  preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
+  an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
+- Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
-- `FilePreview` owns invalid-path, unsupported-format, plugin-load, and synchronous render error states.
+- `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
 - Cancel, disconnect, or destroy file reads, workers, listeners, and third-party instances when the component unmounts, `filePath` changes, or `refreshKey` changes.
@@ -193,7 +229,7 @@ This composition lets the same plugin work in embedded and tab hosts without for
 A new plugin should have focused coverage for at least these cases:
 
 - Its extensions resolve to the correct plugin without conflicting with existing extensions.
-- The lazy component receives the normalized `filePath`, correct `fileName`, and current `refreshKey`.
+- The lazy component receives the normalized `filePath`, correct `fileName`, preflighted `metadata`, and current `refreshKey`.
 - Loading, success, empty, and read-error states remain contained within the preview region.
 - Toolbar actions, disabled states, and cleanup behavior work as expected.
 

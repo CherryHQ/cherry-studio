@@ -8,9 +8,15 @@ import {
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
+  createClearContextPart,
   type DiagnosisResult,
+  getKnowledgeBaseIdsFromParts,
+  hasClearContextPart,
+  isBlankUserTurn,
+  KnowledgeScopePartDataSchema,
   readCherryMeta,
-  withCherryMeta
+  withCherryMeta,
+  withKnowledgeScopePart
 } from '../uiParts'
 
 const diagnosis: DiagnosisResult = {
@@ -105,6 +111,66 @@ describe('CherryErrorMetaSchema', () => {
 
   it('rejects a diagnosis whose steps are not step objects', () => {
     expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, steps: ['plain'] } }).success).toBe(false)
+  })
+})
+
+describe('knowledge scope parts', () => {
+  it('validates, deduplicates, and replaces the aggregate scope part', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['old'] } }
+      ] as CherryMessagePart[],
+      ['kb-1', 'kb-2', 'kb-1']
+    )
+
+    expect(parts).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-2'] } }
+    ])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toEqual(['kb-1', 'kb-2'])
+  })
+
+  it('removes the scope part when the selection is empty', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ] as CherryMessagePart[],
+      []
+    )
+
+    expect(parts).toEqual([{ type: 'text', text: 'hello' }])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toBeUndefined()
+  })
+
+  it('rejects malformed scope data at the read boundary', () => {
+    expect(KnowledgeScopePartDataSchema.safeParse({ baseIds: [''] }).success).toBe(false)
+    expect(
+      getKnowledgeBaseIdsFromParts([
+        { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
+      ])
+    ).toBeUndefined()
+  })
+})
+
+describe('clear context parts', () => {
+  it('creates and detects a hidden data UI part', () => {
+    const part = createClearContextPart()
+
+    expect(part).toEqual({ type: 'data-clear', data: {} })
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
+    expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
   })
 })
 

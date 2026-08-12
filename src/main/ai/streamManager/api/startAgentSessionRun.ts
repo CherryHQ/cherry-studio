@@ -1,4 +1,6 @@
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
@@ -23,12 +25,17 @@ import type { StreamListener } from '../types'
  * keeps the direction one-way; if it lived in agent-session/ the package
  * graph would loop back through stream-manager/context.
  */
+export type StartAgentSessionRunResult =
+  | { mode: 'started' }
+  | { mode: 'not-started'; reason: 'busy' | 'session-invalid' }
+
 export async function startAgentSessionRun(input: {
   sessionId: string
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
   headless?: boolean
-}): Promise<void> {
+  requireIdle?: { expectedAgentId: string }
+}): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
   }
@@ -36,6 +43,7 @@ export async function startAgentSessionRun(input: {
 
   const topicId = buildAgentSessionTopicId(input.sessionId)
   const manager = application.get('AiStreamManager')
+  let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
 
   // Hold the per-topic dispatch lock around the whole `hasLiveStream → prepareDispatch
   // (writes a PENDING placeholder) → send` window, the same as the renderer's `dispatch()`.
@@ -43,19 +51,80 @@ export async function startAgentSessionRun(input: {
   // concurrently — or race a renderer open — and without this both could observe no live
   // stream and each write a placeholder, orphaning one as a permanently "thinking" row.
   await manager.withDispatchLock(topicId, async () => {
-    const prepared = await agentChatContextProvider.prepareDispatch(primary, {
-      trigger: 'submit-message',
-      topicId,
-      userMessageParts: input.userParts,
-      headless: input.headless === true
-    })
+    // Write-quiesce admission gate (backup restore), re-checked under the lock and BEFORE
+    // `prepareDispatch` writes the user/pending-assistant rows. Both callers handle the
+    // rejection: an `agent.task` job settles failed-retryable; channel inbound notifies the
+    // user — and per the restore orchestration order, channel batches are flushed and
+    // admitted before the AI pause, so this throw only fires for out-of-order callers.
+    if (manager.isWriteQuiesced) {
+      throw new Error(
+        'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
+      )
+    }
+
+    if (input.requireIdle) {
+      if (
+        manager.hasLiveStream(topicId) ||
+        application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
+      ) {
+        result = { mode: 'not-started', reason: 'busy' }
+        return
+      }
+      try {
+        const session = agentSessionService.getById(input.sessionId)
+        if (session.agentId !== input.requireIdle.expectedAgentId) {
+          result = { mode: 'not-started', reason: 'session-invalid' }
+          return
+        }
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          result = { mode: 'not-started', reason: 'session-invalid' }
+          return
+        }
+        throw error
+      }
+    }
+
+    let prepared
+    try {
+      prepared = await agentChatContextProvider.prepareDispatch(
+        primary,
+        {
+          trigger: 'submit-message',
+          topicId,
+          userMessageParts: input.userParts,
+          headless: input.headless === true
+        },
+        {
+          hasLiveStream: false,
+          requireIdle: input.requireIdle !== undefined,
+          expectedAgentId: input.requireIdle?.expectedAgentId
+        }
+      )
+    } catch (error) {
+      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
+        result = { mode: 'not-started', reason: 'busy' }
+        return
+      }
+      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        result = { mode: 'not-started', reason: 'session-invalid' }
+        return
+      }
+      throw error
+    }
 
     manager.send({
       topicId: prepared.topicId,
       models: prepared.models,
-      listeners: [...prepared.listeners, ...extras],
+      // In require-idle mode the primary task listener must deactivate the task/channel listeners
+      // before the runtime terminal listener can queue a successor. Preserve ordinary caller order.
+      listeners: input.requireIdle
+        ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
+        : [...prepared.listeners, ...extras],
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })
+    result = { mode: 'started' }
   })
+  return result
 }

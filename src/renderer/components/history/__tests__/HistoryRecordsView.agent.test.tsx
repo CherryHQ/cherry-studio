@@ -234,7 +234,7 @@ vi.mock('react-i18next', () => {
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task name',
@@ -255,7 +255,6 @@ vi.mock('react-i18next', () => {
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
-        'common.unknown': 'Unknown',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -426,7 +425,6 @@ describe('HistoryRecordsView agent mode', () => {
         joplin: true,
         markdown: true,
         markdown_reason: true,
-        notes: true,
         notion: true,
         obsidian: true,
         plain_text: true,
@@ -630,11 +628,11 @@ describe('HistoryRecordsView agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Unlinked Agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()
-    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
   })
 
   it('searches locally by session name, description, and agent name', () => {

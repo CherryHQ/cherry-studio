@@ -7,7 +7,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
-const AI_DIAGNOSIS_RESULT_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const AI_DIAGNOSIS_RESULT_COLOR = 'var(--muted-foreground)'
 
 const diagPanelStyle: React.CSSProperties = {
   border: '1px solid color-mix(in srgb, var(--primary) 15%, transparent)',
@@ -127,7 +127,7 @@ const AiDiagnosisSectionWithStatus = memo(
                     className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
                     style={stepBgStyle}>
                     <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white"
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-primary-foreground"
                       style={{ background: 'var(--primary)' }}>
                       {i + 1}
                     </span>

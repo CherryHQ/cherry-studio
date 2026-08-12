@@ -49,6 +49,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -70,6 +72,12 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
+/** Minimal JobManager mock for handler registration and startup enqueues. */
+export const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -79,7 +87,8 @@ export const defaultServiceInstances = {
   FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
-  IpcApiService: mockIpcApiService
+  IpcApiService: mockIpcApiService,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */
@@ -136,6 +145,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    relaunch: vi.fn(),
+    forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.

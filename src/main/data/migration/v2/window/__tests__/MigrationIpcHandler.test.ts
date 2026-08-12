@@ -1,6 +1,7 @@
 import { application } from '@application'
+import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
-import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
@@ -13,21 +14,27 @@ const engineMock = vi.hoisted(() => ({
   onProgress: vi.fn(),
   run: vi.fn(),
   needsMigration: vi.fn(),
-  getLastError: vi.fn()
+  getLastError: vi.fn(),
+  skipMigration: vi.fn(),
+  close: vi.fn()
 }))
 const fsMock = vi.hoisted(() => ({
   access: vi.fn(),
   appendFile: vi.fn(),
   mkdir: vi.fn(),
+  rm: vi.fn(),
   writeFile: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
+const windowCloseMock = vi.hoisted(() => vi.fn())
+const windowRestartAppMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
 const windowRequestCloseMock = vi.hoisted(() => vi.fn())
 const windowSetStageMock = vi.hoisted(() => vi.fn())
 const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
+const appQuitMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: diagnosticMocks.validateSender }))
 vi.mock('../../migrationDiagnosticBundle', () => {
@@ -39,8 +46,8 @@ vi.mock('fs/promises', () => ({ default: fsMock }))
 vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
-    close: vi.fn(),
-    restartApp: vi.fn(),
+    close: windowCloseMock,
+    restartApp: windowRestartAppMock,
     minimize: windowMinimizeMock,
     requestClose: windowRequestCloseMock,
     setStage: windowSetStageMock,
@@ -61,6 +68,19 @@ import {
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 const event = {} as IpcMainInvokeEvent
 const savePayload = { dialogTitle: 'Save diagnostics', logDate: '2026-07-23' }
+const migrationPaths = {
+  userData: '/mock/userData',
+  migrationTempDir: '/mock/userData/migration_temp',
+  migrationReduxExportDir: '/mock/userData/migration_temp/redux_export',
+  migrationDexieExportDir: '/mock/userData/migration_temp/dexie_export',
+  migrationLocalStorageExportDir: '/mock/userData/migration_temp/localstorage_export',
+  migrationLocalStorageExportFile: '/mock/userData/migration_temp/localstorage_export/localStorage.json'
+} as MigrationPaths
+const startPayload = {
+  reduxExportPath: migrationPaths.migrationReduxExportDir,
+  dexieExportPath: migrationPaths.migrationDexieExportDir,
+  localStorageExportPath: migrationPaths.migrationLocalStorageExportFile
+}
 
 describe('MigrationIpcHandler', () => {
   let handlers: Map<string, Handler>
@@ -87,8 +107,9 @@ describe('MigrationIpcHandler', () => {
   const choosePath = (filePath: string) =>
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath } as never)
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks()
+    ;(app as unknown as { quit: typeof appQuitMock }).quit = appQuitMock
     diagnosticMocks.validateSender.mockReturnValue(true)
     diagnosticMocks.saveBundle.mockResolvedValue('included')
     vi.mocked(application.getPath).mockImplementation((key: string, fileName?: string) =>
@@ -96,8 +117,79 @@ describe('MigrationIpcHandler', () => {
     )
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
     resetMigrationData()
-    registerMigrationIpcHandlers('/mock/userData')
+    registerMigrationIpcHandlers(migrationPaths)
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+    await invoke(MigrationIpcChannels.PrepareExport)
+    fsMock.rm.mockClear()
+    fsMock.mkdir.mockClear()
+  })
+
+  describe('renderer export preparation', () => {
+    it('clears only the registered migration export directories and returns their paths', async () => {
+      resetMigrationData()
+
+      await expect(invoke(MigrationIpcChannels.PrepareExport)).resolves.toEqual({
+        ...startPayload,
+        localStorageExportDirectory: migrationPaths.migrationLocalStorageExportDir
+      })
+
+      expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
+        expect.arrayContaining([
+          migrationPaths.migrationReduxExportDir,
+          migrationPaths.migrationDexieExportDir,
+          migrationPaths.migrationLocalStorageExportDir
+        ])
+      )
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
+      expect(fsMock.mkdir).toHaveBeenCalledWith(migrationPaths.migrationTempDir, { recursive: true })
+    })
+
+    it('rejects untrusted preparation requests without deleting anything', async () => {
+      resetMigrationData()
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.PrepareExport)).rejects.toThrow('Unauthorized')
+      expect(fsMock.rm).not.toHaveBeenCalled()
+    })
+
+    it('waits for renderer-error cleanup before preparing the next export', async () => {
+      let finishFirstRemoval!: () => void
+      const firstRemoval = new Promise<void>((resolve) => {
+        finishFirstRemoval = resolve
+      })
+      fsMock.rm.mockImplementationOnce(() => firstRemoval).mockResolvedValue(undefined)
+
+      const reportError = invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      await vi.waitFor(() => expect(fsMock.rm).toHaveBeenCalledTimes(3))
+
+      const prepareExport = invoke(MigrationIpcChannels.PrepareExport)
+      await Promise.resolve()
+
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
+      expect(fsMock.mkdir).not.toHaveBeenCalled()
+
+      finishFirstRemoval()
+      await Promise.all([reportError, prepareExport])
+
+      expect(fsMock.rm).toHaveBeenCalledTimes(6)
+      expect(fsMock.mkdir).toHaveBeenCalledWith(migrationPaths.migrationTempDir, { recursive: true })
+    })
+  })
+
+  describe('renderer export diagnostics', () => {
+    it('accepts bounded export stage breadcrumbs from the migration window', () => {
+      expect(invoke(MigrationIpcChannels.ReportExportStage, { source: 'redux' })).toBe(true)
+      expect(invoke(MigrationIpcChannels.ReportExportStage, { source: 'dexie', table: 'topics' })).toBe(true)
+      expect(invoke(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })).toBe(true)
+    })
+
+    it('rejects malformed or untrusted export stage breadcrumbs', () => {
+      expect(() => invoke(MigrationIpcChannels.ReportExportStage, { source: 'dexie', table: '' })).toThrow(
+        'Invalid migration export stage.'
+      )
+      diagnosticMocks.validateSender.mockReturnValue(false)
+      expect(() => invoke(MigrationIpcChannels.ReportExportStage, { source: 'redux' })).toThrow('Unauthorized')
+    })
   })
 
   describe('diagnostic bundle actions', () => {
@@ -324,7 +416,7 @@ describe('MigrationIpcHandler', () => {
     resetMigrationData()
     vi.mocked(ipcMain.handle).mockClear()
     setVersionIncompatible('v1_too_old', { currentVersion: '1.9.0', minimumVersion: '1.9.12' })
-    registerMigrationIpcHandlers('/mock/userData')
+    registerMigrationIpcHandlers(migrationPaths)
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
     choosePath('/chosen/diagnostics.zip')
 
@@ -339,19 +431,70 @@ describe('MigrationIpcHandler', () => {
     })
   })
 
+  describe('v1 download page', () => {
+    it.each([
+      ['zh-CN', 'https://cherryai.com.cn/download/v1'],
+      ['en-US', 'https://cherryai.com/download/v1']
+    ])('opens the site matching the %s wizard language', async (language, url) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith(url)
+    })
+
+    // Any Chinese variant reads the China site, matching the window's own `zh` language test.
+    it.each(['zh', 'zh-TW', 'ZH-HK'])('treats %s as Chinese', async (language) => {
+      await invoke(MigrationIpcChannels.OpenDownloadPage, language)
+
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download/v1')
+    })
+
+    // A missing or malformed language must not strand the user on an error.
+    it.each([undefined, null, 42])('falls back to the global site for %s', async (language) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com/download/v1')
+    })
+
+    it('rejects an untrusted sender', async () => {
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'zh-CN')).rejects.toThrow('Unauthorized')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the shell cannot open the page', async () => {
+      vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no browser'))
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'en-US')).resolves.toBe(false)
+    })
+  })
+
   describe('export file writes', () => {
     it('overwrites export files by default for existing callers', async () => {
-      await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'localStorage', '[]')
+      await invoke(
+        MigrationIpcChannels.WriteExportFile,
+        migrationPaths.migrationLocalStorageExportDir,
+        'localStorage',
+        '[]'
+      )
 
-      expect(fsMock.mkdir).toHaveBeenCalledWith('/export', { recursive: true })
-      expect(fsMock.writeFile).toHaveBeenCalledWith('/export/localStorage.json', '[]', 'utf-8')
+      expect(fsMock.mkdir).toHaveBeenCalledWith(migrationPaths.migrationLocalStorageExportDir, { recursive: true })
+      expect(fsMock.writeFile).toHaveBeenCalledWith(migrationPaths.migrationLocalStorageExportFile, '[]', 'utf-8')
       expect(fsMock.appendFile).not.toHaveBeenCalled()
     })
 
     it('appends an export chunk when requested', async () => {
-      await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'message_blocks', '{"id":"b1"}', 'append')
+      await invoke(
+        MigrationIpcChannels.WriteExportFile,
+        migrationPaths.migrationDexieExportDir,
+        'message_blocks',
+        '{"id":"b1"}',
+        'append'
+      )
 
-      expect(fsMock.appendFile).toHaveBeenCalledWith('/export/message_blocks.json', '{"id":"b1"}', 'utf-8')
+      expect(fsMock.appendFile).toHaveBeenCalledWith(
+        `${migrationPaths.migrationDexieExportDir}/message_blocks.json`,
+        '{"id":"b1"}',
+        'utf-8'
+      )
       expect(fsMock.writeFile).not.toHaveBeenCalled()
     })
 
@@ -359,9 +502,53 @@ describe('MigrationIpcHandler', () => {
       fsMock.appendFile.mockRejectedValueOnce(new Error('disk full'))
 
       await expect(
-        invoke(MigrationIpcChannels.WriteExportFile, '/export', 'message_blocks', 'chunk', 'append')
+        invoke(
+          MigrationIpcChannels.WriteExportFile,
+          migrationPaths.migrationDexieExportDir,
+          'message_blocks',
+          'chunk',
+          'append'
+        )
       ).rejects.toThrow('disk full')
     })
+
+    it('rejects untrusted, unprepared, or out-of-scope writes', async () => {
+      await expect(invoke(MigrationIpcChannels.WriteExportFile, '/outside', 'message_blocks', '[]')).rejects.toThrow(
+        'Invalid migration export directory.'
+      )
+
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, migrationPaths.migrationDexieExportDir, '../escape', '[]')
+      ).rejects.toThrow('Invalid migration export file name.')
+
+      resetMigrationData()
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, migrationPaths.migrationDexieExportDir, 'message_blocks', '[]')
+      ).rejects.toThrow('Migration export has not been prepared.')
+
+      await invoke(MigrationIpcChannels.PrepareExport)
+      diagnosticMocks.validateSender.mockReturnValue(false)
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, migrationPaths.migrationDexieExportDir, 'message_blocks', '[]')
+      ).rejects.toThrow('Unauthorized')
+    })
+  })
+
+  it('rejects migration starts that are unprepared, untrusted, or use unregistered paths', async () => {
+    await expect(
+      invoke(MigrationIpcChannels.StartMigration, { ...startPayload, reduxExportPath: '/outside' })
+    ).rejects.toThrow('Invalid migration export paths.')
+    expect(engineMock.run).not.toHaveBeenCalled()
+
+    resetMigrationData()
+    await expect(invoke(MigrationIpcChannels.StartMigration, startPayload)).rejects.toThrow(
+      'Migration export has not been prepared.'
+    )
+
+    await invoke(MigrationIpcChannels.PrepareExport)
+    diagnosticMocks.validateSender.mockReturnValue(false)
+    await expect(invoke(MigrationIpcChannels.StartMigration, startPayload)).rejects.toThrow('Unauthorized')
+    expect(engineMock.run).not.toHaveBeenCalled()
   })
 
   it('flips to the protected migration stage before running the engine', async () => {
@@ -375,7 +562,7 @@ describe('MigrationIpcHandler', () => {
       return { success: true, totalDuration: 1, migratorResults: [] }
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
     expect(stageAtRunStart).toBe('migration')
     expect(windowSetStageMock).toHaveBeenCalledWith('migration')
@@ -405,7 +592,7 @@ describe('MigrationIpcHandler', () => {
     }
     engineMock.run.mockResolvedValue(result)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -448,7 +635,7 @@ describe('MigrationIpcHandler', () => {
       } satisfies MigrationResult
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -470,11 +657,68 @@ describe('MigrationIpcHandler', () => {
       ]
     } satisfies MigrationResult)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
     // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
     // fallback and matches completedMigrators.
     expect(lastProgress().summary).toMatchObject({ completedMigrators: 2, totalMigrators: 2 })
+  })
+
+  describe('skip migration', () => {
+    it('skips, closes the engine, and restarts the app', async () => {
+      engineMock.skipMigration.mockResolvedValue(undefined)
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).resolves.toBe(true)
+
+      expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
+        expect.arrayContaining([
+          migrationPaths.migrationReduxExportDir,
+          migrationPaths.migrationDexieExportDir,
+          migrationPaths.migrationLocalStorageExportDir
+        ])
+      )
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
+      expect(Math.max(...fsMock.rm.mock.invocationCallOrder)).toBeLessThan(
+        engineMock.skipMigration.mock.invocationCallOrder[0]
+      )
+      expect(engineMock.skipMigration).toHaveBeenCalledTimes(1)
+      expect(engineMock.close).toHaveBeenCalledTimes(1)
+      expect(windowRestartAppMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not mark migration completed when staging cleanup fails', async () => {
+      fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow('staging cleanup failed')
+
+      expect(engineMock.skipMigration).not.toHaveBeenCalled()
+      expect(engineMock.close).not.toHaveBeenCalled()
+      expect(windowRestartAppMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps the engine open and does not restart when the skip fails', async () => {
+      engineMock.skipMigration.mockRejectedValue(new Error('cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow('cleanup failed')
+
+      expect(engineMock.close).not.toHaveBeenCalled()
+      expect(windowRestartAppMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skip while a migration run is in flight', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockReturnValue(new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+      // The handler stores the in-flight promise synchronously, before its first await.
+      const startPromise = invoke(MigrationIpcChannels.StartMigration, startPayload)
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow()
+      expect(engineMock.skipMigration).not.toHaveBeenCalled()
+
+      // Release the guard so it does not leak into later tests.
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await startPromise
+    })
   })
 
   describe('migration failure', () => {
@@ -494,7 +738,7 @@ describe('MigrationIpcHandler', () => {
         return { success: false, error: 'Validation failed', totalDuration: 1200, migratorResults: [] }
       })
 
-      const result = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const result = await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
       expect(result).toMatchObject({ success: false, error: 'Validation failed' })
       const progress = lastProgress()
@@ -509,9 +753,11 @@ describe('MigrationIpcHandler', () => {
     it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
-      await expect(
-        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
-      ).rejects.toThrow('Engine exploded')
+      const result = await invoke(MigrationIpcChannels.StartMigration, startPayload)
+
+      // The handler resolves with a failure result instead of rejecting, so the
+      // renderer never sees an unhandled promise rejection.
+      expect(result).toMatchObject({ success: false, error: 'Engine exploded' })
 
       const failure = lastProgress()
       expect(failure.stage).toBe('error')
@@ -519,7 +765,8 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
 
       engineMock.run.mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
-      const retry = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await invoke(MigrationIpcChannels.PrepareExport)
+      const retry = await invoke(MigrationIpcChannels.StartMigration, startPayload)
 
       expect(retry).toMatchObject({ success: true })
       expect(lastProgress().stage).toBe('completed')
@@ -529,12 +776,38 @@ describe('MigrationIpcHandler', () => {
       const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
 
       expect(result).toBe(true)
+      expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
+        expect.arrayContaining([
+          migrationPaths.migrationReduxExportDir,
+          migrationPaths.migrationDexieExportDir,
+          migrationPaths.migrationLocalStorageExportDir
+        ])
+      )
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
       const progress = lastProgress()
       expect(progress.stage).toBe('error')
       expect(progress.error).toBe('Dexie export failed')
       expect(progress.currentMessage).toBe('Dexie export failed')
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
+
+    it('keeps the renderer error when best-effort staging cleanup fails', async () => {
+      fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')).resolves.toBe(true)
+
+      expect(lastProgress()).toMatchObject({ stage: 'error', error: 'Dexie export failed' })
+    })
+  })
+
+  it('best-effort cleans registered export directories before cancelling', async () => {
+    fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+    await expect(invoke(MigrationIpcChannels.Cancel)).resolves.toBe(true)
+
+    expect(fsMock.rm).toHaveBeenCalledTimes(3)
+    expect(windowCloseMock).toHaveBeenCalledTimes(1)
+    expect(appQuitMock).toHaveBeenCalledTimes(1)
   })
 
   describe('data-location notice', () => {
@@ -613,7 +886,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, startPayload)
       await Promise.resolve()
 
       const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
@@ -631,7 +904,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, startPayload)
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -653,7 +926,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, startPayload)
       await Promise.resolve()
 
       expect(requestQuit()).toBe(false)

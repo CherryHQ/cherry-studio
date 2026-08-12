@@ -26,8 +26,9 @@ describe('agentSessionMessageHandlers', () => {
 
   describe('/agent-sessions/:sessionId/messages', () => {
     it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
+      // `listSessionMessages` is synchronous (better-sqlite3), so the mock must return, not resolve.
       const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockResolvedValueOnce(response)
+      listSessionMessagesMock.mockReturnValueOnce(response)
 
       const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
@@ -42,6 +43,81 @@ describe('agentSessionMessageHandlers', () => {
         limit: 25
       })
       expect(result).toBe(response)
+    })
+
+    it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
+      const output = { content: 'x'.repeat(64 * 1024) }
+      const assistant = {
+        id: 'assistant-message',
+        role: 'assistant',
+        data: {
+          parts: [
+            { type: 'text', text: 'answer' },
+            { type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', input: {}, output }
+          ]
+        }
+      }
+      const user = { id: 'user-message', role: 'user', data: { parts: [{ type: 'dynamic-tool', output: 'keep' }] } }
+      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant, user], nextCursor: undefined })
+
+      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true }
+      } as never)) as unknown as { items: { data: { parts: unknown[] } }[] }
+
+      expect(result.items[0].data.parts[1]).toEqual({
+        type: 'dynamic-tool',
+        toolCallId: 'tool-call-1',
+        state: 'output-available',
+        input: {},
+        output: {
+          $deferredToolResult: {
+            topicId: 'agent-session:session-1',
+            messageId: 'assistant-message',
+            toolCallId: 'tool-call-1'
+          }
+        }
+      })
+      expect(result.items[1]).toBe(user)
+      expect(assistant.data.parts[1]).toMatchObject({ output })
+    })
+
+    it('leaves a small tool output inline so no round trip is needed to render it', async () => {
+      const assistant = {
+        id: 'assistant-message',
+        role: 'assistant',
+        data: {
+          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output: { a: 1 } }]
+        }
+      }
+      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant], nextCursor: undefined })
+
+      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true }
+      } as never)) as unknown as { items: unknown[] }
+
+      expect(result.items[0]).toBe(assistant)
+    })
+
+    it('returns stored tool outputs verbatim unless the caller opts in', async () => {
+      const output = { content: 'x'.repeat(64 * 1024) }
+      const assistant = {
+        id: 'assistant-message',
+        role: 'assistant',
+        data: {
+          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output }]
+        }
+      }
+      const response = { items: [assistant], nextCursor: undefined }
+      listSessionMessagesMock.mockReturnValueOnce(response)
+
+      // Default read is verbatim, so a read-modify-write caller cannot persist a trimmed copy.
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+          params: { sessionId: 'session-1' }
+        } as never)
+      ).resolves.toBe(response)
     })
   })
 

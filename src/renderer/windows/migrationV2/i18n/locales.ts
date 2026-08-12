@@ -25,6 +25,7 @@ export const zhCN = {
       restart: '重启应用',
       retry: '重试',
       close: '关闭应用',
+      continue_v1: '继续使用 V1',
       ignore_migration: '忽略并使用默认值',
       skip_migration: '跳过迁移',
       more_options: '更多选项'
@@ -50,8 +51,13 @@ export const zhCN = {
       failed: '失败'
     },
     diagnostics: {
+      title: '保存问题排查文件',
       save: '保存诊断包',
       saving: '正在保存…',
+      export_description:
+        '诊断包包含迁移错误、系统信息和可用的应用日志。日志可能包含文件路径、错误堆栈、用户内容或凭据；文件只会保存到本地，不会自动上传，请仅发送给 Cherry Studio 支持团队。',
+      open_from_error: '导出此错误的诊断包',
+      saved_title: '诊断包已保存',
       privacy:
         '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
       saved_local: '诊断包已保存到本地且未自动上传，请发送至问题反馈邮箱以协助排查。',
@@ -62,6 +68,14 @@ export const zhCN = {
       copy_failed: '问题反馈邮箱复制失败',
       save_failed: '诊断包保存失败',
       open_folder_failed: '无法打开文件所在位置'
+    },
+    more_options: {
+      description: '请选择接下来的处理方式。无论选择哪一种，旧版原始数据都不会被删除。',
+      diagnostics_title: '保存问题信息',
+      use_v2_title: '直接使用 V2',
+      skip_description: '不导入旧版数据，以默认配置开始使用。',
+      continue_v1_description: '下载并安装 V1，继续使用当前保留的原始数据。',
+      diagnostics_description: '将错误信息和应用日志保存到本地，方便发送给支持团队排查问题。'
     },
     introduction: {
       title: '将数据迁移到新的架构中',
@@ -87,16 +101,19 @@ export const zhCN = {
       warning_prefix: '高危操作：',
       warning_body: '将以默认配置启动，并不再自动提示迁移。',
       points: {
-        retained_strong: '旧数据会保留在磁盘中',
-        retained_rest: '，但不会导入 V2。',
-        not_visible: '旧版对话、设置、知识库等内容不会出现在新版本中。',
+        cleared_strong: '已迁移到新版数据库的记录将被清除',
+        cleared_rest: '（如有），新版将以默认数据启动。',
+        retained_strong: '旧版原始数据不会被删除',
+        retained_rest: '，仍保留在磁盘中，但对话、设置、知识库等内容不会出现在新版中。',
+        files: '迁移过程中已复制的文件可能仍占用磁盘空间，但不会出现在新版中。',
         skip_before: '仅当你确定要',
         skip_strong: '放弃本次自动迁移',
         skip_after: '时继续。'
       },
       cancel: '取消',
       confirm: '已知晓风险，跳过并重启',
-      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)'
+      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)',
+      failed: '跳过迁移失败，请重试。'
     },
     migration: {
       title: '正在迁移数据...',
@@ -115,7 +132,20 @@ export const zhCN = {
       migrated_miniapps: '已迁移 {{processed}}/{{total}} 个小程序',
       migrated_translate_languages: '已迁移 {{processed}}/{{total}} 种翻译语言',
       migrated_translate_history: '已迁移 {{processed}}/{{total}} 条翻译记录',
-      prepared_chats: '已准备 {{processed}}/{{total}} 个对话'
+      prepared_chats: '已准备 {{processed}}/{{total}} 个对话',
+      agents_claude_config: '正在迁移 Agent 配置…',
+      agents_claude_config_scanning_start: '正在统计 Agent 配置文件…',
+      agents_claude_config_scanning: '正在扫描 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_claude_config_copying: '正在迁移 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_claude_config_verifying:
+        '正在验证 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_messages: '正在准备 Agent 消息 {{processed}}/{{total}}…',
+      agents_database: '正在导入 Agent 数据库记录…',
+      agents_id_mapping: '正在更新 Agent 和会话标识…',
+      agents_identity: '正在迁移 Agent 身份文件 {{processed}}/{{total}}…',
+      agents_workspaces: '正在迁移 Agent 工作区 {{processed}}/{{total}}…',
+      agents_claude_cache: '正在迁移 Agent 会话缓存 {{processed}}/{{total}}…',
+      agents_validation: '正在验证 Agent 迁移数据…'
     },
     completed: {
       title: '欢迎来到 Cherry Studio V2',
@@ -124,13 +154,23 @@ export const zhCN = {
       items_label: '迁移项',
       duration_label: '迁移耗时',
       warning_heading: '{{count}} 条迁移提示',
-      warning_description: '数据已迁移完成，但以下内容需要注意。'
+      warning_description: '数据已迁移完成，但以下内容需要注意。',
+      warning_copy: '复制全部提示',
+      warning_copy_success: '迁移提示已复制',
+      warning_copy_failed: '无法复制迁移提示'
     },
     error: {
       title: '迁移失败',
-      description: '迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。',
+      description: '迁移未完成，但您的原始数据仍完好保留。',
       error_prefix: '错误信息：',
-      unknown: '未知错误'
+      unknown: '未知错误',
+      v1_fallback: {
+        title: '下载并继续使用 V1',
+        description: '您的原始数据完好保存，下载并安装 V1 版本即可继续使用。',
+        download: '下载 V1 版本',
+        dismiss: '知道了',
+        open_failed: '无法打开下载页面'
+      }
     },
     version_incompatible: {
       title: '版本升级提示',
@@ -168,6 +208,7 @@ export const enUS = {
       restart: 'Restart App',
       retry: 'Retry',
       close: 'Close App',
+      continue_v1: 'Continue using V1',
       ignore_migration: 'Ignore and Use Defaults',
       skip_migration: 'Skip migration',
       more_options: 'More options'
@@ -194,8 +235,13 @@ export const enUS = {
       failed: 'Failed'
     },
     diagnostics: {
+      title: 'Save troubleshooting file',
       save: 'Save diagnostic bundle',
       saving: 'Saving…',
+      export_description:
+        'The bundle includes migration errors, system information, and available application logs. Logs may contain file paths, error stacks, user content, or credentials. It is saved locally and never uploaded automatically; share it only with Cherry Studio support.',
+      open_from_error: 'Export a diagnostic bundle for this error',
+      saved_title: 'Diagnostic bundle saved',
       privacy:
         'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
       saved_local:
@@ -208,6 +254,14 @@ export const enUS = {
       copy_failed: 'Failed to copy feedback email',
       save_failed: 'Could not save diagnostic bundle',
       open_folder_failed: 'Could not open file location'
+    },
+    more_options: {
+      description: 'Choose how you want to continue. Your original V1 data will not be deleted either way.',
+      diagnostics_title: 'Save troubleshooting information',
+      use_v2_title: 'Use V2 without importing V1 data',
+      skip_description: 'Start with default settings without importing your V1 data.',
+      continue_v1_description: 'Download and install V1 to keep using your original data.',
+      diagnostics_description: 'Save errors and app logs locally so you can share them with support.'
     },
     introduction: {
       title: 'Migrate Data to New Architecture',
@@ -233,16 +287,21 @@ export const enUS = {
       warning_prefix: 'High-risk action: ',
       warning_body: 'Starts with default settings, and migration will not be prompted again.',
       points: {
-        retained_strong: 'Old data will remain on disk',
-        retained_rest: ', but it will not be imported into V2.',
-        not_visible: 'Legacy chats, settings, knowledge bases, and related content will not appear in the new version.',
+        cleared_strong: 'Records already migrated to the new database will be cleared',
+        cleared_rest: ' (if any), and the new version will start with default data.',
+        retained_strong: 'Original legacy data will not be deleted',
+        retained_rest:
+          ' and remains on disk, but chats, settings, knowledge bases, and related content will not appear in the new version.',
+        files:
+          'Files copied during migration may still take up disk space, but they will not appear in the new version.',
         skip_before: 'Continue only if you are sure you want to ',
         skip_strong: 'skip this automatic migration',
         skip_after: '.'
       },
       cancel: 'Cancel',
       confirm: 'I understand the risk, skip and restart',
-      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)'
+      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)',
+      failed: 'Failed to skip migration. Please try again.'
     },
     migration: {
       title: 'Migrating Data...',
@@ -261,7 +320,22 @@ export const enUS = {
       migrated_miniapps: 'Migrated {{processed}}/{{total}} mini apps',
       migrated_translate_languages: 'Migrated {{processed}}/{{total}} translate languages',
       migrated_translate_history: 'Migrated {{processed}}/{{total}} translate history records',
-      prepared_chats: 'Prepared {{processed}}/{{total}} conversations'
+      prepared_chats: 'Prepared {{processed}}/{{total}} conversations',
+      agents_claude_config: 'Migrating Agent configuration…',
+      agents_claude_config_scanning_start: 'Counting Agent configuration files…',
+      agents_claude_config_scanning:
+        'Scanning Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_claude_config_copying:
+        'Migrating Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_claude_config_verifying:
+        'Verifying Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_messages: 'Preparing Agent messages {{processed}}/{{total}}…',
+      agents_database: 'Importing Agent database records…',
+      agents_id_mapping: 'Updating Agent and Session identifiers…',
+      agents_identity: 'Migrating Agent identity files {{processed}}/{{total}}…',
+      agents_workspaces: 'Migrating Agent workspaces {{processed}}/{{total}}…',
+      agents_claude_cache: 'Migrating Agent session cache {{processed}}/{{total}}…',
+      agents_validation: 'Validating migrated Agent data…'
     },
     completed: {
       title: 'Welcome to Cherry Studio V2',
@@ -270,14 +344,23 @@ export const enUS = {
       items_label: 'Migration items',
       duration_label: 'Migration time',
       warning_heading: '{{count}} migration notice(s)',
-      warning_description: 'Migration completed, but the following items need attention.'
+      warning_description: 'Migration completed, but the following items need attention.',
+      warning_copy: 'Copy all notices',
+      warning_copy_success: 'Migration notices copied',
+      warning_copy_failed: 'Failed to copy migration notices'
     },
     error: {
       title: 'Migration Failed',
-      description:
-        'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
+      description: 'Migration did not finish, but your original data remains intact.',
       error_prefix: 'Error: ',
-      unknown: 'Unknown error'
+      unknown: 'Unknown error',
+      v1_fallback: {
+        title: 'Download and Continue Using V1',
+        description: 'Your original data is intact. Download and install V1 to keep working.',
+        download: 'Download V1',
+        dismiss: 'Got it',
+        open_failed: 'Could not open the download page'
+      }
     },
     version_incompatible: {
       title: 'Version Upgrade Required',

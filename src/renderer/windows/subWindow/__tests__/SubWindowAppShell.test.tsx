@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type { SubWindowInitData } from '@shared/types/subWindow'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,41 +11,34 @@ type ShellTab = {
   type: 'route'
   url: string
   title: string
-  metadata?: { instanceAppId: 'assistants' | 'agents'; instanceKey?: string }
 }
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
-const updateTab = vi.fn()
+const openTab = vi.fn()
 
-async function renderSubWindowAppShell({
-  isPageTitledRoute = () => false,
-  tabs = defaultTabs
-}: {
-  isPageTitledRoute?: (url: string) => boolean
-  tabs?: ShellTab[]
-} = {}) {
+async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitData | null } = {}) {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
-    useWindowInitData: () => null
+    useWindowInitData: () => init
   }))
   vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
-      tabs,
+      tabs: defaultTabs,
       activeTabId: 'home',
       setActiveTab: vi.fn(),
       closeTab: vi.fn(),
-      updateTab,
+      updateTab: vi.fn(),
       addTab: vi.fn(),
       reorderTabs: vi.fn(),
-      openTab: vi.fn(),
+      openTab,
       pinTab: vi.fn(),
       unpinTab: vi.fn()
     })
   }))
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
-    isPageTitledRoute
+    isPageTitledRoute: () => false
   }))
   vi.doMock('@renderer/components/chat/shell/WindowFrameContext', () => ({
     WindowFrameProvider: ({ children }: { children: ReactNode }) => <>{children}</>
@@ -96,23 +90,27 @@ describe('SubWindowAppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
   })
 
-  it('syncs a detached conversation URL from the active tab metadata', async () => {
+  it('opens the detached tab from WindowManager init data', async () => {
     await renderSubWindowAppShell({
-      isPageTitledRoute: (url) => url.startsWith('/app/chat'),
-      tabs: [
-        {
-          id: 'home',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
-          title: 'Current topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'current-topic' }
-        }
-      ]
+      init: {
+        tabId: 'detached-tab',
+        url: '/app/chat?topicId=topic-1',
+        title: 'Detached topic',
+        icon: '🍒',
+        isPinned: true
+      }
     })
 
     await waitFor(() => {
-      expect(updateTab).toHaveBeenCalledWith('home', { url: '/app/chat?topicId=current-topic' })
+      expect(openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-1', {
+        id: 'detached-tab',
+        title: 'Detached topic',
+        icon: '🍒',
+        type: 'route',
+        isPinned: true,
+        forceNew: true
+      })
     })
-    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(openTab).toHaveBeenCalledOnce()
   })
 })

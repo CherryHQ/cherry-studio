@@ -18,16 +18,10 @@ vi.mock('../ConversationStageCenter', () => ({
 }))
 
 describe('ConversationCenterState', () => {
-  it('renders message and composer loading structure for loading state', () => {
+  it('renders only the message loading structure for loading state', () => {
     render(<ConversationCenterState state="loading" />)
 
     expect(screen.getByTestId('center-loading')).toBeInTheDocument()
-    expect(document.querySelector('[data-conversation-composer-loading]')).toBeInTheDocument()
-  })
-
-  it('renders a neutral full-height placeholder for empty state', () => {
-    const { container } = render(<ConversationCenterState state="empty" />)
-
-    expect(container.firstElementChild).toHaveClass('h-full')
+    expect(document.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 })

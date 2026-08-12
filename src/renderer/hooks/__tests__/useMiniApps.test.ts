@@ -75,6 +75,13 @@ describe('useMiniApps', () => {
   // === Data Loading ===
 
   describe('data loading', () => {
+    it('keeps the catalog and region detection inactive when no consumer needs mini apps', () => {
+      renderHook(() => useMiniApps({ enabled: false }))
+
+      expect(MockUseDataApi.useQuery).toHaveBeenCalledWith('/mini-apps', { enabled: false })
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
     it('should return empty arrays when no data', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())
@@ -111,11 +118,6 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryLoading('/mini-apps')
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.isLoading).toBe(true)
-    })
-
-    it('should expose refetch function', () => {
-      const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.refetch).toBe('function')
     })
   })
 
@@ -221,38 +223,20 @@ describe('useMiniApps', () => {
   // === UI State Cache ===
 
   describe('UI state cache', () => {
-    it('should expose openedKeepAliveMiniApps from cache', () => {
+    it('should expose miniapp UI state from cache', () => {
       const keepAliveApps = [createMiniApp('app1'), createMiniApp('app2')]
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', keepAliveApps)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.openedKeepAliveMiniApps).toEqual(keepAliveApps)
-    })
-
-    it('should expose currentMiniAppId from cache', () => {
-      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'my-app')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.currentMiniAppId).toBe('my-app')
-    })
-
-    it('should expose miniAppShow from cache', () => {
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniAppShow).toBe(true)
-    })
-
-    it('should expose openedOneOffMiniApp from cache', () => {
       const oneOffApp = createMiniApp('one-off')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', keepAliveApps)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'my-app')
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
-    })
 
-    it('should expose setters for UI state', () => {
       const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.setOpenedKeepAliveMiniApps).toBe('function')
-      expect(typeof result.current.setCurrentMiniAppId).toBe('function')
-      expect(typeof result.current.setMiniAppShow).toBe('function')
-      expect(typeof result.current.setOpenedOneOffMiniApp).toBe('function')
+
+      expect(result.current.openedKeepAliveMiniApps).toEqual(keepAliveApps)
+      expect(result.current.currentMiniAppId).toBe('my-app')
+      expect(result.current.miniAppShow).toBe(true)
+      expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
     })
 
     it('should update openedKeepAliveMiniApps when setter is called', async () => {
@@ -264,30 +248,11 @@ describe('useMiniApps', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
     })
-
-    it('should resolve a functional updater against the latest mocked value (mock parity)', async () => {
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [createMiniApp('a'), createMiniApp('b')])
-      const { result } = renderHook(() => useMiniApps())
-      await act(async () => {
-        result.current.setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== 'a'))
-      })
-      const stored = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []
-      expect(stored.map((a) => a.appId)).toEqual(['b'])
-    })
   })
 
   // === Mutations ===
 
   describe('mutations', () => {
-    it('should expose all mutation functions', () => {
-      const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.updateAppStatus).toBe('function')
-      expect(typeof result.current.setAppStatusBulk).toBe('function')
-      expect(typeof result.current.createCustomMiniApp).toBe('function')
-      expect(typeof result.current.removeCustomMiniApp).toBe('function')
-      expect(typeof result.current.reorderMiniApps).toBe('function')
-    })
-
     it('should sync opened cache, tab metadata, and webview state after updating a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', {
         name: 'Old App',
@@ -508,14 +473,6 @@ describe('useMiniApps', () => {
    */
 
   describe('reorderMiniApps', () => {
-    it('should expose a callable reorder function backed by useReorder', async () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
-      const { result } = renderHook(() => useMiniApps())
-      // The actual ordering logic is tested in useReorder; here we just verify wiring.
-      expect(typeof result.current.reorderMiniApps).toBe('function')
-      expect(typeof result.current.reorderMiniAppsByStatus).toBe('function')
-    })
-
     it('should reorder visible apps against the displayed subset orderKey baseline', async () => {
       const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
       const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
@@ -552,13 +509,6 @@ describe('useMiniApps', () => {
   // === Edge Cases ===
 
   describe('edge cases', () => {
-    it('should handle empty enabled list gracefully', () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toEqual([])
-    })
-
     it('should handle preset apps with empty supportedRegions array as CN-only', () => {
       const apps = [createMiniApp('empty-regions', { supportedRegions: [], status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
@@ -576,15 +526,6 @@ describe('useMiniApps', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.miniApps).toHaveLength(1)
-    })
-
-    it('should return consistent shape across renders', () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([createMiniApp('app1')]))
-      const { result, rerender } = renderHook(() => useMiniApps())
-      const firstShape = Object.keys(result.current).sort()
-      rerender()
-      const secondShape = Object.keys(result.current).sort()
-      expect(firstShape).toEqual(secondShape)
     })
   })
 

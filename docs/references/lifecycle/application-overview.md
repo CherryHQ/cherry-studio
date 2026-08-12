@@ -58,9 +58,17 @@ If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exi
 
 ## Shutdown Flow
 
-`application.shutdown()` is called automatically on:
-- `will-quit` (Electron event, after all windows closed)
-- `SIGINT` / `SIGTERM` (with 5-second force-exit timeout, bypasses Electron event chain)
+`application.shutdown()` is the convergence point for every *graceful* exit — `will-quit` is only where the Electron event chain converges. Routes in and out:
+
+| Trigger | Route |
+| ------- | ----- |
+| Tray / menu quit, window close, `window-all-closed` | `application.quit()` → `before-quit` → `will-quit` → `shutdown()` |
+| macOS Cmd+Q | Electron's built-in `app.quit()`, same chain |
+| `SIGINT` / `SIGTERM` | handler awaits `shutdown()` directly, bypassing the Electron chain |
+| Data reset | `dataReset.ts` calls `application.shutdown()` directly |
+| System shutdown | `PowerService` gets us *into* this path; the OS does not wait for it to finish |
+| `forceExit()` / `relaunch()` | **deliberately** bypass it — `app.exit()` straight away, no teardown |
+| `kill -9`, crash, power loss | bypassed entirely — services self-heal on next start |
 
 ```
 shutdown()
@@ -70,7 +78,15 @@ shutdown()
     └── loggerService.finish()      ← close logger (must be last)
 ```
 
-On non-macOS, `window-all-closed` triggers `application.quit()` which flows through `before-quit` → `will-quit` → `shutdown()`.
+`stopAll()` / `destroyAll()` cap each service at `SERVICE_STOP_TIMEOUT_MS` (5s), so one stuck `onStop()` no longer denies every service behind it its turn. Both return a summary of what timed out or failed, and the `Shutdown complete` line states whether the exit was clean — read it first when diagnosing a bad shutdown.
+
+### The force-exit fuse
+
+Each entry point arms a `SHUTDOWN_TIMEOUT_MS` (30s) `process.exit(1)` timer around `shutdown()`. It is a last resort, not the working mechanism:
+
+- A healthy shutdown finishes in well under a second and never approaches it.
+- It does **not** guarantee the per-service ceiling always runs to completion — six services each burning their full 5s reach it, and `stopAll()` + `destroyAll()` share the budget. Truncating past that point is correct; the app is already in a bad state.
+- Like every timer-based bound here, it is powerless against a synchronously blocking `onStop()`, which never yields the event loop for the timer to fire on.
 
 ## Service Registry
 

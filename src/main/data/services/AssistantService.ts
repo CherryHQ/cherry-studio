@@ -10,7 +10,6 @@ import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
-import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
@@ -94,11 +93,15 @@ export class AssistantDataService {
     return application.get('DbService').getDb()
   }
 
+  private getModelNameById(db: Pick<DbType, 'select'>, modelId: string | null): string | null {
+    if (!modelId) return null
+    return modelService.getNamesByUniqueIdsTx(db, [modelId]).get(modelId) ?? null
+  }
+
   private getActiveRowWithModelNameById(id: string, db: Pick<DbType, 'select'> = this.db): AssistantRowWithModelName {
     const [row] = db
-      .select({ assistant: assistantTable, modelName: userModelTable.name })
+      .select()
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
       .limit(1)
       .all()
@@ -108,8 +111,8 @@ export class AssistantDataService {
     }
 
     return {
-      assistant: row.assistant,
-      modelName: row.modelName || null
+      assistant: row,
+      modelName: this.getModelNameById(db, row.modelId)
     }
   }
 
@@ -121,7 +124,7 @@ export class AssistantDataService {
    */
   private resolveCreateModelId(tx: Pick<DbType, 'select'>, dtoModelId: string | null | undefined): string | null {
     if (dtoModelId !== undefined) {
-      if (dtoModelId && !modelService.findByIdTx(tx, dtoModelId)) {
+      if (dtoModelId && !modelService.existsByIdTx(tx, dtoModelId)) {
         throw DataApiErrorFactory.validation(
           { modelId: [`Model '${dtoModelId}' is not registered in user_model`] },
           `Assistant modelId '${dtoModelId}' is not registered — add the model first or pass null`
@@ -132,7 +135,7 @@ export class AssistantDataService {
     const preferred = application.get('PreferenceService').get('chat.default_model_id') ?? null
     if (!preferred) return null
 
-    if (!modelService.findByIdTx(tx, preferred)) {
+    if (!modelService.existsByIdTx(tx, preferred)) {
       logger.warn('chat.default_model_id is stale; creating assistant without a bound model', {
         preferred
       })
@@ -206,9 +209,8 @@ export class AssistantDataService {
       conditions.push(isNull(assistantTable.deletedAt))
     }
     const [row] = this.db
-      .select({ assistant: assistantTable, modelName: userModelTable.name })
+      .select()
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .where(and(...conditions))
       .limit(1)
       .all()
@@ -216,7 +218,7 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
     const relations = this.getRelationIdsByAssistantIds([id])
-    return rowToAssistant(row.assistant, relations.get(id), row.modelName || null)
+    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): AssistantEntitySearchItem[] {
@@ -313,9 +315,8 @@ export class AssistantDataService {
     // (`sortBy=updatedAt`) deliberately bypass pins so incremental consumers get
     // strict timestamp ordering.
     const rows = this.db
-      .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
+      .select({ assistant: assistantTable, pinOrderKey: pinTable.orderKey })
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
       .where(whereClause)
       .orderBy(...orderByClauses)
@@ -326,8 +327,16 @@ export class AssistantDataService {
 
     const assistantIds = rows.map((row) => row.assistant.id)
     const relations = this.getRelationIdsByAssistantIds(assistantIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      this.db,
+      rows.map((row) => row.assistant.modelId)
+    )
     const items = rows.map((row) =>
-      rowToAssistant(row.assistant, relations.get(row.assistant.id), row.modelName || null)
+      rowToAssistant(
+        row.assistant,
+        relations.get(row.assistant.id),
+        row.assistant.modelId ? (modelNames.get(row.assistant.modelId) ?? null) : null
+      )
     )
 
     return {
@@ -461,7 +470,7 @@ export class AssistantDataService {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
-      if (dto.modelId && !modelService.findByIdTx(tx, dto.modelId)) {
+      if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
         throw DataApiErrorFactory.validation(
           { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
           `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
@@ -494,7 +503,7 @@ export class AssistantDataService {
 
       const nextModelName =
         dto.modelId !== undefined && dto.modelId !== current.modelId
-          ? this.getActiveRowWithModelNameById(id, tx).modelName
+          ? this.getModelNameById(tx, next.modelId)
           : current.modelName
 
       return { row: next, modelName: nextModelName }

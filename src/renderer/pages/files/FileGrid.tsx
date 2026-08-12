@@ -9,29 +9,10 @@ import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
-// Decorative placeholder gradients for image thumbnails, keyed by a hash of the
-// file name. This reviewed gallery palette intentionally uses primitive utility
-// classes rather than assigning ordinary component state to feedback semantics.
-// Explicit sRGB interpolation preserves the former CSS linear-gradient rendering.
-const GALLERY_GRADIENT_CLASSES = [
-  'bg-linear-to-br/srgb from-orange-200 to-rose-400',
-  'bg-linear-to-br/srgb from-blue-300 to-cyan-200',
-  'bg-linear-to-br/srgb from-pink-200 to-indigo-300',
-  'bg-linear-to-br/srgb from-rose-200 to-fuchsia-200',
-  'bg-linear-to-br/srgb from-teal-200 to-pink-200',
-  'bg-linear-to-br/srgb from-amber-200 to-orange-300',
-  'bg-linear-to-br/srgb from-green-300 to-sky-300',
-  'bg-linear-to-br/srgb from-amber-300 to-purple-400',
-  'bg-linear-to-br/srgb from-violet-200 to-sky-300',
-  'bg-linear-to-br/srgb from-amber-300 to-orange-400',
-  'bg-linear-to-br/srgb from-slate-200 to-slate-100',
-  'bg-linear-to-br/srgb from-emerald-400 to-blue-600'
-]
-
-const GRID_GAP_PX = 8
+const GRID_GAP_PX = 12
 const GRID_PADDING_PX = 12
-const GRID_MIN_CARD_WIDTH_PX = 120
-const GRID_ROW_ESTIMATE_PX = 180
+const GRID_MIN_CARD_WIDTH_PX = 156
+const GRID_ROW_ESTIMATE_PX = 220
 
 function getGridColumnCount(width: number) {
   const innerWidth = Math.max(0, width - GRID_PADDING_PX * 2)
@@ -59,12 +40,6 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
   }, [scrollRef])
 
   return columnCount
-}
-
-function gradientClassFor(name: string): string {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0
-  return GALLERY_GRADIENT_CLASSES[Math.abs(h) % GALLERY_GRADIENT_CLASSES.length]
 }
 
 export const FileGrid = memo(function FileGrid({
@@ -122,7 +97,7 @@ export const FileGrid = memo(function FileGrid({
             key={row[0]?.id ?? virtualRow.key}
             ref={rowVirtualizer.measureElement}
             data-index={virtualRow.index}
-            className="absolute top-3 right-3 left-3 grid gap-2 pb-2"
+            className="absolute top-3 right-3 left-3 grid gap-3 pb-3"
             style={{
               gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
               transform: `translateY(${virtualRow.start}px)`
@@ -132,8 +107,7 @@ export const FileGrid = memo(function FileGrid({
               const isRenaming = renamingId === file.id
               const isImage = file.type === 'image'
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
-              const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
-              const bgClass = isImage ? gradientClassFor(file.name) : typeBgColors[file.type]
+              const shapeClass = isImage ? 'aspect-square' : 'h-24'
               return (
                 <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
                   <div
@@ -141,30 +115,30 @@ export const FileGrid = memo(function FileGrid({
                       if (isRenaming || file.isMissing) return
                       onOpen(file)
                     }}
-                    className="group relative cursor-pointer rounded-lg border border-border/30 transition-all hover:border-border/50 hover:bg-accent/50">
+                    className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card p-1 transition-colors hover:border-border-strong hover:bg-accent">
                     <div
-                      className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}>
+                      className={`${shapeClass} relative flex items-center justify-center overflow-hidden rounded-md border border-border-subtle ${typeBgColors[file.type]}`}>
                       {previewUrl ? (
                         <img
                           src={previewUrl}
                           alt={file.name}
                           draggable={false}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       ) : (
-                        <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
+                        <Icon size={24} strokeWidth={1.2} className={typeIconColors[file.type]} />
                       )}
                       {!isImage && (
-                        <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
+                        <span className="absolute top-1.5 left-1.5 rounded bg-background/70 px-1.5 py-px font-medium text-muted-foreground text-xs tracking-wide backdrop-blur-sm">
                           {getFormatLabel(file.format)}
                         </span>
                       )}
                       {file.isMissing && (
-                        <span className="absolute bottom-1.5 left-1.5 rounded bg-destructive/10 px-1.5 py-[1px] text-[10px] text-destructive/70">
+                        <span className="absolute bottom-1.5 left-1.5 rounded bg-background/80 px-1.5 py-px text-[10px] text-destructive backdrop-blur-sm">
                           {t('files.missing')}
                         </span>
                       )}
-                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="absolute top-1.5 right-1.5 flex items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -172,13 +146,16 @@ export const FileGrid = memo(function FileGrid({
                             e.stopPropagation()
                             onDelete(file.id)
                           }}
+                          aria-label={
+                            file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
+                          }
                           title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                          className="size-6 min-h-0 rounded bg-background/95 p-0 text-destructive/75 shadow-sm backdrop-blur transition-colors hover:bg-background hover:text-destructive">
+                          className="!text-muted-foreground hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
                           <Trash2 className="size-3" />
                         </Button>
                       </div>
                     </div>
-                    <div className="px-2 py-1.5">
+                    <div className="px-1 pt-1.5 pb-0.5">
                       {isRenaming ? (
                         <InlineRename
                           value={file.name}
@@ -187,12 +164,12 @@ export const FileGrid = memo(function FileGrid({
                           className="w-full px-1.5 text-center"
                         />
                       ) : (
-                        <p className="truncate text-foreground text-sm" title={file.name}>
+                        <p className="truncate font-medium text-foreground text-sm leading-5" title={file.name}>
                           {file.name}
                         </p>
                       )}
-                      <div className="mt-0.5 flex items-center gap-1">
-                        <span className="text-muted-foreground/50 text-xs">{file.size}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground text-xs leading-4">{file.size}</span>
                       </div>
                     </div>
                   </div>

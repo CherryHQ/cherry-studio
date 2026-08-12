@@ -312,8 +312,6 @@ export class TopicService {
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
    * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
    * makes `listByCursor`'s JOIN silently hide the topic from both sections.
-   *
-   * TODO: Clean up associated files (images, attachments) from disk.
    */
   delete(id: string): void {
     const dbService = application.get('DbService')

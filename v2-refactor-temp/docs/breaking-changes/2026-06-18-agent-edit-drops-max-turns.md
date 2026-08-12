@@ -9,9 +9,10 @@ date: 2026-06-18
 ## What changed
 
 The v2 agent edit dialog no longer surfaces or preserves the agent's `max_turns`
-configuration. Saving any change to an agent (avatar, permission mode, env vars,
-soul mode, heartbeat, …) rewrites its `configuration` without `max_turns`, so a
-previously-set per-agent turn cap is dropped.
+configuration. Saving any configuration change (avatar, permission mode, env
+vars, soul mode, heartbeat, …) sends an explicit removal for `max_turns`
+alongside only the edited keys, so a previously-set per-agent turn cap is
+dropped without replacing unrelated configuration.
 
 ## Why this matters to the user
 

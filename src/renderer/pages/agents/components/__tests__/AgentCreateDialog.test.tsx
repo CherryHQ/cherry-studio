@@ -33,8 +33,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({ createAgent: mocks.createAgent, isCreatingAgent: false })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
@@ -61,18 +61,16 @@ describe('AgentCreateDialog', () => {
 
     await waitFor(() =>
       expect(mocks.createAgent).toHaveBeenCalledWith({
-        body: {
-          type: 'claude-code',
-          name: 'New',
-          model: 'p::m',
-          planModel: 'p::m',
-          smallModel: 'p::m',
-          description: 'desc',
-          instructions: 'Agent instructions',
-          knowledgeBaseIds: ['kb-1'],
-          skillIds: ['skill-a', 'skill-b'],
-          configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
-        }
+        type: 'claude-code',
+        name: 'New',
+        model: 'p::m',
+        planModel: 'p::m',
+        smallModel: 'p::m',
+        description: 'desc',
+        instructions: 'Agent instructions',
+        knowledgeBaseIds: ['kb-1'],
+        skillIds: ['skill-a', 'skill-b'],
+        configuration: { avatar: '🤖', permission_mode: 'default' }
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))

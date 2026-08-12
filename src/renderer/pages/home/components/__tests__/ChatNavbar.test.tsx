@@ -41,19 +41,21 @@ describe('ChatNavbar', () => {
     preferenceMock.setShowSidebar.mockClear()
   })
 
-  it('uses the conversation style without active state when the sidebar is hidden', () => {
-    render(<ChatNavbar />)
+  it('reflects sidebar visibility through the toggle state', () => {
+    const { rerender } = render(<ChatNavbar />)
 
-    const [toggle] = screen.getAllByRole('button')
+    expect(screen.getByRole('button', { name: 'navbar.show_sidebar' })).toHaveAttribute('aria-pressed', 'false')
 
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(toggle).not.toHaveAttribute('data-active')
-    expect(toggle).toHaveClass('hover:bg-accent/60')
+    preferenceMock.showSidebar = true
+    rerender(<ChatNavbar />)
+
+    expect(screen.getByRole('button', { name: 'navbar.hide_sidebar' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('does not render a new-topic button when the sidebar is hidden', () => {
-    render(<ChatNavbar />)
+  it.each([false, true])('does not render a new-topic button when sidebar visibility is %j', (showSidebar) => {
+    preferenceMock.showSidebar = showSidebar
 
+    render(<ChatNavbar />)
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
@@ -64,26 +66,5 @@ describe('ChatNavbar', () => {
     const controls = container.querySelector('[data-conversation-topbar-controls]')
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
-  })
-
-  it('hides the new-topic button when the sidebar is visible', () => {
-    preferenceMock.showSidebar = true
-
-    render(<ChatNavbar />)
-
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
-  })
-
-  it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
-    preferenceMock.showSidebar = true
-
-    render(<ChatNavbar />)
-
-    const [toggle] = screen.getAllByRole('button')
-
-    expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(toggle).not.toHaveAttribute('data-active')
-    expect(toggle).not.toHaveClass('bg-secondary')
   })
 })

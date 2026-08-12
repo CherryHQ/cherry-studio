@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 
@@ -41,8 +42,17 @@ export function useFileSize(
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(absPath as FilePath))
-        if (!cancelled) setResult({ fileKey, requestKey, state: { status: 'ok', size: metadata.size } })
+        const metadata = await ipcApi.request(
+          'file.get_metadata',
+          createFilePathHandle(AbsoluteFilePathSchema.parse(absPath))
+        )
+        if (!cancelled) {
+          setResult({
+            fileKey,
+            requestKey,
+            state: metadata ? { status: 'ok', size: metadata.size } : { status: 'error' }
+          })
+        }
       } catch (err) {
         if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))

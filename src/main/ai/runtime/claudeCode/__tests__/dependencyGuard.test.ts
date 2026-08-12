@@ -18,6 +18,16 @@ describe('detectGlobalInstall — blocks global/shared installs', () => {
     'pip3 install --break-system-packages numpy',
     'pip install --system flask',
     'uv pip install --system pandas',
+    'mise install fd',
+    'mise use -g github:owner/tool',
+    'mise uninstall fd',
+    'mise plugins install custom https://example.com/plugin',
+    'cargo install ripgrep',
+    'go install example.com/tool@latest',
+    'gem install rubocop',
+    'brew install jq',
+    'sudo apt-get install jq',
+    'dotnet tool install --global dotnetsay',
     'ls && npm i -g webpack'
   ])('flags: %s', (cmd) => {
     expect(detectGlobalInstall(cmd)).not.toBeNull()
@@ -37,6 +47,13 @@ describe('detectGlobalInstall — allows project-local & ephemeral', () => {
     'uvx ruff check',
     'bun x cowsay hi',
     'npx tsc --noEmit',
+    'mise registry fd',
+    'mise ls --json',
+    'mise which fd',
+    'mise x -- fd --version',
+    'cargo build',
+    'go get example.com/library',
+    'dotnet tool install --local dotnetsay',
     // `-g` only as a substring of a package name, not a standalone flag
     'bun add some-g-pkg',
     'rg --glob "*.ts" pattern'

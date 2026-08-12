@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { isAbsolute, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,8 +12,27 @@ function isPathInside(childPath: string, parentDir: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
+let cachedAppRoot: { input: string; realPath: string } | undefined
+
+function resolveAppRoot(appRootDir: string): string {
+  if (cachedAppRoot?.input === appRootDir) return cachedAppRoot.realPath
+
+  try {
+    const realPath = realpathSync.native(appRootDir)
+    cachedAppRoot = { input: appRootDir, realPath }
+    return realPath
+  } catch {
+    return appRootDir
+  }
+}
+
 /**
- * Whether a frame URL belongs to the app's own renderer.
+ * Whether a URL belongs to the app's own renderer.
+ *
+ * Two consumers: {@link validateSender} asks it about a *sender frame* URL, and the
+ * `will-navigate` guards (MainWindowService / QuickAssistantService) ask it about a
+ * *navigation target* — both are the same question, so they share one definition of
+ * "our own renderer" rather than each hand-rolling an origin check.
  *
  * Packaged builds load renderer pages with `loadFile()` → `file:` protocol, always
  * inside the app root (asar bundle). The dev server loads them with
@@ -20,15 +40,22 @@ function isPathInside(childPath: string, parentDir: string): boolean {
  * that origin.
  *
  * A `file:` URL is trusted only when its path is **inside `appRootDir`** — not any
- * `file:` wholesale. Reaching IpcApi does not require the app preload (a
+ * `file:` wholesale. The app root is resolved to its real path first because Chromium
+ * canonicalizes renderer URLs while Electron may report a symlinked launch path.
+ * Reaching IpcApi does not require the app preload (a
  * `nodeIntegration` window can call `ipcRenderer.invoke` directly), so a
  * downloaded/exported HTML opened in such a window would otherwise be trusted, and
  * local HTML in a privileged context is a classic Electron RCE vector. Everything
  * else — remote https origins reachable via MiniApp / `<webview>` — is rejected.
  *
- * Pure (the dev origin and app root are injected) so it is verifiable without Electron.
+ * The dev origin and app root default to the ambient ones but stay injectable, so
+ * the decision is verifiable without Electron.
  */
-export function isTrustedSenderUrl(url: string, devServerUrl: string | null | undefined, appRootDir: string): boolean {
+export function isAppRendererUrl(
+  url: string,
+  devServerUrl: string | null | undefined = process.env.ELECTRON_RENDERER_URL,
+  appRootDir: string = application.getPath('app.root')
+): boolean {
   if (!url) return false
 
   let parsed: URL
@@ -45,7 +72,7 @@ export function isTrustedSenderUrl(url: string, devServerUrl: string | null | un
     } catch {
       return false
     }
-    return isPathInside(filePath, appRootDir)
+    return isPathInside(filePath, resolveAppRoot(appRootDir))
   }
 
   if (devServerUrl) {
@@ -94,5 +121,5 @@ export function validateSender(
   // `WebFrameMain.parent` is null only for the top frame.
   if (frame.parent !== null) return false
 
-  return isTrustedSenderUrl(frame.url, process.env.ELECTRON_RENDERER_URL ?? null, appRootDir)
+  return isAppRendererUrl(frame.url, process.env.ELECTRON_RENDERER_URL, appRootDir)
 }

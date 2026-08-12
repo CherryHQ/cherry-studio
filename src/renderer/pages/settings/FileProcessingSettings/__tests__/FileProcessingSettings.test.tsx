@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +22,7 @@ const comboboxMockState = vi.hoisted(() => ({
   value: undefined as string | string[] | undefined
 }))
 const selectMockState = vi.hoisted(() => ({
+  disabled: false,
   onValueChange: undefined as ((value: string) => void) | undefined,
   value: undefined as string | undefined
 }))
@@ -47,7 +49,9 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: ipcRequestMock
-  }
+  },
+  // useLocalModel, mounted by the panel of any processor that needs one.
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
@@ -197,16 +201,26 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
     Select: ({
       children,
+      disabled,
       onValueChange,
       value
-    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => {
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      disabled?: boolean
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => {
+      selectMockState.disabled = disabled ?? false
       selectMockState.onValueChange = onValueChange
       selectMockState.value = value
       return <div data-value={value}>{children}</div>
     },
     SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
-      <button type="button" {...props} onClick={() => selectMockState.onValueChange?.(value)}>
+      <button
+        type="button"
+        {...props}
+        disabled={selectMockState.disabled}
+        onClick={() => selectMockState.onValueChange?.(value)}>
         {children}
       </button>
     ),
@@ -217,7 +231,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       void size
 
       return (
-        <button type="button" {...buttonProps}>
+        <button type="button" {...buttonProps} disabled={selectMockState.disabled}>
           {children}
           {selectedValue ?? selectMockState.value}
         </button>
@@ -250,6 +264,7 @@ describe('processing settings pages', () => {
     comboboxMockState.options = []
     comboboxMockState.value = undefined
     selectMockState.onValueChange = undefined
+    selectMockState.disabled = false
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
@@ -276,28 +291,55 @@ describe('processing settings pages', () => {
     vi.useRealTimers()
   })
 
-  it('sets the active image processor as the image-to-text default', async () => {
+  it('selects an image processor and makes it the image-to-text default', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
-        defaultImageProcessor: 'system'
+        defaultImageProcessor: 'mistral'
       })
     })
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
   })
 
-  it('sets the active document processor as the document-to-markdown default', async () => {
+  it('selects a document processor and makes it the document-to-markdown default', async () => {
+    const user = userEvent.setup()
     render(<DocumentProcessingSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
-        defaultDocumentProcessor: 'mineru'
+        defaultDocumentProcessor: 'paddleocr'
       })
     })
+    expect(
+      await screen.findByRole('button', {
+        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the web search field treatment for document processing inputs', async () => {
+    const { container } = render(<DocumentProcessingSettings />)
+
+    await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+
+    expect(container.firstElementChild?.firstElementChild).toHaveClass(
+      '[&_input[data-slot=input]]:h-8',
+      '[&_input[data-slot=input]]:rounded-lg',
+      '[&_input[data-slot=input]]:border-border-subtle',
+      '[&_input[data-slot=input]]:bg-muted/30',
+      '[&_input[data-slot=input]]:shadow-none',
+      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
+    )
   })
 
   it('shows only the processors for the selected feature', async () => {
@@ -328,19 +370,20 @@ describe('processing settings pages', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows the provider detail header with a default badge and hides the default button', async () => {
+  it('shows the selected processor in the header without separate default controls', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 
     render(<OcrSettings />)
 
-    expect((await screen.findAllByText('settings.tool.file_processing.processors.system.name')).length).toBeGreaterThan(
-      0
-    )
-    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
-    expect(screen.getAllByText('common.default').length).toBeGreaterThan(0)
+    expect(
+      await screen.findByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.processors.system.status.available')).toBeInTheDocument()
+    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
   })
 
   it('uses the Open MinerU label', async () => {
@@ -354,6 +397,130 @@ describe('processing settings pages', () => {
     expect(
       screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
     ).not.toBeInTheDocument()
+  })
+
+  // This page is the only place the local OCR model's download is reachable from,
+  // so hiding the processor while the model is missing left users with no way to
+  // get it. It must stay listed, with the download right there.
+  it.each([
+    { status: 'not_downloaded', action: 'settings.dependencies.localModels.download' },
+    { status: 'error', action: 'common.retry' }
+  ])('offers the download inline when the local model is $status', async ({ status, action }) => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    // userEvent, not fireEvent: the panel settles two independent probes (the
+    // available-processor list and the local model status), and a bare click can
+    // land on the option node React is about to replace when the second resolves.
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(await screen.findByRole('button', { name: action })).toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).not.toBeInTheDocument()
+    expect(setPreferencesMock).not.toHaveBeenCalled()
+  })
+
+  it('replaces the download with the ready notice once the local model is on disk', async () => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status: 'ready' })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(
+      await screen.findByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.localModels.download' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultImageProcessor: 'local-paddleocr' })
+    })
+  })
+
+  it.each([
+    { result: 'cancelled', rejects: false },
+    { result: null, rejects: true }
+  ])(
+    'keeps the previous default when a local model download does not finish ($result)',
+    async ({ result, rejects }) => {
+      preferencesMock.defaultImageProcessor = 'system'
+      ipcRequestMock.mockImplementation((route: string) => {
+        if (route === 'file_processing.list_available_processors') {
+          return Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+        }
+        if (route === 'local_model.get_status') {
+          return Promise.resolve({ status: 'not_downloaded' })
+        }
+        if (route === 'local_model.download') {
+          return rejects ? Promise.reject(new Error('download failed')) : Promise.resolve({ result })
+        }
+        return Promise.resolve(undefined)
+      })
+
+      const user = userEvent.setup()
+      render(<OcrSettings />)
+
+      await user.click(
+        await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+      )
+      await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+      await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('local_model.download', { model: 'ocr' }))
+      expect(setPreferencesMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('sets the document default only after the local model download succeeds', async () => {
+    preferencesMock.defaultDocumentProcessor = 'mineru'
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'file_processing.list_available_processors') {
+        return Promise.resolve({
+          processorIds: ['paddleocr', 'local-document', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+        })
+      }
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: 'not_downloaded' })
+      }
+      if (route === 'local_model.download') {
+        return Promise.resolve({ result: 'ready' })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentProcessingSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_document.name/ })
+    )
+    expect(setPreferencesMock).not.toHaveBeenCalled()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultDocumentProcessor: 'local-document' })
+    })
   })
 
   it('shows OV OCR only when file processing reports it as available', async () => {
@@ -400,17 +567,31 @@ describe('processing settings pages', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('stores API key input as file processing overrides', async () => {
+  it('shows only the persisted default and disables selection while processor support is unresolved', () => {
+    preferencesMock.defaultImageProcessor = 'system'
+    ipcRequestMock.mockReturnValue(new Promise(() => undefined))
+
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('stores API key input as file processing overrides', async () => {
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
     expect(screen.queryByText('settings.tool.file_processing.fields.model_id')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
-      target: { value: ' key-1, key-2 ' }
-    })
-    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+    const apiKeysInput = await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')
+    await user.type(apiKeysInput, ' key-1, key-2 ')
+    await user.tab()
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -422,13 +603,14 @@ describe('processing settings pages', () => {
   })
 
   it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
     fireEvent.change(apiHostInput, {
       target: { value: 'https://draft.example.com' }
     })
@@ -446,23 +628,25 @@ describe('processing settings pages', () => {
     })
 
     overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    preferencesMock.defaultImageProcessor = 'mistral'
     rerender(<OcrSettings />)
 
     expect(screen.getByPlaceholderText('settings.provider.api_host')).toHaveValue('https://draft.example.com')
   })
 
   it('reports API host save failures', async () => {
+    const user = userEvent.setup()
     const error = new Error('persist failed')
     setOverridesMock.mockRejectedValueOnce(error)
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_host'), {
-      target: { value: 'https://draft.example.com' }
-    })
-    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_host'))
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, 'https://draft.example.com')
+    await user.tab()
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
@@ -471,17 +655,17 @@ describe('processing settings pages', () => {
   })
 
   it('trims API host before persisting', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
-    fireEvent.change(apiHostInput, {
-      target: { value: '  https://draft.example.com  ' }
-    })
-    fireEvent.blur(apiHostInput)
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  https://draft.example.com  ')
+    await user.tab()
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -498,17 +682,17 @@ describe('processing settings pages', () => {
   })
 
   it('rejects invalid API host before persisting', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
-    fireEvent.change(apiHostInput, {
-      target: { value: '  not-a-url  ' }
-    })
-    fireEvent.blur(apiHostInput)
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  not-a-url  ')
+    await user.tab()
 
     await waitFor(() => {
       expect(toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
@@ -518,6 +702,7 @@ describe('processing settings pages', () => {
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -525,13 +710,14 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
-      target: { value: ' key-1, key-2 ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.type(
+      await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'),
+      ' key-1, key-2 '
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
     // two keys parsed from the API key field (short keys render unmasked).
@@ -546,6 +732,7 @@ describe('processing settings pages', () => {
   })
 
   it('reopens the file processing API key list with keys saved from the popup', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -553,10 +740,10 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The popup opens empty (no keys configured yet).
     await screen.findByText('error.no_api_key')
@@ -620,13 +807,11 @@ describe('processing settings pages', () => {
   })
 
   it('shows PaddleOCR deployment guidance with the deployment link', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-
-    const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
+    const apiKeyLabel = await screen.findByText('settings.tool.file_processing.fields.api_key')
     const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
     const deploymentDescription = screen.getByText(
       'settings.tool.file_processing.processors.paddleocr.deployment.description'
@@ -641,12 +826,13 @@ describe('processing settings pages', () => {
   })
 
   it('stores PaddleOCR model changes per feature', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'PP-OCRv5' }))
+    await user.click(await screen.findByRole('button', { name: 'PP-OCRv5' }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -663,10 +849,7 @@ describe('processing settings pages', () => {
     overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
     rerender(<DocumentProcessingSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'PP-StructureV3' }))
+    await user.click(await screen.findByRole('button', { name: 'PP-StructureV3' }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -685,6 +868,8 @@ describe('processing settings pages', () => {
   })
 
   it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
     overridesMock.value = {
       paddleocr: {
         capabilities: {
@@ -700,49 +885,49 @@ describe('processing settings pages', () => {
 
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-    expect(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
-    ).toHaveTextContent('PP-OCRv5')
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-OCRv5')
+    })
 
     rerender(<DocumentProcessingSettings />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
-    expect(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
-    ).toHaveTextContent('PP-StructureV3')
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-StructureV3')
+    })
   })
 
   it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-
-    expect(screen.getByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
   })
 
   it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
     render(<DocumentProcessingSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
-
-    expect(screen.getByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
   })
 
   it('manages Tesseract language packs with the settings combobox', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'tesseract'
     overridesMock.value = {
       tesseract: {
         options: {
@@ -753,13 +938,9 @@ describe('processing settings pages', () => {
 
     render(<OcrSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ })
-    )
+    expect(await screen.findByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
 
-    expect(screen.getByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
+    await user.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -771,7 +952,7 @@ describe('processing settings pages', () => {
       })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /English \(eng\)/ }))
+    await user.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({

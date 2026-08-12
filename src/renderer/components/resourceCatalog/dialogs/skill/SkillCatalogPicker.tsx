@@ -77,7 +77,7 @@ export function SkillCatalogPicker({
           id: skill.id,
           name: skill.name,
           description: mode === 'edit' ? skill.description : undefined,
-          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined
+          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-warning" /> : undefined
         }
       })
   }, [mode, query, skills, t])

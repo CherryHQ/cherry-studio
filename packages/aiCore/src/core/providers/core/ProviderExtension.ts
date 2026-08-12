@@ -124,6 +124,11 @@ export class ProviderExtension<
   /** In-flight promise map - 防止并发创建相同 settings 的 provider */
   private pendingCreations: Map<string, Promise<TProvider>> = new Map()
 
+  /** Function identity is behaviorally significant for request-scoped fetch wrappers. */
+  private functionIds = new WeakMap<object, number>()
+
+  private nextFunctionId = 0
+
   constructor(public readonly config: TConfig) {
     if (!config.name) {
       throw new Error('ProviderExtension: name is required')
@@ -166,7 +171,14 @@ export class ProviderExtension<
       const seen = new WeakSet()
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
-        if (typeof obj === 'function') return '"[function]"'
+        if (typeof obj === 'function') {
+          let id = this.functionIds.get(obj)
+          if (id === undefined) {
+            id = this.nextFunctionId++
+            this.functionIds.set(obj, id)
+          }
+          return `[function:${id}]`
+        }
         if (typeof obj !== 'object') return JSON.stringify(obj)
         if (seen.has(obj)) return '"[circular]"'
         seen.add(obj)

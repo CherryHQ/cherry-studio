@@ -1,7 +1,7 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { VersionStatus } from '../types'
@@ -23,6 +23,7 @@ interface VersionStatusCardProps {
   launching?: boolean
   running?: boolean
   stopping?: boolean
+  launchDisabledHint?: string
   /** Failure message of the last install/upgrade attempt; renders a persistent failure row. */
   installError?: string
   onShowError?: () => void
@@ -44,10 +45,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   launching,
   running,
   stopping,
+  launchDisabledHint,
   installError,
   onShowError
 }) => {
   const { t } = useTranslation()
+  const launchDisabledHintId = useId()
   const isInstalled = status.installed
   const canUpgrade = isInstalled && status.canUpgrade
   const removing = status.operation?.status === 'removing'
@@ -69,9 +72,48 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
     status.applicationStatus !== 'broken' &&
     status.applicationStatus !== 'conflict' &&
     status.applicationStatus !== 'unknown'
+  const launchUnavailable = !running && !canLaunch
+
+  const launchButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={launchUnavailable ? undefined : running ? onStop : onLaunch}
+      disabled={busy || (running ? stopping : launching) || (launchUnavailable && !launchDisabledHint)}
+      aria-disabled={(launchUnavailable && !!launchDisabledHint) || undefined}
+      aria-describedby={launchUnavailable && launchDisabledHint ? launchDisabledHintId : undefined}
+      className={
+        running
+          ? 'shrink-0 text-destructive hover:text-destructive'
+          : `shrink-0 text-foreground${launchUnavailable ? 'cursor-not-allowed opacity-40' : ''}`
+      }>
+      {running && stopping ? (
+        <>
+          <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+          {t('openclaw.gateway.stop')}
+        </>
+      ) : running ? (
+        <>
+          <Square size={12} />
+          {t('openclaw.gateway.stop')}
+        </>
+      ) : launching ? (
+        <>
+          <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+          {t('code.launching')}
+        </>
+      ) : (
+        <>
+          <Play size={12} />
+          {t('code.launch.label')}
+        </>
+      )}
+    </Button>
+  )
 
   return (
-    <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
+    <div className="rounded-lg border border-border-subtle bg-background px-4 py-5">
       <div className="flex items-center gap-3">
         <CliIcon id={toolId} size={28} className="size-7 shrink-0" />
 
@@ -87,14 +129,14 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             ) : (
               cleanlyInstalled &&
               !canUpgrade && (
-                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                <span className="shrink-0 rounded border border-success-border bg-success-subtle px-1.5 py-0.5 text-[10px] text-success-subtle-foreground">
                   {t('code.up_to_date')}
                 </span>
               )
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground/60 text-xs">
+          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
             {isInstalled
               ? status.current && <span className="font-mono">v{status.current}</span>
               : status.latest && (
@@ -120,10 +162,10 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               size="sm"
               onClick={onUpgrade}
               disabled={busy}
-              className="shrink-0 gap-1 text-warning hover:bg-warning/10 hover:text-warning">
+              className="shrink-0 gap-1 text-warning hover:bg-warning-subtle hover:text-warning-subtle-foreground">
               {isUpgrading ? (
                 <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-warning/30 border-t-warning" />
+                  <span className="size-3 animate-spin rounded-full border-2 border-warning-border border-t-warning" />
                   {t('code.installing')}
                 </>
               ) : (
@@ -139,7 +181,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-muted-foreground/30 hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
               aria-label={t('settings.dependencies.uninstall')}
@@ -166,35 +208,20 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           )}
 
           {isInstalled ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={running ? onStop : onLaunch}
-              disabled={busy || (running ? stopping : !canLaunch || launching)}
-              className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
-              {running && stopping ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('openclaw.gateway.stop')}
-                </>
-              ) : running ? (
-                <>
-                  <Square size={12} />
-                  {t('openclaw.gateway.stop')}
-                </>
-              ) : launching ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('code.launching')}
-                </>
+            <>
+              {launchDisabledHint && launchUnavailable ? (
+                <Tooltip content={launchDisabledHint} placement="top" delay={300} sideOffset={6}>
+                  {launchButton}
+                </Tooltip>
               ) : (
-                <>
-                  <Play size={12} />
-                  {t('code.launch.label')}
-                </>
+                launchButton
               )}
-            </Button>
+              {launchDisabledHint && launchUnavailable ? (
+                <span id={launchDisabledHintId} className="sr-only">
+                  {launchDisabledHint}
+                </span>
+              ) : null}
+            </>
           ) : (
             !failedRemoval &&
             !retryInstall && (

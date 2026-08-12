@@ -76,9 +76,11 @@ const ActionButtonWithConfirm = ({
   tooltip?: ReactNode | false
 }) => {
   const disabled = !action.availability.enabled
+  const label = typeof action.label === 'string' ? action.label : undefined
   const button = (
     <MessageActionButton
       className="message-action-button"
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
         if (!action.confirm) {
@@ -102,6 +104,7 @@ const ActionButtonWithConfirm = ({
       {(open) => (
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
             open()
@@ -135,19 +138,24 @@ const DeleteToolbarAction = ({
   softHoverBg: boolean
 }) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const unavailableReason = action.availability.reason
 
   return (
     <ActionButtonWithConfirm
       action={action}
       executeAction={executeAction}
       icon={
-        <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
-          {action.icon}
-        </Tooltip>
+        unavailableReason ? (
+          action.icon
+        ) : (
+          <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
+            {action.icon}
+          </Tooltip>
+        )
       }
       onConfirmOpen={() => setShowDeleteTooltip(false)}
       softHoverBg={softHoverBg}
-      tooltip={false}
+      tooltip={unavailableReason ?? false}
     />
   )
 }
@@ -180,6 +188,7 @@ const MessageActionMenuPopover = ({
       align={align}
       side="top"
       onOpenChange={onOpenChange}
+      deferActionsUntilClosed
       contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
@@ -206,6 +215,7 @@ const TranslateMenuPopover = ({
               type: 'item' as const,
               id: item.key,
               label: item.label,
+              enabled: item.enabled,
               onSelect: () => {
                 void item.onSelect()
               }
@@ -317,12 +327,19 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) {
+      actionContext.actions.requestTranslationLanguages?.()
+    }
+    onMenuOpenChange?.(open)
+  }
+
   return (
     <TranslateToolbarAction
       action={action}
       translationItems={translationItems}
       softHoverBg={softHoverBg}
-      onMenuOpenChange={onMenuOpenChange}
+      onMenuOpenChange={handleMenuOpenChange}
     />
   )
 }

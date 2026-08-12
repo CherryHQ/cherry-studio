@@ -1,3 +1,4 @@
+import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
 import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
@@ -44,9 +45,10 @@ export function ConversationTopBarPortalHost({ children, className }: { children
 
 export function ConversationTopBarPortal({ children }: { children: ReactNode }) {
   const context = use(ConversationTopBarPortalContext)
+  const composerOverridden = useActiveComposerOverride() !== null
 
   if (!context) return children
-  if (!context.target) return null
+  if (!context.target || composerOverridden) return null
 
   return createPortal(children, context.target)
 }

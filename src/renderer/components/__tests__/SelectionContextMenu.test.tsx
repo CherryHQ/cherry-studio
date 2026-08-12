@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import katex from 'katex'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -82,11 +83,21 @@ vi.mock('@renderer/components/command', async () => {
 
 function mockSelection(text: string, fragment?: DocumentFragment) {
   const hasSelection = text.length > 0 || !!fragment
-  const selection = {
-    getRangeAt: () => ({
+  const createRange = () => {
+    const boundaryNode = document.createTextNode(text)
+
+    return {
       cloneContents: () =>
-        (fragment?.cloneNode(true) as DocumentFragment | undefined) ?? document.createDocumentFragment()
-    }),
+        (fragment?.cloneNode(true) as DocumentFragment | undefined) ?? document.createDocumentFragment(),
+      cloneRange: createRange,
+      endContainer: boundaryNode,
+      setEndAfter: vi.fn(),
+      setStartBefore: vi.fn(),
+      startContainer: boundaryNode
+    } as unknown as Range
+  }
+  const selection = {
+    getRangeAt: createRange,
     isCollapsed: !hasSelection,
     rangeCount: hasSelection ? 1 : 0,
     toString: () => text
@@ -179,6 +190,66 @@ describe('SelectionContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('    const value = 1\n  return value')
+  })
+
+  it('copies a selected KaTeX formula as its original TeX source', () => {
+    const texSource = String.raw`\boxed{\ker A\subseteq\ker C
+\iff
+\operatorname{Row}(C)\subseteq\operatorname{Row}(A)}`
+    vi.mocked(window.getSelection).mockRestore()
+
+    render(
+      <SelectionContextMenu>
+        <div
+          data-testid="target"
+          dangerouslySetInnerHTML={{ __html: katex.renderToString(texSource, { displayMode: true }) }}
+        />
+      </SelectionContextMenu>
+    )
+
+    const mathElement = screen.getByTestId('target').querySelector('math')
+    expect(mathElement).not.toBeNull()
+
+    const range = document.createRange()
+    range.selectNodeContents(mathElement!)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    fireEvent.contextMenu(screen.getByTestId('target'))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(texSource)
+  })
+
+  it('preserves Markdown boundaries around a selected KaTeX formula', () => {
+    const texSource = String.raw`x^2`
+    const markup = [
+      `<p>before ${katex.renderToString(texSource)}</p>`,
+      '<p>after<br>continued</p>',
+      '<ul><li>first item</li><li>last item</li></ul>'
+    ].join('')
+    vi.mocked(window.getSelection).mockRestore()
+
+    render(
+      <SelectionContextMenu>
+        <div data-testid="target" dangerouslySetInnerHTML={{ __html: markup }} />
+      </SelectionContextMenu>
+    )
+
+    const target = screen.getByTestId('target')
+    const range = document.createRange()
+    range.selectNodeContents(target)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    fireEvent.contextMenu(target)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      `before ${texSource}\nafter\ncontinued\nfirst item\nlast item`
+    )
   })
 
   it('keeps whitespace-only code selections actionable', () => {

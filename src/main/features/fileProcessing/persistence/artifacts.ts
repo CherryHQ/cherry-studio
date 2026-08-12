@@ -1,7 +1,7 @@
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FileProcessingHandlerOutput } from '../processors/types'
 import type { FileProcessingJobPayload } from '../tasks/shared'
@@ -21,12 +21,12 @@ export async function createFileProcessingJobOutput(
   return { artifact }
 }
 
-export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): FilePath {
+export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): AbsoluteFilePath {
   const output = FileProcessingJobOutputSchema.parse(snapshot.output)
   if (!isMarkdownFileArtifact(output.artifact)) {
     throw new Error(`File processing job ${snapshot.id} completed without a markdown path artifact`)
   }
-  return output.artifact.path as FilePath
+  return output.artifact.path
 }
 
 export function isMarkdownFileArtifact(
@@ -73,7 +73,7 @@ async function createFileProcessingArtifact(
         path: await markdownResultStore.persistResultToPath({
           jobId,
           result: output,
-          path: input.output.path as FilePath,
+          path: input.output.path,
           signal
         })
       }

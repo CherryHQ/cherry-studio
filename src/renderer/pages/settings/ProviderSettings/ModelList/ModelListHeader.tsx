@@ -130,7 +130,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={cn(
                 modelListClasses.searchIconButton,
-                (filterOpen || isFilterActive) && 'bg-accent/40 text-foreground'
+                (filterOpen || isFilterActive) && 'bg-accent/40 text-accent-foreground'
               )}
               aria-label={t('settings.models.filter.label')}
               aria-pressed={filterOpen}

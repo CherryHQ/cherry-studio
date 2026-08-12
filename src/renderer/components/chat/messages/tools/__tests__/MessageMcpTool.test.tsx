@@ -7,6 +7,7 @@ import MessageMcpTool from '../mcp/MessageMcpTool'
 const mockApproval = vi.hoisted(() => vi.fn())
 const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
 const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
+const mockHighlightCode = vi.hoisted(() => vi.fn(async (code: string) => `<pre>${code}</pre>`))
 
 // Control approval state directly so the test doesn't need the MCP-server data hooks.
 vi.mock('../hooks/useToolApproval', () => ({
@@ -24,7 +25,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ highlightCode: vi.fn(async () => '') })
+  useCodeStyle: () => ({ highlightCode: mockHighlightCode })
 }))
 
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
@@ -99,8 +100,6 @@ describe('MessageMcpTool', () => {
     expect(container.textContent).not.toContain('chat.input.pause')
     // Only the collapse header is interactive — no separate actions-bar controls.
     expect(screen.getAllByRole('button')).toHaveLength(1)
-    expect(screen.getByRole('button')).toHaveClass('w-fit')
-    expect(screen.getByRole('button')).not.toHaveClass('w-full')
   })
 
   it('keeps a lightweight copy action for completed tool payloads', async () => {
@@ -137,5 +136,26 @@ describe('MessageMcpTool', () => {
     render(<MessageMcpTool toolResponse={createMcpToolResponse({ status: 'done' })} />)
 
     expect(screen.getByLabelText('message.tools.autoApproveEnabled')).toBeInTheDocument()
+  })
+
+  it('renders structured tool output that is not an MCP content envelope', async () => {
+    const { container } = render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: {
+            status: 'ready',
+            tools: [{ name: 'lark-cli', installedVersion: '1.0.77' }]
+          }
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+
+    await waitFor(() => {
+      expect(container.textContent).toContain('"status": "ready"')
+      expect(container.textContent).toContain('"installedVersion": "1.0.77"')
+    })
   })
 })

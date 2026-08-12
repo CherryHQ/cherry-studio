@@ -144,10 +144,7 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
     application.getPath('sys.temp'),
     application.getPath('sys.downloads'),
     application.getPath('sys.documents'),
-    application.getPath('sys.desktop'),
-    application.getPath('sys.music'),
-    application.getPath('sys.pictures'),
-    application.getPath('sys.videos')
+    application.getPath('sys.desktop')
   ]
   if (protectedExact.some((value) => normalizeForCompare(resolveEffectivePath(value)) === normalizedTarget)) {
     invalid('target_protected', `target is a protected user or system directory: ${target}`)

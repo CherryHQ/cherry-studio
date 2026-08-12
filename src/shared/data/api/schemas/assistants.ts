@@ -22,7 +22,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * auto-managed columns) is rejected at the API boundary by default.
  *
  * Not in the whitelist:
- * - `modelName` is resolved at read time from `user_model.name`; edits go via
+ * - `modelName` is resolved at read time through ModelService; edits go via
  *   `modelId`.
  * - `orderKey` is service-owned; writes go through `/assistants/:id/order`.
  */

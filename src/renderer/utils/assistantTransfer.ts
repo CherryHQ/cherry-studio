@@ -58,7 +58,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
     dto: {
       name,
       prompt,
-      emoji: readString(record.emoji, '🤖'),
+      emoji: readString(record.emoji) || '🤖',
       description: readString(record.description),
       settings: DEFAULT_ASSISTANT_SETTINGS
     },

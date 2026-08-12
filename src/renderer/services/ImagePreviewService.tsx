@@ -1,17 +1,45 @@
+import {
+  type ImagePreviewAction,
+  ImagePreviewDialog,
+  type ImagePreviewItem,
+  type ImagePreviewLabels
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { type ImageInput, imageInputToPreviewUrl, type ImagePreviewOptions } from '@renderer/utils/image'
-import { lazy, Suspense } from 'react'
+import { toast } from '@renderer/services/toast'
+import {
+  copyImageToClipboard,
+  type ImageInput,
+  imageInputToPreviewUrl,
+  type ImagePreviewOptions
+} from '@renderer/utils/image'
+import CopyIcon from 'lucide-react/dist/esm/icons/copy'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ImagePreviewService')
-
-// Lazy to avoid a circular dependency between this service and ImageViewer; the
-// popup carries its own Suspense boundary (uSES updates surface the nearest fallback).
-const ImageViewer = lazy(() => import('@renderer/components/ImageViewer'))
 
 type PreviewProps = { src: string } & PopupInjectedProps<void>
 
 const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) => {
+  const { t } = useTranslation()
+  const labels = useMemo<Partial<ImagePreviewLabels>>(
+    () => ({
+      close: t('preview.close'),
+      dialogTitle: t('preview.label'),
+      flipHorizontal: t('preview.flip_horizontal'),
+      flipVertical: t('preview.flip_vertical'),
+      next: t('preview.next'),
+      previous: t('preview.previous'),
+      reset: t('preview.reset'),
+      rotateLeft: t('preview.rotate_left'),
+      rotateRight: t('preview.rotate_right'),
+      zoomIn: t('preview.zoom_in'),
+      zoomOut: t('preview.zoom_out')
+    }),
+    [t]
+  )
+
   const handleVisibleChange = (visible: boolean) => {
     if (!visible) {
       // Revoke the object URL on the close path (createObjectURL happens in
@@ -23,14 +51,40 @@ const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) =
     }
   }
 
+  const handleCopyImage = useCallback(
+    async (item: ImagePreviewItem) => {
+      try {
+        await copyImageToClipboard(item.src)
+        toast.success(t('message.copy.success'))
+      } catch (error) {
+        const err = error as Error
+        logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
+        toast.error(t('message.copy.failed'))
+      }
+    },
+    [t]
+  )
+
+  const contextActions = useMemo<ImagePreviewAction[]>(
+    () => [
+      {
+        icon: <CopyIcon className="size-4" />,
+        id: 'copy-image',
+        label: t('preview.copy.image'),
+        onSelect: handleCopyImage
+      }
+    ],
+    [handleCopyImage, t]
+  )
+
   return (
-    <Suspense fallback={null}>
-      <ImageViewer
-        src={src}
-        style={{ display: 'none' }}
-        preview={{ visible: open, onVisibleChange: handleVisibleChange }}
-      />
-    </Suspense>
+    <ImagePreviewDialog
+      actions={contextActions}
+      items={[{ id: src, src }]}
+      labels={labels}
+      onOpenChange={handleVisibleChange}
+      open={open}
+    />
   )
 }
 
@@ -40,7 +94,7 @@ export type { ImageInput, ImagePreviewOptions }
 
 /**
  * Image preview service — resolves any supported input to a URL and shows it in the
- * ImageViewer preview dialog (a createPopup popup). "Opens a popup" is a services
+ * shared image preview dialog (a createPopup popup). "Opens a popup" is a services
  * concern; the popup rendering lives in ImagePreviewContainer via PopupHost.
  */
 export class ImagePreviewService {

@@ -89,6 +89,7 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('chat-app-shell')).toContainElement(screen.getByTestId('center-overlay'))
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
+    expect(document.getElementById('conversation')).toHaveAttribute('data-ui', 'chat.view')
     expect(document.getElementById('conversation')).toHaveClass('message-style')
   })
 
@@ -169,14 +170,7 @@ describe('ConversationShell', () => {
     const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
     const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
     expect(topBarWrapper).toContainElement(topRightTool)
-    expect(topBarWrapper).toHaveClass(
-      'after:absolute',
-      'after:right-0',
-      'after:bottom-0',
-      'after:left-0',
-      'after:h-px',
-      'after:bg-border-subtle'
-    )
+    expect(topBarWrapper).not.toHaveClass('after:absolute', 'after:h-px', 'after:bg-border-subtle')
     expect(topBarWrapper).not.toHaveClass('pr-11', 'pr-[76px]', 'pr-[140px]', 'pr-[172px]')
     expect(topRightTool).toHaveClass('flex', 'shrink-0', 'gap-0.5')
     expect(topRightTool).not.toHaveClass('absolute')

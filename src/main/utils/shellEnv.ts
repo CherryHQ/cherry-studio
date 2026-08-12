@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { execFileSync, spawn } from 'child_process'
+import { spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
@@ -51,26 +51,6 @@ const applyBinaryExecutionEnv = (env: Record<string, string>) => {
 }
 
 /**
- * Run `reg query <keyPath> /v <valueName>` and return the string data, or null on failure.
- */
-function queryRegValue(keyPath: string, valueName: string): string | null {
-  try {
-    const out = execFileSync('reg', ['query', keyPath, '/v', valueName], {
-      encoding: 'utf-8',
-      timeout: 5000,
-      windowsHide: true
-    })
-    // Output format:
-    //   HKEY_LOCAL_MACHINE\...\Environment
-    //       Path    REG_EXPAND_SZ    C:\Windows;...
-    const match = out.match(/REG_(?:EXPAND_)?SZ\s+(.*)/i)
-    return match ? match[1].trim() : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Replace `%VAR%` references with values from `env` (case-insensitive lookup).
  */
 function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
@@ -85,16 +65,33 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
  * embedded `%VAR%` references so callers get a ready-to-use PATH string.
  * Returns null when both registry reads fail.
  */
-function readWindowsRegistryPath(env: Record<string, string>): string | null {
-  const systemPath = queryRegValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'Path')
-  const userPath = queryRegValue('HKCU\\Environment', 'Path')
+async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
+  try {
+    const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+    const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
+      const pathValue = enumerateValuesSafe(hive, subkey).find(
+        (value) =>
+          value.name.toLowerCase() === 'path' &&
+          (value.type === RegistryValueType.REG_SZ || value.type === RegistryValueType.REG_EXPAND_SZ)
+      )
+      return typeof pathValue?.data === 'string' ? pathValue.data : null
+    }
 
-  if (!systemPath && !userPath) {
+    const systemPath = readPathValue(
+      HKEY.HKEY_LOCAL_MACHINE,
+      'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
+    )
+    const userPath = readPathValue(HKEY.HKEY_CURRENT_USER, 'Environment')
+
+    if (!systemPath && !userPath) {
+      return null
+    }
+
+    const combined = [systemPath, userPath].filter(Boolean).join(';')
+    return expandWindowsEnvVars(combined, env)
+  } catch {
     return null
   }
-
-  const combined = [systemPath, userPath].filter(Boolean).join(';')
-  return expandWindowsEnvVars(combined, env)
 }
 
 /**
@@ -102,13 +99,13 @@ function readWindowsRegistryPath(env: Record<string, string>): string | null {
  * PATH with the current registry value. This avoids the stale PATH problem
  * where `cmd.exe /c set` only inherits the Electron parent process's env.
  */
-function getWindowsEnvironment(): Record<string, string> {
+async function getWindowsEnvironment(): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
   for (const key in process.env) {
     env[key] = process.env[key] || ''
   }
 
-  const registryPath = readWindowsRegistryPath(env)
+  const registryPath = await readWindowsRegistryPath(env)
   if (registryPath) {
     const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
     for (const key of pathKeys) {
@@ -143,7 +140,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
   if (isWin) {
-    return Promise.resolve(getWindowsEnvironment())
+    return getWindowsEnvironment()
   }
 
   return new Promise((resolve, reject) => {

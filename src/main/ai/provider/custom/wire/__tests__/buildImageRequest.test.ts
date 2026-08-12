@@ -260,3 +260,23 @@ describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; si
     expect(engine('ollama', {})).toEqual({})
   })
 })
+
+describe('buildVendorProviderOptions — MiniMax image API', () => {
+  it('maps output, optimizer, and watermark fields under the MiniMax key', () => {
+    expect(
+      engine('minimax', {
+        numImages: 3,
+        aspectRatio: '16:9',
+        outputFormat: 'base64',
+        promptEnhancement: true,
+        addWatermark: true
+      })
+    ).toEqual({
+      minimax: {
+        response_format: 'base64',
+        prompt_optimizer: true,
+        aigc_watermark: true
+      }
+    })
+  })
+})

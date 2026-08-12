@@ -36,13 +36,20 @@ function testIdOf(node: React.ReactNode): string | null {
 }
 
 describe('chooseTool', () => {
-  it('routes the kb_search / web_search wire names to their title cards', () => {
+  it('renders all knowledge-base wire names', () => {
     expect(testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
+    expect(testIdOf(chooseTool(resp('kb_list')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_read')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_manage')))).toBe('agent-card')
+  })
+
+  it('routes the web_search wire name to its title card', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
-  it('renders no card for a provider-side web_search (the provider already shows results inline)', () => {
-    expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
+  it('routes provider-executed web search wire names to the web card', () => {
+    expect(testIdOf(chooseTool(resp('web_search', 'provider')))).toBe('web-card')
+    expect(testIdOf(chooseTool(resp('webSearch', 'provider')))).toBe('web-card')
   })
 
   it('routes chat and agent generate_image responses to the image card', () => {

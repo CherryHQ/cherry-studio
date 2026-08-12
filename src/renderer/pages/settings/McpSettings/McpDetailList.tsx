@@ -29,7 +29,7 @@ export const McpDetailItem = ({
     {...props}>
     <dt
       className={cn(
-        'min-w-0 bg-muted/35 px-3 py-2 font-medium text-foreground/80 text-sm leading-5',
+        'min-w-0 bg-muted/35 px-3 py-2 text-foreground text-sm leading-5',
         'wrap-break-word wrap-anywhere whitespace-normal',
         labelClassName
       )}>

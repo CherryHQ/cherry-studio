@@ -14,7 +14,8 @@ import {
   type AuthConfig,
   AuthConfigSchema,
   type EndpointConfig,
-  EndpointConfigSchema,
+  type EndpointConfigOverride,
+  EndpointConfigOverrideSchema,
   type Provider,
   type ProviderSettings,
   ProviderSettingsSchema
@@ -37,8 +38,13 @@ const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 // `partialRecord` keeps keys optional so PATCH bodies can carry just the
 // endpoints actually configured (e.g. cherryin only sets `openai-chat-completions`
 // and `anthropic-messages`, not the full EndpointType set).
-const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
-  Partial<Record<EndpointType, EndpointConfig>>
+//
+// Values are the persisted OVERRIDE shape, not the full runtime EndpointConfig:
+// registry-owned fields (`modelsApiUrls`) are silently stripped here so a
+// renderer echoing a merged runtime snapshot can't re-freeze registry data
+// into the row (#17096).
+const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigOverrideSchema) as z.ZodType<
+  Partial<Record<EndpointType, EndpointConfigOverride>>
 >
 
 /**
@@ -111,9 +117,7 @@ export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 /** Query parameters for GET /providers */
 export const ListProvidersQuerySchema = z.strictObject({
   /** Filter by enabled status */
-  enabled: z.boolean().optional(),
-  /** Filter by endpoint type (kebab-case `EndpointType` value) */
-  endpointType: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>
+  enabled: z.boolean().optional()
 })
 export type ListProvidersQuery = z.infer<typeof ListProvidersQuerySchema>
 

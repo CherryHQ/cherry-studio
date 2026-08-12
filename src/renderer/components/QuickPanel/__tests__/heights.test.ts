@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
+import { getQuickPanelBodyVerticalSpace, getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
 
 const ITEM = QUICK_PANEL_ITEM_HEIGHT
 const DEFAULT_CHROME = 98
@@ -17,6 +17,17 @@ const base = {
 }
 
 describe('getQuickPanelHeights', () => {
+  it('sums the rendered body padding and border widths', () => {
+    const style = {
+      paddingTop: '5px',
+      paddingBottom: '5px',
+      borderTopWidth: '0.5px',
+      borderBottomWidth: '0.5px'
+    } as CSSStyleDeclaration
+
+    expect(getQuickPanelBodyVerticalSpace(style)).toBe(11)
+  })
+
   describe('default (docked / non-fill): fixed height, ignores availableHeight', () => {
     it('uses the fixed ideal height when availableHeight is null', () => {
       const { panelMaxHeight, listHeight } = getQuickPanelHeights(base)

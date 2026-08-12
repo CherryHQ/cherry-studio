@@ -18,7 +18,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 
 import { application } from '@application'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { app } from 'electron'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -140,7 +140,7 @@ describe('saveMigrationDiagnosticBundle', () => {
     const handles: FileHandle[] = []
     const source = logPath()
     await writeFile(source, 'opened')
-    const openTracked = async (filePath: FilePath) => {
+    const openTracked = async (filePath: AbsoluteFilePath) => {
       const handle = await open(filePath, 'r')
       handles.push(handle)
       return handle

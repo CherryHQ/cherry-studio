@@ -188,6 +188,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
+      <div>
+        <h2>{title}</h2>
+        {action}
+      </div>
+    ),
     Popover: ({
       children,
       open,
@@ -544,65 +550,29 @@ describe('BaseNavigator', () => {
     onResizeStart: vi.fn()
   }
 
-  it('shows loading instead of the empty state before the base query settles', () => {
+  // Zero bases normally never reaches the navigator because KnowledgePage owns that empty state.
+  it('shows loading before the base query settles', () => {
     render(<BaseNavigator {...baseProps} bases={[]} isLoading />)
 
     expect(screen.getByText('加载中')).toBeInTheDocument()
-    expect(screen.queryByText('暂无知识库')).toBeNull()
-  })
-
-  it('names the empty list state when no bases exist', () => {
-    render(<BaseNavigator {...baseProps} bases={[]} />)
-
-    // Truly empty names the list state; the search no-result hint is reserved
-    // for filtered-out searches over existing bases.
-    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
-  it('names the empty list state when bases are cleared but groups remain', () => {
-    // buildKnowledgeBaseGroupSections keeps the default group and all empty
-    // known groups when the search is empty, so sections is non-empty here —
-    // the global empty state must still win over a row of hollow group headers.
-    render(<BaseNavigator {...baseProps} bases={[]} groups={[createGroup({ id: 'group-1', name: 'Research' })]} />)
-
-    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
-    expect(screen.queryByText('Research')).toBeNull()
-    expect(screen.queryByText('无结果')).toBeNull()
-  })
-
-  it('shows a no-results hint when the search filters out every base', () => {
-    render(<BaseNavigator {...baseProps} bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]} />)
-
-    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
-
-    expect(screen.getByText('无结果')).toBeInTheDocument()
-    expect(screen.queryByText('暂无知识库')).toBeNull()
-  })
-
-  it('keeps stable horizontal layout around the knowledge base list', () => {
-    const { container } = render(
+  it('does not render a knowledge base search box', () => {
+    render(
       <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]}
-        groups={[]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
+          createKnowledgeBase({ id: 'base-4', name: 'Delta' })
+        ]}
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'px-2.5', 'pb-3')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('px-0')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:stable_both-edges]')
+    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
+    expect(screen.getByRole('button', { name: /Delta/ })).toBeInTheDocument()
   })
 
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
@@ -655,42 +625,6 @@ describe('BaseNavigator', () => {
 
     expect(within(screen.getByRole('button', { name: /默认/ })).queryByText('1')).not.toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: /Research/ })).queryByText('1')).not.toBeInTheDocument()
-  })
-
-  it('keeps the group expand and collapse motion classes attached', () => {
-    const { container } = render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    const groupTrigger = screen.getByRole('button', { name: /Research/ })
-    const accordionContent = container.querySelector('[data-slot="accordion-content"]')
-    const accordionContentInner = accordionContent?.firstElementChild
-
-    expect(groupTrigger).toHaveClass(
-      'motion-safe:[&>svg]:duration-[150ms]',
-      'motion-safe:[&>svg]:ease-[cubic-bezier(0.25,1,0.5,1)]'
-    )
-    expect(accordionContent).toHaveClass(
-      'motion-safe:data-[state=open]:[animation-duration:180ms]',
-      'motion-safe:data-[state=closed]:[animation-duration:120ms]',
-      'motion-safe:data-[state=open]:[&>div]:animate-in',
-      'motion-safe:data-[state=open]:[&>div]:delay-[16ms]'
-    )
-    expect(accordionContentInner).toHaveClass('pt-1.5', 'pb-0')
   })
 
   it('renders ungrouped bases before real group sections', () => {
@@ -1244,41 +1178,6 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('filters visible sections and rows when the search value changes', () => {
-    render(
-      <BaseNavigator
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha Notes', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta Docs', groupId: 'group-2' })
-        ]}
-        groups={[
-          createGroup({ id: 'group-1', name: 'Research' }),
-          createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
-        ]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), {
-      target: { value: 'Alpha' }
-    })
-
-    expect(screen.getByText('Research')).toBeInTheDocument()
-    expect(screen.queryByText('Archive')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Alpha Notes/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Beta Docs/ })).not.toBeInTheDocument()
-  })
-
   it('highlights the selected base and forwards selection clicks', () => {
     const onSelectBase = vi.fn()
 
@@ -1303,20 +1202,23 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-secondary')
-
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base from the full-width action below search', () => {
+  it('creates a knowledge base from the full-width action', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
     render(
       <BaseNavigator
-        bases={[]}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
+          createKnowledgeBase({ id: 'base-4', name: 'Delta' })
+        ]}
         groups={[]}
         width={280}
         selectedBaseId=""
@@ -1332,12 +1234,10 @@ describe('BaseNavigator', () => {
       />
     )
 
-    const searchInput = screen.getByPlaceholderText('搜索知识库...')
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
-    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
-    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
-    expect(searchInput.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The sidebar no longer repeats the page title above the create action.
+    expect(screen.queryByRole('heading', { name: '知识库' })).toBeNull()
 
     fireEvent.click(createButton)
 

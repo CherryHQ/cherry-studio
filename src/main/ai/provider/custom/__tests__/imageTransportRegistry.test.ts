@@ -8,11 +8,12 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { resolveImageTransport } from '../imageTransportRegistry'
+import { hasImageTransport, resolveImageTransport } from '../imageTransportRegistry'
 
 describe('resolveImageTransport', () => {
   it('resolves a poll-capable transport for ppio / dashscope / modelscope', () => {
     for (const providerId of ['ppio', 'dashscope', 'modelscope']) {
+      expect(hasImageTransport(providerId, 'any-model')).toBe(true)
       const transport = resolveImageTransport(providerId, 'any-model', {})
       expect(transport).not.toBeNull()
       expect(typeof transport?.submit).toBe('function')
@@ -23,6 +24,7 @@ describe('resolveImageTransport', () => {
   it('resolves a transport for dmxapi bespoke families', () => {
     const settings = { baseURL: 'https://www.dmxapi.cn/v1' }
     for (const modelId of ['doubao-seedream-3', 'wan2.2-t2i', 'qwen-image']) {
+      expect(hasImageTransport('dmxapi', modelId)).toBe(true)
       expect(resolveImageTransport('dmxapi', modelId, settings)).not.toBeNull()
     }
   })
@@ -36,11 +38,14 @@ describe('resolveImageTransport', () => {
       'gemini-2.5-flash-image',
       'some-openai-flat-model'
     ]) {
+      expect(hasImageTransport('dmxapi', modelId)).toBe(false)
       expect(resolveImageTransport('dmxapi', modelId, settings)).toBeNull()
     }
   })
 
   it('returns null for providers without a custom transport', () => {
+    expect(hasImageTransport('openai', 'gpt-image-1')).toBe(false)
+    expect(hasImageTransport('unknown-provider', 'x')).toBe(false)
     expect(resolveImageTransport('openai', 'gpt-image-1', {})).toBeNull()
     expect(resolveImageTransport('unknown-provider', 'x', {})).toBeNull()
   })

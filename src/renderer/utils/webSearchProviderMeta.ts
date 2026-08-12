@@ -107,7 +107,7 @@ export function getWebSearchProviderApiKeyWebsite(providerId: WebSearchProviderI
 export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability): string {
   return capability === 'fetchUrls'
     ? 'settings.tool.websearch.fetch_urls_provider'
-    : 'settings.tool.websearch.default_provider'
+    : 'settings.tool.websearch.search_provider'
 }
 
 export function createWebSearchMenuEntry(

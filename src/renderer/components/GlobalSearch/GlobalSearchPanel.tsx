@@ -28,6 +28,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { emitResourceListReveal } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -482,6 +483,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
@@ -509,6 +511,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
@@ -551,6 +554,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
@@ -585,6 +589,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
@@ -983,7 +988,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground"
           />
           {query && (
             <button
@@ -993,6 +998,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setQuery('')
                 setPanelMode('search')
                 setMessagePreviewTarget(null)
+                inputRef.current?.focus({ preventScroll: true })
               }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />

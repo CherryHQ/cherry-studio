@@ -14,6 +14,7 @@ interface ChatMainProps {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
+  onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder: () => void
@@ -28,6 +29,7 @@ const ChatMain: FC<ChatMainProps> = ({
   messages,
   partsByMessageId,
   streamingLayers,
+  onBindRuntime,
   isInitialLoading,
   isMessagesStale,
   loadOlder,
@@ -41,6 +43,7 @@ const ChatMain: FC<ChatMainProps> = ({
     messages,
     partsByMessageId,
     streamingLayers,
+    onBindRuntime,
     isInitialLoading,
     isMessagesStale,
     loadOlder,
@@ -50,7 +53,7 @@ const ChatMain: FC<ChatMainProps> = ({
   })
   return (
     <MessageListProvider value={value}>
-      <MessageList />
+      <MessageList enableSearch />
     </MessageListProvider>
   )
 }

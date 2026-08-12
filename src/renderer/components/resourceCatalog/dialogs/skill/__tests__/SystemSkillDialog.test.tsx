@@ -1,5 +1,5 @@
 import type { SystemSkillCandidate } from '@shared/types/skill'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -191,13 +191,15 @@ describe('SystemSkillDialog', () => {
 
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
-    await user.type(screen.getByPlaceholderText('library.system_skill.search_placeholder'), 'other')
+    const searchInput = screen.getByPlaceholderText('library.system_skill.search_placeholder')
+    await waitFor(() => expect(searchInput).toHaveFocus())
+    await user.keyboard('other')
 
     expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
     expect(screen.getByText('Other Skill')).toBeInTheDocument()
 
-    await user.clear(screen.getByPlaceholderText('library.system_skill.search_placeholder'))
-    await user.type(screen.getByPlaceholderText('library.system_skill.search_placeholder'), '123')
+    await user.clear(searchInput)
+    await user.type(searchInput, '123')
 
     expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
     expect(screen.queryByText('Other Skill')).not.toBeInTheDocument()

@@ -78,6 +78,18 @@ describe('assistantTransfer', () => {
     expect(draft.groupName).toBe('写作')
   })
 
+  it('uses the default emoji when a legacy import contains an empty emoji', () => {
+    const [draft] = parseAssistantImportContent(
+      JSON.stringify({
+        name: '无图标助手',
+        emoji: '',
+        prompt: 'legacy prompt'
+      })
+    )
+
+    expect(draft.dto.emoji).toBe('🤖')
+  })
+
   it('ignores v2-only fields from imported content and still uses legacy defaults', () => {
     const [draft] = parseAssistantImportContent(
       JSON.stringify({

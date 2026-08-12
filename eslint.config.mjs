@@ -73,6 +73,26 @@ const boundarySettings = {
 const RENDERER_BOUNDARY = 'error'
 const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
 
+// --- import bans (@typescript-eslint/no-restricted-imports) ---
+// Flat config replaces a rule wholesale rather than merging it, so every ban that
+// applies to the same files must live in ONE `patterns` array under ONE rule name.
+// To add a ban: define it here and list it in the scope block(s) below — never reach
+// for a second rule name (e.g. the base `no-restricted-imports`) to dodge the override.
+// To exempt a single sanctioned call site, put an eslint-disable comment on its import.
+const BAN_RENDERER_FROM_MAIN = {
+  group: ['@renderer', '@renderer/**', '**/renderer/**'],
+  message:
+    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+}
+// Only reaches src/main + src/preload (below). `tests/**` is globally ignored by this
+// config, so the out-of-src harness is not covered — it goes through applyMigrations by
+// convention, not by enforcement.
+const BAN_DRIZZLE_MIGRATOR = {
+  group: ['drizzle-orm/*/migrator'],
+  message:
+    "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
+}
+
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
 // full-src barrel closure needs a private boundary per directory at arbitrary depth, which
@@ -440,6 +460,70 @@ export default defineConfig([
       ]
     }
   },
+  // Path brand integrity — `as AbsoluteFilePath` / `as CanonicalFilePath` forge the
+  // brands, skipping the validation each asserts. `AbsoluteFilePath` asserts shape
+  // validation (build via AbsoluteFilePathSchema.parse); `CanonicalFilePath` asserts
+  // the byte-faithful lexical form that backs the external-path dedup key
+  // (build via the canonicalizeFilePath() factory). A forged
+  // `as CanonicalFilePath` silently bypasses canonicalization and can write a
+  // ghost-duplicate key, so the stronger brand is guarded too.
+  // Exemptions: test fixtures; and one deliberate raw-OS-path regime — the
+  // tree builder (tree/**) holds raw chokidar/OS event paths that are compared
+  // byte-for-byte against event paths and are trusted as-is, so they `as AbsoluteFilePath`
+  // rather than routing through validation.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/main/services/file/tree/**',
+      'src/**/__tests__/**',
+      'src/**/__mocks__/**',
+      'src/**/*.test.*'
+    ],
+    plugins: {
+      'filepath-brand': {
+        rules: {
+          'no-as-filepath': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as AbsoluteFilePath` / `as CanonicalFilePath` casts. Both are Zod-derived brands: AbsoluteFilePath asserts shape validation (absolute path, no null bytes), CanonicalFilePath additionally asserts the byte-faithful lexical form backing the dedup key. Forging either bypasses its validation. Construct via AbsoluteFilePathSchema.parse() / canonicalizeFilePath().',
+                recommended: true
+              },
+              messages: {
+                noAsFilePath:
+                  '`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema\'s absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                noAsCanonicalFilePath:
+                  '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
+              }
+            },
+            create(context) {
+              // Matches both `x as T` (TSAsExpression) and `<T>x` (TSTypeAssertion).
+              // Limitation: name-based, so an aliased import (`import { AbsoluteFilePath as AFP }`
+              // then `x as AFP`) is not caught — aliasing a brand solely to forge it is not a
+              // real-world pattern, and resolving aliases would require full scope analysis.
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'AbsoluteFilePath') {
+                  context.report({ node, messageId: 'noAsFilePath' })
+                } else if (ann.typeName.name === 'CanonicalFilePath') {
+                  context.report({ node, messageId: 'noAsCanonicalFilePath' })
+                }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
+    }
+  },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],
@@ -592,6 +676,8 @@ export default defineConfig([
     }
   },
   {
+    // Import bans for main/preload — see the BAN_* definitions above for each one's rationale.
+    //
     // Boundary guard: the main process and preload must not import renderer code.
     // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
     // Both the `@renderer` alias and relative `**/renderer/**` paths are banned; the
@@ -599,18 +685,7 @@ export default defineConfig([
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@renderer', '@renderer/**', '**/renderer/**'],
-              message:
-                'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
-            }
-          ]
-        }
-      ]
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

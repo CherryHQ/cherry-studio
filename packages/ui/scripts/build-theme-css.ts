@@ -118,6 +118,8 @@ function toDirectMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[
 }
 
 function buildSection(title: string, lines: string[]): string {
+  if (lines.length === 0) return ''
+
   const indentedLines = lines.map((line) => (line ? `  ${line}` : '')).join('\n')
 
   return `  /* ==================== */\n  /* ${title} */\n  /* ==================== */\n${indentedLines}`
@@ -155,7 +157,7 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
 @import './contract.css';
 
 @theme inline {
-${sections.join('\n\n')}
+${sections.filter(Boolean).join('\n\n')}
 }
 
 @layer base {

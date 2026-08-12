@@ -4,6 +4,53 @@ import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
+const webSearchModelPrefixes = [
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash',
+  'qwen-turbo',
+  'qwq-plus',
+  'qwen-plus-character',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v3-2',
+  'deepseek-v3-1',
+  'deepseek-r1',
+  'deepseek-v3',
+  'kimi-k2',
+  'kimi-k3',
+  'kimi-latest',
+  'glm-4',
+  'glm-5'
+]
+
+// Web-extractor (help.aliyun.com/zh/model-studio/web-extractor) is served for the Qwen Max/Plus/Flash
+// lines only — a subset of the web-search models (no DeepSeek/Kimi/GLM/QwQ/turbo). Extraction rides web
+// search, so eligibility here also gates the chat `agent_max` strategy in getWebSearchParams.
+const webExtractorModelPrefixes = [
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash'
+]
+
 /** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
 const wanxT2iSupports: ImageModeDef['supports'] = {
   addWatermark: { default: false, type: 'switch' },
@@ -65,7 +112,18 @@ const qwen38Support: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
   defaultEffort: 'xhigh',
   supportedEfforts: ['none', 'low', 'medium', 'xhigh'],
+  // NOT a budget knob — Qwen3.8 has no `thinking_budget` (the parameter's model
+  // list stops at Qwen3.7), which is why `controls` carries effort only. The
+  // limits exist so the API gateway can reverse a caller-supplied `budget_tokens`
+  // into the nearest effort tier (`nearestEffortForBudget`).
   thinkingTokenLimits: { min: 0, max: 262_144 }
+}
+
+/** `qwen3.8-max-preview` serves thinking mode only — no `'none'` tier, so reasoning cannot be disabled. */
+const qwen38PreviewSupport: ReasoningSupport = {
+  ...qwen38Support,
+  controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'], default: 'xhigh' }],
+  supportedEfforts: ['low', 'medium', 'xhigh']
 }
 
 const highMaxSupport: ReasoningSupport = {
@@ -87,6 +145,14 @@ const effortChatWire: ReasoningWireProfile = {
 
 const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
 
+// Preview variants omit the off mode entirely: thinking is always on there.
+const qwen38PreviewChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { effort: EFFORT })
+const qwen38PreviewResponsesWire: ReasoningWireProfile = modeWire(
+  'reasoningEffort',
+  { auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'xhigh' }
+)
+
 const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', {
   off: 'disabled',
   auto: 'adaptive',
@@ -100,20 +166,20 @@ const qwenChatModels = [
   'qwen3-14b',
   'qwen3-32b',
   'qwen3-235b-a22b',
-  'qwen3-5-9b',
-  'qwen3-5-27b',
-  'qwen3-5-35b-a3b',
-  'qwen3-5-122b-a10b',
-  'qwen3-5-397b-a17b',
-  'qwen3-5-flash',
-  'qwen3-5-plus',
-  'qwen3-6-27b',
-  'qwen3-6-35b-a3b',
-  'qwen3-6-flash',
-  'qwen3-6-plus',
-  'qwen3-6-max-preview',
-  'qwen3-7-plus',
-  'qwen3-7-max',
+  'qwen3.5-9b',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
+  'qwen3.5-flash',
+  'qwen3.5-plus',
+  'qwen3.6-27b',
+  'qwen3.6-35b-a3b',
+  'qwen3.6-flash',
+  'qwen3.6-plus',
+  'qwen3.6-max-preview',
+  'qwen3.7-plus',
+  'qwen3.7-max',
   'qwen3-max',
   'qwen3-omni-flash',
   'qwen3-vl',
@@ -124,63 +190,26 @@ const qwenChatModels = [
 ]
 
 /**
- * SKUs for which Bailian serves built-in web search, transcribed from the vendor's 支持的模型 matrix
- * (help.aliyun.com/zh/model-studio/web-search). A Bailian-platform serving feature, so it rides the
- * provider (not the alibaba creator). Chat-endpoint models get it via `enable_search`/`search_options`
- * params (getWebSearchParams); responses-endpoint models get the native `{type:'web_search'}` tool.
- *
- * Deliberately NOT the whole `qwenChatModels` list: the open-weight dense/MoE SKUs (qwen3-14b/32b/235b,
- * the qwen3.5/3.6 `-*b` variants), the qwen3-vl line, and qwen3-omni-flash are absent from that matrix,
- * so tagging them would light up the composer toggle only to yield vendor errors or empty results.
- */
-const webSearchModels = new Set([
-  // 千问 Max / Plus / Flash / Turbo / QwQ / 角色扮演
-  'qwen3-8-max-preview',
-  'qwen3-7-max',
-  'qwen3-6-max-preview',
-  'qwen3-max',
-  'qwen3-7-plus',
-  'qwen3-6-plus',
-  'qwen3-5-plus',
-  'qwen-plus',
-  'qwen3-6-flash',
-  'qwen3-5-flash',
-  'qwen-flash',
-  'qwen-turbo',
-  'qwq-plus',
-  'qwen-plus-character',
-  // 第三方模型 (Bailian-hosted)
-  'deepseek-v4-pro',
-  'deepseek-v4-flash',
-  'deepseek-v3-2',
-  'deepseek-v3-1',
-  'deepseek-r1',
-  'deepseek-v3',
-  'kimi-k2',
-  'minimax-m2-1'
-])
-
-/**
  * SKUs Bailian serves over the Responses API (help.aliyun.com/zh/model-studio model support list).
- * Tracked separately from `webSearchModels` — the two vendor matrices do not coincide.
  */
 const responsesModels = new Set([
   'qwen-plus',
   'qwen-flash',
   'qwen-plus-character',
-  'qwen3-5-27b',
-  'qwen3-5-35b-a3b',
-  'qwen3-5-122b-a10b',
-  'qwen3-5-397b-a17b',
-  'qwen3-5-flash',
-  'qwen3-5-plus',
-  'qwen3-6-35b-a3b',
-  'qwen3-6-flash',
-  'qwen3-6-plus',
-  'qwen3-7-plus',
-  'qwen3-7-max',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
+  'qwen3.5-flash',
+  'qwen3.5-plus',
+  'qwen3.6-35b-a3b',
+  'qwen3.6-flash',
+  'qwen3.6-plus',
+  'qwen3.7-plus',
+  'qwen3.7-max',
   'qwen3-max',
-  'qwen3-8-max-preview'
+  'qwen3.8-max',
+  'qwen3.8-max-preview'
 ])
 
 /**
@@ -190,8 +219,6 @@ const responsesModels = new Set([
  * endpoint is the one where their search actually works; Responses stays selectable.
  */
 const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])
-
-const webSearchCapability = { capabilities: { add: ['web-search' as const] } }
 
 /**
  * Per-model endpoint routing. The provider default stays Chat Completions, because endpoint selection
@@ -213,7 +240,6 @@ const endpointPin = (modelId: string): Partial<ProviderModelOverride> =>
 
 const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
   modelId,
-  ...(webSearchModels.has(modelId) ? webSearchCapability : {}),
   ...endpointPin(modelId),
   reasoningContracts: {
     'openai-chat-completions': { wire: qwenChatWire },
@@ -224,14 +250,23 @@ const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.
 const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   ...qwenReasoningOverrides,
   {
-    apiModelId: 'qwen3.8-max-preview',
-    modelId: 'qwen3-8-max-preview',
-    name: 'Qwen3.8 Max Preview',
-    ...webSearchCapability,
-    ...endpointPin('qwen3-8-max-preview'),
+    apiModelId: 'qwen3.8-max',
+    modelId: 'qwen3-8-max',
+    name: 'Qwen3.8 Max',
+    ...endpointPin('qwen3.8-max'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
       'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+    }
+  },
+  {
+    apiModelId: 'qwen3.8-max-preview',
+    modelId: 'qwen3-8-max-preview',
+    name: 'Qwen3.8 Max Preview',
+    ...endpointPin('qwen3.8-max-preview'),
+    reasoningContracts: {
+      'openai-chat-completions': { support: qwen38PreviewSupport, wire: qwen38PreviewChatWire },
+      'openai-responses': { support: qwen38PreviewSupport, wire: qwen38PreviewResponsesWire }
     }
   },
   {
@@ -244,9 +279,8 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
       }
     }
   },
-  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5-1', 'glm-5-2'].map((modelId) => ({
+  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((modelId) => ({
     modelId,
-    ...(webSearchModels.has(modelId) ? webSearchCapability : {}),
     ...endpointPin(modelId),
     reasoningContracts: {
       'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
@@ -275,7 +309,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
       { apiModelId: 'Moonshot-Kimi-K2-Instruct', modelId: 'kimi-k2' },
       { apiModelId: 'MiniMax-M2.1', modelId: 'minimax-m2-1' }
     ] satisfies Partial<ProviderModelOverride>[]
-  ).map((row) => ({ ...row, ...webSearchCapability, ...endpointPin(row.modelId) }))
+  ).map((row) => ({ ...row, ...endpointPin(row.modelId) }))
 ]
 
 export default defineProvider({
@@ -301,6 +335,19 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: ['minimax-m2-1']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webExtractorModelPrefixes
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',

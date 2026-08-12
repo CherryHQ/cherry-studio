@@ -27,10 +27,10 @@ describe('ConversationResourceView', () => {
 
     const view = screen.getByTestId('resource-catalog-view')
     expect(view).toHaveAttribute('data-resource-type', 'agent')
-    expect(view).toHaveClass('bg-background', 'custom-shell')
     expect(resourceCatalogViewMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        resourceType: 'agent'
+        resourceType: 'agent',
+        className: expect.stringContaining('custom-shell')
       })
     )
   })

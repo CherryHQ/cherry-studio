@@ -40,4 +40,10 @@ describe('SegmentedControl', () => {
     expect(onValueChange).not.toHaveBeenCalled()
     expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
   })
+
+  it('keeps localized labels on one line without shrinking the options', () => {
+    render(<SegmentedControl defaultValue="app" options={options} />)
+
+    expect(screen.getByRole('radio', { name: 'Window' })).toHaveClass('shrink-0', 'whitespace-nowrap')
+  })
 })

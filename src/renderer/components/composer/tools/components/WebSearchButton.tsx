@@ -1,18 +1,18 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
-import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebSearchModel } from '@shared/utils/model'
-import { isGeminiWebSearchProvider } from '@shared/utils/provider'
+import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
+import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
@@ -24,59 +24,46 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
+// 'no-backend' is deliberately absent: the button stays enabled and clicking
+// it opens the search-provider configuration flow instead.
+const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
+  'model-unsupported': 'chat.input.web_search.builtin.disabled_content',
+  'gemini-function-tool-conflict': 'chat.mcp.warning.gemini_web_search',
+  'openai-minimal-reasoning': 'chat.web_search.warning.openai'
+}
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
-  const { provider: modelProvider } = useProvider(model?.providerId ?? '')
-  const { defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const { provider: modelProvider } = useProviderById(model?.providerId)
+  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model) : false
-  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model) : false
+  const clientSearchAvailable = isWebSearchProviderReady(defaultSearchKeywordsProvider, 'searchKeywords')
+  const clientFetchAvailable = isWebSearchProviderReady(defaultFetchUrlsProvider, 'fetchUrls')
+  // Same resolver as the main process; MCP mode stands in for the request's
+  // eventual function tools, which only exist at build time.
+  const { webSearch: webSearchRoute, reasons } =
+    model && assistant
+      ? resolveWebToolRoutes(model, modelProvider, {
+          webSearchEnabled: true,
+          clientSearchAvailable,
+          clientFetchAvailable,
+          clientToolsPreferred,
+          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
+          reasoningEffort: assistant.settings.reasoning_effort
+        })
+      : { webSearch: 'none' as const, reasons: undefined }
+  const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
+  const activeProviderId = clientSearchAvailable ? defaultSearchKeywordsProvider?.id : undefined
 
-  const activeProviderId = useMemo(() => {
-    const p = defaultSearchKeywordsProvider
-    if (!p) return undefined
-    const available = webSearchProviderRequiresApiKey(p.id)
-      ? p.apiKeys.some((k) => k.trim().length > 0)
-      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
-    return available ? p.id : undefined
-  }, [defaultSearchKeywordsProvider])
-  const hasSearchBackend = hasBuiltinWebSearch || Boolean(activeProviderId)
-
-  // When the model has built-in web search, the toggle just flips the
-  // assistant flag — no external provider is invoked, so don't show its logo.
-  const providerLogo = !hasBuiltinWebSearch && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
-  const hasGeminiWebSearchConflict = Boolean(
-    modelProvider &&
-      assistant &&
-      model &&
-      isGeminiWebSearchProvider(modelProvider) &&
-      isGeminiModel(model) &&
-      !isGemini3Model(model) &&
-      getEffectiveMcpMode(assistant) !== 'disabled'
-  )
-  const hasOpenAIMinimalWebSearchConflict = Boolean(
-    model &&
-      assistant &&
-      isOpenAIWebSearchModel(model) &&
-      isGPT5SeriesReasoningModel(model) &&
-      assistant.settings.reasoning_effort === 'minimal'
-  )
-  const disabledReason =
-    !enableWebSearch && hasSearchBackend
-      ? !canUseWebSearch
-        ? t('chat.input.web_search.builtin.disabled_content')
-        : hasGeminiWebSearchConflict
-          ? t('chat.mcp.warning.gemini_web_search')
-          : hasOpenAIMinimalWebSearchConflict
-            ? t('chat.web_search.warning.openai')
-            : undefined
-      : undefined
+  const providerLogo =
+    webSearchRoute === 'client' && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
+  const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
+  const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
   const isDisabled = Boolean(disabledReason)
 
   const onClick = useCallback(
@@ -90,9 +77,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         return
       }
 
-      // Built-in web search bypasses the external-provider requirement; the
-      // toggle simply flips the assistant flag and the model handles search.
-      if (!hasBuiltinWebSearch && !activeProviderId) {
+      if (searchUnavailableReason === 'no-backend') {
         let navigatedAway = false
 
         const confirmed = await popup.confirm({
@@ -123,21 +108,19 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [
-      activeProviderId,
-      assistant,
-      disabledReason,
-      enableWebSearch,
-      hasBuiltinWebSearch,
-      navigate,
-      t,
-      updateAssistant,
-      model
-    ]
+    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
-  const tooltipTitle = disabledReason ?? ariaLabel
+  // Which side will actually serve the request. Both sides look identical on the button, and the
+  // preference that picks between them lives in settings — so name it here.
+  const routeHint =
+    webSearchRoute === 'server'
+      ? t('chat.input.web_search.route.builtin')
+      : webSearchRoute === 'client' && defaultSearchKeywordsProvider
+        ? t('chat.input.web_search.route.client', { provider: defaultSearchKeywordsProvider.name })
+        : undefined
+  const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
   const ProviderIcon = enableWebSearch ? providerLogo : undefined
   const icon = useMemo(() => (ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />), [ProviderIcon])
@@ -145,21 +128,22 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        id: 'web-search',
-        kind: 'command',
+        ...WEB_SEARCH_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
-        order: 30,
         label: t('chat.input.web_search.label'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
         icon,
+        // The pinned toolbar and the quick panel render this launcher, not the button below, and
+        // they fall back to `label` without it — so the serving side has to travel here too.
+        tooltip: tooltipTitle,
         active: enableWebSearch,
         disabled: isDisabled,
         disabledReason,
         action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
       }
     ])
-  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t])
+  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t, tooltipTitle])
 
   return { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle }
 }

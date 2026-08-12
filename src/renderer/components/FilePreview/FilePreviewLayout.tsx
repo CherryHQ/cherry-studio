@@ -7,7 +7,11 @@ interface FilePreviewFrameProps {
 
 function FilePreviewFrame({ children }: FilePreviewFrameProps) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground">{children}</div>
+    <div
+      data-ui="file-preview.view"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-transparent text-foreground">
+      {children}
+    </div>
   )
 }
 

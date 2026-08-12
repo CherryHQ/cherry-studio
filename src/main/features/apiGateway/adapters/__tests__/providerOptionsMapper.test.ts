@@ -213,6 +213,27 @@ describe('cross-dialect descriptor translation', () => {
     })
   })
 
+  it('routes API Gateway reasoning for a DMXAPI OpenAI-family model into the openai namespace', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const dmxapi = {
+      id: 'dmxapi',
+      defaultChatEndpoint: endpoint,
+      endpointConfigs: { [endpoint]: { adapterFamily: 'dmxapi' } },
+      settings: {}
+    } as Provider
+    const gpt5 = {
+      ...model('dmxapi', 'gpt-5', endpoint, {
+        selectableEfforts: ['none', 'low', 'medium', 'high'],
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]
+      }),
+      endpointTypes: undefined
+    } as Model
+
+    expect(mapReasoningEffortToProviderOptions(dmxapi, gpt5, 'high')).toEqual({
+      openai: { reasoningEffort: 'high' }
+    })
+  })
+
   it('normalizes a snake_case effort from an exact NVIDIA Gateway contract', () => {
     const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const nvidia = {

@@ -66,13 +66,13 @@ function createMockAiApi() {
   }
   const request = (route: string, input: unknown): unknown => {
     switch (route) {
-      case 'ai.stream_open':
+      case 'ai.stream.open':
         return mockApi.streamOpen(input)
-      case 'ai.stream_attach':
+      case 'ai.stream.attach':
         return mockApi.streamAttach(input)
-      case 'ai.stream_detach':
+      case 'ai.stream.detach':
         return mockApi.streamDetach(input)
-      case 'ai.stream_abort':
+      case 'ai.stream.abort':
         return mockApi.streamAbort(input)
       default:
         return Promise.resolve(undefined)
@@ -80,11 +80,11 @@ function createMockAiApi() {
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream_chunk':
+      case 'ai.stream.chunk':
         return mockApi.onStreamChunk(cb)
-      case 'ai.stream_done':
+      case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
-      case 'ai.stream_error':
+      case 'ai.stream.error':
         return mockApi.onStreamError(cb)
       default:
         return () => {}
@@ -216,6 +216,31 @@ describe('TopicStreamSubscription', () => {
 
     expect(await readAll(first)).toEqual([textChunk('before-steer')])
     expect(await readAll(second)).toEqual([textChunk('after-steer')])
+    sub.dispose()
+  })
+
+  it('keeps the topic attached across the done(false) gap before continuation chunks arrive', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, 'assistant-1')
+    await tick()
+
+    mock.emitDone(TOPIC, A, 'success', false, 'assistant-1')
+    expect(await readAll(first)).toEqual([])
+    sub.unregister(A, 'assistant-1')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(true)
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+
+    mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2')
+    const second = sub.register(A, 'assistant-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+    expect(await readAll(second)).toEqual([textChunk('continued')])
+    sub.unregister(A, 'assistant-2')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(false)
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
     sub.dispose()
   })
 
@@ -361,6 +386,18 @@ describe('TopicStreamSubscription', () => {
     const sa = sub.register(A)
     await tick()
     expect(await readAll(sa)).toEqual([])
+    sub.dispose()
+  })
+
+  it('attach failure closes branches with an error terminal instead of hanging readers', async () => {
+    mock.mockApi.streamAttach.mockRejectedValueOnce(new Error('ipc down'))
+    const sub = new TopicStreamSubscription(TOPIC)
+    const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
+    const sa = sub.register(A)
+    await tick()
+    expect(await readAll(sa)).toEqual([])
+    expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])
     sub.dispose()
   })
 })
