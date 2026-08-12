@@ -10,8 +10,9 @@
  * Every number here is an estimate with a safety ratio on top, not a ledger:
  * erring small costs a `read_file` page, erring large fails the request.
  */
-import { ATTACHMENT_INPUT_SAFETY_RATIO, DEFAULT_MAX_TOKENS } from '@main/ai/constants'
+import { ATTACHMENT_INPUT_SAFETY_RATIO } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
@@ -35,6 +36,7 @@ export interface AttachmentBudgetInput {
   model: Model
   system: string | undefined
   tools: ToolSet | undefined
+  /** What this request declares as `max_tokens`; undefined = it declares none. */
   maxOutputTokens: number | undefined
   /** History as it stands BEFORE inlining, so attachment text is not counted twice. */
   messages: UIMessage[]
@@ -62,8 +64,7 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
   spent += tokenizer.count(input.system ?? '')
   spent += await countToolSetTokens(input.tools, tokenizer)
 
-  const reservation = input.maxOutputTokens ?? input.model.maxOutputTokens ?? DEFAULT_MAX_TOKENS
-  const usable = Math.floor((window - reservation) * ATTACHMENT_INPUT_SAFETY_RATIO)
+  const usable = Math.floor(resolveInputRoom(window, input.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
   return { tokens: Math.max(0, usable - spent), tokenizer }
 }
 

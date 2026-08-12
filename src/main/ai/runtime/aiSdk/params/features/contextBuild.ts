@@ -33,6 +33,8 @@ import {
 } from '@main/ai/constants'
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -65,10 +67,15 @@ const MIN_MESSAGES_KEPT = 2
  *
  * Exported for tests.
  */
-export function resolveInFlightTruncateThreshold(configuredChars: number, contextWindow: number | undefined): number {
+export function resolveInFlightTruncateThreshold(
+  configuredChars: number,
+  contextWindow: number | undefined,
+  outputReservation?: number
+): number {
   const window = resolveContextWindow(contextWindow)
   if (window === null) return configuredChars
-  const windowBudget = Math.floor(window * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
+  const inputRoom = resolveInputRoom(window, outputReservation)
+  const windowBudget = Math.floor(inputRoom * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
   return Math.max(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD, Math.min(configuredChars, windowBudget))
 }
 
@@ -95,7 +102,17 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     },
 
     truncate: {
-      threshold: resolveInFlightTruncateThreshold(settings.truncateThreshold, scope.model.contextWindow),
+      threshold: resolveInFlightTruncateThreshold(
+        settings.truncateThreshold,
+        scope.model.contextWindow,
+        resolveRequestedMaxOutputTokens(
+          scope.request.callOverrides?.maxOutputTokens,
+          undefined,
+          scope.assistant,
+          scope.model,
+          scope.endpointType
+        )
+      ),
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),

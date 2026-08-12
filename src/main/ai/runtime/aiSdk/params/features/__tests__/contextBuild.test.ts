@@ -344,6 +344,20 @@ describe('resolveInFlightTruncateThreshold', () => {
     expect(resolveInFlightTruncateThreshold(100_000, 1000)).toBe(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD)
   })
 
+  // A declared max_tokens is billed alongside the input, so the share has to
+  // come off the room the prompt actually has: 200k − 128k leaves 72k, a third
+  // of the budget the raw window would have handed out.
+  it('takes its share of the room left after a declared max_tokens', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, 128_000)).toBe(21_600)
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, undefined)).toBe(60_000)
+  })
+
+  // minimax-m2 ships 205000/205000 and 82 other registry rows are just as
+  // degenerate; unfloored, the share would be 0 and every tool result offloads.
+  it('floors instead of collapsing when the reservation swallows the window', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 205_000, 205_000)).toBe(12_300)
+  })
+
   it('scales with the window (the point of the change)', () => {
     const small = resolveInFlightTruncateThreshold(100_000, 16_000)
     const large = resolveInFlightTruncateThreshold(100_000, 200_000)

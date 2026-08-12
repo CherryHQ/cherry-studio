@@ -15,6 +15,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
 const {
+  mockGetProviderById,
+  mockResolveEffectiveEndpoint,
   mockGetPathToNode,
   mockSetCompactionSummary,
   mockResolveRequestContextSettings,
@@ -23,6 +25,8 @@ const {
   mockGetAssistantById,
   mockFindFileEntryById
 } = vi.hoisted(() => ({
+  mockGetProviderById: vi.fn(),
+  mockResolveEffectiveEndpoint: vi.fn(),
   mockGetPathToNode: vi.fn(),
   mockSetCompactionSummary: vi.fn(),
   mockResolveRequestContextSettings: vi.fn(),
@@ -43,6 +47,15 @@ vi.mock('@data/services/AssistantService', () => ({
 // blob's entry is an owned tool-output blob before serving its path — otherwise it
 // skips the path. Default to a valid owned tool-output blob entry so persisted
 // outputs reach the allow-list; foreign/missing cases aren't exercised here.
+// The output reservation resolves the endpoint per model — only the Anthropic
+// endpoint puts max_tokens on the wire, so only it shrinks the input room.
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mockGetProviderById }
+}))
+vi.mock('@main/ai/provider/endpoint', () => ({
+  resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
+}))
+
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
 }))
@@ -257,6 +270,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     vi.clearAllMocks()
     capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
+    // Default: an endpoint that sends no max_tokens, so the input room is the
+    // whole window and every pre-existing trigger arithmetic below still holds.
+    mockGetProviderById.mockReturnValue({ id: 'openai' })
+    mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'openai-chat-completions' })
     // Default: no assistant reachable (matches assistantId=undefined in most tests).
     mockGetAssistantById.mockImplementation(() => {
       throw new Error('NOT_FOUND')
@@ -426,6 +443,37 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
       { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
     ])
+  })
+
+  // Providers bill `input + max_tokens`, so a request that declares max_tokens
+  // has that much less room for history. 4000 window − 2000 reserved = 2000 of
+  // room, tripping at 1600 where the raw window would have waited until 3200.
+  it('2a. an Anthropic-endpoint request folds against the room left after max_tokens', async () => {
+    mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'anthropic-messages' })
+    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 3200, over 1600
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The same history on the same model, but an endpoint that puts no max_tokens
+  // on the wire: nothing is billed, so the whole window stays available and the
+  // fold that fires above must not fire here.
+  it('2a-bis. an endpoint that sends no max_tokens keeps the whole window for history', async () => {
+    const MID = 'token '.repeat(400)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {

@@ -38,6 +38,8 @@ import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/
 import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
+import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
@@ -396,6 +398,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -503,6 +506,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         anchor.id,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -602,6 +606,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.userMessageId,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -690,6 +695,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[],
+    assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
@@ -758,12 +764,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
-    if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    // Against the room the PROMPT actually has: whatever this request declares
+    // as max_tokens is billed alongside the input, so it is not history's to use.
+    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    if (this.estimateContext(effective) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
+    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
