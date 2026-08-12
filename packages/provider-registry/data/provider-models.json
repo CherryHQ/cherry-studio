@@ -3329,6 +3329,81 @@
       }
     },
     {
+      "apiModelId": "qwen/qwen3.5-122b-a10b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-122b-a10b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-27b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-27b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-35b-a3b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-35b-a3b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-35b-a3b(free)",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-35b-a3b-free",
+      "modelVariants": ["35b", "free"],
+      "name": "Qwen3.5 35B A3B (Free)",
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-397b-a17b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-397b-a17b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-4b(free)",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-4b",
+      "modelVariants": ["4b", "free"],
+      "name": "Qwen3.5 4B (Free)",
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-9b(free)",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-9b",
+      "modelVariants": ["9b", "free"],
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
       "modelId": "claude-fable-5",
       "providerId": "claude-code"
     },
@@ -36282,5 +36357,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c4793157a9e14350"
+  "version": "ece03e1400bcb055"
 }
