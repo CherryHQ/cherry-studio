@@ -24,7 +24,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
-    void this.loadImplementation().then((driver) => driver.onSessionIdle(sessionId))
+    void this.loadImplementation().then((driver) => driver.onSessionIdle?.(sessionId))
   }
 
   private loadImplementation(): Promise<AgentSessionRuntimeDriver> {

@@ -1,4 +1,5 @@
 import type { NodeProxyLogger } from './bypassRules'
+import type { NodeProxyBackend } from './NodeProxyBackend'
 import {
   buildNodeProxyEnvironment,
   CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
@@ -12,8 +13,6 @@ import {
   type ProxyEndpoint,
   type ProxyRoutingSnapshot
 } from './proxyRouting'
-
-type NodeProxyBackend = import('./NodeProxyBackend').NodeProxyBackend
 
 const PROXY_ENV_KEYS = [
   CHERRY_NODE_PROXY_RULES_ENV,
@@ -49,7 +48,7 @@ export class NodeProxyController {
     const proxyEndpoint = normalizeProxyEndpoint(proxyUrl)
     if (proxyEndpoint) {
       await this.getBackend().then((backend) =>
-        backend.configure(proxyUrl!, proxyEndpoint, normalizedBypassRules, () =>
+        backend.configure(proxyUrl, proxyEndpoint, normalizedBypassRules, () =>
           this.setEnvironment(proxyUrl, normalizedBypassRules)
         )
       )

@@ -15,15 +15,25 @@ import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { SSEClientTransport, SSEClientTransportOptions, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type {
   StreamableHTTPClientTransport,
-  StreamableHTTPClientTransportOptions
+  StreamableHTTPClientTransportOptions,
+  StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import type { GetPromptResult, Progress } from '@modelcontextprotocol/sdk/types.js'
+import type {
+  CancelledNotificationSchema,
+  GetPromptResult,
+  LoggingMessageNotificationSchema,
+  Progress,
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  ToolListChangedNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -46,19 +56,19 @@ import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
 type McpClientSdk = {
-  Client: typeof import('@modelcontextprotocol/sdk/client/index.js').Client
-  SSEClientTransport: typeof import('@modelcontextprotocol/sdk/client/sse.js').SSEClientTransport
-  SseError: typeof import('@modelcontextprotocol/sdk/client/sse.js').SseError
-  StdioClientTransport: typeof import('@modelcontextprotocol/sdk/client/stdio.js').StdioClientTransport
-  StreamableHTTPClientTransport: typeof import('@modelcontextprotocol/sdk/client/streamableHttp').StreamableHTTPClientTransport
-  StreamableHTTPError: typeof import('@modelcontextprotocol/sdk/client/streamableHttp').StreamableHTTPError
-  InMemoryTransport: typeof import('@modelcontextprotocol/sdk/inMemory').InMemoryTransport
-  CancelledNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').CancelledNotificationSchema
-  LoggingMessageNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').LoggingMessageNotificationSchema
-  PromptListChangedNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').PromptListChangedNotificationSchema
-  ResourceListChangedNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').ResourceListChangedNotificationSchema
-  ResourceUpdatedNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').ResourceUpdatedNotificationSchema
-  ToolListChangedNotificationSchema: typeof import('@modelcontextprotocol/sdk/types.js').ToolListChangedNotificationSchema
+  Client: typeof Client
+  SSEClientTransport: typeof SSEClientTransport
+  SseError: typeof SseError
+  StdioClientTransport: typeof StdioClientTransport
+  StreamableHTTPClientTransport: typeof StreamableHTTPClientTransport
+  StreamableHTTPError: typeof StreamableHTTPError
+  InMemoryTransport: typeof InMemoryTransport
+  CancelledNotificationSchema: typeof CancelledNotificationSchema
+  LoggingMessageNotificationSchema: typeof LoggingMessageNotificationSchema
+  PromptListChangedNotificationSchema: typeof PromptListChangedNotificationSchema
+  ResourceListChangedNotificationSchema: typeof ResourceListChangedNotificationSchema
+  ResourceUpdatedNotificationSchema: typeof ResourceUpdatedNotificationSchema
+  ToolListChangedNotificationSchema: typeof ToolListChangedNotificationSchema
 }
 
 let mcpClientSdkPromise: Promise<McpClientSdk> | undefined
