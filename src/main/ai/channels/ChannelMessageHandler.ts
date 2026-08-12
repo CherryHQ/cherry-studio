@@ -175,7 +175,7 @@ export class ChannelMessageHandler {
       })
       return Promise.resolve()
     }
-    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
+    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)

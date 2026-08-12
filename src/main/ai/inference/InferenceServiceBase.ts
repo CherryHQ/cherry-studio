@@ -8,7 +8,13 @@ import { onnxRuntimeBinaryService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
-import type { InferenceInitMessage, InferenceRequest, InferenceResponse } from './inferenceProtocol'
+import { resolveLocalInferenceProfile } from './inferenceAcceleration'
+import type {
+  InferenceInitMessage,
+  InferenceRequest,
+  InferenceResponse,
+  LocalInferenceProfileId
+} from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
 const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
@@ -71,6 +77,8 @@ interface Pending {
 export abstract class InferenceServiceBase extends BaseService {
   private worker: Worker | null = null
   private workerProxyVersion: number | null = null
+  // Tracks worker creation; worker-local CPU fallback deliberately does not update it.
+  private workerProfileId: LocalInferenceProfileId | null = null
   private workerGeneration = 0
   private readonly pending = new Map<string, Pending>()
   private readonly queue = new PQueue({ concurrency: 1 })
@@ -103,13 +111,18 @@ export abstract class InferenceServiceBase extends BaseService {
     }
     const generation = this.workerGeneration
     const proxyRouting = await application.get('ProxyService').getRoutingSnapshot()
+    const runtimeProfile = resolveLocalInferenceProfile(
+      application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
+    )
     if (generation !== this.workerGeneration) {
       throw new Error('inference host terminated')
     }
     if (this.closing) {
       throw new Error('inference host is shutting down')
     }
-    if (this.worker && this.workerProxyVersion === proxyRouting.version) return this.worker
+    if (this.worker && this.workerProxyVersion === proxyRouting.version && this.workerProfileId === runtimeProfile.id) {
+      return this.worker
+    }
     if (this.worker) {
       await this.terminate()
       if (this.workerGeneration !== generation + 1) {
@@ -137,6 +150,7 @@ export abstract class InferenceServiceBase extends BaseService {
       if (this.worker !== worker) return
       this.worker = null
       this.workerProxyVersion = null
+      this.workerProfileId = null
       // A non-zero exit is an abnormal crash (native onnxruntime fault, OOM kill). Log it
       // unconditionally — failAll's no-op-when-idle guard below would otherwise swallow the
       // only crash breadcrumb when nothing is pending, leaving the auto-respawn invisible.
@@ -150,6 +164,7 @@ export abstract class InferenceServiceBase extends BaseService {
       type: 'init',
       appPath: application.getPath('app.root'),
       onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath(),
+      runtimeProfile,
       proxyRouting
     }
     // Only the embedding worker reads cacheDir (transformers.js model cache); the OCR
@@ -159,6 +174,7 @@ export abstract class InferenceServiceBase extends BaseService {
     worker.postMessage(init)
     this.worker = worker
     this.workerProxyVersion = proxyRouting.version
+    this.workerProfileId = runtimeProfile.id
     return worker
   }
 
@@ -277,11 +293,13 @@ export abstract class InferenceServiceBase extends BaseService {
     this.workerGeneration += 1
     if (!this.worker) {
       this.workerProxyVersion = null
+      this.workerProfileId = null
       return
     }
     const worker = this.worker
     this.worker = null
     this.workerProxyVersion = null
+    this.workerProfileId = null
     this.failAll(new Error('inference host terminated'))
     await worker.terminate()
   }
