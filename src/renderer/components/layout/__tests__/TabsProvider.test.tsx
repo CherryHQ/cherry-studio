@@ -73,6 +73,7 @@ let normalTabsValue: Tab[] = []
 const setNormalTabsMock = vi.fn()
 let activeTabIdValue = ''
 const setActiveTabIdMock = vi.fn()
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -115,7 +116,7 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 })
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: ipcRequestMock },
   useIpcOn: vi.fn()
 }))
 
@@ -246,6 +247,19 @@ function CloseTabOnMount({ tabId }: { tabId: string }) {
   return <TabSnapshot />
 }
 
+function DetachTabOnMount({ tabId }: { tabId: string }) {
+  const { detachTab } = useTabsContext()
+  const didDetachRef = useRef(false)
+
+  useEffect(() => {
+    if (didDetachRef.current) return
+    didDetachRef.current = true
+    detachTab(tabId)
+  }, [detachTab, tabId])
+
+  return <TabSnapshot />
+}
+
 function CloseHomeAfterSecondTabOpens() {
   const { closeTab, openTab, tabs } = useTabsContext()
   const didOpenRef = useRef(false)
@@ -307,6 +321,41 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('rejects direct detach requests for Settings tabs', async () => {
+    const settingsTab: Tab = {
+      id: 'settings',
+      type: 'route',
+      url: '/settings/provider',
+      title: 'Settings',
+      lastAccessTime: 0,
+      isDormant: false
+    }
+
+    render(
+      <TabsProvider initialDefaultTab={settingsTab}>
+        <DetachTabOnMount tabId={settingsTab.id} />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent(settingsTab.id))
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+  })
+
+  it('continues to detach regular tabs', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <DetachTabOnMount tabId={HOME_TAB.id} />
+      </TabsProvider>
+    )
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith(
+        'tab.detach',
+        expect.objectContaining({ id: HOME_TAB.id, url: HOME_TAB.url })
+      )
+    )
+  })
+
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider
