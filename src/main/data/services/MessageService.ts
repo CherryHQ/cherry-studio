@@ -83,6 +83,8 @@ export interface CreateUserMessageWithPlaceholdersInput {
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
+  /** Keep the topic on its current branch while reserving off-path/live sibling responses. */
+  preserveActiveNode?: boolean
 }
 
 export interface CreateUserMessageWithPlaceholdersResult {
@@ -1136,7 +1138,8 @@ export class MessageService {
   /**
    * Atomically create one chat turn: insert (or resolve) one user message,
    * optionally backfill existing siblings with groupId=0, and insert N assistant
-   * placeholders as children, then point topic.activeNodeId at the last placeholder.
+   * placeholders as children, then point topic.activeNodeId at the last placeholder unless
+   * `preserveActiveNode` explicitly keeps the user's current branch selected.
    *
    * The whole operation runs in a single DB transaction, so a failure anywhere
    * rolls back everything — callers don't need compensation logic. Designed for
@@ -1160,7 +1163,7 @@ export class MessageService {
   createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
   ): CreateUserMessageWithPlaceholdersResult {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       // Validate topic
       const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
       if (!topic) {
@@ -1280,20 +1283,41 @@ export class MessageService {
         placeholders.push(rowToMessage(row))
       }
 
-      // 4. Point activeNodeId at the last placeholder (or user message if N=0)
-      const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
-      const topicService = getDataService('TopicService')
-      topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      // 4. Point activeNodeId at the new turn unless this is an explicitly non-activating
+      // live-group append. Streaming work must not move the user's selected branch.
+      if (!input.preserveActiveNode) {
+        const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
+        const topicService = getDataService('TopicService')
+        topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      }
 
       logger.info('Reserved assistant turn', {
         topicId: input.topicId,
         userMessageId: userMessage.id,
         placeholderIds: placeholders.map((p) => p.id),
-        siblingsGroupId: input.siblingsGroupId
+        siblingsGroupId: input.siblingsGroupId,
+        preserveActiveNode: input.preserveActiveNode === true
       })
 
       return { userMessage, placeholders }
     })
+    const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId: input.topicId },
+        entityIds: changedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId: input.topicId }, entityIds: changedIds },
+      ...(!input.preserveActiveNode
+        ? ([
+            { endpoint: '/topics', kind: 'projection', entityIds: [input.topicId] },
+            { endpoint: '/topics/:id', routeParams: { id: input.topicId }, entityIds: [input.topicId] }
+          ] as const)
+        : [])
+    ])
+    return result
   }
 
   private isAwaitingInputLeafTx(tx: DbOrTx, message: Message): boolean {
@@ -1429,6 +1453,93 @@ export class MessageService {
     const finalized = this.getById(id)
     if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
     return finalized
+  }
+
+  /**
+   * Reset one failed assistant row for an in-place retry.
+   *
+   * The row identity, parent, sibling group, descendants, and topic active node are deliberately
+   * untouched. Usage/cost projection fields stay intact; attempt-local runtime timing and all
+   * descendant compaction/context anchors are cleared so later turns cannot reuse context derived
+   * from the failed attempt.
+   */
+  resetAssistantForRetry(id: string): Message {
+    const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
+      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      if (row.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation('retry message', 'only assistant messages can be retried')
+      }
+
+      const parts = row.data?.parts ?? []
+      if (row.status === 'pending' || (row.status !== 'error' && row.status !== 'paused' && parts.length > 0)) {
+        throw DataApiErrorFactory.invalidOperation('retry message', 'the assistant message is not failed')
+      }
+
+      const stats: MessageStats | null = row.stats ? { ...row.stats } : null
+      if (stats) {
+        delete stats.runtimeTiming
+        delete stats.contextTokens
+        delete stats.timeFirstTokenMs
+        delete stats.timeCompletionMs
+        delete stats.timeThinkingMs
+      }
+      const data: MessageData = {
+        parts: [],
+        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
+      }
+      const descendantIds = this.getDescendantIdsTx(tx, id)
+      for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {
+        const chunk = descendantIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+        const descendants = tx
+          .select({
+            id: messageTable.id,
+            stats: messageTable.stats,
+            updatedAt: messageTable.updatedAt
+          })
+          .from(messageTable)
+          .where(inArray(messageTable.id, chunk))
+          .all()
+        for (const descendant of descendants) {
+          if (descendant.stats?.contextTokens === undefined) continue
+          const descendantStats = { ...descendant.stats }
+          delete descendantStats.contextTokens
+          tx.update(messageTable)
+            .set({ stats: descendantStats, updatedAt: descendant.updatedAt })
+            .where(eq(messageTable.id, descendant.id))
+            .run()
+        }
+        tx.update(messageTable)
+          .set({ compactionSummary: null, updatedAt: messageTable.updatedAt })
+          .where(inArray(messageTable.id, chunk))
+          .run()
+      }
+      const [updated] = tx
+        .update(messageTable)
+        .set({ data, status: 'pending', stats, compactionSummary: null, updatedAt: row.updatedAt })
+        .where(eq(messageTable.id, id))
+        .returning()
+        .all()
+      replaceChatMessageFileRefsTx(tx, id, data)
+
+      logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
+      return {
+        updated: rowToMessage(updated),
+        affectedIds: [id, ...descendantIds],
+        topicId: row.topicId
+      }
+    })
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId },
+        entityIds: affectedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: affectedIds },
+      { endpoint: '/messages/:id', entityIds: affectedIds }
+    ])
+    return updated
   }
 
   /**
@@ -1653,7 +1764,7 @@ export class MessageService {
     activeNodeStrategy: ActiveNodeStrategy = 'parent',
     awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const [messageRow] = tx
         .select()
         .from(messageTable)
@@ -1740,11 +1851,31 @@ export class MessageService {
       }
 
       return {
+        topicId: message.topicId,
         deletedIds,
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
     })
+    const { topicId, ...response } = result
+    const changedIds = [...response.deletedIds, ...(response.reparentedIds ?? [])]
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: changedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
+      { endpoint: '/messages/:id', entityIds: response.deletedIds },
+      ...(response.newActiveNodeId !== undefined
+        ? ([
+            { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+            { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+          ] as const)
+        : [])
+    ])
+    return response
   }
 
   private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {

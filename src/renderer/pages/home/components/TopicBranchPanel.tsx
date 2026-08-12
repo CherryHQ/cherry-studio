@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -65,6 +65,13 @@ const TopicBranchPanel: FC<Props> = ({
     params: { topicId },
     query: { depth: -1 }
   })
+  useDataChange(
+    '/topics/:topicId/tree',
+    () => {
+      if (open) void refetch()
+    },
+    { routeParams: { topicId } }
+  )
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })

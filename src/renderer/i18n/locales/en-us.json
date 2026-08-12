@@ -4046,6 +4046,14 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
+      "stream_admission": {
+        "execution_changed": "The response changed before the retry started. Please try again.",
+        "execution_not_ready": "This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "This model is already generating in the active reply group.",
+        "single_model_required": "Select one model to add to the active reply group.",
+        "target_not_in_live_group": "The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "Unable to retrieve valid table data"
       },
@@ -4060,7 +4068,8 @@
         "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
         "title": "Delete Group Replies"
       },
-      "retry_failed": "Retry failed messages"
+      "retry_failed": "Retry one failed message per model",
+      "retry_skipped_same_model": "Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -8412,7 +8421,7 @@
           "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
           "firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "Search service for AI apps with web retrieval results.",
+          "querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
           "tavily": "Search engine optimized for LLMs.",
           "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."

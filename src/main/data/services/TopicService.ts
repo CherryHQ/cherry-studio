@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -358,6 +359,17 @@ export class TopicService {
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: [nodeId]
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
+      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+    ])
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
