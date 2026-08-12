@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "Arhiva ZIP a fost salvată în Descărcări, dar răspunsul serverului a fost întrerupt. Este posibil ca trimiterea să fi fost deja finalizată. Verifică înainte de a deschide formularul pentru a evita trimiterea de două ori.",
             "title": "Este posibil ca trimiterea să fi reușit"
+          },
+          "unknown_without_copy": {
+            "description": "Răspunsul serverului a fost întrerupt, iar fișierul ZIP de diagnosticare nu a putut fi salvat local. Nu reîncerca încărcarea, deoarece același feedback ar putea fi trimis de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit, dar nu a fost salvată nicio copie locală"
           }
         },
         "warning": "Unele informații de diagnosticare nu au fost disponibile. Este posibil ca pachetul exportat să fie incomplet."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "error": "Problemele GitHub nu au putut fi deschise. Încearcă din nou.",
           "title": "Problemă GitHub"
         },
         "recommended": "Recomandat",

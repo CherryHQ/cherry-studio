@@ -338,6 +338,18 @@ describe('DiagnosticBundleService', () => {
     expect(await readdir(appTempDir)).toEqual([])
   })
 
+  it('uses a distinct stable error when an uncertain submission cannot be preserved', async () => {
+    uploadMocks.upload.mockResolvedValueOnce({ status: 'submission_unknown' })
+    await rm(downloadsDir, { recursive: true })
+    const service = new DiagnosticBundleService()
+
+    await expect(
+      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED })
+    expect(uploadMocks.upload).toHaveBeenCalledOnce()
+    expect(await readdir(appTempDir)).toEqual([])
+  })
+
   it('refuses to save a bundle inside a diagnostic source directory', async () => {
     electronMocks.showSaveDialog.mockResolvedValueOnce({
       canceled: false,

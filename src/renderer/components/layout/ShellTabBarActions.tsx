@@ -91,17 +91,21 @@ export function ShellTabBarActions() {
 
 export function SidebarShellActions({
   layout,
-  onSettingsClick
+  onFeedbackClick,
+  onSettingsClick,
+  onOverlayOpenChange
 }: {
   layout: SidebarVisibleLayout
+  onFeedbackClick: () => void
   onSettingsClick: () => void
+  onOverlayOpenChange?: (open: boolean) => void
 }) {
   const { t } = useTranslation()
 
   if (layout === 'icon') {
     return (
       <>
-        <HelpMenu layout={layout} />
+        <HelpMenu layout={layout} onFeedbackClick={onFeedbackClick} onOverlayOpenChange={onOverlayOpenChange} />
         <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
           <Button
             type="button"
@@ -119,7 +123,7 @@ export function SidebarShellActions({
 
   return (
     <>
-      <HelpMenu layout={layout} />
+      <HelpMenu layout={layout} onFeedbackClick={onFeedbackClick} onOverlayOpenChange={onOverlayOpenChange} />
       <Button
         type="button"
         variant="ghost"

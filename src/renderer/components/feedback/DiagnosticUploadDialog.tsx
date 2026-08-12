@@ -14,9 +14,11 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange, DiagnosticUploadFallbackReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
-import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/constants'
+import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
 import { CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -34,6 +36,7 @@ type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'b
 type UploadState =
   | { readonly status: 'idle' }
   | { readonly status: 'uploading' }
+  | { readonly status: 'submission_unknown_fallback_save_failed' }
   | { readonly result: UploadResult; readonly status: UploadResult['status'] }
 
 interface DiagnosticUploadDialogProps {
@@ -61,6 +64,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const status = uploadState.status
   const result = 'result' in uploadState ? uploadState.result : null
+  const submissionUnknownFallbackSaveFailed = status === 'submission_unknown_fallback_save_failed'
 
   useEffect(() => {
     if (!open) return
@@ -87,8 +91,8 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   }, [open, range])
 
   useEffect(() => {
-    if (result) primaryActionRef.current?.focus()
-  }, [result])
+    if (result || submissionUnknownFallbackSaveFailed) primaryActionRef.current?.focus()
+  }, [result, submissionUnknownFallbackSaveFailed])
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
@@ -139,6 +143,10 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
       if (uploadResult.status === 'manual_upload_required') void openManualForm()
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
+      if (error instanceof IpcError && error.code === diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED) {
+        setUploadState({ status: 'submission_unknown_fallback_save_failed' })
+        return
+      }
       setUploadState({ status: 'idle' })
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     }
@@ -167,6 +175,8 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
         <Scrollbar className="min-h-0 px-6 py-2">
           {result ? (
             <UploadResultContent result={result} />
+          ) : submissionUnknownFallbackSaveFailed ? (
+            <SubmissionUnknownFallbackSaveFailedContent />
           ) : (
             <div className="space-y-4">
               <section className="space-y-2">
@@ -234,9 +244,16 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
         </Scrollbar>
 
         <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-          {result ? (
+          {submissionUnknownFallbackSaveFailed ? (
+            <Button ref={primaryActionRef} variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.close')}
+            </Button>
+          ) : result ? (
             <>
-              <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              <Button
+                ref={result.status === 'uploaded' ? primaryActionRef : undefined}
+                variant="outline"
+                onClick={() => handleOpenChange(false)}>
                 {t('settings.about.diagnostics.actions.close')}
               </Button>
               {result.status !== 'uploaded' ? (
@@ -274,11 +291,30 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   )
 }
 
+function SubmissionUnknownFallbackSaveFailedContent() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex gap-3 rounded-xl border border-warning-border bg-warning-subtle p-4" role="alert">
+      <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+      <div className="min-w-0 space-y-1">
+        <p className="font-medium">{t('settings.about.diagnostics.upload.unknown_without_copy.title')}</p>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.about.diagnostics.upload.unknown_without_copy.description')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function UploadResultContent({ result }: { readonly result: UploadResult }) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
     return (
-      <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
+      <div
+        className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true">
         <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
         <div className="min-w-0 space-y-1">
           <p className="font-medium text-success-subtle-foreground">

@@ -1,15 +1,19 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   language: 'en-US',
+  openFeedback: vi.fn(),
   openReleaseNotes: vi.fn(),
   openSmartMiniApp: vi.fn()
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
   useOpenReleaseNotes: () => mocks.openReleaseNotes
@@ -26,18 +30,15 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../../feedback/FeedbackDialog', () => ({
-  default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => (
-    <div data-testid="feedback-shell" data-open={open}>
-      {open ? <div role="dialog">feedback-dialog</div> : null}
-      <button type="button" onClick={() => onOpenChange(false)}>
-        close-feedback
-      </button>
-    </div>
-  )
-}))
-
 import { HelpMenu } from '../HelpMenu'
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any
+})
 
 afterEach(() => {
   cleanup()
@@ -60,7 +61,7 @@ describe('HelpMenu', () => {
     ['icon', false],
     ['full', true]
   ] as const)('renders the help entry in %s sidebar layout', (layout, hasVisibleLabel) => {
-    render(<HelpMenu layout={layout} />)
+    render(<HelpMenu layout={layout} onFeedbackClick={mocks.openFeedback} />)
 
     const trigger = screen.getByRole('button', { name: 'help.title' })
     expect(trigger).toBeInTheDocument()
@@ -72,7 +73,7 @@ describe('HelpMenu', () => {
   })
 
   it('shows four compact 32px actions and opens release notes', async () => {
-    render(<HelpMenu layout="icon" />)
+    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     const actions = ['help.whats_new', 'help.guide', 'help.feedback', 'help.star'].map((name) =>
@@ -85,13 +86,25 @@ describe('HelpMenu', () => {
     await waitFor(() => expect(mocks.openReleaseNotes).toHaveBeenCalledOnce())
   })
 
+  it('reports the help overlay lifecycle to its sidebar owner', async () => {
+    const onOverlayOpenChange = vi.fn()
+    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} onOverlayOpenChange={onOverlayOpenChange} />)
+    const user = await openMenu()
+
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith(true)
+
+    await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
+
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
   it.each([
     ['zh-CN', 'https://docs.cherryai.com.cn/'],
     ['zh-TW', 'https://docs.cherryai.com.cn/'],
     ['en-US', 'https://docs.cherryai.com.cn/docs/en-us']
   ])('opens the language-specific guide in app content for %s', async (language, expectedUrl) => {
     mocks.language = language
-    render(<HelpMenu layout="full" />)
+    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.guide' }))
@@ -107,27 +120,17 @@ describe('HelpMenu', () => {
     )
   })
 
-  it('opens the feedback dialog from the secondary menu action', async () => {
-    render(<HelpMenu layout="full" />)
+  it('requests the feedback dialog from the secondary menu action', async () => {
+    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.feedback' }))
 
-    await waitFor(() => expect(screen.getByText('feedback-dialog')).toBeInTheDocument())
-  })
-
-  it('keeps the feedback component mounted after its primary dialog closes', async () => {
-    render(<HelpMenu layout="full" />)
-    const user = await openMenu()
-
-    await user.click(screen.getByRole('button', { name: 'help.feedback' }))
-    await user.click(await screen.findByRole('button', { name: 'close-feedback' }))
-
-    expect(screen.getByTestId('feedback-shell')).toHaveAttribute('data-open', 'false')
+    await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
   it('opens the repository in app content for the GitHub Star action', async () => {
-    render(<HelpMenu layout="icon" />)
+    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.star' }))
@@ -143,7 +146,7 @@ describe('HelpMenu', () => {
   })
 
   it('supports keyboard activation from the focused first action', async () => {
-    render(<HelpMenu layout="icon" />)
+    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
     const firstAction = screen.getByRole('button', { name: 'help.whats_new' })
 

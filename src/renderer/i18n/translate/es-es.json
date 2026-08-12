@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "El archivo ZIP se guardó en Descargas, pero la respuesta del servidor se interrumpió. Puede que ya se haya enviado. Compruébalo antes de abrir el formulario para evitar enviarlo dos veces.",
             "title": "Es posible que el envío haya finalizado"
+          },
+          "unknown_without_copy": {
+            "description": "La respuesta del servidor se interrumpió y el ZIP de diagnóstico no se pudo guardar localmente. No vuelvas a intentar la carga, ya que podrías enviar los mismos comentarios dos veces.",
+            "title": "Es posible que el envío se haya completado, pero no se guardó ninguna copia local"
           }
         },
         "warning": "Parte de la información de diagnóstico no estaba disponible. El paquete exportado puede estar incompleto."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Crea un informe de error o una solicitud de funcionalidad en GitHub.",
+          "error": "No se pudieron abrir los issues de GitHub. Inténtalo de nuevo.",
           "title": "Problema de GitHub"
         },
         "recommended": "Recomendado",

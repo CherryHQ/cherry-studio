@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "The ZIP was saved to Downloads, but the server response was interrupted. It may already have been submitted. Check before opening the form to avoid sending it twice.",
             "title": "Submission may have succeeded"
+          },
+          "unknown_without_copy": {
+            "description": "The server response was interrupted and the diagnostic ZIP could not be saved locally. Do not retry the upload, because it may send the same feedback twice.",
+            "title": "Submission may have succeeded, but no local copy was saved"
           }
         },
         "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Create a bug report or feature request on GitHub.",
+          "error": "Unable to open GitHub Issues. Please try again.",
           "title": "GitHub Issue"
         },
         "recommended": "Recommended",

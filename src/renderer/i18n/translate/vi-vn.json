@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "Tệp ZIP đã được lưu vào thư mục Tải xuống nhưng phản hồi từ máy chủ bị gián đoạn. Có thể nội dung đã được gửi. Hãy kiểm tra trước khi mở biểu mẫu để tránh gửi hai lần.",
             "title": "Có thể nội dung đã được gửi"
+          },
+          "unknown_without_copy": {
+            "description": "Phản hồi của máy chủ đã bị gián đoạn và không thể lưu tệp ZIP chẩn đoán trên máy. Đừng thử tải lên lại vì cùng một phản hồi có thể bị gửi hai lần.",
+            "title": "Nội dung có thể đã được gửi thành công nhưng không lưu được bản sao trên máy"
           }
         },
         "warning": "Một số thông tin chẩn đoán không khả dụng. Gói đã xuất có thể không đầy đủ."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Tạo báo cáo lỗi hoặc yêu cầu tính năng trên GitHub.",
+          "error": "Không thể mở GitHub Issues. Vui lòng thử lại.",
           "title": "Vấn đề GitHub"
         },
         "recommended": "Được đề xuất",

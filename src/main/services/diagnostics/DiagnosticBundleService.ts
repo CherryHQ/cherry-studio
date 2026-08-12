@@ -383,7 +383,18 @@ export class DiagnosticBundleService {
         }
       }
 
-      const savedBundle = await this.saveUploadFallback(bundle)
+      let savedBundle: Omit<SavedBundle, 'status'>
+      try {
+        savedBundle = await this.saveUploadFallback(bundle)
+      } catch (error) {
+        if (uploadResult.status === 'submission_unknown') {
+          throw new IpcError(
+            diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED,
+            'Diagnostic submission may have succeeded, but its fallback could not be preserved'
+          )
+        }
+        throw error
+      }
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
         return { ...savedBundle, status: 'submission_unknown' }

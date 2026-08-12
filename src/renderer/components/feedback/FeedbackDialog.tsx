@@ -80,7 +80,11 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const selectOption = (action: () => void | Promise<void>) => {
     onOpenChange(false)
-    window.setTimeout(() => void action(), 0)
+    window.setTimeout(() => {
+      void Promise.resolve()
+        .then(action)
+        .catch((error) => logger.error('Failed to run deferred feedback action', error as Error))
+    }, 0)
   }
 
   const openAgentFeedback = async () => {
@@ -90,6 +94,15 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
     } catch (error) {
       logger.error('Failed to create Cherry Support feedback session', error as Error)
       toast.error(t('settings.about.feedback.agent_error'))
+    }
+  }
+
+  const openGitHubIssue = async () => {
+    try {
+      await ipcApi.request('system.shell.open_website', FEEDBACK_GITHUB_URL)
+    } catch (error) {
+      logger.error('Failed to open GitHub issue chooser', error as Error)
+      toast.error(t('settings.about.feedback.github.error'))
     }
   }
 
@@ -120,7 +133,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
               icon={<Github className="size-5" />}
               title={t('settings.about.feedback.github.title')}
               description={t('settings.about.feedback.github.description')}
-              onSelect={() => selectOption(() => ipcApi.request('system.shell.open_website', FEEDBACK_GITHUB_URL))}
+              onSelect={() => selectOption(openGitHubIssue)}
             />
           </ItemGroup>
         </DialogContent>

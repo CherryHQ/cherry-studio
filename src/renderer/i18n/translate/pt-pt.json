@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "O ficheiro ZIP foi guardado na pasta Transferências, mas a resposta do servidor foi interrompida. O envio poderá já ter sido concluído. Verifique antes de abrir o formulário para evitar enviar duas vezes.",
             "title": "O envio poderá ter sido concluído"
+          },
+          "unknown_without_copy": {
+            "description": "A resposta do servidor foi interrompida e não foi possível guardar localmente o ZIP de diagnóstico. Não tente carregar novamente, pois poderá enviar o mesmo comentário duas vezes.",
+            "title": "O envio poderá ter sido concluído, mas não foi guardada uma cópia local"
           }
         },
         "warning": "Algumas informações de diagnóstico não estavam disponíveis. O pacote exportado poderá estar incompleto."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Criar um relatório de bug ou pedido de recurso no GitHub.",
+          "error": "Não foi possível abrir os issues do GitHub. Tente novamente.",
           "title": "Issue do GitHub"
         },
         "recommended": "Recomendado",

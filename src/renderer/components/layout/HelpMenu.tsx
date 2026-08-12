@@ -4,24 +4,49 @@ import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { BookOpen, CircleQuestionMark, Github, MessageSquareText, Sparkles } from 'lucide-react'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
 const GITHUB_REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
 
-export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
+export function HelpMenu({
+  layout,
+  onFeedbackClick,
+  onOverlayOpenChange
+}: {
+  layout: SidebarVisibleLayout
+  onFeedbackClick: () => void
+  onOverlayOpenChange?: (open: boolean) => void
+}) {
   const { t, i18n } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const openReleaseNotes = useOpenReleaseNotes()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const firstActionRef = useRef<HTMLButtonElement>(null)
+  const menuOpenRef = useRef(false)
+  const onOverlayOpenChangeRef = useRef(onOverlayOpenChange)
+
+  useEffect(() => {
+    onOverlayOpenChangeRef.current = onOverlayOpenChange
+  }, [onOverlayOpenChange])
+
+  useEffect(
+    () => () => {
+      if (menuOpenRef.current) {
+        onOverlayOpenChangeRef.current?.(false)
+      }
+    },
+    []
+  )
+
+  const handleMenuOpenChange = (open: boolean) => {
+    menuOpenRef.current = open
+    setMenuOpen(open)
+    onOverlayOpenChange?.(open)
+  }
 
   const runAfterClose = (action: () => void | Promise<void>) => {
-    setMenuOpen(false)
+    handleMenuOpenChange(false)
     window.setTimeout(() => void action(), 0)
   }
 
@@ -48,11 +73,6 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
     })
   }
 
-  const openFeedback = () => {
-    setFeedbackDialogMounted(true)
-    setFeedbackOpen(true)
-  }
-
   const trigger =
     layout === 'icon' ? (
       <Button
@@ -76,7 +96,7 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
 
   return (
     <>
-      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+      <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <Tooltip
           content={t('help.title')}
           placement="right"
@@ -115,7 +135,7 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
               className="h-8"
               icon={<MessageSquareText size={16} />}
               label={t('help.feedback')}
-              onClick={() => runAfterClose(openFeedback)}
+              onClick={() => runAfterClose(onFeedbackClick)}
             />
             <MenuItem
               size="sm"
@@ -127,12 +147,6 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
           </MenuList>
         </PopoverContent>
       </Popover>
-
-      {feedbackDialogMounted ? (
-        <Suspense fallback={null}>
-          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-        </Suspense>
-      ) : null}
     </>
   )
 }

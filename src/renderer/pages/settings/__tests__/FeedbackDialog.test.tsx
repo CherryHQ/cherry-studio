@@ -6,8 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
+  loggerError: vi.fn(),
   openRoute: vi.fn(),
   toastError: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ error: mocks.loggerError }) }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -102,5 +107,23 @@ describe('FeedbackDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
 
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', FEEDBACK_GITHUB_URL))
+  })
+
+  it('closes before reporting GitHub issue chooser failures', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'system.shell.open_website') {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        return Promise.reject(new Error('open failed'))
+      }
+      return Promise.resolve({ sessionId: 'feedback-session' })
+    })
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
+
+    await waitFor(() =>
+      expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open GitHub issue chooser', expect.any(Error))
+    )
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.github.error')
   })
 })

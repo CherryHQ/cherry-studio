@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/constants'
+import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -81,7 +83,12 @@ describe('DiagnosticUploadDialog', () => {
         range: '24h'
       })
     )
-    expect(await screen.findByText('settings.about.diagnostics.upload.success.title')).toBeInTheDocument()
+    const successStatus = await screen.findByRole('status')
+    expect(successStatus).toHaveAttribute('aria-live', 'polite')
+    expect(successStatus).toHaveTextContent('settings.about.diagnostics.upload.success.title')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.close' })).toHaveFocus()
+    )
   })
 
   it('locks the dialog while upload is in progress', async () => {
@@ -162,6 +169,58 @@ describe('DiagnosticUploadDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.upload.actions.open_form' }))
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+  })
+
+  it('prevents a duplicate upload when an uncertain submission cannot be preserved', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') {
+        throw new IpcError(diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED)
+      }
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' })
+    )
+
+    expect(await screen.findByText('settings.about.diagnostics.upload.unknown_without_copy.title')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'settings.about.diagnostics.upload.unknown_without_copy.description'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' })
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: 'settings.about.diagnostics.actions.reveal' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'settings.about.diagnostics.upload.actions.open_form' })).toBeNull()
+    const closeButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.close' })
+    await waitFor(() => expect(closeButton).toHaveFocus())
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('keeps a known fallback preservation failure retryable', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') {
+        throw new IpcError(diagnosticsErrorCodes.FALLBACK_SAVE_FAILED)
+      }
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    const uploadButton = await screen.findByRole('button', {
+      name: 'settings.about.diagnostics.upload.actions.consent_upload'
+    })
+
+    await user.click(uploadButton)
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.upload.errors.upload_failed')
+    )
+    expect(uploadButton).toBeEnabled()
   })
 
   it('returns to idle and reports a concurrent operation as busy', async () => {

@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert, aber die Serverantwort wurde unterbrochen. Die Übermittlung war möglicherweise bereits erfolgreich. Prüfen Sie dies, bevor Sie das Formular öffnen, um eine doppelte Übermittlung zu vermeiden.",
             "title": "Übermittlung möglicherweise erfolgreich"
+          },
+          "unknown_without_copy": {
+            "description": "Die Serverantwort wurde unterbrochen und die Diagnose-ZIP-Datei konnte nicht lokal gespeichert werden. Starten Sie den Upload nicht erneut, da dasselbe Feedback sonst doppelt gesendet werden könnte.",
+            "title": "Übermittlung möglicherweise erfolgreich, aber keine lokale Kopie gespeichert"
           }
         },
         "warning": "Einige Diagnoseinformationen waren nicht verfügbar. Das exportierte Paket ist möglicherweise unvollständig."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Erstellen Sie einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "error": "GitHub Issues konnten nicht geöffnet werden. Bitte versuchen Sie es erneut.",
           "title": "GitHub Issue"
         },
         "recommended": "Empfohlen",

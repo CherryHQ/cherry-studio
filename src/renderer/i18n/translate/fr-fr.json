@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "Le fichier ZIP a été enregistré dans Téléchargements, mais la réponse du serveur a été interrompue. Il a peut-être déjà été envoyé. Vérifiez avant d’ouvrir le formulaire afin d’éviter un double envoi.",
             "title": "L’envoi a peut-être réussi"
+          },
+          "unknown_without_copy": {
+            "description": "La réponse du serveur a été interrompue et le fichier ZIP de diagnostic n’a pas pu être enregistré localement. Ne relancez pas l’envoi, car le même avis pourrait être envoyé deux fois.",
+            "title": "L’envoi a peut-être réussi, mais aucune copie locale n’a été enregistrée"
           }
         },
         "warning": "Certaines informations de diagnostic n'étaient pas disponibles. L'archive exportée est peut-être incomplète."
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "Créer un rapport de bug ou une demande de fonctionnalité sur GitHub.",
+          "error": "Impossible d'ouvrir les issues GitHub. Veuillez réessayer.",
           "title": "Problème GitHub"
         },
         "recommended": "Recommandé",

@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "ZIP 已儲存至下載資料夾，但伺服器回應中斷，可能已經提交成功。開啟表單前請先確認，避免重複提交。",
             "title": "可能已提交"
+          },
+          "unknown_without_copy": {
+            "description": "伺服器回應中斷，且診斷包無法儲存至下載資料夾。請勿再次上傳，否則可能重複提交同一份意見回饋。",
+            "title": "可能已提交，但未能儲存本機副本"
           }
         },
         "warning": "部分診斷資訊目前無法取得，匯出的診斷包可能不完整。"
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "在 GitHub 上建立錯誤回報或功能請求。",
+          "error": "無法開啟 GitHub Issue，請再試一次。",
           "title": "GitHub 問題"
         },
         "recommended": "推薦",

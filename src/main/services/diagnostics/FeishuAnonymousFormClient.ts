@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 
 import type { DiagnosticUploadFallbackReason } from '@shared/ipc/schemas/diagnostics'
-import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/constants'
+import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 import { type Session, session } from 'electron'
 
 const SHARE_TOKEN = 'shrcnufZiSDrvRPIzSKeqcbBbub'
@@ -406,7 +406,7 @@ async function uploadBlocks(
           ...requestHeaders(credentials, 'space.api.box.stream.upload.merge_block', `${FORM_ORIGIN}/`),
           'Content-Type': 'application/octet-stream',
           'x-block-list-checksum': adler32(block),
-          'x-block-origin-size': String(prepared.blockSize),
+          'x-block-origin-size': String(block.byteLength),
           'x-seq-list': String(sequence)
         },
         method: 'POST'

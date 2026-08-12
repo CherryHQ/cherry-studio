@@ -5971,6 +5971,10 @@
           "unknown": {
             "description": "ZIP 已保存到下载目录，但服务器响应中断，可能已经提交成功。打开表单前请先确认，避免重复提交。",
             "title": "可能已提交"
+          },
+          "unknown_without_copy": {
+            "description": "服务器响应中断，且诊断包无法保存到下载目录。请勿再次上传，否则可能重复提交同一份反馈。",
+            "title": "可能已提交，但未能保存本地副本"
           }
         },
         "warning": "部分诊断信息暂时不可用，导出的诊断包可能不完整。"
@@ -5996,6 +6000,7 @@
         },
         "github": {
           "description": "前往 GitHub 创建 Bug 报告或功能建议。",
+          "error": "无法打开 GitHub Issue，请重试。",
           "title": "GitHub Issue"
         },
         "recommended": "推荐",

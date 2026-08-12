@@ -11,6 +11,7 @@ import { parse } from 'yaml'
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
 type ElectronBuilderConfig = {
   releaseInfo?: {
@@ -22,10 +23,14 @@ const electronBuilderConfig = parse(
   readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
 ) as ElectronBuilderConfig
 const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const bundledReleaseHistory = parseReleaseHistory(
+  readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
+)
 
 if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
   throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
 }
+validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -122,6 +127,7 @@ export default defineConfig({
   },
   renderer: {
     define: {
+      __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
       __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
     },

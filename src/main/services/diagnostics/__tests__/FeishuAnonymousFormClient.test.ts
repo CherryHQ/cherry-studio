@@ -196,7 +196,17 @@ describe('FeishuAnonymousFormClient', () => {
     })
     const blockCalls = fetch.mock.calls.filter(([url]) => String(url).includes('/merge_block/'))
     expect(blockCalls).toHaveLength(3)
-    expect(new Headers(blockCalls[0][1]?.headers).get('x-command')).toBe('space.api.box.stream.upload.merge_block')
+    for (const [sequence, blockCall] of blockCalls.entries()) {
+      const body = blockCall[1]?.body as Uint8Array
+      const headers = new Headers(blockCall[1]?.headers)
+      const expectedSize = sequence < 2 ? blockSize : 1
+      expect(headers.get('x-command')).toBe('space.api.box.stream.upload.merge_block')
+      expect(headers.get('x-seq-list')).toBe(String(sequence))
+      expect(body).toHaveLength(expectedSize)
+      expect(headers.get('x-block-origin-size')).toBe(String(body.byteLength))
+      expect(headers.get('x-block-list-checksum')).toBe(adler32(body))
+    }
+    expect(blockCalls[2][1]?.body).toEqual(new Uint8Array([1]))
     expect(fetch.mock.calls.some(([url]) => String(url).includes('/box/stream/upload/all/'))).toBe(false)
   })
 
