@@ -22,10 +22,13 @@
         "count_tokens": "估算一組 Anthropic 格式訊息所佔用的輸入 Token 數量。",
         "generate_content": "透過 Gemini 的 `generateContent` 方法產生內容。請求與回應格式與 Gemini API 一致；`streamGenerateContent` 走同一路徑。",
         "get_knowledge_base": "依 ID 取得單一知識庫。",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "服務健康狀態、目前時間與版本號。無需驗證。",
         "info": "API 名稱、版本與主要端點清單。無需驗證。",
         "list_knowledge_bases": "列出目前 Cherry Studio 執行個體中可用的知識庫。",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
         "responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",
         "search_knowledge_bases": "在一個或多個知識庫中檢索，回傳相符的文件片段。"
@@ -100,6 +103,12 @@
     "save_file": "儲存檔案",
     "select_folder": "選擇資料夾",
     "word_document": "Word 文件"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

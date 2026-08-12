@@ -295,6 +295,56 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).not.toContain('hitting a rate limit')
     })
 
+    // The inline card classifies 403 as `permission`; the prompt must not then tell the user
+    // their key is invalid. Region and quota keep winning, matching `classifyError`.
+    it('routes HTTP 403 to permission context instead of auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"no access"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('refused this request with HTTP 403')
+      expect(callArgs.prompt).not.toContain('got an authentication error')
+    })
+
+    it('keeps a geo-blocked 403 in region context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'region', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, message: 'unsupported_country_region_territory' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('IP region is not supported')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('keeps a billing 403 in quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('still routes HTTP 401 to auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 401, message: 'Unauthorized' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('got an authentication error')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
     it('falls back to provider and model fields on the error', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })

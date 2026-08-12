@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyHint": "When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
@@ -1562,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Files",
+          "resources": "Files & Folders",
           "skills": "Skills"
         },
         "description": "Select from files, agents, or skills",
+        "load_failed": "Failed to load workspace resources",
         "loading": "Loading...",
-        "no_file_found": {
-          "description": "No searchable files in the current workspace",
-          "label": "No File Found"
-        },
         "no_items_found": {
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Files & Sessions"
+        "no_resources_found": {
+          "description": "No searchable files or folders in the current workspace",
+          "label": "No Resources Found"
+        },
+        "title": "Resources & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2542,6 +2545,7 @@
       "ocr": "OCR engine not initialized, check OCR settings",
       "parse": "AI returned an invalid response, please retry or switch model",
       "payload": "Request content too large, please reduce file or text size",
+      "permission": "The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
       "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
@@ -4488,14 +4492,27 @@
     },
     "pinned": "Pinned",
     "price": {
+      "add_tier": "Add pricing tier",
+      "cache_fallback_help": "Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "Cache Read Price",
+      "cache_write": "Cache Write Price",
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
+      "field_for_tier": "{{field}}, tier {{index}}",
       "input": "Input Price",
       "million_tokens": "M Tokens",
+      "min_input_tokens": "Starts at input tokens",
+      "min_input_tokens_help": "Inclusive boundary; must be greater than the previous tier.",
       "output": "Output Price",
-      "price": "Price"
+      "price": "Price",
+      "remove_tier": "Remove pricing tier {{index}}",
+      "tier": "Tier {{index}}",
+      "tier_from": "From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "Use input price",
+      "validation_min_input_tokens": "Enter a positive whole number.",
+      "validation_min_input_tokens_order": "The tier must start after the previous tier.",
+      "validation_price": "Enter a price greater than or equal to 0."
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranker",
@@ -6693,6 +6710,10 @@
       "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "Hardware acceleration"
+        },
         "cancel": "Cancel",
         "description": "Models that run locally on your device — download once, then use offline with no API key.",
         "download": "Download",
@@ -7000,6 +7021,7 @@
       },
       "command": "Command",
       "config_description": "Configure Model Context Protocol servers",
+      "copyLogs": "Copy logs",
       "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
       "deleteError": "Failed to delete server",
       "deleteServer": "Delete Server",
@@ -7053,6 +7075,7 @@
       },
       "logoUrl": "Logo URL",
       "logs": "Logs",
+      "logsHint": "Logs from the MCP server process",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",

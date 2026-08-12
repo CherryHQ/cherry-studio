@@ -22,10 +22,13 @@
         "count_tokens": "Estimează câte tokenuri de intrare consumă un set de mesaje în format Anthropic.",
         "generate_content": "Generează conținut prin metoda `generateContent` a Gemini. Corpurile cererii și răspunsului respectă formatul API-ului Gemini; `streamGenerateContent` este servit pe aceeași cale.",
         "get_knowledge_base": "Obține o bază de cunoștințe după ID.",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "Starea serviciului, ora curentă și versiunea. Nu necesită autentificare.",
         "info": "Numele și versiunea API-ului, precum și principalele endpoint-uri. Nu necesită autentificare.",
         "list_knowledge_bases": "Listează bazele de cunoștințe disponibile în această instanță Cherry Studio.",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "Listează modelele disponibile prin acest gateway, în formatul models al OpenAI.",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "Creează un mesaj. Corpurile cererii și răspunsului respectă formatul Anthropic Messages; cu `stream: true` rezultatul este transmis incremental.",
         "responses": "Creează un răspuns. Corpurile cererii și răspunsului respectă formatul OpenAI Responses.",
         "search_knowledge_bases": "Caută în una sau mai multe baze de cunoștințe și returnează fragmentele de document potrivite."
@@ -100,6 +103,12 @@
     "save_file": "Salvează fișier",
     "select_folder": "Selectează directorul",
     "word_document": "Document Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

@@ -22,10 +22,13 @@
         "count_tokens": "Оценивает, сколько входных токенов занимает набор сообщений в формате Anthropic.",
         "generate_content": "Генерирует контент методом `generateContent` из Gemini. Формат запроса и ответа соответствует Gemini API; `streamGenerateContent` доступен по тому же пути.",
         "get_knowledge_base": "Возвращает базу знаний по её идентификатору.",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "Состояние сервиса, текущее время и версия. Аутентификация не требуется.",
         "info": "Название и версия API, а также основные эндпоинты. Аутентификация не требуется.",
         "list_knowledge_bases": "Список баз знаний, доступных в этом экземпляре Cherry Studio.",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "Список моделей, доступных через этот шлюз, в формате models OpenAI.",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "Создаёт сообщение. Формат запроса и ответа соответствует Anthropic Messages; с `stream: true` вывод передаётся по частям.",
         "responses": "Создаёт ответ. Формат запроса и ответа соответствует OpenAI Responses.",
         "search_knowledge_bases": "Ищет в одной или нескольких базах знаний и возвращает подходящие фрагменты документов."
@@ -100,6 +103,12 @@
     "save_file": "Сохранить файл",
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

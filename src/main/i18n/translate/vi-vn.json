@@ -22,10 +22,13 @@
         "count_tokens": "Ước tính số token đầu vào mà một tập tin nhắn theo định dạng Anthropic sử dụng.",
         "generate_content": "Sinh nội dung qua phương thức `generateContent` của Gemini. Định dạng yêu cầu và phản hồi giống Gemini API; `streamGenerateContent` dùng chung đường dẫn này.",
         "get_knowledge_base": "Lấy một cơ sở tri thức theo ID.",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "Trạng thái dịch vụ, thời gian hiện tại và phiên bản. Không cần xác thực.",
         "info": "Tên, phiên bản API và các endpoint chính. Không cần xác thực.",
         "list_knowledge_bases": "Liệt kê các cơ sở tri thức có trong phiên bản Cherry Studio này.",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "Liệt kê các mô hình khả dụng qua gateway này, theo định dạng models của OpenAI.",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "Tạo một tin nhắn. Định dạng yêu cầu và phản hồi giống Anthropic Messages; đặt `stream: true` để nhận kết quả theo luồng.",
         "responses": "Tạo một response. Định dạng yêu cầu và phản hồi giống OpenAI Responses.",
         "search_knowledge_bases": "Tìm kiếm trong một hoặc nhiều cơ sở tri thức và trả về các đoạn tài liệu phù hợp."
@@ -100,6 +103,12 @@
     "save_file": "Lưu tệp",
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

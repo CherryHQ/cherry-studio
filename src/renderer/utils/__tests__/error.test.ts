@@ -2,7 +2,14 @@ import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatErrorMessage, getErrorDetails, isAbortError, isTimeoutError, serializeHealthCheckError } from '../error'
+import {
+  formatErrorMessage,
+  getErrorDetails,
+  isAbortError,
+  isTimeoutError,
+  providerErrorText,
+  serializeHealthCheckError
+} from '../error'
 
 describe('error', () => {
   describe('getErrorDetails', () => {
@@ -231,6 +238,61 @@ describe('error', () => {
       const wrappedError = new Error('Wrapped error') as Error & { cause: unknown }
       wrappedError.cause = abortError
       expect(isTimeoutError(wrappedError)).toBe(false)
+    })
+  })
+
+  describe('providerErrorText', () => {
+    // AI SDK degrades `message` to the HTTP statusText when the body does not match the
+    // provider's error schema; the real reason only survives in `responseBody`.
+    it('prefers a non-OpenAI-shaped body over the degraded message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          statusCode: 403,
+          responseBody: '{"detail":"Chute not available on your plan"}'
+        })
+      ).toBe('Chute not available on your plan')
+    })
+
+    it('reads the OpenAI-shaped nested message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          responseBody: '{"error":{"message":"model access denied","type":"invalid_request_error"}}'
+        })
+      ).toBe('model access denied')
+    })
+
+    it('falls back to the raw body for an unrecognised shape', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          responseBody: '{"code":40301,"reason":"blocked"}'
+        })
+      ).toBe('{"code":40301,"reason":"blocked"}')
+    })
+
+    it('falls back to the raw body when it is not JSON', () => {
+      expect(
+        providerErrorText({ name: 'AI_APICallError', message: 'Forbidden', stack: null, responseBody: '<html>nope' })
+      ).toBe('<html>nope')
+    })
+
+    it('falls back to message when there is no body', () => {
+      expect(providerErrorText({ name: 'Error', message: 'boom', stack: null })).toBe('boom')
+      expect(providerErrorText(undefined)).toBe('')
+    })
+
+    it('truncates an oversized body', () => {
+      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody: 'x'.repeat(600) })
+      expect(result).toHaveLength(501)
+      expect(result.endsWith('\u2026')).toBe(true)
     })
   })
 })
