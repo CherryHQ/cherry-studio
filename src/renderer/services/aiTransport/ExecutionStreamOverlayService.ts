@@ -440,6 +440,19 @@ export class ExecutionStreamOverlayService {
     sub.onExecutionTerminal(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
+    sub.onBranchesRetired((branches) => {
+      if (this.#entries.get(topicId) !== entry) return
+      for (const branch of branches) {
+        const key = executionKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
+        entry.settledKeys.add(key)
+        const handle = entry.readers.get(key)
+        if (!handle) continue
+        handle.cancel()
+        handle.unregister()
+        entry.readers.delete(key)
+      }
+      this.#maybeDrop(entry)
+    })
     sub.onTopicStateChange(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
@@ -507,6 +520,12 @@ export class ExecutionStreamOverlayService {
     getSeedMessages: () => CherryUIMessage[]
   ): void {
     const branch = entry.sub.register(executionId, anchorMessageId, attemptId)
+    if (!entry.sub.hasOpenBranch(executionId, anchorMessageId, attemptId)) {
+      // A terminal fence can reject stale work after empty-set tombstone pruning.
+      // Do not report its closed stream as success.
+      entry.settledKeys.add(key)
+      return
+    }
     const readerEpoch = entry.epoch
     const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
     entry.readerVersions.set(executionId, readerVersion)

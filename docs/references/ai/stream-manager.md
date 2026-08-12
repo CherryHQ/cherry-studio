@@ -68,16 +68,17 @@ reference for that Main-side design.
 │  AiService.streamText(request) → ReadableStream<UIMessageChunk> │
 │         ↓ pipeStreamLoop (tees: broadcast + readUIMessageStream) │
 │                                                              │
-│  terminal → dispatchToListeners → every StreamListener:      │
-│    WebContentsListener    → wc.send(Ai_StreamDone)           │
-│    PersistenceListener    → PersistenceBackend.persistAssistant
-│      • MessageServiceBackend  (SQLite tree)                  │
-│      • TemporaryChatBackend   (in-memory)                    │
-│      • AgentSessionMessageBackend (agent-session DB)         │
-│      • TranslationBackend     (translate row)                │
-│    TraceFlushListener    → TraceStorageService.saveSpans(topicId)
-│    ChannelAdapterListener → adapter.onStreamComplete         │
-│    SseListener            → res.write('[DONE]')              │
+│  terminal → dispatchToListeners (awaited phase order):       │
+│    1. PersistenceListener → PersistenceBackend.persistAssistant
+│       • MessageServiceBackend  (SQLite tree)                 │
+│       • TemporaryChatBackend   (in-memory)                   │
+│       • AgentSessionMessageBackend (agent-session DB)        │
+│       • TranslationBackend     (translate row)               │
+│    2. WebContentsListener → wc.send(Ai_StreamDone/Error)     │
+│       other notification listeners (channel / SSE)          │
+│    3. TraceFlushListener → TraceStorageService.saveSpans    │
+│    Persistence failure → emit correction error and suppress  │
+│      the original notification phase; cleanup still runs     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -245,11 +246,15 @@ continuations.
 ### Unified liveness policy
 
 `AiStreamManager.dispatchToListeners` is the single funnel for terminal
-events (`onDone` / `onPaused` / `onError`). Per listener it:
+events (`onDone` / `onPaused` / `onError`). It snapshots listeners, orders
+them by `terminalPhase` (`persistence` → notification → `cleanup`), and then:
 
-- Calls `listener.isAlive()` before each broadcast — `false` removes the
+- Calls `listener.isAlive()` before each invocation — `false` removes the
   listener from `stream.listeners` (cleans up dead consumers).
 - Wraps each call in try/catch — one bad listener can't starve the rest.
+- Treats `TerminalPersistenceError` from a persistence-phase listener as a
+  control signal: skip ordinary notification listeners because the failure
+  callback already emitted the correcting error, but still run cleanup.
 - Logs by event name + listener id for easy triage.
 
 `onChunk` keeps a synchronous contract (the execution loop can't `await`
@@ -281,10 +286,18 @@ have to know how to encode an error into a UIMessage — they just write.
 
 The listener owns the observer protocol: filter by `modelId`
 (multi-model topics have one listener per execution), merge the error
-part exactly once, swallow exceptions so they don't break downstream
-dispatch, fire `afterPersist` only when `status === 'success'` and
-`finalMessage` is present (best-effort). Adding a fifth storage path
-(e.g. an outbox) is a 60-line backend, no listener boilerplate to copy.
+part exactly once, and fire `afterPersist` only when `status === 'success'`
+and `finalMessage` is present (best-effort). A terminal write failure first
+attempts `markTerminalError`, then invokes the required `onPersistFailed`
+callback, and always throws `TerminalPersistenceError` even if that callback
+throws. This prevents the manager from broadcasting the original terminal as
+success after persistence failed.
+
+This ordering intentionally trades terminal-notification latency for
+consistency: renderer, channel, and SSE terminal notifications wait for the
+terminal persistence write. A slow database therefore delays the visible
+terminal event, but consumers never observe success before the durable row is
+committed. Per-chunk delivery is unaffected.
 
 ## ActiveStream & StreamExecution
 
@@ -477,12 +490,24 @@ class AiStreamManager {
 ```typescript
 interface SendInput {
   topicId: string
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
+  models: ReadonlyArray<{
+    modelId: UniqueModelId
+    request: AiStreamRequest
+    runtimeTimingSeed?: MessageRuntimeTiming
+    seedFromEmpty?: boolean
+    rootSpan?: Span
+    abortController?: AbortController
+  }>
   listeners: StreamListener[]
   siblingsGroupId?: number
   liveExecutionChange?:
-    | { mode: 'replace' }
-    | { mode: 'append'; groupAnchorMessageId: string }
+    | { mode: 'replace'; parentAnchorId: string; siblingsGroupId?: number }
+    | {
+        mode: 'append'
+        groupAnchorMessageId: string
+        parentAnchorId: string
+        siblingsGroupId: number
+      }
   lifecycle?: StreamLifecycle        // omit → chatLifecycle; streamPrompt passes promptStreamLifecycle
 }
 
@@ -501,7 +526,10 @@ interface SendResult {
   already enqueued) — `send()` never throws on empty models.
 - **started**: topic is idle or grace-period (terminal) → any leftover
   grace-period stream is evicted, a new `ActiveStream` is created with
-  `isMultiModel = models.length > 1`, one execution launched per model.
+  `isMultiModel = models.length > 1`, one execution launched per model. A
+  live topic with `liveExecutionChange` also returns `started`, but launches
+  exactly one admitted replacement/append execution inside the existing
+  reply group.
 
 `isMultiModel` is not an input — it's derived from `models.length`.
 

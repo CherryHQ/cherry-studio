@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => {
     id: string,
     t: { attemptId?: number; anchorMessageId?: string; isAbort: boolean; isError: boolean }
   ) => void
+  type RetirementCb = (
+    branches: ReadonlyArray<{ executionId: string; attemptId: number; anchorMessageId?: string }>
+  ) => void
   type Branch = {
     executionId: string
     attemptId?: number
@@ -22,6 +25,7 @@ const mocks = vi.hoisted(() => {
     readonly branches = new Map<string, Branch>()
     readonly terminalByKey = new Map<string, { executionId: string; terminal: Parameters<TerminalCb>[1] }>()
     readonly terminalCbs = new Set<TerminalCb>()
+    readonly retirementCbs = new Set<RetirementCb>()
     readonly topicStateCbs = new Set<() => void>()
     listenCalls = 0
     disposed = false
@@ -108,6 +112,11 @@ const mocks = vi.hoisted(() => {
       return () => this.terminalCbs.delete(cb)
     }
 
+    onBranchesRetired(cb: RetirementCb) {
+      this.retirementCbs.add(cb)
+      return () => this.retirementCbs.delete(cb)
+    }
+
     onTopicStateChange(cb: () => void) {
       this.topicStateCbs.add(cb)
       return () => this.topicStateCbs.delete(cb)
@@ -126,6 +135,7 @@ const mocks = vi.hoisted(() => {
       this.branches.clear()
       this.terminalByKey.clear()
       this.terminalCbs.clear()
+      this.retirementCbs.clear()
       this.topicStateCbs.clear()
     }
 
@@ -184,6 +194,13 @@ const mocks = vi.hoisted(() => {
         for (const cb of [...this.terminalCbs]) cb(executionId, terminal)
       }
     }
+
+    retire(branches: ReadonlyArray<{ executionId: string; attemptId: number; anchorMessageId?: string }>) {
+      for (const cb of [...this.retirementCbs]) cb(branches)
+      for (const { executionId, attemptId, anchorMessageId } of branches) {
+        this.unregister(executionId, anchorMessageId, attemptId)
+      }
+    }
   }
 
   const subs = new Map<string, FakeSubscription>()
@@ -217,11 +234,17 @@ function streamText(
   executionId: string,
   textId: string,
   text: string,
-  anchorMessageId = 'anchor-a'
+  anchorMessageId = 'anchor-a',
+  attemptId = 1
 ) {
-  sub.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk, anchorMessageId)
-  sub.emit(executionId, { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk, anchorMessageId)
-  sub.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk, anchorMessageId)
+  sub.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk, anchorMessageId, attemptId)
+  sub.emit(
+    executionId,
+    { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk,
+    anchorMessageId,
+    attemptId
+  )
+  sub.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk, anchorMessageId, attemptId)
 }
 
 function textOf(parts: CherryUIMessage['parts'] | undefined): string {
@@ -356,17 +379,30 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.disposed).toBe(true)
   })
 
-  it('replays an execution-only terminal to a later anchor registration without an attempt id', async () => {
+  it('retires watermark-covered sibling readers without reporting an implicit success', async () => {
+    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
     const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    const onFinish = vi.fn()
     service.acquire(TOPIC)
+    service.onFinish(TOPIC, onFinish)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
-    sub.terminal(A, { isAbort: false, isError: true })
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
+    streamText(sub, A, 't1', 'failed partial', 'anchor-a', 1)
+    streamText(sub, B, 't2', 'final answer', 'anchor-b', 2)
+    sub.retire([{ executionId: A, attemptId: 1, anchorMessageId: 'anchor-a' }])
+    sub.terminal(B, { isAbort: false, isError: false }, 'anchor-b', 2)
     await drainStreamMicrotasks()
 
-    expect(sub.hasOpenBranch(A, 'anchor-a')).toBe(false)
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onFinish).toHaveBeenCalledWith(B, expect.objectContaining({ attemptId: 2, isError: false }))
+
+    service.syncExecutions(TOPIC, consumer, [], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], seed)
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
+    expect(onFinish).toHaveBeenCalledTimes(1)
   })
 
   it('remount with a stale active set does not restart a settled execution or wipe its final frame', async () => {

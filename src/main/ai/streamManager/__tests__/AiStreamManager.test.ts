@@ -1,5 +1,6 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -781,6 +782,37 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)?.executions).toEqual([
         expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'current-assistant' })
       ])
+    })
+
+    it('maps a missing persisted reply-group anchor to the live-group admission reason', () => {
+      mockGetMessageById.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Message', 'missing-assistant')
+      })
+
+      expect(() =>
+        mgr.admitLiveExecutionChange('missing-anchor-topic', {
+          mode: 'replace',
+          modelId: 'provider-a::model-a',
+          anchorMessageId: 'missing-assistant',
+          parentAnchorId: 'user-1'
+        })
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
+
+    it('propagates database faults while checking a persisted reply-group anchor', () => {
+      const databaseError = new Error('database unavailable')
+      mockGetMessageById.mockImplementation(() => {
+        throw databaseError
+      })
+
+      expect(() =>
+        mgr.admitLiveExecutionChange('database-fault-topic', {
+          mode: 'replace',
+          modelId: 'provider-a::model-a',
+          anchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1'
+        })
+      ).toThrow(databaseError)
     })
 
     it('admits another failed sibling into a retry stream for the same persisted reply group', async () => {

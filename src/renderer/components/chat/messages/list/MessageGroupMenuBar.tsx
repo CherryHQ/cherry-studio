@@ -17,7 +17,10 @@ import MessageGroupSettings from './MessageGroupSettings'
 
 const logger = loggerService.withContext('MessageGroupMenuBar')
 
-function selectRetryCandidates(messages: MessageListItem[], selectedMessageId: string): MessageListItem[] {
+function selectRetryCandidates(
+  messages: MessageListItem[],
+  selectedMessageId: string
+): { candidates: MessageListItem[]; skippedCount: number } {
   const candidatesByModel = new Map<string, MessageListItem>()
 
   for (const message of messages) {
@@ -34,7 +37,10 @@ function selectRetryCandidates(messages: MessageListItem[], selectedMessageId: s
     }
   }
 
-  return [...candidatesByModel.values()]
+  return {
+    candidates: [...candidatesByModel.values()],
+    skippedCount: messages.length - candidatesByModel.size
+  }
 }
 
 interface Props {
@@ -80,10 +86,8 @@ const MessageGroupMenuBar: FC<Props> = ({
     !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
-    const candidates = selectRetryCandidates(
-      messages.filter((m) => isFailedMessage(m) && m.status !== 'pending'),
-      selectMessageId
-    )
+    const retryableMessages = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
+    const { candidates, skippedCount } = selectRetryCandidates(retryableMessages, selectMessageId)
     let failedCount = 0
     let lastError: unknown
 
@@ -99,6 +103,9 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     if (failedCount > 0) {
       actions.notifyError?.(formatErrorMessageWithPrefix(lastError, t('message.group.retry_failed')))
+    }
+    if (skippedCount > 0) {
+      actions.notifyInfo?.(t('message.group.retry_skipped_same_model', { count: skippedCount }))
     }
   }
 

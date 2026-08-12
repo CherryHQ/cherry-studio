@@ -39,7 +39,7 @@ export interface PersistenceListenerOptions {
    * `error`; this lets the caller surface that error while the manager suppresses the original
    * terminal notification.
    */
-  onPersistFailed?: (error: SerializedError) => void
+  onPersistFailed: (error: SerializedError) => void
 }
 
 export class PersistenceListener implements StreamListener {
@@ -149,20 +149,17 @@ export class PersistenceListener implements StreamListener {
         })
       }
       // Surface the persistence error now; the manager suppresses the original terminal notification.
-      if (this.opts.onPersistFailed) {
-        try {
-          this.opts.onPersistFailed(serializeError(err))
-        } catch (notifyErr) {
-          logger.error('Failed to surface terminal persistence error', {
-            backend: this.opts.backend.kind,
-            topicId: this.opts.topicId,
-            status,
-            err: notifyErr
-          })
-        }
-        throw new TerminalPersistenceError('Terminal persistence failed after surfacing the error')
+      try {
+        this.opts.onPersistFailed(serializeError(err))
+      } catch (notifyErr) {
+        logger.error('Failed to surface terminal persistence error', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status,
+          err: notifyErr
+        })
       }
-      return
+      throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {

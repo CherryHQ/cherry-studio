@@ -179,7 +179,8 @@ describe('MessageGroupMenuBar', () => {
   it('retries at most one failed reply per model with deterministic selection', async () => {
     const user = userEvent.setup()
     const regenerateMessage = vi.fn().mockResolvedValue(undefined)
-    mocks.actions = { regenerateMessage }
+    const notifyInfo = vi.fn()
+    mocks.actions = { regenerateMessage, notifyInfo }
     const failedMessages = [
       {
         ...messages[0],
@@ -224,5 +225,6 @@ describe('MessageGroupMenuBar', () => {
     await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
 
     expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
+    expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
   })
 })

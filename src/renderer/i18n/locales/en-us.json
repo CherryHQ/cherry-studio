@@ -4066,7 +4066,8 @@
         "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
         "title": "Delete Group Replies"
       },
-      "retry_failed": "Retry failed messages"
+      "retry_failed": "Retry one failed message per model",
+      "retry_skipped_same_model": "Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {

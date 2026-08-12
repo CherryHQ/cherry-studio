@@ -19,6 +19,7 @@ import type {
   AiStreamOpenResponse
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -187,8 +188,9 @@ function isPersistedReplyGroupAnchor(
       message.parentId === parentAnchorId &&
       (siblingsGroupId === undefined || message.siblingsGroupId === siblingsGroupId)
     )
-  } catch {
-    return false
+  } catch (error) {
+    if (isDataApiNotFoundError(error)) return false
+    throw error
   }
 }
 
@@ -1852,6 +1854,8 @@ export class AiStreamManager extends BaseService {
   }
 
   private getTopicAttemptWatermark(stream: ActiveStream): number {
+    // Valid because attempt ids come from the process-global monotonic sequence;
+    // replacing a model entry therefore always fences every older attempt it displaced.
     let watermark = 0
     for (const execution of stream.executions.values()) watermark = Math.max(watermark, execution.attemptId)
     return watermark
