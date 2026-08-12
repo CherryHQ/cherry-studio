@@ -233,7 +233,7 @@ crash orphans then wait a week past that restore's completion.
 
 ### 7.1 Schema migration
 
-Standard Drizzle column addition (dev-stage migrations are throwaway per repo policy; regenerate as usual). DB default `'manual'`.
+Standard Drizzle column addition — append via `pnpm db:migrations:generate`. DB default `'manual'`.
 
 ### 7.2 v1 migrator classification — by reference state
 
