@@ -228,3 +228,88 @@ describe('ChannelAdapter.sendFile default', () => {
     await expect(adapter.sendFile('100', file)).rejects.toThrow('Channel type "qq" does not support sending files')
   })
 })
+
+describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function createAdapterWithConfig(config: Record<string, unknown>) {
+    return qqFactory(
+      {
+        id: 'ch-qq-1',
+        type: 'qq',
+        enabled: true,
+        config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
+      },
+      'agent-1'
+    )
+  }
+
+  it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1'))
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('mention_only=false: processes GROUP_MESSAGE_CREATE and emits message event', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g1', 'hey everyone'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('full-1')
+    expect(events[0].text).toBe('hey everyone')
+  })
+
+  it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // Simulate handleDispatch: AT arrives first, checks wasSeen, marks it, then processes
+    const msg = groupMessage('dup-1', 'g1', 'hello')
+    if (!adapter.wasSeen(msg.id)) {
+      adapter.markSeen(msg.id)
+      await adapter.handleGroupMessage(msg)
+    }
+    // FULL event follows → handleGroupFullMessage's wasSeen catches the duplicate
+    await adapter.handleGroupFullMessage(groupMessage('dup-1', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-1')
+  })
+
+  it('mention_only=false: dedup—FULL event then AT event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // FULL event arrives first → processed and marked as seen
+    await adapter.handleGroupFullMessage(groupMessage('dup-2', 'g1', 'hello'))
+
+    // AT event follows → wasSeen returns true, handleDispatch skips handleGroupMessage
+    const msg = groupMessage('dup-2', 'g1', 'hello')
+    if (!adapter.wasSeen(msg.id)) {
+      adapter.markSeen(msg.id)
+      await adapter.handleGroupMessage(msg)
+    }
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-2')
+  })
+
+  it('mention_only=false: still respects allowed_chat_ids filter', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false, allowed_chat_ids: ['group:g-whitelist'] })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g-other', 'hi'))
+
+    expect(events).toHaveLength(0)
+  })
+})

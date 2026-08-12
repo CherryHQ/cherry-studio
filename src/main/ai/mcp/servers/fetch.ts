@@ -31,7 +31,7 @@ export class Fetcher {
     try {
       // The URL is model-supplied and this tool is auto-callable, so direct
       // main-process fetches must bind the connection to validated DNS results.
-      return await fetchRemoteText(url, { headers: buildHeaders(headers) })
+      return await fetchRemoteText(url, { headers: buildHeaders(headers), maxRedirects: 5 })
     } catch (e: unknown) {
       if (e instanceof Error) {
         throw new Error(`Failed to fetch ${url}: ${e.message}`)
