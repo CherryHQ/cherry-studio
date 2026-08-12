@@ -89,6 +89,8 @@ export interface MessageRef {
   id: string
 }
 
+type MessageReadModelTarget = MessageRef & { containerId: string }
+
 export interface AiUsageCaptureContext {
   providerId: string
   providerName: string | null
@@ -1142,26 +1144,36 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
   }
 }
 
-function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): boolean {
+function rebuildMessageUsageProjectionTx(
+  db: DbOrTx,
+  ref: MessageRef
+): { changed: boolean; target: MessageReadModelTarget } | null {
   const projection = getMessageUsageProjectionTx(db, ref)
   if (ref.kind === 'chat') {
-    const row = db.select({ stats: messageTable.stats }).from(messageTable).where(eq(messageTable.id, ref.id)).get()
-    if (!row) return false
+    const row = db
+      .select({ stats: messageTable.stats, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(eq(messageTable.id, ref.id))
+      .get()
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    return { changed, target: { ...ref, containerId: row.topicId } }
   } else {
     const row = db
-      .select({ stats: agentSessionMessageTable.stats })
+      .select({ stats: agentSessionMessageTable.stats, sessionId: agentSessionMessageTable.sessionId })
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
-    if (!row) return false
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) {
+      db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    }
+    return { changed, target: { ...ref, containerId: row.sessionId } }
   }
-  return true
 }
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
@@ -1368,7 +1380,7 @@ function insertRowsTx(
   db: DbOrTx,
   rows: readonly InsertAiUsageRecordRow[],
   warnOnConflict: boolean
-): { inserted: number; affectedMessages: MessageRef[] } {
+): { inserted: number; affectedMessages: MessageReadModelTarget[] } {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
   for (const row of rows) {
@@ -1393,25 +1405,46 @@ function insertRowsTx(
     inserted += 1
   }
 
-  for (const ref of affectedMessages.values()) rebuildMessageUsageProjectionTx(db, ref)
-  return { inserted, affectedMessages: [...affectedMessages.values()] }
+  const affectedReadModels = [...affectedMessages.values()].flatMap((ref) => {
+    const rebuilt = rebuildMessageUsageProjectionTx(db, ref)
+    return rebuilt ? [rebuilt.target] : []
+  })
+  return { inserted, affectedMessages: affectedReadModels }
 }
 
-function messageReadModelEffects(refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
+function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
   const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
   const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
+  const chatIdsByTopic = new Map<string, string[]>()
+  const agentIdsBySession = new Map<string, string[]>()
+  for (const ref of refs) {
+    const idsByContainer = ref.kind === 'chat' ? chatIdsByTopic : agentIdsBySession
+    const ids = idsByContainer.get(ref.containerId) ?? []
+    ids.push(ref.id)
+    idsByContainer.set(ref.containerId, ids)
+  }
   return [
-    ...(chatIds.length > 0
-      ? [
-          { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: chatIds } as const,
-          { endpoint: '/messages/:id', entityIds: chatIds } as const
-        ]
-      : []),
+    ...[...chatIdsByTopic].map(
+      ([topicId, entityIds]) =>
+        ({
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId },
+          entityIds
+        }) as const
+    ),
+    ...(chatIds.length > 0 ? [{ endpoint: '/messages/:id', entityIds: chatIds } as const] : []),
+    ...[...agentIdsBySession].map(
+      ([sessionId, entityIds]) =>
+        ({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds
+        }) as const
+    ),
     ...(agentIds.length > 0
-      ? [
-          { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: agentIds } as const,
-          { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const
-        ]
+      ? [{ endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const]
       : [])
   ]
 }
@@ -1443,8 +1476,8 @@ export class AiUsageRecordService {
 
   refreshMessageProjection(ref: MessageRef): void {
     try {
-      const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (changed) notifyDataApiDataChange(messageReadModelEffects([ref]))
+      const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }
