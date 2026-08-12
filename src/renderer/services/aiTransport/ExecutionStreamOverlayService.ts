@@ -107,6 +107,7 @@ interface Entry {
   liveReaderCount: number
   epoch: number
   commitTimer: number | null
+  commitDeadline: number | null
   /** performance.now() of the last snapshot commit — enforces commitIntervalMs(). */
   lastCommitAt: number
   listeners: Set<() => void>
@@ -128,11 +129,13 @@ const MIN_COMMIT_INTERVAL_MS = 100
 const MAX_COMMIT_INTERVAL_MS = 3000
 const COMMIT_CHARS_PER_MS = 2000
 
-function commitIntervalMs(snapshot: CherryUIMessage): number {
+function commitIntervalMs(pending: Iterable<PendingSnapshot>): number {
   let chars = 0
-  for (const part of snapshot.parts ?? []) {
-    const text = (part as { text?: unknown }).text
-    if (typeof text === 'string') chars += text.length
+  for (const item of pending) {
+    for (const part of item.snapshot.parts ?? []) {
+      const text = (part as { text?: unknown }).text
+      if (typeof text === 'string') chars += text.length
+    }
   }
   return Math.min(MAX_COMMIT_INTERVAL_MS, Math.max(MIN_COMMIT_INTERVAL_MS, chars / COMMIT_CHARS_PER_MS))
 }
@@ -420,6 +423,7 @@ export class ExecutionStreamOverlayService {
       liveReaderCount: 0,
       epoch: 0,
       commitTimer: null,
+      commitDeadline: null,
       lastCommitAt: 0,
       listeners: new Set(),
       finishListeners: new Set(),
@@ -622,11 +626,17 @@ export class ExecutionStreamOverlayService {
     if (epoch !== entry.epoch || entry.readerVersions.get(executionId) !== readerVersion) return
 
     entry.pendingSnapshots.set(executionId, { epoch, readerVersion, snapshot })
-    if (entry.commitTimer !== null) return
+    const deadline = entry.lastCommitAt + commitIntervalMs(entry.pendingSnapshots.values())
+    if (entry.commitTimer !== null) {
+      if (entry.commitDeadline !== null && deadline <= entry.commitDeadline) return
+      this.#cancelFrame(entry)
+    }
 
-    const delay = Math.max(0, commitIntervalMs(snapshot) - (performance.now() - entry.lastCommitAt))
+    entry.commitDeadline = deadline
+    const delay = Math.max(0, deadline - performance.now())
     entry.commitTimer = window.setTimeout(() => {
       entry.commitTimer = null
+      entry.commitDeadline = null
       this.#flushPending(entry, epoch)
     }, delay)
   }
@@ -672,9 +682,9 @@ export class ExecutionStreamOverlayService {
   }
 
   #cancelFrame(entry: Entry): void {
-    if (entry.commitTimer === null) return
-    window.clearTimeout(entry.commitTimer)
+    if (entry.commitTimer !== null) window.clearTimeout(entry.commitTimer)
     entry.commitTimer = null
+    entry.commitDeadline = null
   }
 }
 

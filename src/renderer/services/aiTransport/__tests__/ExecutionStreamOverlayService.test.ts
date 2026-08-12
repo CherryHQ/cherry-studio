@@ -205,6 +205,7 @@ const getSeed = () => seedRows
 
 beforeEach(() => mocks.subs.clear())
 afterEach(() => {
+  vi.useRealTimers()
   mocks.subs.clear()
   vi.restoreAllMocks()
 })
@@ -536,6 +537,46 @@ describe('ExecutionStreamOverlayService', () => {
     expect(onFinish1).toHaveBeenCalledTimes(1)
     expect(onFinish2).toHaveBeenCalledTimes(1)
     expect(onFinish1.mock.calls[0][1].isAbort).toBe(true)
+  })
+
+  it('extends the shared commit deadline when a larger execution joins the pending batch', async () => {
+    vi.useFakeTimers()
+    const B = 'anthropic::claude' as UniqueModelId
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+    const onChange = vi.fn()
+    service.subscribe(TOPIC, onChange)
+
+    streamText(sub, A, 'initial', 'initial')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initial')
+    onChange.mockClear()
+
+    streamText(sub, A, 'small', 'small')
+    await vi.advanceTimersByTimeAsync(0)
+    streamText(sub, B, 'large', 'x'.repeat(600_000))
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(service.getView(TOPIC).overlay['anchor-b']).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(201)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toHaveLength(600_000)
+
+    sub.emit(A, { type: 'text-start', id: 'terminal' } as CherryUIMessageChunk)
+    sub.emit(A, { type: 'text-delta', id: 'terminal', delta: '-terminal' } as CherryUIMessageChunk)
+    await vi.advanceTimersByTimeAsync(0)
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initialsmall-terminal')
   })
 
   it('flushes stalled pending snapshots on acquire (hidden-window timer stall)', async () => {
