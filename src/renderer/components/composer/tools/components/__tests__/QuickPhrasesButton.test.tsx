@@ -200,7 +200,7 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
       'Prompt 1',
       'settings.prompts.manage',
-      'settings.prompts.add...'
+      'settings.prompts.add'
     ])
 
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
@@ -247,10 +247,10 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
       'Prompt 1',
       'settings.prompts.manage',
-      'settings.prompts.add...'
+      'settings.prompts.add'
     ])
 
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
     act(() => {
       addItem.action({} as never)
     })
@@ -321,7 +321,7 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
       addItem.action({ inputAdapter } as never)
@@ -352,7 +352,7 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
       addItem.action({} as never)

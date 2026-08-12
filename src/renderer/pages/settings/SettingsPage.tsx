@@ -22,7 +22,6 @@ import {
   FileCode,
   HardDrive,
   Info,
-  MessageSquareText,
   Package,
   Palette,
   PictureInPicture2,
@@ -32,7 +31,8 @@ import {
   Settings2,
   Terminal,
   TextCursorInput,
-  ToolCase
+  ToolCase,
+  Zap
 } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,7 +115,7 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<MessageSquareText />}
+                icon={<Zap />}
                 label={t('settings.prompts.title')}
                 active={isActive('/settings/prompts')}
                 onClick={() => go('/settings/prompts')}

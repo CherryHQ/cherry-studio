@@ -58,8 +58,8 @@ export function PromptSettings() {
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const activePrompt = promptDialogPrompt ?? deleteTarget
   const { data: activeBindings, refetch: refetchActiveBindings } = useQuery('/prompts/:id/bindings', {
-    enabled: Boolean(activePrompt),
-    params: { id: activePrompt?.id ?? '' }
+    enabled: Boolean(deleteTarget),
+    params: { id: deleteTarget?.id ?? '' }
   })
   const activeBindingCount = activeBindings?.length
   const { createPrompt } = usePromptMutations()
@@ -67,7 +67,7 @@ export function PromptSettings() {
   const { applyReorderedList, isPending: isReordering } = useReorder('/prompts')
   useDataChange('/prompts', () => void refetch())
   useDataChange('/prompts/:id/bindings', () => {
-    if (activePrompt) void refetchActiveBindings()
+    if (deleteTarget) void refetchActiveBindings()
   })
 
   const handleSavePrompt = useCallback(
@@ -202,7 +202,6 @@ export function PromptSettings() {
       <PromptEditDialog
         open={promptDialog !== null}
         prompt={promptDialogPrompt}
-        bindingCount={activeBindingCount}
         saving={savingPrompt}
         onSave={handleSavePrompt}
         onCancel={() => {

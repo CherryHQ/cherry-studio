@@ -3619,7 +3619,7 @@
           "basic_tab": "Basic",
           "knowledge_tab": "Knowledge",
           "permission_tab": "Permission",
-          "prompt_tab": "Prompt",
+          "prompt_tab": "System Prompt",
           "save_failed": "Save failed",
           "tools_tab": "Tools"
         }
@@ -3659,7 +3659,7 @@
         "generate_failed_description": "Check or change the default model, then try again.",
         "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
-        "label": "System prompt",
+        "label": "System Prompt",
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
         "polish": "Polish prompt",
         "polish_failed_description": "Check or change the default model, then try again.",
@@ -7644,23 +7644,20 @@
     "prompts": {
       "add": "Add Prompt",
       "binding": {
-        "add": "Add quick phrase",
-        "currentAgent": "Current agent",
-        "currentAssistant": "Current assistant",
-        "editDescription": "Global prompts are available automatically. Choose the restricted prompts linked to {{target}} here.",
-        "noLinked": "No quick phrases linked",
+        "bind": "Bind prompt",
+        "noLinked": "No prompts linked",
         "noMore": "No more prompts available",
-        "remove": "Remove quick phrase",
+        "remove": "Remove prompt",
         "search": "Search prompts",
-        "tabTitle": "Quick Phrases"
+        "tabTitle": "Prompts"
       },
       "contentLabel": "Content",
-      "contentPlaceholder": "Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Enter prompt content",
       "delete": "Delete Prompt",
-      "deleteConfirm": "The prompt will be permanently deleted. Continue?",
-      "deleteGlobalConfirm": "This global prompt is available in every context. Deleting it removes it everywhere and cannot be undone. Continue?",
-      "deleteRestrictedConfirm": "This restricted prompt may be shared by multiple contexts. Deleting it removes it from every linked context and cannot be undone. Continue?",
-      "deleteSharedConfirm": "This prompt is shared by {{count}} contexts. Deleting it removes it from all of them and cannot be undone. Continue?",
+      "deleteConfirm": "This cannot be undone.",
+      "deleteGlobalConfirm": "This removes it from every context and cannot be undone.",
+      "deleteRestrictedConfirm": "This removes it from every linked context and cannot be undone.",
+      "deleteSharedConfirm": "This removes it from {{count}} linked contexts and cannot be undone.",
       "edit": "Edit Prompt",
       "errors": {
         "bindFailed": "Failed to link prompt",
@@ -7675,29 +7672,20 @@
       "noPrompts": "No prompts",
       "reorder": "Drag to reorder {{title}}",
       "searchPlaceholder": "Search prompt titles or content",
-      "title": "Prompt Management",
+      "title": "Prompts",
       "titleLabel": "Title",
-      "titlePlaceholder": "Enter prompt title",
+      "titlePlaceholder": "Enter a title",
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
           "badge": "Global",
-          "description": "Available in every current and future context. Switching to global removes existing restricted links.",
           "title": "Every context"
         },
-        "globalEditWarning": "Changes apply to every context that uses this global prompt.",
         "label": "Availability",
-        "linkedCountDescription": "Currently shared by {{count}} contexts.",
-        "makeGlobalConfirmDescription": "Making this prompt global removes its {{count}} restricted links. Continue?",
-        "makeGlobalConfirmTitle": "Make prompt global?",
-        "makeGlobalConfirmUnknownDescription": "Making this prompt global removes all of its restricted links. Continue?",
         "restricted": {
-          "badge": "Restricted",
-          "description": "Available only in explicitly linked contexts. With no links, it remains in the prompt library but does not appear in chat.",
+          "badge": "Selected",
           "title": "Selected contexts"
-        },
-        "sharedEditWarning": "Changes apply everywhere this prompt is linked.",
-        "unassignedDescription": "This prompt is not linked to any context and will not appear in chat."
+        }
       }
     },
     "provider": {

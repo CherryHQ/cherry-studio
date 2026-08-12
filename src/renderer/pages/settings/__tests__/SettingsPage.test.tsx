@@ -52,7 +52,7 @@ vi.mock('react-i18next', () => ({
         'settings.menuGroups.personal': '偏好',
         'settings.menuGroups.quickAccess': '快捷入口',
         'settings.model': '默认模型',
-        'settings.prompts.title': '提示词管理',
+        'settings.prompts.title': '提示词',
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
         'settings.shortcuts.title': '快捷键',
@@ -114,7 +114,7 @@ describe('SettingsPage', () => {
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
 
-    const promptsItem = screen.getByRole('button', { name: '提示词管理' })
+    const promptsItem = screen.getByRole('button', { name: '提示词' })
     expect(skillsItem.nextElementSibling).toBe(promptsItem)
     fireEvent.click(promptsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/prompts' })

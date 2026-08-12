@@ -1,7 +1,5 @@
 import {
-  Alert,
   Button,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -49,7 +47,6 @@ interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
   defaultVisibility?: PromptVisibility
-  bindingCount?: number
   saving?: boolean
   onSave: (data: { title: string; content: string; visibility: PromptVisibility }) => Promise<void>
   onCancel: () => void
@@ -59,7 +56,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   open,
   prompt,
   defaultVisibility = 'global',
-  bindingCount,
   saving,
   onSave,
   onCancel
@@ -67,7 +63,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '', visibility: defaultVisibility })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isMakeGlobalConfirmOpen, setIsMakeGlobalConfirmOpen] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -90,7 +85,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
       })
     } else {
       setIsSubmitting(false)
-      setIsMakeGlobalConfirmOpen(false)
     }
   }, [defaultVisibility, open, prompt])
 
@@ -102,7 +96,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
         content: formData.content,
         visibility: formData.visibility
       })
-      setIsMakeGlobalConfirmOpen(false)
     } catch {
       // Parent mutation handlers surface the error; keep the modal usable.
     } finally {
@@ -112,16 +105,8 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
 
   const handleOk = useCallback(async () => {
     if (!canSave) return
-    if (
-      prompt?.visibility === 'restricted' &&
-      formData.visibility === 'global' &&
-      (bindingCount === undefined || bindingCount > 0)
-    ) {
-      setIsMakeGlobalConfirmOpen(true)
-      return
-    }
     await submit()
-  }, [bindingCount, canSave, formData.visibility, prompt?.visibility, submit])
+  }, [canSave, submit])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -181,117 +166,69 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   )
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
+        </DialogHeader>
 
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
-              {t('settings.prompts.titleLabel')}
-              <Input
-                autoFocus
-                placeholder={t('settings.prompts.titlePlaceholder')}
-                value={formData.title}
-                onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
-              />
-            </label>
-
-            <PromptEditorField
-              ref={promptEditorRef}
-              label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
-              value={formData.content}
-              onChange={(content) => setFormData((current) => ({ ...current, content }))}
-              placeholder={t('settings.prompts.contentPlaceholder')}
-              actions={promptActions}
-              resetPreviewKey={resetPreviewKey}
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
+            {t('settings.prompts.titleLabel')}
+            <Input
+              autoFocus
+              placeholder={t('settings.prompts.titlePlaceholder')}
+              value={formData.title}
+              onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
             />
+          </label>
 
-            {isEdit ? (
-              <Alert
-                type="info"
-                showIcon
-                message={t(
-                  prompt.visibility === 'global'
-                    ? 'settings.prompts.visibility.globalEditWarning'
-                    : 'settings.prompts.visibility.sharedEditWarning'
-                )}
-                description={
-                  prompt.visibility === 'restricted'
-                    ? bindingCount === 0
-                      ? t('settings.prompts.visibility.unassignedDescription')
-                      : bindingCount === undefined
-                        ? undefined
-                        : t('settings.prompts.visibility.linkedCountDescription', { count: bindingCount })
-                    : undefined
-                }
-              />
-            ) : null}
+          <PromptEditorField
+            ref={promptEditorRef}
+            label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
+            value={formData.content}
+            onChange={(content) => setFormData((current) => ({ ...current, content }))}
+            placeholder={t('settings.prompts.contentPlaceholder')}
+            actions={promptActions}
+            resetPreviewKey={resetPreviewKey}
+          />
 
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 font-medium text-foreground text-sm">
-                {t('settings.prompts.visibility.label')}
-              </legend>
-              <RadioGroup
-                value={formData.visibility}
-                onValueChange={(visibility) =>
-                  setFormData((current) => ({ ...current, visibility: visibility as PromptVisibility }))
-                }
-                className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border-subtle p-3">
-                  <RadioGroupItem value="global" className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className="block font-medium text-foreground text-sm">
-                      {t('settings.prompts.visibility.global.title')}
-                    </span>
-                    <span className="mt-0.5 block text-muted-foreground text-xs">
-                      {t('settings.prompts.visibility.global.description')}
-                    </span>
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border-subtle p-3">
-                  <RadioGroupItem value="restricted" className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className="block font-medium text-foreground text-sm">
-                      {t('settings.prompts.visibility.restricted.title')}
-                    </span>
-                    <span className="mt-0.5 block text-muted-foreground text-xs">
-                      {t('settings.prompts.visibility.restricted.description')}
-                    </span>
-                  </span>
-                </label>
-              </RadioGroup>
-            </fieldset>
-          </div>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 font-medium text-foreground text-sm">
+              {t('settings.prompts.visibility.label')}
+            </legend>
+            <RadioGroup
+              value={formData.visibility}
+              onValueChange={(visibility) =>
+                setFormData((current) => ({ ...current, visibility: visibility as PromptVisibility }))
+              }
+              className="flex items-center gap-6">
+              <label className="flex cursor-pointer items-center gap-2">
+                <RadioGroupItem value="global" />
+                <span className="font-medium text-muted-foreground text-sm">
+                  {t('settings.prompts.visibility.global.title')}
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <RadioGroupItem value="restricted" />
+                <span className="font-medium text-muted-foreground text-sm">
+                  {t('settings.prompts.visibility.restricted.title')}
+                </span>
+              </label>
+            </RadioGroup>
+          </fieldset>
+        </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={onCancel} disabled={isSaving}>
-              {t('common.cancel')}
-            </Button>
-            <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
-              {t('common.confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmDialog
-        open={isMakeGlobalConfirmOpen}
-        onOpenChange={setIsMakeGlobalConfirmOpen}
-        title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
-        description={
-          bindingCount === undefined
-            ? t('settings.prompts.visibility.makeGlobalConfirmUnknownDescription')
-            : t('settings.prompts.visibility.makeGlobalConfirmDescription', { count: bindingCount })
-        }
-        confirmText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        confirmLoading={isSaving}
-        onConfirm={submit}
-      />
-    </>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

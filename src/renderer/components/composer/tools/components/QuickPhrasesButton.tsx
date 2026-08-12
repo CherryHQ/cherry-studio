@@ -178,7 +178,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     })
 
     newList.push({
-      label: t('settings.prompts.add') + '...',
+      label: t('settings.prompts.add'),
       icon: <Plus />,
       action: openAddModal
     })

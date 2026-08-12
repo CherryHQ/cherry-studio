@@ -92,12 +92,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ message, description }: { message: ReactNode; description?: ReactNode }) => (
-    <div role="alert">
-      {message}
-      {description}
-    </div>
-  ),
   Button: (props: ComponentProps<'button'> & { loading?: boolean; variant?: string; size?: string }) => {
     const { children, type = 'button', ...buttonProps } = props
     delete buttonProps.loading
@@ -153,12 +147,6 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <footer>{children}</footer>,
   DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  ConfirmDialog: ({ onConfirm, open }: { onConfirm: () => Promise<void>; open: boolean }) =>
-    open ? (
-      <button type="button" onClick={() => void onConfirm()}>
-        confirm visibility change
-      </button>
-    ) : null,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   RadioGroup: ({ children, onValueChange }: { children: ReactNode; onValueChange: (value: string) => void }) => (
     <div>
@@ -347,14 +335,13 @@ describe('PromptEditDialog', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('confirms before making a shared restricted prompt global', async () => {
+  it('saves when making a restricted prompt global', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(undefined)
 
     render(
       <PromptEditDialog
         open
-        bindingCount={2}
         prompt={{
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Shared prompt',
@@ -369,12 +356,9 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.prompts.visibility.sharedEditWarning')
     await user.click(screen.getByRole('button', { name: 'select global visibility' }))
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
 
-    expect(onSave).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'confirm visibility change' }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({
         title: 'Shared prompt',
