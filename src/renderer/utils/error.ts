@@ -299,6 +299,23 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
 
   return text.trim()
 }
+
+const PROVIDER_ERROR_TEXT_MAX = 500
+
+/** The provider's own error text. `message` degrades to the HTTP statusText ("Forbidden")
+ *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
+export function providerErrorText(error: SerializedError | undefined): string {
+  const fallback = error?.message ?? ''
+  const body = typeof error?.responseBody === 'string' ? error.responseBody.trim() : ''
+  if (!body) return fallback
+
+  const parsed = parseJSON(body)
+  // Probe the common shapes one level deep; an unknown shape falls through to the raw body.
+  const picked = parsed && (parsed.error?.message ?? parsed.message ?? parsed.detail ?? parsed.msg ?? parsed.error)
+  const text = typeof picked === 'string' && picked.trim() ? picked.trim() : body
+  return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
+}
+
 export const formatAgentServerError = (error: AgentServerError) =>
   `${t('common.error')}: ${error.error.code} ${error.error.message}`
 export const formatAxiosError = (error: AxiosError) => {
