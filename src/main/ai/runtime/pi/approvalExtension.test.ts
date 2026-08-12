@@ -19,15 +19,20 @@ type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reas
 
 let testRoot: string
 let workspace: string
+let agentData: string
 let outside: string
 
 beforeAll(() => {
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
+  agentData = join(testRoot, 'agent-data')
   outside = join(testRoot, 'outside')
   mkdirSync(workspace)
+  mkdirSync(agentData)
   mkdirSync(outside)
   writeFileSync(join(workspace, 'inside.txt'), 'inside')
+  writeFileSync(join(agentData, 'SOUL.md'), 'soul')
+  writeFileSync(join(agentData, 'USER.md'), 'user')
   writeFileSync(join(outside, 'secret.txt'), 'outside')
   symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 })
@@ -38,6 +43,7 @@ afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 function buildGate(
   overrides: Partial<{
     workspacePath: string
+    agentDataPath: string
     getPermissionMode: () => AgentPermissionMode | undefined
     getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
     isDisabled: (toolName: string) => boolean
@@ -49,6 +55,7 @@ function buildGate(
   const factory = createPiApprovalExtension({
     sessionId: 's1',
     workspacePath: workspace,
+    agentDataPath: agentData,
     emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
     getInteractionState: () => ({ userResponse: 'stream' }),
@@ -319,6 +326,20 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     it('acceptEdits still auto-allows a write with a relative in-workspace path', async () => {
       const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
       await expect(handler(toolEvent('write', { path: 'out.txt', content: 'x' }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('auto-allows reads from the current agent data directory', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
+      await expect(handler(toolEvent('read', { path: join(agentData, 'SOUL.md') }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('acceptEdits auto-allows edits in the current agent data directory', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
+      await expect(
+        handler(toolEvent('edit', { path: join(agentData, 'USER.md'), edits: [] }), extCtx)
+      ).resolves.toBeUndefined()
       expect(emitted).toHaveLength(0)
     })
 

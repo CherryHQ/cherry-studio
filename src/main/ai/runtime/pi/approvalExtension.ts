@@ -37,11 +37,11 @@ import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 
-/** pi built-in read-only tools — auto-approved in every permission mode, but only when their
- *  `path` resolves inside the session workspace (see {@link isToolPathInsideWorkspace}). */
+/** pi built-in read-only tools — auto-approved in every permission mode when their `path` resolves
+ *  inside the session workspace or current agent data directory. */
 const READ_ONLY_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
 /** pi built-in edit-class tools — auto-approved in `acceptEdits` (still gated in `default`), same
- *  workspace-path scoping as the read-only set. */
+ *  allowed-root scoping as the read-only set. */
 const EDIT_TOOLS = new Set(['edit', 'write'])
 
 /** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
@@ -52,8 +52,11 @@ export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
   /** Session workspace root — the auto-approve fast-path only skips approval when a tool's resolved
-   *  `path` stays inside this directory; anything outside falls through to a normal approval prompt. */
+   *  `path` stays inside this directory or the current agent data directory. */
   workspacePath: string
+  /** Current agent's persistent identity and memory directory. It is a trusted file-tool root just
+   *  like the workspace; paths under another agent or elsewhere still require approval. */
+  agentDataPath: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
@@ -107,7 +110,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
       if (ctx.autoApprovedTools.has(toolName)) return
       const mode = ctx.getPermissionMode() ?? 'default'
-      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath))) return
+      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath))) return
 
       const interactionState = ctx.getInteractionState()
       if (interactionState.userResponse === 'unavailable') {
@@ -161,15 +164,18 @@ async function requiresApproval(
   mode: AgentPermissionMode,
   toolName: string,
   input: Record<string, unknown>,
-  workspacePath: string
+  workspacePath: string,
+  agentDataPath: string
 ): Promise<boolean> {
   if (mode === 'bypassPermissions') return false
   // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
-  // inside the workspace; an out-of-workspace read/write falls through to a normal prompt so a
+  // inside an allowed root; any other read/write falls through to a normal prompt so a
   // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
-  if (READ_ONLY_TOOLS.has(toolName)) return !(await isToolPathInsideWorkspace(input, workspacePath, false))
+  if (READ_ONLY_TOOLS.has(toolName)) {
+    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false))
+  }
   if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideWorkspace(input, workspacePath, true))
+    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
   }
   // `default` (and the unsupported-for-pi `plan`) gate everything else.
   return true
@@ -185,9 +191,10 @@ async function requiresApproval(
  * cannot make an outside target look lexically inside. For a new edit/write target, the nearest
  * existing parent is canonicalized and the missing suffix is appended for classification.
  */
-async function isToolPathInsideWorkspace(
+async function isToolPathInsideAllowedRoots(
   input: Record<string, unknown>,
   workspacePath: string,
+  agentDataPath: string,
   allowMissingTarget: boolean
 ): Promise<boolean> {
   const raw = input.path
@@ -197,14 +204,17 @@ async function isToolPathInsideWorkspace(
   const resolved = resolveToolPath(raw || '.', workspacePath)
   if (resolved === undefined) return false
 
-  const [canonicalWorkspace, canonicalTarget] = await Promise.all([
+  const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
+    canonicalizeExistingPath(agentDataPath),
     canonicalizeToolTarget(resolved, allowMissingTarget)
   ])
-  if (!canonicalWorkspace || !canonicalTarget) return false
+  if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
-  const rel = path.relative(canonicalWorkspace, canonicalTarget)
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
+  return [canonicalWorkspace, canonicalAgentData].some((root) => {
+    const rel = path.relative(root, canonicalTarget)
+    return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
+  })
 }
 
 async function canonicalizeExistingPath(target: string): Promise<string | undefined> {

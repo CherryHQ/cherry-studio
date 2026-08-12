@@ -237,6 +237,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         createPiApprovalExtension({
           sessionId: this.input.sessionId,
           workspacePath,
+          agentDataPath,
           emit: (event) => this.eventQueue.push(event),
           getInteractionState: () =>
             application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
