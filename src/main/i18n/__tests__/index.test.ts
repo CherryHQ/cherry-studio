@@ -68,6 +68,30 @@ describe('main i18n', () => {
       expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
       expect(t('dialog.save_file')).toBe('Save File')
     })
+
+    it('localizes the PDF page-limit error in Chinese and falls back to English', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      expect(t('file_processing.errors.pdf_page_limit_exceeded', { maxPages: 200 })).toBe(
+        '该 PDF 超过当前文档解析服务的 200 页上限，请手动拆分 PDF 后重新添加。'
+      )
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
+      expect(t('file_processing.errors.pdf_page_limit_exceeded', { maxPages: 1000 })).toBe(
+        'This PDF exceeds the 1000-page limit for the current document parsing service. Split the PDF manually, then add it again.'
+      )
+    })
+
+    it('localizes the document size-limit error in Chinese and falls back to English', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      expect(t('file_processing.errors.document_size_limit_exceeded', { maxSize: '200 MB' })).toBe(
+        '当前文档解析服务要求文件小于 200 MB，请压缩或拆分后重新添加。'
+      )
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
+      expect(t('file_processing.errors.document_size_limit_exceeded', { maxSize: '1 GB' })).toBe(
+        'The current document parsing service requires files smaller than 1 GB. Compress or split this file, then add it again.'
+      )
+    })
   })
 
   describe('getI18n', () => {
