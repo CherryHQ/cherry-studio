@@ -420,7 +420,16 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  if (mode === 'time' || targetGroupId === SESSION_PINNED_GROUP_ID) return false
+  if (sourceGroupId === targetGroupId) return true
+
+  // Dropping an orphaned session on a real agent re-links it — the only way out of the unknown-agent
+  // bucket. Every other cross-group drop stays closed, workdir rebinding included.
+  return (
+    mode === 'agent' &&
+    sourceGroupId === SESSION_UNKNOWN_AGENT_GROUP_ID &&
+    !!getAgentIdFromSessionGroupId(targetGroupId)
+  )
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
