@@ -288,10 +288,6 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
 
-  useDataChange('/topics', () => {
-    void refresh()
-  })
-
   useEffect(() => {
     setRevalidateAllPages(loadAll && isFullyLoaded)
   }, [loadAll, isFullyLoaded])
@@ -304,6 +300,10 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
       loadNext()
     }
   }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
+
+  useDataChange('/topics', () => {
+    if (opts?.enabled !== false) void mutate()
+  })
 
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
@@ -327,12 +327,15 @@ export function useTopicById(topicId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
-
-  useDataChange('/topics/:id', (effects) => {
-    if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
-      void refetch()
-    }
-  })
+  useDataChange(
+    '/topics/:id',
+    (effects) => {
+      if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
+        void mutate()
+      }
+    },
+    { routeParams: topicId ? { id: topicId } : undefined }
+  )
 
   return {
     topic: data,
