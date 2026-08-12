@@ -124,6 +124,79 @@ describe('knowledge routes (v2)', () => {
     expect(body.warnings).toHaveLength(1)
   })
 
+  it('POST /search → 422 when query is empty', async () => {
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: '' })
+    expect(status).toBe(422)
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('POST /search returns an empty result with warnings when query has no searchable tokens', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockRejectedValue(
+      DataApiErrorFactory.validation({ query: ['Query has no searchable tokens'] }, 'Query has no searchable tokens')
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: '🎉' })
+
+    expect(status).toBe(200)
+    expect(body.results).toEqual([])
+    expect(body.total).toBe(0)
+    expect(body.warnings).toEqual([
+      'Knowledge base "KB 1" search failed: Query has no searchable tokens',
+      'Knowledge base "KB 2" search failed: Query has no searchable tokens'
+    ])
+  })
+
+  it('POST /search returns warnings for mixed no-token validation and infrastructure failures', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockImplementation(async (baseId: string) => {
+      if (baseId === 'kb-1') {
+        throw DataApiErrorFactory.validation(
+          { query: ['Query has no searchable tokens'] },
+          'Query has no searchable tokens'
+        )
+      }
+      throw new Error('vector store unavailable')
+    })
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: '✨' })
+
+    expect(status).toBe(200)
+    expect(body.results).toEqual([])
+    expect(body.total).toBe(0)
+    expect(body.warnings).toEqual([
+      'Knowledge base "KB 1" search failed: Query has no searchable tokens',
+      'Knowledge base "KB 2" search failed: vector store unavailable'
+    ])
+  })
+
+  it('POST /search → 503 when every targeted base fails with another validation error', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockRejectedValue(
+      DataApiErrorFactory.validation(
+        { base: ['Knowledge base is in failed state'] },
+        'Cannot search failed knowledge base'
+      )
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi' })
+
+    expect(status).toBe(503)
+    expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
+  })
+
+  it('POST /search → 503 when every targeted base fails with INVALID_OPERATION', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockRejectedValue(
+      DataApiErrorFactory.invalidOperation('search', 'Knowledge index store was closed; retry the operation')
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi' })
+
+    expect(status).toBe(503)
+    expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
+  })
+
   it('POST /search → 503 when every targeted base search fails', async () => {
     mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
     mockSearch.mockRejectedValue(new Error('vector store unavailable'))

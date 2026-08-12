@@ -2014,6 +2014,19 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('validates a tokenless query before checking whether the base can be searched', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(
+      createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+    )
+
+    await expect(service.search('kb-1', '🎉')).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Query has no searchable tokens',
+      details: { fieldErrors: { query: ['Query has no searchable tokens'] } }
+    })
+  })
+
   it('enriches each hit with its Concept ID (relative path) and display title for deep-read follow-up', async () => {
     const service = new KnowledgeService()
     const FILE_ITEM_ID = 'file-item-1'

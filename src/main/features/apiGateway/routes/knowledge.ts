@@ -1,7 +1,13 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
-import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
+import {
+  DataApiError,
+  DataApiErrorFactory,
+  ERROR_STATUS_MAP,
+  ErrorCode,
+  type ValidationErrorDetails
+} from '@shared/data/api/errors'
 import { Elysia } from 'elysia'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
@@ -101,30 +107,39 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
                 knowledge_base_id: base.id,
                 knowledge_base_name: base.name
               })),
-              error: undefined as string | undefined
+              error: undefined as Error | undefined
             }
           } catch (error) {
-            logger.error(`Error searching knowledge base ${base.id}`, error as Error)
-            return { base, results: [], error: (error as Error).message }
+            const searchError = error instanceof Error ? error : new Error(String(error))
+            logger.error(`Error searching knowledge base ${base.id}`, searchError)
+            return { base, results: [], error: searchError }
           }
         })
       )
 
-      // Every targeted search failed (e.g. broken embedding/vector-store config). Surface a
-      // retryable upstream-dependency failure (503) instead of a 200 with empty results, so
-      // clients can tell infrastructure failure apart from "no matches".
-      if (resultsPerBase.every((r) => r.error)) {
+      const hasNoSearchableTokensError = resultsPerBase.some(
+        ({ error }) =>
+          error instanceof DataApiError &&
+          error.code === ErrorCode.VALIDATION_ERROR &&
+          (error.details as ValidationErrorDetails | undefined)?.fieldErrors.query?.includes(
+            'Query has no searchable tokens'
+          ) === true
+      )
+
+      // All-target failure remains a 503 unless this query has no searchable tokens,
+      // which cannot produce matches in any base.
+      if (resultsPerBase.every((r) => r.error !== undefined) && !hasNoSearchableTokensError) {
         throw new DataApiError(
           ErrorCode.SERVICE_UNAVAILABLE,
           'All knowledge base searches failed',
           ERROR_STATUS_MAP[ErrorCode.SERVICE_UNAVAILABLE],
-          { originalError: resultsPerBase.map((r) => r.error).join('; ') }
+          { originalError: resultsPerBase.flatMap((r) => (r.error ? [r.error.message] : [])).join('; ') }
         )
       }
 
-      const warnings = resultsPerBase
-        .filter((r) => r.error)
-        .map((r) => `Knowledge base "${r.base.name}" search failed: ${r.error}`)
+      const warnings = resultsPerBase.flatMap((r) =>
+        r.error ? [`Knowledge base "${r.base.name}" search failed: ${r.error.message}`] : []
+      )
       const sortedResults = resultsPerBase
         .flatMap((r) => r.results)
         .sort((a, b) => b.score - a.score)

@@ -50,8 +50,6 @@ export class KnowledgeQueryService {
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
-    const base = assertBaseCanRunRuntimeOperation(baseId, 'search')
-
     // Same tokenization the FTS layer uses: no token means no BM25 hit is even possible.
     if (extractFtsTokens(query).length === 0) {
       throw DataApiErrorFactory.validation(
@@ -59,6 +57,8 @@ export class KnowledgeQueryService {
         'Query has no searchable tokens'
       )
     }
+
+    const base = assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     // Vector/hybrid retrieval needs an embedding model; a base without one is
     // BM25-only. This is a fixed runtime policy, not a stored preference — mode is
