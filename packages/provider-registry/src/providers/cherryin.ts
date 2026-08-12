@@ -70,11 +70,8 @@ const qwenAudioCompatibilityOverrides = [
     apiModelId: 'qwen/qwen3.5-4b(free)',
     modelVariants: ['4b', 'free'],
     name: 'Qwen3.5 4B (Free)',
-    family: 'qwen',
-    ownedBy: 'alibaba',
-    capabilities: { force: ['function-call', 'reasoning', 'image-recognition', 'structured-output'] },
+    capabilities: { remove: ['video-recognition'] },
     inputModalities: ['text', 'image'],
-    outputModalities: ['text'],
     reason: 'CherryIN free endpoint accepts text and image_url parts only'
   },
   {

@@ -299,7 +299,6 @@
     {
       "apiModelId": "gemini-2.0-flash-lite",
       "modelId": "gemini-2-0-flash-lite",
-      "name": "gemini-2.0-flash-lite",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -437,7 +436,6 @@
     {
       "apiModelId": "gemini-3-pro-preview",
       "modelId": "gemini-3-pro-preview",
-      "name": "gemini-3-pro-preview",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -3385,15 +3383,12 @@
     {
       "apiModelId": "qwen/qwen3.5-4b(free)",
       "capabilities": {
-        "force": ["function-call", "reasoning", "image-recognition", "structured-output"]
+        "remove": ["video-recognition"]
       },
-      "family": "qwen",
       "inputModalities": ["text", "image"],
       "modelId": "qwen3-5-4b",
       "modelVariants": ["4b", "free"],
       "name": "Qwen3.5 4B (Free)",
-      "outputModalities": ["text"],
-      "ownedBy": "alibaba",
       "providerId": "cherryin",
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
@@ -4067,25 +4062,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "kimi-k3",
-      "modelId": "kimi-k3",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
         }
       },
       "providerId": "copilot"
@@ -12515,6 +12491,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "openai/gpt-5.1-instant",
+      "modelId": "gpt-5-1-instant",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "openai/gpt-5.2",
       "modelId": "gpt-5-2",
       "pricing": {
@@ -12563,6 +12558,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 168
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "openai/gpt-5.3-chat",
+      "modelId": "gpt-5-3-chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
         }
       },
       "providerId": "gateway"
@@ -13536,20 +13550,16 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "inclusionai/ling-3.0-flash",
+      "apiModelId": "inclusionai/ling-3.0-flash-free",
       "modelId": "ling-3-0-flash",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.012
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0
         }
       },
       "providerId": "gateway"
@@ -14062,25 +14072,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "meta/muse-glimmer-30b",
-      "modelId": "muse-glimmer-30b",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "meta/muse-spark-1.1",
       "modelId": "muse-spark-1-1",
       "pricing": {
@@ -14095,44 +14086,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.25
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "meta/muse-spark-1.2",
-      "modelId": "muse-spark-1-2",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4.25
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "meta/muse-spark-1.2-contributor",
-      "modelId": "muse-spark-1-2-contributor",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.002
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
         }
       },
       "providerId": "gateway"
@@ -16171,36 +16124,6 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V3",
-      "modelId": "deepseek-v3",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.3
-        }
-      },
-      "providerId": "huggingface"
-    },
-    {
-      "apiModelId": "deepseek-ai/DeepSeek-V3.1",
-      "modelId": "deepseek-v3-1",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.27
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        }
-      },
-      "providerId": "huggingface"
-    },
-    {
       "apiModelId": "deepseek-ai/DeepSeek-V3.2",
       "modelId": "deepseek-v3-2",
       "pricing": {
@@ -16757,22 +16680,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.8
-        }
-      },
-      "providerId": "huggingface"
-    },
-    {
-      "apiModelId": "Qwen/Qwen3-235B-A22B-Instruct-2507",
-      "modelId": "qwen3-235b-a22b-instruct",
-      "name": "Qwen3 235B-A22B Instruct 2507",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.855
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.565
         }
       },
       "providerId": "huggingface"
@@ -20032,15 +19939,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0014
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.28
         }
       },
       "providerId": "opencode",
@@ -21160,26 +21067,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-fable-5:batch",
-      "modelId": "claude-fable-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "~anthropic/claude-fable-latest",
       "modelId": "claude-fable-latest",
       "pricing": {
@@ -21238,18 +21125,6 @@
           "perMillionTokens": 5
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-haiku-4.5:batch",
-      "modelId": "claude-haiku-4-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -21350,18 +21225,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.1:batch",
-      "modelId": "claude-opus-4-1-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.5",
       "modelId": "claude-opus-4-5",
       "pricing": {
@@ -21382,18 +21245,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-4.5:batch",
-      "modelId": "claude-opus-4-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -21442,26 +21293,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.6:batch",
-      "modelId": "claude-opus-4-6-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.7",
       "modelId": "claude-opus-4-7",
       "pricing": {
@@ -21482,26 +21313,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-4.7:batch",
-      "modelId": "claude-opus-4-7-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -21596,26 +21407,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.8:batch",
-      "modelId": "claude-opus-4-8-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.8-fast",
       "modelId": "claude-opus-4-8-fast",
       "pricing": {
@@ -21674,26 +21465,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-5:batch",
-      "modelId": "claude-opus-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -21848,18 +21619,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-sonnet-4.5:batch",
-      "modelId": "claude-sonnet-4-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-sonnet-4.6",
       "modelId": "claude-sonnet-4-6",
       "pricing": {
@@ -21898,26 +21657,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-sonnet-4.6:batch",
-      "modelId": "claude-sonnet-4-6-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-sonnet-5",
       "modelId": "claude-sonnet-5",
       "pricing": {
@@ -21938,26 +21677,6 @@
           "perMillionTokens": 10
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-sonnet-5:batch",
-      "modelId": "claude-sonnet-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22361,15 +22080,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0252
+          "perMillionTokens": 0.0027
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.079996
+          "perMillionTokens": 0.083
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.252
+          "perMillionTokens": 0.167
         }
       },
       "providerId": "openrouter",
@@ -22395,15 +22114,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.053298
+          "perMillionTokens": 0.003625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.63168
+          "perMillionTokens": 0.435
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.26336
+          "perMillionTokens": 0.87
         }
       },
       "providerId": "openrouter",
@@ -22774,18 +22493,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-2.5-flash:batch",
-      "modelId": "gemini-2-5-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-2.5-flash-image",
       "capabilities": {
         "add": ["image-generation"]
@@ -22878,18 +22585,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-2.5-flash-lite:batch",
-      "modelId": "gemini-2-5-flash-lite-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-2.5-pro",
       "modelId": "gemini-2-5-pro",
       "pricing": {
@@ -22910,18 +22605,6 @@
           "perMillionTokens": 10
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-2.5-pro:batch",
-      "modelId": "gemini-2-5-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -23244,26 +22927,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.1-flash-lite:batch",
-      "modelId": "gemini-3-1-flash-lite-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "minimal",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.1-flash-lite-image",
       "capabilities": {
         "add": ["image-generation"]
@@ -23447,26 +23110,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.1-pro-preview:batch",
-      "modelId": "gemini-3-1-pro-preview-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.1-pro-preview-customtools",
       "modelId": "gemini-3-1-pro-preview-customtools",
       "pricing": {
@@ -23543,26 +23186,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.5-flash:batch",
-      "modelId": "gemini-3-5-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.5-flash-lite",
       "modelId": "gemini-3-5-flash-lite",
       "pricing": {
@@ -23583,26 +23206,6 @@
           "perMillionTokens": 2.5
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "minimal",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-3.5-flash-lite:batch",
-      "modelId": "gemini-3-5-flash-lite-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -23659,26 +23262,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.6-flash:batch",
-      "modelId": "gemini-3-6-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3-flash-preview",
       "modelId": "gemini-3-flash-preview",
       "pricing": {
@@ -23699,26 +23282,6 @@
           "perMillionTokens": 3
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-3-flash-preview:batch",
-      "modelId": "gemini-3-flash-preview-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24049,17 +23612,13 @@
       "apiModelId": "google/gemma-4-26b-a4b-it",
       "modelId": "gemma-4-26b-a4b-it",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.07
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.34
         }
       },
       "providerId": "openrouter",
@@ -24191,15 +23750,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter",
@@ -24336,15 +23895,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.1768
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 0.952
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 2.992
         }
       },
       "providerId": "openrouter",
@@ -24378,26 +23937,6 @@
           "perMillionTokens": 2.42
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["xhigh", "high"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["xhigh", "high"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "z-ai/glm-5.2:batch",
-      "modelId": "glm-5-2-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24731,26 +24270,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.1:batch",
-      "modelId": "gpt-5-1-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "none",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "none",
-            "supportedEfforts": ["high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.1-codex",
       "modelId": "gpt-5-1-codex",
       "pricing": {
@@ -24887,26 +24406,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.2:batch",
-      "modelId": "gpt-5-2-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.2-chat",
       "modelId": "gpt-5-2-chat",
       "pricing": {
@@ -24990,24 +24489,23 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.2-pro:batch",
-      "modelId": "gpt-5-2-pro-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium"]
-          }
+      "apiModelId": "openai/gpt-5.3-chat",
+      "modelId": "gpt-5-3-chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
         }
-      }
+      },
+      "providerId": "openrouter"
     },
     {
       "apiModelId": "openai/gpt-5.3-codex",
@@ -25060,26 +24558,6 @@
           "perMillionTokens": 15
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.4:batch",
-      "modelId": "gpt-5-4-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25213,26 +24691,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.4-mini:batch",
-      "modelId": "gpt-5-4-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.4-nano",
       "modelId": "gpt-5-4-nano",
       "pricing": {
@@ -25267,26 +24725,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.4-nano:batch",
-      "modelId": "gpt-5-4-nano-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.4-pro",
       "modelId": "gpt-5-4-pro",
       "pricing": {
@@ -25299,26 +24737,6 @@
           "perMillionTokens": 180
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.4-pro:batch",
-      "modelId": "gpt-5-4-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25371,26 +24789,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.5:batch",
-      "modelId": "gpt-5-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.5-pro",
       "modelId": "gpt-5-5-pro",
       "pricing": {
@@ -25403,26 +24801,6 @@
           "perMillionTokens": 180
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.5-pro:batch",
-      "modelId": "gpt-5-5-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25479,26 +24857,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.6-luna:batch",
-      "modelId": "gpt-5-6-luna-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.6-luna-pro",
       "modelId": "gpt-5-6-luna-pro",
       "pricing": {
@@ -25519,26 +24877,6 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.6-luna-pro:batch",
-      "modelId": "gpt-5-6-luna-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25595,26 +24933,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.6-sol:batch",
-      "modelId": "gpt-5-6-sol-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.6-sol-pro",
       "modelId": "gpt-5-6-sol-pro",
       "pricing": {
@@ -25635,26 +24953,6 @@
           "perMillionTokens": 30
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.6-sol-pro:batch",
-      "modelId": "gpt-5-6-sol-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25711,26 +25009,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.6-terra:batch",
-      "modelId": "gpt-5-6-terra-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.6-terra-pro",
       "modelId": "gpt-5-6-terra-pro",
       "pricing": {
@@ -25764,58 +25042,6 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.6-terra-pro:batch",
-      "modelId": "gpt-5-6-terra-pro-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5:batch",
-      "modelId": "gpt-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5-codex:batch",
-      "modelId": "gpt-5-codex-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
           }
         }
       }
@@ -26001,26 +25227,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5-mini:batch",
-      "modelId": "gpt-5-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5-nano",
       "modelId": "gpt-5-nano",
       "pricing": {
@@ -26055,26 +25261,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5-nano:batch",
-      "modelId": "gpt-5-nano-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5-pro",
       "modelId": "gpt-5-pro",
       "pricing": {
@@ -26087,26 +25273,6 @@
           "perMillionTokens": 120
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5-pro:batch",
-      "modelId": "gpt-5-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -26997,38 +26163,17 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.17
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.05
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "high", "medium", "low", "minimal", "none"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "medium", "low", "minimal", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "thinkingmachines/inkling:batch",
-      "modelId": "inkling-batch",
-      "name": "Thinking Machines: Inkling (batch)",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -27056,7 +26201,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.45
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
@@ -27211,15 +26356,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.0992
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 0.589
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 2.48
         }
       },
       "providerId": "openrouter",
@@ -27253,18 +26398,6 @@
           "perMillionTokens": 3.5
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "moonshotai/kimi-k2.7-code:batch",
-      "modelId": "kimi-k2-7-code-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -27318,7 +26451,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.8
+          "perMillionTokens": 2.9
         },
         "output": {
           "currency": "USD",
@@ -27635,39 +26768,8 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "inclusionai/ling-3.0-flash",
+      "apiModelId": "inclusionai/ling-3.0-flash:free",
       "modelId": "ling-3-0-flash",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.0042
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.021
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.063
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "inclusionai/ling-3.0-tiny:free",
-      "modelId": "ling-3-0-tiny",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -27781,7 +26883,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.696
+          "perMillionTokens": 0.8
         }
       },
       "providerId": "openrouter"
@@ -28179,15 +27281,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.054
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 1.08
         }
       },
       "providerId": "openrouter",
@@ -28235,18 +27337,6 @@
           "perMillionTokens": 1.2
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "minimax/minimax-m3:batch",
-      "modelId": "minimax-m3-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -28563,40 +27653,6 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "meta/muse-glimmer-30b",
-      "modelId": "muse-glimmer-30b",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "meta/muse-spark-1.1",
       "modelId": "muse-spark-1-1",
       "pricing": {
@@ -28633,6 +27689,7 @@
     {
       "apiModelId": "meta/muse-spark-1.2",
       "modelId": "muse-spark-1-2",
+      "name": "Muse Spark 1.2",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -28671,11 +27728,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.08
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.11
         }
       },
       "providerId": "openrouter"
@@ -28713,7 +27770,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.025
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -28798,26 +27855,6 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high", "medium"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high", "medium"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b:batch",
-      "modelId": "nemotron-3-ultra-550b-a55b-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29068,18 +28105,6 @@
       }
     },
     {
-      "apiModelId": "openai/o1:batch",
-      "modelId": "o1-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/o1-pro",
       "modelId": "o1-pro",
       "pricing": {
@@ -29092,18 +28117,6 @@
           "perMillionTokens": 600
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o1-pro:batch",
-      "modelId": "o1-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29130,18 +28143,6 @@
           "perMillionTokens": 8
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o3:batch",
-      "modelId": "o3-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29186,38 +28187,6 @@
       }
     },
     {
-      "apiModelId": "openai/o3-mini:batch",
-      "modelId": "o3-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o3-mini-high:batch",
-      "modelId": "o3-mini-high-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/o3-pro",
       "modelId": "o3-pro",
       "pricing": {
@@ -29230,18 +28199,6 @@
           "perMillionTokens": 80
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o3-pro:batch",
-      "modelId": "o3-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29268,38 +28225,6 @@
           "perMillionTokens": 4.4
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o4-mini:batch",
-      "modelId": "o4-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/o4-mini-high:batch",
-      "modelId": "o4-mini-high-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29656,11 +28581,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.2275
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.24
+          "perMillionTokens": 0.91
         }
       },
       "providerId": "openrouter",
@@ -29759,11 +28684,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.29
+          "perMillionTokens": 0.26
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.4
+          "perMillionTokens": 2.08
         }
       },
       "providerId": "openrouter",
@@ -29823,17 +28748,13 @@
       "apiModelId": "qwen/qwen3.5-397b-a17b",
       "modelId": "qwen3-5-397b-a17b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.39
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 2.34
         }
       },
       "providerId": "openrouter",
@@ -29941,17 +28862,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.289
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -29972,13 +28889,9 @@
       "apiModelId": "qwen/qwen3.6-35b-a3b",
       "modelId": "qwen3-6-35b-a3b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
@@ -30276,7 +29189,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.27
         }
       },
       "providerId": "openrouter"
@@ -31417,41 +30330,6 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "sakana/sakana-namazu",
-      "modelId": "sakana-namazu",
-      "name": "Sakana Namazu",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.95
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high", "none"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "bytedance-seed/seed-1.6",
       "modelId": "seed-1-6",
       "pricing": {
@@ -31689,32 +30567,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "upstage/solar-pro4",
-      "modelId": "solar-pro4",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.006
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
         }
       },
       "providerId": "openrouter",
@@ -37505,5 +36357,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "8056f78f6b659d6b"
+  "version": "ece03e1400bcb055"
 }
