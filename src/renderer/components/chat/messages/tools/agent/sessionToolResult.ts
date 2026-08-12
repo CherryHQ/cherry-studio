@@ -134,6 +134,6 @@ export function getSessionToolTarget(toolResponse: ToolResponseLike): SessionToo
     kind: 'send',
     renderKey: toolResponse.toolCallId ?? toolResponse.id,
     sessionId,
-    sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || sessionId
+    sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || ''
   }
 }

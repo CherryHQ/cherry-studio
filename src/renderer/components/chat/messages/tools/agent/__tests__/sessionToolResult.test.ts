@@ -26,4 +26,17 @@ describe('getSessionToolTarget', () => {
   it("does not treat another MCP server's same-named tool as a Cherry Session action", () => {
     expect(getSessionToolTarget(toolResponse('session_create', 'tmux'))).toBeUndefined()
   })
+
+  it('leaves an untitled send target empty for the localized renderer fallback', () => {
+    const response = toolResponse('session_send', 'cherry-tools') as any
+    response.response = JSON.stringify({
+      ok: true,
+      delivery: {
+        receiver: { sessionId: 'opaque-id' },
+        receiverSnapshot: { sessionName: '' }
+      }
+    })
+
+    expect(getSessionToolTarget(response)).toMatchObject({ sessionId: 'opaque-id', sessionName: '' })
+  })
 })

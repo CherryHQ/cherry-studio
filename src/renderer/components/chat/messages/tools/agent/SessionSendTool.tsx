@@ -11,7 +11,6 @@ import { parseSessionSendResult } from './sessionToolResult'
 
 interface SessionSendInput {
   message?: string
-  targetSessionId?: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -22,8 +21,7 @@ function getInput(input: ToolInput | Record<string, unknown> | undefined): Sessi
   if (!isRecord(input)) return {}
   const record = input as Record<string, unknown>
   return {
-    message: typeof record.message === 'string' ? record.message : undefined,
-    targetSessionId: typeof record.target_session_id === 'string' ? record.target_session_id : undefined
+    message: typeof record.message === 'string' ? record.message : undefined
   }
 }
 
@@ -41,8 +39,8 @@ export function SessionSendTool({
   const { t } = useTranslation()
   const sessionInput = getInput(input)
   const result = parseSessionSendResult(output)
-  const targetSessionId = result?.delivery?.receiver?.sessionId ?? sessionInput.targetSessionId
-  const targetSessionName = result?.delivery?.receiverSnapshot?.sessionName?.trim() || targetSessionId
+  const targetSessionName =
+    result?.delivery?.receiverSnapshot?.sessionName?.trim() || t('message.tools.sessionCreate.untitled')
   const targetAgentName = result?.delivery?.receiverSnapshot?.agentName?.trim()
   const targetLabel = [targetAgentName, targetSessionName].filter(Boolean).join(' / ')
   const message = sessionInput.message?.trim()

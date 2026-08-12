@@ -6,6 +6,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.session_delivery.status.accepted': 'Accepted',
+        'message.tools.sessionCreate.untitled': 'Untitled session',
         'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to',
         'message.tools.sessionSend.to': 'To'
@@ -59,5 +60,32 @@ describe('SessionSendTool', () => {
 
     expect(screen.getByText('message.tools.sessionSend.sending')).toBeInTheDocument()
     expect(screen.queryByText('Sent to')).toBeNull()
+  })
+
+  it('labels an untitled target without exposing its id', () => {
+    render(
+      <Harness
+        input={{ target_session_id: 'opaque-id', message: 'Implement it.' }}
+        output={
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  ok: true,
+                  delivery: {
+                    receiver: { sessionId: 'opaque-id' },
+                    receiverSnapshot: { sessionName: '' }
+                  }
+                })
+              }
+            ]
+          } as never
+        }
+      />
+    )
+
+    expect(screen.getAllByText('Untitled session')).toHaveLength(2)
+    expect(screen.queryByText('opaque-id')).toBeNull()
   })
 })

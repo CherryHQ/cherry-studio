@@ -70,10 +70,10 @@ describe('SessionResultCards', () => {
     })
   })
 
-  it('labels a created session without exposing its id as the title', () => {
+  it.each(['create', 'send'] as const)('labels an untitled %s target without exposing its id', (kind) => {
     render(
       <SessionResultCards
-        targets={[{ kind: 'create', renderKey: 'create-untitled', sessionId: 'opaque-id', sessionName: '' }]}
+        targets={[{ kind, renderKey: `${kind}-untitled`, sessionId: 'opaque-id', sessionName: '' }]}
       />
     )
 

@@ -47,9 +47,10 @@ For `session_send`, choose the delivery contract by intent:
   frozen result back to the caller Session. Do not keep the tool call open or poll for
   the answer.
 
-`session_send` and `session_create` always require a live per-call user approval because
-they start another Agent Session turn. If approval is declined, stop. Headless, scheduled,
-channel, and delivery-triggered turns cannot use them, so unattended multi-hop delegation
+All five Session tools require an interactive user turn. Headless, scheduled, channel, and
+delivery-triggered turns cannot discover, inspect, create, or message Sessions. In an interactive
+turn, `session_send` and `session_create` additionally require live per-call approval because they
+start another Agent Session turn. If approval is declined, stop; unattended multi-hop delegation
 is not available.
 
 ## Inspect delivery state
