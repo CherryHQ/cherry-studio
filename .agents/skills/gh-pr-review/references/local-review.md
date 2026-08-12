@@ -68,11 +68,15 @@ If diff is empty → show usage examples and exit:
 
 Run the review stages defined in `SKILL.md` § Review Stages in order.
 
-1. **Product Demand gate** — skip silently when the change has no product
-   impact. Otherwise: interactive → summarize the product effect and ask for
-   the product decision, stopping the entire review if the direction is
-   rejected; automated → decide nothing, and carry the product-impact summary
-   into Step 4's report.
+1. **Product Demand gate** — follow `SKILL.md` § Review Stages, stage 1 for
+   the skip test and mode rules: skip silently only after inspecting the
+   semantics the change expresses or constrains, never from its change type;
+   interactive is the default (ask the current user for the product decision
+   and stop the whole review if the direction is rejected), and record-only
+   automated behavior applies only when the invocation or workflow context
+   explicitly identifies an automated run, carrying the product-impact
+   summary into Step 4's report. Skip this step when the PR wrapper already
+   ran the gate.
 2. **Consumer review** — only for `feat`-shaped diffs that add or expand
    shared surface. Follow `consumer-review.md`; only surviving surfaces
    continue to the stages below.
