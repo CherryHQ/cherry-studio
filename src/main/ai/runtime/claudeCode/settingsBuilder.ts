@@ -664,7 +664,10 @@ export function resolveClaudeExecutablePath(): string {
 }
 
 export class AgentSessionWorkspaceError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly retryable = false
+  ) {
     super(message)
     this.name = 'AgentSessionWorkspaceError'
   }
@@ -703,7 +706,7 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
     await ensureAgentStorageDirectory(root, target)
   } catch (error) {
     logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }), true)
   }
 }
 
@@ -756,7 +759,7 @@ export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd:
   // live on this consumer, surfaced to the renderer via the dispatch `blocked`
   // reason / channel adapters; the session id goes to the log for operators.
   logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
-  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status), !status.ok)
 }
 
 function workspacePathErrorMessage(path: string, status: PathStatus): string {

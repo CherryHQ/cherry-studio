@@ -50,6 +50,11 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
+vi.mock('@main/ai/runtime/claudeCode', () => ({
+  isAgentSessionWorkspaceError: (error: unknown) =>
+    error instanceof Error && error.name === 'AgentSessionWorkspaceError'
+}))
+
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     deleteByIdsForDelivery: mocks.deleteByIds,
@@ -421,6 +426,60 @@ describe('AgentSessionDeliveryService', () => {
     expect(mocks.validateDispatch).toHaveBeenCalledTimes(2)
     expect(mocks.claim).toHaveBeenCalledOnce()
     expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it('bounds repeated concurrent-modification revalidation instead of spinning on one durable row', async () => {
+    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [accepted] : []))
+    mocks.persistDispatchTx.mockImplementation(() => {
+      throw DataApiErrorFactory.concurrentModification('Agent', 'agent-1')
+    })
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.validateDispatch).toHaveBeenCalledTimes(2)
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(service.listActiveWork()).toEqual([])
+  })
+
+  it('retries an accepted delivery after its workspace becomes available without another event', async () => {
+    vi.useFakeTimers()
+    try {
+      const workspaceError = Object.assign(new Error('workspace volume is unavailable'), {
+        name: 'AgentSessionWorkspaceError',
+        retryable: true
+      })
+      mocks.listAccepted.mockImplementation((sessionId?: string) =>
+        sessionId === undefined || sessionId === 'target' ? [accepted] : []
+      )
+      mocks.validateDispatch.mockRejectedValue(workspaceError)
+      const service = new AgentSessionDeliveryService()
+      await service._doInit()
+      await service._doAllReady()
+      await service.drainInFlight({ timeoutMs: 100 })
+
+      expect(mocks.fail).not.toHaveBeenCalled()
+      expect(mocks.persistDispatchTx).not.toHaveBeenCalled()
+      expect(mocks.send).not.toHaveBeenCalled()
+
+      mocks.validateDispatch.mockResolvedValue({
+        sessionId: 'target',
+        agentId: 'agent-1',
+        agentUpdatedAt: now,
+        agentType: 'claude-code',
+        uniqueModelId: 'provider::model'
+      })
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
+      await vi.advanceTimersByTimeAsync(60_001)
+      vi.runAllTicks()
+      await service.drainInFlight({ timeoutMs: 100 })
+
+      expect(mocks.send).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('commits deletion, closes target runtimes, then schedules the exact durable results', async () => {

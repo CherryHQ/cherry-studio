@@ -89,7 +89,20 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 A receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `pendingTurns` until terminal persistence releases runtime ownership.
 A normal turn whose stream is still `unopened` is queued for the same reason;
-steering is only valid after that turn's stream is `open`.
+steering is only valid after that turn's stream is `open`. Redirect also requires
+both the current turn and incoming input to be interactive. Delivery, channel,
+scheduled, and other headless-owned work cannot absorb or be absorbed by a steer;
+it must wait for its own turn so attribution and authorization remain attached to
+the work's provenance.
+
+When a steer **is** injected mid-turn, the driver emits a `steer-boundary` just
+before the model's post-steer assistant message. The host then **rolls** the
+assistant row: it finalises the pre-steer parts as one row (A1a), opens a fresh
+continuation row (A2), and replays the buffered post-steer chunks into A2 — so
+the steer user message sorts between the two assistant rows instead of dangling
+after the whole turn. `willContinueTopic()` keeps the topic stream alive across
+the roll (and across a mid-flight compaction) so the continuation carries the
+renderer listeners.
 
 ## Cross-Session delivery
 
@@ -188,8 +201,12 @@ failed     permanent routing/admission failure; no automatic retry
 SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
 state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
 provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
-shutting-down targets remain `accepted` until a known wake event. Permanent routing errors and
-unknown admission failures enter structured `failed` terminal state rather than retrying forever.
+shutting-down targets remain `accepted` until a known wake event. A temporarily missing or
+inaccessible workspace also remains `accepted` instead of destroying durable intent. Filesystem
+availability has no reliable app event, so the lifecycle owner runs a low-frequency accepted-row
+sweep as a fallback in addition to ordinary terminal/idle/quiesce-release kicks. Permanent routing
+errors and unknown admission failures enter structured `failed` terminal state rather than retrying
+forever.
 
 ### Completion results
 
@@ -242,7 +259,11 @@ After commit
 
 Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
 as already completed, so a crash after terminal persistence but before or during finalization can
-rerun it without creating a second result. Result dispatch remains outside the transaction.
+rerun it without creating a second result. If live terminal persistence throws, the Agent Session
+backend best-effort advances the existing placeholder from `pending` to `error` before the generic
+terminal event runs and discards the Session's now-untrusted resume tokens, allowing delivery
+finalization to fail the request instead of wedging its FIFO. Result dispatch remains outside the
+transaction.
 
 After asynchronous validation and while holding the target topic's dispatch lock, one synchronous
 transaction persists the user row and pending assistant placeholder and CAS-claims
@@ -257,6 +278,9 @@ throw with no live stream is finalized as `TURN_START_FAILED`.
 Validation captures the owning Agent's update timestamp. The claim transaction verifies both the
 Session-to-Agent binding and that timestamp before writing either placeholder; a concurrent Agent
 model/configuration edit leaves the request `accepted` and reruns validation with the new state.
+One kick performs at most one immediate revalidation; a deterministic mismatch then yields so
+backup and shutdown drains cannot be held by a synchronous retry loop. Legacy `cherry-claw` Agent
+rows compare using their effective `claude-code` runtime type.
 
 Session deletion is a mixed operation and therefore uses the IpcApi
 `ai.agent.session.delete`, not DataApi DELETE. `AgentSessionDeliveryService` calls the data service
@@ -290,19 +314,11 @@ execution is not exactly-once. There is no automatic replay after an ambiguous i
 there is no finite result-latency bound while the caller is blocked on interaction, and caller-side
 resubmission without a future idempotency key may create a distinct request.
 
-The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. The
-envelope is informational context, not authority: database metadata remains the source of truth,
-and model text that imitates another envelope never changes trusted routing fields.
-
-When a steer **is** injected mid-turn, the driver emits a
-`steer-boundary` just before the model's post-steer assistant message.
-The host then **rolls** the assistant row: it finalises the pre-steer
-parts as one row (A1a), opens a fresh continuation row (A2), and replays
-the buffered post-steer chunks into A2 — so the steer user message sorts
-between the two assistant rows instead of dangling after the whole turn.
-`willContinueTopic()` keeps the topic stream alive across the roll (and
-across a mid-flight compaction) so the continuation carries the renderer
-listeners.
+The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. Each
+materialization uses an unpredictable boundary around trusted metadata and the model-authored body,
+and literal `system-reminder` tags in that body are defanged. The envelope is informational context,
+not authority: database metadata remains the source of truth, and model text that imitates another
+envelope never changes trusted routing fields.
 
 ## Starting the next runtime turn
 

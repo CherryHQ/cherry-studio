@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -13,6 +14,9 @@ import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener
 import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
+// Filesystem availability has no app event (for example, an external workspace volume remount).
+// Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
+const DELIVERY_RETRY_SWEEP_MS = 60_000
 
 class DeliveryClaimLostError extends Error {}
 
@@ -72,6 +76,7 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   protected override onAllReady(): void {
+    this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }
 
@@ -273,22 +278,33 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   private async runSessionQueue(sessionId: string): Promise<void> {
+    let revalidatedRequestId: string | undefined
     while (!this.isShuttingDown && !this.isWriteQuiesced) {
       if (this.reconcileCompletedDelivery(sessionId)) return
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
       if (!next) return
       const outcome = await this.dispatchOne(next)
-      if (outcome === 'blocked' || outcome === 'started') return
+      if (outcome === 'settled') {
+        revalidatedRequestId = undefined
+        continue
+      }
+      // Validation crosses an async boundary, so one fresh snapshot retry is useful. Never spin on
+      // one durable row: a deterministic mismatch must release backup/shutdown drains.
+      if (outcome === 'revalidate' && revalidatedRequestId !== next.id) {
+        revalidatedRequestId = next.id
+        continue
+      }
+      return
     }
   }
 
   private async dispatchOne(
     message: AgentSessionMessageEntity
-  ): Promise<'blocked' | 'started' | 'settled' | 'skipped'> {
+  ): Promise<'blocked' | 'started' | 'settled' | 'revalidate' | 'stale'> {
     const manager = application.get('AiStreamManager')
     const runtime = application.get('AgentSessionRuntimeService')
     const topicId = buildAgentSessionTopicId(message.sessionId)
-    let outcome: 'blocked' | 'started' | 'settled' | 'skipped' = 'skipped'
+    let outcome: 'blocked' | 'started' | 'settled' | 'revalidate' | 'stale' = 'stale'
 
     await manager.withDispatchLock(topicId, async () => {
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
@@ -320,6 +336,15 @@ export class AgentSessionDeliveryService extends BaseService {
           agentDeliveryMessage: current
         })
       } catch (error) {
+        if (isAgentSessionWorkspaceError(error) && error.retryable) {
+          logger.warn('Agent Session delivery target workspace is temporarily unavailable', {
+            deliveryId: current.id,
+            sessionId: current.sessionId,
+            error
+          })
+          outcome = 'blocked'
+          return
+        }
         this.failBeforeStart(current, error)
         outcome = 'settled'
         return
@@ -358,7 +383,7 @@ export class AgentSessionDeliveryService extends BaseService {
       } catch (error) {
         if (error instanceof DeliveryClaimLostError) return
         if (isDataApiError(error) && error.code === ErrorCode.CONCURRENT_MODIFICATION) {
-          outcome = 'skipped'
+          outcome = 'revalidate'
           return
         }
         this.failBeforeStart(current, error)
@@ -428,12 +453,14 @@ export class AgentSessionDeliveryService extends BaseService {
     const deliveryError =
       error instanceof AgentSessionDeliveryRoutingError
         ? { code: error.code, message: error.message }
-        : isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
+        : isAgentSessionWorkspaceError(error)
           ? { code: 'TARGET_UNAVAILABLE', message: error.message }
-          : {
-              code: 'INTERNAL_ERROR',
-              message: error instanceof Error ? error.message : 'Internal Session delivery error'
-            }
+          : isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
+            ? { code: 'TARGET_UNAVAILABLE', message: error.message }
+            : {
+                code: 'INTERNAL_ERROR',
+                message: error instanceof Error ? error.message : 'Internal Session delivery error'
+              }
     const result = agentSessionMessageService.failSessionDelivery(message, deliveryError)
     logger.warn('Agent Session delivery admission failed', {
       deliveryId: message.id,

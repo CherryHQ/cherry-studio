@@ -616,6 +616,33 @@ export class AgentSessionMessageService {
     })
   }
 
+  /** Best-effort terminalization after a live assistant persistence failure. */
+  markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const result = tx
+        .update(sessionMessagesTable)
+        .set({ status: 'error', updatedAt: Date.now() })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'assistant'),
+            eq(sessionMessagesTable.status, 'pending')
+          )
+        )
+        .run()
+      if (result.changes > 0) {
+        // The persisted history no longer proves the CLI state represented by any prior token.
+        tx.update(sessionMessagesTable)
+          .set({ runtimeResumeToken: null })
+          .where(eq(sessionMessagesTable.sessionId, sessionId))
+          .run()
+      }
+      return result
+    })
+    if (changed.changes > 0) this.publishDeliveryChange(messageId, 'projection')
+  }
+
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
     return {
       id: row.id,
@@ -1475,7 +1502,7 @@ export class AgentSessionMessageService {
       (!session.agentUpdatedAt ||
         new Date(session.agentUpdatedAt).toISOString() !== expectedAgent.updatedAt ||
         session.agentModel !== expectedAgent.model ||
-        session.agentType !== expectedAgent.type)
+        (session.agentType === 'cherry-claw' ? 'claude-code' : session.agentType) !== expectedAgent.type)
     ) {
       throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
     }

@@ -19,7 +19,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { defangSystemReminderTags, wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -1199,6 +1199,12 @@ async function materializeUserContent(
     .map((part) => part.text)
     .join('\n')
   if (message.delivery) {
+    // The body is authored by another model. A per-delivery unpredictable tag prevents it from
+    // closing or forging the trusted metadata boundary, and reminder tags must not impersonate
+    // host-authored instructions.
+    const boundary = crypto.randomUUID().replaceAll('-', '')
+    const envelopeTag = `cherry-session-delivery-${boundary}`
+    const contentTag = `cherry-session-content-${boundary}`
     const context = JSON.stringify({
       schema: 'cherry.session-delivery.v1',
       deliveryId: message.id,
@@ -1213,7 +1219,14 @@ async function materializeUserContent(
       inReplyTo: message.delivery.inReplyTo,
       outcome: message.delivery.outcome
     })
-    text = `<cherry-session-delivery>${context}</cherry-session-delivery>\n\n${text}`
+    text = [
+      `<${envelopeTag}>`,
+      context,
+      `<${contentTag}>`,
+      defangSystemReminderTags(text),
+      `</${contentTag}>`,
+      `</${envelopeTag}>`
+    ].join('\n')
   }
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []

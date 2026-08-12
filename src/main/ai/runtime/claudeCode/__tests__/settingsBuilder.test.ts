@@ -214,9 +214,12 @@ vi.mock('../AgentsMdLoader', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
-  '../settingsBuilder'
-)
+const {
+  assertClaudeCodeWorkspaceDirectory,
+  buildClaudeCodeSessionSettings,
+  disposeToolPolicySnapshot,
+  registerMcpSessionCatalogSync
+} = await import('../settingsBuilder')
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -2673,6 +2676,18 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(buildClaudeCodeSessionSettings(session as never, {} as never)).rejects.toThrow()
 
       expect(mocks.warmToolsCache).not.toHaveBeenCalled()
+    })
+
+    it('classifies unavailable workspace paths as retryable but files as permanent', async () => {
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: true
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: true, kind: 'file' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
+      })
     })
 
     it('overlaps MCP warming with independent environment construction', async () => {

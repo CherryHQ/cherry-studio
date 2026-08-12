@@ -11,7 +11,7 @@ export function wrapSteerReminder(text: string): string {
   // Defang any literal <system-reminder> open/close tags in the user text by escaping their `<`, so a
   // steer containing `</system-reminder>` can't terminate the wrapper and forge reminder-priority
   // instructions. Only the exact delimiter is touched; ordinary `<`/`>` in the message are preserved.
-  const safe = text.replace(/<(\/?\s*system-reminder\b[^>]*)>/gi, '&lt;$1>')
+  const safe = defangSystemReminderTags(text)
   return [
     SYSTEM_REMINDER_OPEN,
     'The user sent the following message:',
@@ -20,6 +20,10 @@ export function wrapSteerReminder(text: string): string {
     'Please address this message and continue with your tasks.',
     SYSTEM_REMINDER_CLOSE
   ].join('\n')
+}
+
+export function defangSystemReminderTags(text: string): string {
+  return text.replace(/<(\/?\s*system-reminder\b[^>]*)>/gi, '&lt;$1>')
 }
 
 /** Extract complete reminder bodies from a trusted SDK synthetic message. */

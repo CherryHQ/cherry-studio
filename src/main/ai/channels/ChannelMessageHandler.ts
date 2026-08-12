@@ -822,7 +822,8 @@ export class ChannelMessageHandler {
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
-        headless: true
+        headless: true,
+        requireIdle: { expectedAgentId: session.agentId }
       })
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI

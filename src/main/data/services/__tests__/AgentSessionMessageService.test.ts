@@ -589,6 +589,79 @@ describe('AgentSessionMessageService', () => {
     ).toEqual([])
   })
 
+  it('compares legacy cherry-claw rows by their normalized runtime type', async () => {
+    dbh.db.insert(userProviderTable).values({ providerId: 'legacy', name: 'Legacy', orderKey: 'p0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'legacy::model',
+        providerId: 'legacy',
+        modelId: 'model',
+        presetModelId: 'model',
+        name: 'Legacy model',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'm0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'legacy-agent',
+        type: 'cherry-claw',
+        name: 'Legacy Agent',
+        instructions: '',
+        model: 'legacy::model',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId: 'legacy-agent' }).where(eq(agentSessionTable.id, SESSION_ID)).run()
+    const [agent] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy-agent')).all()
+
+    expect(() =>
+      agentSessionMessageService.saveMessages(
+        {
+          sessionId: SESSION_ID,
+          messages: [
+            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+          ]
+        },
+        {
+          id: 'legacy-agent',
+          updatedAt: new Date(agent.updatedAt).toISOString(),
+          model: 'legacy::model',
+          type: 'claude-code'
+        }
+      )
+    ).not.toThrow()
+  })
+
+  it('terminalizes a pending assistant after live persistence fails', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      runtimeResumeToken: 'untrusted-resume-token',
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [ASSISTANT_MESSAGE_ID]
+      }
+    ])
+  })
+
   it('keeps createdAt stable when updating an existing message', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
 

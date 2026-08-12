@@ -790,7 +790,6 @@ export class AgentSessionRuntimeService extends BaseService {
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
       fastMode?: boolean
-      allowRedirect?: boolean
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
@@ -826,8 +825,9 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.stream === 'open' &&
       turn &&
       this.isTurnLive(entry, turn) &&
+      turn.headless !== true &&
+      !headless &&
       canRedirectOnCurrentConfig &&
-      opts.allowRedirect !== false &&
       this.currentConnection(entry)?.redirect?.({
         message,
         systemReminder: true,

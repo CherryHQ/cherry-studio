@@ -3951,6 +3951,42 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('queues an interactive follow-up instead of steering it into a headless-owned turn', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), headless: true })
+      const entry = getEntry(service)
+      const redirect = vi.fn().mockReturnValue(true)
+      entry.connection = { events: [], send: vi.fn(), redirect, close: vi.fn() }
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution.stream = 'open'
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(entry.pendingTurns).toEqual([
+        expect.objectContaining({ message: expect.objectContaining({ id: 'user-2' }), steer: true })
+      ])
+      void service.closeSession('session-1')
+    })
+
+    it('queues headless input instead of inheriting a live interactive turn', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const redirect = vi.fn().mockReturnValue(true)
+      entry.connection = { events: [], send: vi.fn(), redirect, close: vi.fn() }
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution.stream = 'open'
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { headless: true })
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(entry.pendingTurns).toEqual([
+        expect.objectContaining({ message: expect.objectContaining({ id: 'user-2' }), headless: true, steer: true })
+      ])
+      void service.closeSession('session-1')
+    })
+
     it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
       const events = createAsyncQueue<any>()
       const redirect = vi.fn().mockReturnValue(true)

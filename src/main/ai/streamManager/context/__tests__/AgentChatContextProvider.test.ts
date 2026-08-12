@@ -147,6 +147,7 @@ describe('AgentChatContextProvider', () => {
       listeners: [makeSubscriber('runtime:persistence'), makeSubscriber('runtime:terminal')],
       turnId: 'turn-1'
     })
+    mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
 
@@ -219,6 +220,16 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ id: 'runtime:persistence' }),
       expect.objectContaining({ id: 'runtime:terminal' })
     ])
+  })
+
+  it('preserves typed workspace validation errors for the dispatch boundary', async () => {
+    const workspaceError = Object.assign(new Error('workspace is unavailable'), {
+      name: 'AgentSessionWorkspaceError',
+      retryable: true
+    })
+    mocks.runtimeValidateSession.mockRejectedValue(workspaceError)
+
+    await expect(provider.validateDispatch(openReq())).rejects.toBe(workspaceError)
   })
 
   it('prepares live inject without creating a new runtime turn or assistant placeholder', async () => {
