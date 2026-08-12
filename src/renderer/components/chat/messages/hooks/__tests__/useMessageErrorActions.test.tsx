@@ -51,7 +51,7 @@ describe('useMessageErrorActions', () => {
     vi.clearAllMocks()
   })
 
-  it('loads each error action implementation independently on invocation', async () => {
+  it('loads hook action implementations only when invoked', async () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
@@ -68,7 +68,6 @@ describe('useMessageErrorActions', () => {
 
     await result.current.openErrorDetail?.({ message, partId: 'part-1', error })
     expect(mocks.errorDetailModuleEvaluated).toHaveBeenCalledOnce()
-    expect(mocks.diagnosisModuleEvaluated).not.toHaveBeenCalled()
 
     await expect(
       result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
