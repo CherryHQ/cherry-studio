@@ -1,9 +1,7 @@
 import { createReadStream } from 'node:fs'
-import fs from 'node:fs/promises'
 
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FileInfo } from '@shared/types/file'
-import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 import {
@@ -15,8 +13,6 @@ import {
   type PreparedMineruQueryContext,
   type PreparedMineruStartContext
 } from './types'
-
-const MINERU_MAX_FILE_SIZE = 200 * MB
 
 export async function createUploadTask(context: PreparedMineruStartContext): Promise<{
   batchId: string
@@ -69,12 +65,6 @@ export async function uploadFile(
   uploadHeaders?: Record<string, string>,
   signal?: AbortSignal
 ): Promise<void> {
-  const stat = await fs.stat(file.path)
-
-  if (stat.size >= MINERU_MAX_FILE_SIZE) {
-    throw new Error('Mineru file is too large (must be smaller than 200MB)')
-  }
-
   const safeUploadUrl = sanitizeRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(file.path)
 

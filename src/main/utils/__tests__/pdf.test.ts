@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
-import { extractPdfText } from '../pdf'
+import { PDFDocument } from 'pdf-lib'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { extractPdfText, getPdfPageCount } from '../pdf'
 
 // Minimal valid PDF with text "Hello"
 // Generated from: %PDF-1.0 with a single page containing "Hello"
@@ -17,6 +22,16 @@ const MINIMAL_PDF_BASE64 = [
   'Cjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjQ5MQolJUVP',
   'Rgo='
 ].join('')
+
+let tempDir: string
+
+beforeEach(async () => {
+  tempDir = await mkdtemp(path.join(tmpdir(), 'cherry-pdf-test-'))
+})
+
+afterEach(async () => {
+  await rm(tempDir, { recursive: true, force: true })
+})
 
 describe('extractPdfText', () => {
   it('should extract text from a base64-encoded PDF', async () => {
@@ -47,5 +62,17 @@ describe('extractPdfText', () => {
     // We test that extractPdfText doesn't crash on edge cases
     const text = await extractPdfText(MINIMAL_PDF_BASE64)
     expect(typeof text).toBe('string')
+  })
+})
+
+describe('getPdfPageCount', () => {
+  it('returns the page count from a real PDF file', async () => {
+    const document = await PDFDocument.create()
+    document.addPage()
+    document.addPage()
+    const pdfPath = path.join(tempDir, 'two-pages.pdf')
+    await writeFile(pdfPath, await document.save())
+
+    await expect(getPdfPageCount(pdfPath)).resolves.toBe(2)
   })
 })
