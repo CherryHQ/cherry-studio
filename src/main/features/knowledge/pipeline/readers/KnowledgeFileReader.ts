@@ -1,27 +1,43 @@
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
-import { CSVReader } from '@vectorstores/readers/csv'
-import { HTMLReader } from '@vectorstores/readers/html'
-import { JSONReader } from '@vectorstores/readers/json'
-import { MarkdownReader } from '@vectorstores/readers/markdown'
-import { PDFReader } from '@vectorstores/readers/pdf'
-import { TextFileReader } from '@vectorstores/readers/text'
+import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import { AnydocReader } from './files/AnydocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 
+class LazyFileReader extends VectorStoreFileReader<Document> {
+  private readerPromise: Promise<VectorStoreFileReader<Document>> | undefined
+
+  constructor(private readonly loadReader: () => Promise<VectorStoreFileReader<Document>>) {
+    super()
+  }
+
+  override async loadData(filePath: string): Promise<Document[]> {
+    const reader = await (this.readerPromise ??= this.loadReader())
+    return reader.loadData(filePath)
+  }
+
+  async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document[]> {
+    const reader = await (this.readerPromise ??= this.loadReader())
+    return reader.loadDataAsContent(fileContent, filename)
+  }
+}
+
 export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
   const extension = getFileExt(filePath).toLowerCase()
 
   switch (extension) {
     case '.pdf':
-      return new PDFReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/pdf').then(({ PDFReader }) => new PDFReader())
+      )
     case '.csv':
-      return new CSVReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/csv').then(({ CSVReader }) => new CSVReader())
+      )
     case '.doc':
       return new AnydocReader(async () => {
         const { DocReader } = await import('./files/DocReader')
@@ -44,17 +60,25 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
       return new AnydocReader()
     case '.html':
     case '.htm':
-      return new HTMLReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/html').then(({ HTMLReader }) => new HTMLReader())
+      )
     case '.json':
-      return new JSONReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/json').then(({ JSONReader }) => new JSONReader())
+      )
     case '.markdown':
     case '.md':
     case '.mdx':
-      return new MarkdownReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/markdown').then(({ MarkdownReader }) => new MarkdownReader())
+      )
     case '.draftsexport':
       return new DraftsExportReader()
     default:
-      return new TextFileReader()
+      return new LazyFileReader(async () =>
+        import('@vectorstores/readers/text').then(({ TextFileReader }) => new TextFileReader())
+      )
   }
 }
 
