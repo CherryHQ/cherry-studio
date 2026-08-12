@@ -1,5 +1,6 @@
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+// eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   RefreshProvider,

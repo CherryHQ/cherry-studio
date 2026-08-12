@@ -397,8 +397,10 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
+let agentHistoryLoaded = false
+
 describe('HistoryRecordsView agent mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
@@ -439,7 +441,27 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
     hookMocks.virtualListRenderRows.length = 0
-  })
+
+    if (!agentHistoryLoaded) {
+      await import('../AgentHistoryRecords')
+      hookMocks.useAgents.mockReturnValue({ agents: [], error: undefined, isLoading: false })
+      hookMocks.useSessions.mockReturnValue({
+        sessions: [],
+        pinIdBySessionId: new Map(),
+        error: undefined,
+        isLoading: false,
+        deleteSession: hookMocks.deleteSession,
+        deleteSessions: hookMocks.deleteSessions,
+        togglePin: hookMocks.togglePin
+      })
+      const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      agentHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('renders sessions from the existing agent session list data', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({

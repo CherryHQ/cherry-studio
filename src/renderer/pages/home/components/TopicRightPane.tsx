@@ -1,4 +1,5 @@
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+// eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -19,7 +20,7 @@ import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TopicBranchPanel from './TopicBranchPanel'
+const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
@@ -124,15 +125,17 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   if (!scope.topicId) return null
 
   return (
-    <TopicBranchPanel
-      open={active}
-      topicId={scope.topicId}
-      topicName={scope.topicName}
-      liveState={branchLiveState}
-      focusKey={canvasFocusKey}
-      layoutReady={canvasLayoutReady}
-      onLocateMessage={callbacks.onLocateMessage}
-    />
+    <Suspense fallback={null}>
+      <TopicBranchPanel
+        open={active}
+        topicId={scope.topicId}
+        topicName={scope.topicName}
+        liveState={branchLiveState}
+        focusKey={canvasFocusKey}
+        layoutReady={canvasLayoutReady}
+        onLocateMessage={callbacks.onLocateMessage}
+      />
+    </Suspense>
   )
 }
 

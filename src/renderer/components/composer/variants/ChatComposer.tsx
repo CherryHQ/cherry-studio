@@ -25,7 +25,7 @@ import { getComposerToolConfig } from '@renderer/components/composer/tools/regis
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
-import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -1769,6 +1769,7 @@ const ChatComposerInner = ({
           suggestionSources={entityReferenceSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           placeholder={searching ? t('chat.input.translating') : placeholderText}
+          sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||

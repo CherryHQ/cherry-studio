@@ -1,9 +1,10 @@
 import type { Topic as RendererTopic } from '@renderer/types/topic'
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode, Suspense } from 'react'
 
-import AgentHistoryRecords from './AgentHistoryRecords'
-import AssistantHistoryRecords from './AssistantHistoryRecords'
 import type { HistoryRecordsMode } from './historyRecordsTypes'
+
+const AgentHistoryRecords = lazy(() => import('./AgentHistoryRecords'))
+const AssistantHistoryRecords = lazy(() => import('./AssistantHistoryRecords'))
 
 interface HistoryRecordsViewBaseProps {
   mode: HistoryRecordsMode
@@ -29,21 +30,23 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
 
   return (
     <div className="flex min-h-0 flex-1 bg-card [-webkit-app-region:none]" data-testid="history-records-view">
-      {props.mode === 'assistant' ? (
-        <AssistantHistoryRecords
-          activeRecordId={props.activeRecordId}
-          onClose={props.onClose}
-          onRecordSelect={props.onRecordSelect}
-          toolbarLeading={props.toolbarLeading}
-        />
-      ) : (
-        <AgentHistoryRecords
-          activeRecordId={props.activeRecordId}
-          onClose={props.onClose}
-          onRecordSelect={props.onRecordSelect}
-          toolbarLeading={props.toolbarLeading}
-        />
-      )}
+      <Suspense fallback={null}>
+        {props.mode === 'assistant' ? (
+          <AssistantHistoryRecords
+            activeRecordId={props.activeRecordId}
+            onClose={props.onClose}
+            onRecordSelect={props.onRecordSelect}
+            toolbarLeading={props.toolbarLeading}
+          />
+        ) : (
+          <AgentHistoryRecords
+            activeRecordId={props.activeRecordId}
+            onClose={props.onClose}
+            onRecordSelect={props.onRecordSelect}
+            toolbarLeading={props.toolbarLeading}
+          />
+        )}
+      </Suspense>
     </div>
   )
 }

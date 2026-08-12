@@ -9,6 +9,7 @@ import { TopicRightPane } from '../TopicRightPane'
 
 const developerModeEnabled = vi.fn(() => true)
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
+const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
@@ -92,17 +93,20 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
     payload ? <div data-testid="trace-pane" data-topic-id={payload.topicId} data-trace-id={payload.traceId} /> : null
 }))
 
-vi.mock('../TopicBranchPanel', () => ({
-  default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
-    <button
-      type="button"
-      data-open={String(open)}
-      data-testid="branch-pane"
-      onClick={() => onLocateMessage?.('message-1')}>
-      locate current branch message
-    </button>
-  )
-}))
+vi.mock('../TopicBranchPanel', () => {
+  topicBranchPanelModuleState.importCount += 1
+  return {
+    default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
+      <button
+        type="button"
+        data-open={String(open)}
+        data-testid="branch-pane"
+        onClick={() => onLocateMessage?.('message-1')}>
+        locate current branch message
+      </button>
+    )
+  }
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -127,7 +131,18 @@ describe('TopicRightPane', () => {
     handler?.()
   }
 
-  it('registers the right sidebar keyboard shortcut for the branch pane', () => {
+  it('does not load the branch flow implementation before the pane opens', () => {
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(topicBranchPanelModuleState.importCount).toBe(0)
+  })
+
+  it('registers the right sidebar keyboard shortcut for the branch pane', async () => {
     render(
       <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
@@ -144,7 +159,7 @@ describe('TopicRightPane', () => {
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
 
     act(triggerRightSidebarShortcut)
 

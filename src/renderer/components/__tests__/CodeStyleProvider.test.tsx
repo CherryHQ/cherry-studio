@@ -1,8 +1,9 @@
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { getShiki } from '@renderer/utils/shiki'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Override the global lightweight '@cherrystudio/ui' stand-in with the real theme
@@ -44,12 +45,15 @@ vi.mock('@renderer/utils/shiki', () => ({
 }))
 
 const Probe = () => {
-  const { themeNames, activeCmTheme } = useCodeStyle()
+  const { loadThemeNames, themeNames, activeCmTheme } = useCodeStyle()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
       <span data-testid="cm-theme-type">{typeof activeCmTheme}</span>
       <span data-testid="cm-theme-string">{typeof activeCmTheme === 'string' ? activeCmTheme : ''}</span>
+      <button type="button" onClick={() => void loadThemeNames()}>
+        Load themes
+      </button>
     </>
   )
 }
@@ -76,6 +80,7 @@ describe('CodeStyleProvider', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
 
     renderProvider()
+    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
 
     // The first waitFor in this file pays the real (cold) dynamic import of
     // @uiw/codemirror-themes-all; under a fully loaded worker pool that takes
@@ -101,14 +106,15 @@ describe('CodeStyleProvider', () => {
     })
   })
 
-  it('falls back to shiki theme names when code editor is disabled', async () => {
+  it('does not load shiki until its theme catalog is requested', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
 
     renderProvider()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('has-dracula').textContent).toBe('false')
-      expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-    })
+    expect(vi.mocked(getShiki)).not.toHaveBeenCalled()
+    expect(screen.getByTestId('cm-theme-string').textContent).toBe('light')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
+    await waitFor(() => expect(vi.mocked(getShiki)).toHaveBeenCalledOnce())
   })
 })
