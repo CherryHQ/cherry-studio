@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   createFileTx: vi.fn(),
   getBinaryPath: vi.fn(),
   modelGetByKey: vi.fn(),
+  notifyDataApiDataChange: vi.fn(),
   spawn: vi.fn()
 }))
 
@@ -30,6 +31,7 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGetByKey } }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataApiDataChange }))
 vi.mock('@data/services/TranslateHistoryService', () => ({
   translateHistoryService: { createFileTx: mocks.createFileTx }
 }))
@@ -343,6 +345,9 @@ describe('PdfTranslationService', () => {
       targetFileEntryId: TRANSLATED_ENTRY_ID,
       sourceFileEntryId: SOURCE_ENTRY_ID
     })
+    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
+      { endpoint: '/translate/histories', kind: 'membership', entityIds: [HISTORY_ID] }
+    ])
     expect(fileManager.permanentDelete).not.toHaveBeenCalled()
     // The temp dir is gone even though the run succeeded — its content now lives in FileManager.
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-history'))).toBe(false)
@@ -439,6 +444,7 @@ describe('PdfTranslationService', () => {
     // Without the compensating delete the entry would sit in the file manager as an
     // unexplained PDF until the cleanup grace window elapsed.
     expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
+    expect(mocks.notifyDataApiDataChange).not.toHaveBeenCalled()
   })
 
   it('reports a persistence failure when the translated entry cannot be created', async () => {

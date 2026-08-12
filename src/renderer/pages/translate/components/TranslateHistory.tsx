@@ -45,7 +45,7 @@ type DisplayedTranslateHistoryItem = TranslateHistory & {
 
 type Props = {
   isOpen: boolean
-  onHistoryItemClick: (history: TranslateHistory) => void
+  onHistoryItemClick: (history: TranslateHistory, files?: TranslationFiles) => void
   onClose: () => void
 }
 
@@ -141,9 +141,13 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   }, [hasMore, history.length, isLoadingMore])
 
   const handleReuse = useCallback(
-    (item: DisplayedTranslateHistoryItem) => {
+    (item: DisplayedTranslateHistoryItem, files?: TranslationFiles) => {
       setSelectedId(null)
-      onHistoryItemClick(item)
+      if (files) {
+        onHistoryItemClick(item, files)
+      } else {
+        onHistoryItemClick(item)
+      }
     },
     [onHistoryItemClick]
   )
@@ -348,7 +352,7 @@ const HistoryDetail: FC<{
   item: DisplayedTranslateHistoryItem
   onBack: () => void
   onCopy: (value: string) => Promise<void>
-  onReuse: (item: DisplayedTranslateHistoryItem) => void
+  onReuse: (item: DisplayedTranslateHistoryItem, files?: TranslationFiles) => void
   onDeleted: () => void
 }> = ({ item, onBack, onCopy, onReuse, onDeleted }) => {
   const { t } = useTranslation()
@@ -410,7 +414,7 @@ const HistoryDetail: FC<{
           <span className="text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
         </div>
         {item.kind === 'file' ? (
-          <FileHistoryBody item={item} onReuse={() => onReuse(item)} />
+          <FileHistoryBody item={item} onReuse={(files) => onReuse(item, files)} />
         ) : (
           <>
             <div className="rounded-md bg-muted/40 p-3">
@@ -477,7 +481,10 @@ const HistoryDetail: FC<{
  * Everything here is format-agnostic except the side-by-side preview, which needs a
  * viewer and so gates on `isPdfTranslation`.
  */
-const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: () => void }> = ({ item, onReuse }) => {
+const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files: TranslationFiles) => void }> = ({
+  item,
+  onReuse
+}) => {
   const { t } = useTranslation()
   const [files, setFiles] = useState<TranslationFiles | null>(null)
 
@@ -555,7 +562,7 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: () => 
         {canPreview && (
           <button
             type="button"
-            onClick={onReuse}
+            onClick={() => files && onReuse(files)}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
             <Repeat size={11} />
             <span>{t('translate.history.file.preview')}</span>

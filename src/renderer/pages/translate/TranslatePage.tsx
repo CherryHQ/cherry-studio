@@ -67,7 +67,7 @@ import type {
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
-import { loadTranslationFiles } from './translationFiles'
+import type { TranslationFiles } from './translationFiles'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -566,7 +566,7 @@ const TranslatePage: FC = () => {
   ])
 
   const onHistoryItemClick = useCallback(
-    async (history: TranslateHistory) => {
+    (history: TranslateHistory, files?: TranslationFiles) => {
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -575,10 +575,6 @@ const TranslatePage: FC = () => {
       // already gated — a future non-PDF file translation has no viewer to restore into
       // and never offers the button.
       if (history.kind === 'file') {
-        const files = await loadTranslationFiles(history.id).catch((error) => {
-          logger.error('Failed to resolve the files of a translate history entry', error as Error)
-          return null
-        })
         // A moved-away source still resolves (external entries keep their recorded path,
         // and the left pane renders its own unavailable state); a null path means the
         // entry itself is gone, which leaves nothing to show side by side.

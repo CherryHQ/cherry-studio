@@ -162,8 +162,9 @@ describe('TranslateHistory', () => {
     ...overrides
   })
 
-  const renderHistory = (onItemClick: (item: TranslateHistoryItem) => void = vi.fn()) =>
-    render(<TranslateHistory isOpen onHistoryItemClick={onItemClick} onClose={vi.fn()} />)
+  const renderHistory = (
+    onItemClick: (item: TranslateHistoryItem, files?: TranslationFilesModule.TranslationFiles) => void = vi.fn()
+  ) => render(<TranslateHistory isOpen onHistoryItemClick={onItemClick} onClose={vi.fn()} />)
 
   beforeEach(() => {
     translateHistoryMock.useTranslateHistory.mockReset()
@@ -275,7 +276,10 @@ describe('TranslateHistory', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'translate.history.file.preview' }))
 
-      expect(onHistoryItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: '3', kind: 'file' }))
+      expect(onHistoryItemClick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: '3', kind: 'file' }),
+        TRANSLATION_FILES
+      )
     })
 
     it('reports a missing translated file in the detail panel', async () => {
