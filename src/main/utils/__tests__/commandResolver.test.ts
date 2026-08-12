@@ -8,6 +8,7 @@ import {
   autoDiscoverGitBash,
   findCommandInShellEnv,
   findExecutable,
+  findExecutableInEnv,
   findGitBash,
   findViaMise,
   validateGitBashPath
@@ -17,6 +18,7 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
+vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
@@ -1138,6 +1140,26 @@ describe('findCommandInShellEnv', () => {
 
       const result = await resultPromise
       expect(result).toBeNull()
+    })
+
+    it('findExecutableInEnv should resolve npx.cmd via where.exe fallback', async () => {
+      const { getShellEnv } = await import('../shellEnv')
+      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\\nodejs' })
+
+      // findCommandInShellEnv fails (spawn returns nothing useful)
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+      // Defer the close event so it fires after findCommandInShellEnv attaches its listener
+      setTimeout(() => mockChild.emit('close', 1), 0)
+
+      // findExecutable fallback: where.exe returns npx.cmd
+      // Return an object with toString('utf8') since the code treats the result as a Buffer
+      const whereResult = 'C:\\Program Files\\nodejs\\npx.cmd\r\n'
+      vi.mocked(execFileSync).mockReturnValue({ toString: () => whereResult } as never)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+
+      const result = await findExecutableInEnv('npx')
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
   })
 })
