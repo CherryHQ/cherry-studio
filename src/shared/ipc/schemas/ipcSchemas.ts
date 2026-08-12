@@ -5,7 +5,7 @@ import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
-import { cherryinRequestSchemas } from './cherryin'
+import { type CherryInEventSchemas, cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { diagnosticsRequestSchemas } from './diagnostics'
@@ -94,6 +94,7 @@ export type IpcEventSchemas = AiEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  CherryInEventSchemas &
   FileEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &

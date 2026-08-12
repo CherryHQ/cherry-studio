@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryInOauth from './CherryInOauth'
+import CherryInSettings from './CherryInSettings'
 import ClaudeCodeSettings from './ClaudeCodeSettings'
 import DmxapiSettings from './DmxapiSettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -76,6 +77,11 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     }
   ],
   afterAuth: [
+    {
+      key: 'cherryin-settings',
+      when: ({ provider }) => provider.id === 'cherryin',
+      render: (providerId) => <CherryInSettings providerId={providerId} />
+    },
     {
       key: 'lmstudio-settings',
       when: ({ provider }) => matchesPreset(provider, 'lmstudio'),

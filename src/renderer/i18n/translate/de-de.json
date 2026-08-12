@@ -7775,6 +7775,13 @@
         "api_host": {
           "acceleration": "Beschleunigungsdomäne",
           "international": "Internationale Domäne"
+        },
+        "route": {
+          "auto": "Automatisch",
+          "china": "Beschleunigte Route",
+          "error": "Die CherryIN-Route konnte nicht geändert werden",
+          "global": "Internationale Route",
+          "title": "Zugriffsroute"
         }
       },
       "claude_code": {
@@ -7937,7 +7944,7 @@
           "logout_button": "Abmelden",
           "not_logged_in": "Nicht angemeldet",
           "register_account": "Konto erstellen",
-          "service_attribution": "Dieser Dienst wird von <link>open.cherryin.ai</link> bereitgestellt",
+          "service_attribution": "Dieser Dienst wird von <link>{{host}}</link> bereitgestellt",
           "tagline": "Nach der Anmeldung können Sie alle Modelldienste verwenden",
           "title": "OAuth-Anmeldung",
           "use_api_key": "Stattdessen API-Schlüssel verwenden"

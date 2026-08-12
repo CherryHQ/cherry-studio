@@ -76,7 +76,7 @@ describe('CherryInOAuthService', () => {
         })
       } as Response)
 
-    const result = await cherryInOAuthService.getBalance('https://open.cherryin.ai')
+    const result = await cherryInOAuthService.getBalance('https://open.cherryin.net')
 
     expect(result).toEqual({
       balance: 128.5,
@@ -93,10 +93,10 @@ describe('CherryInOAuthService', () => {
       'cherryin',
       expect.any(Function),
       expect.any(Function),
-      expect.objectContaining({ context: { apiHost: 'https://open.cherryin.ai' } })
+      expect.objectContaining({ context: { apiHost: 'https://open.cherryin.net' } })
     )
     expect(netMocks.fetch).toHaveBeenCalledWith(
-      'https://open.cherryin.ai/api/v1/oauth/balance',
+      'https://open.cherryin.net/api/v1/oauth/balance',
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer oauth-access' }) })
     )
   })

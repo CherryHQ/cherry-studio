@@ -1,3 +1,4 @@
+import { CHERRYIN_HOSTS } from '@shared/utils/cherryin'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -27,9 +28,23 @@ const cherryInBalanceSchema = z.object({
 export type CherryInProfile = z.infer<typeof cherryInProfileSchema>
 export type CherryInBalance = z.infer<typeof cherryInBalanceSchema>
 
+const cherryInHostModeSchema = z.enum(['auto', 'china', 'global'])
+const cherryInEndpointSelectionSchema = z.object({
+  host: z.enum([CHERRYIN_HOSTS.china, CHERRYIN_HOSTS.global]),
+  mode: cherryInHostModeSchema
+})
 const apiHostInput = z.object({ apiHost: z.string() })
 
 export const cherryinRequestSchemas = {
+  'cherryin.get_endpoint_selection': defineRoute({ input: z.void(), output: cherryInEndpointSelectionSchema }),
+  'cherryin.set_host_mode': defineRoute({
+    input: z.object({ mode: cherryInHostModeSchema }),
+    output: cherryInEndpointSelectionSchema
+  }),
   'cherryin.get_balance': defineRoute({ input: apiHostInput, output: cherryInBalanceSchema }),
   'cherryin.logout': defineRoute({ input: apiHostInput, output: z.void() })
+}
+
+export type CherryInEventSchemas = {
+  'cherryin.endpoint_selected': z.infer<typeof cherryInEndpointSelectionSchema>
 }

@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
@@ -46,6 +47,7 @@ export function useWindowRuntime(): void {
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
   const isMacTransparentWindow = useMacTransparentWindow()
   const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
+  const invalidateCache = useInvalidateCache()
 
   // Also used by the light windows, so these stay as their own reusable hooks.
   useLanguageSync()
@@ -81,6 +83,10 @@ export function useWindowRuntime(): void {
         timeout: 3000
       })
     }
+  })
+
+  useIpcOn('cherryin.endpoint_selected', () => {
+    void invalidateCache(['/providers', '/providers/cherryin', '/providers/cherryin/*'])
   })
 
   // ESC exits fullscreen (all platforms), gated by the shortcut preference.

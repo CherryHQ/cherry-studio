@@ -120,6 +120,26 @@ describe('useProviderMeta', () => {
     expect(result.current.modelsWebsite).toBeUndefined()
   })
 
+  it.each([
+    ['cherryin', false],
+    ['custom-cherryin', true]
+  ])('sets generic API host visibility for %s', (id, expected) => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id,
+        presetProviderId: 'cherryin',
+        authType: 'api-key',
+        apiFeatures: {},
+        websites: {}
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta(id))
+
+    expect(result.current.isApiKeyFieldVisible).toBe(true)
+    expect(result.current.isConnectionFieldVisible).toBe(expected)
+  })
+
   it('keeps api options hidden for system OpenAI-compatible providers without drawer-supported settings', () => {
     useProviderMock.mockReturnValue({
       provider: {

@@ -7775,6 +7775,13 @@
         "api_host": {
           "acceleration": "Domeniu de accelerație",
           "international": "Domeniu internațional"
+        },
+        "route": {
+          "auto": "Selectare automată",
+          "china": "Rută accelerată",
+          "error": "Ruta CherryIN nu a putut fi schimbată",
+          "global": "Rută internațională",
+          "title": "Rută de acces"
         }
       },
       "claude_code": {
@@ -7937,7 +7944,7 @@
           "logout_button": "Deconectare",
           "not_logged_in": "Neautentificat",
           "register_account": "Creează un cont",
-          "service_attribution": "Acest serviciu este furnizat de <link>open.cherryin.ai</link>",
+          "service_attribution": "Acest serviciu este furnizat de <link>{{host}}</link>",
           "tagline": "După autentificare, poți utiliza toate serviciile de modele",
           "title": "Autentificare OAuth",
           "use_api_key": "Folosește în schimb cheia API"

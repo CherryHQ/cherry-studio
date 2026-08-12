@@ -7775,6 +7775,13 @@
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
           "international": "Διεθνής τομέας"
+        },
+        "route": {
+          "auto": "Αυτόματη επιλογή",
+          "china": "Επιταχυνόμενη διαδρομή",
+          "error": "Αποτυχία αλλαγής διαδρομής CherryIN",
+          "global": "Διεθνής διαδρομή",
+          "title": "Διαδρομή πρόσβασης"
         }
       },
       "claude_code": {
@@ -7937,7 +7944,7 @@
           "logout_button": "Αποσύνδεση",
           "not_logged_in": "Δεν έχετε συνδεθεί",
           "register_account": "Δημιουργία λογαριασμού",
-          "service_attribution": "Αυτή η υπηρεσία παρέχεται από το <link>open.cherryin.ai</link>",
+          "service_attribution": "Αυτή η υπηρεσία παρέχεται από το <link>{{host}}</link>",
           "tagline": "Μετά τη σύνδεση μπορείτε να χρησιμοποιήσετε όλες τις υπηρεσίες μοντέλων",
           "title": "Σύνδεση μέσω OAuth",
           "use_api_key": "Χρήση κλειδιού API αντί αυτού"

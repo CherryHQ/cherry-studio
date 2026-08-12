@@ -9,15 +9,13 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
+import { CHERRYIN_HOSTS, getCherryInEndpoints, resolveCherryInHost } from '@shared/utils/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('CherryInOauth')
-
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
-const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
 
 interface CherryInOauthProps {
   providerId: string
@@ -59,11 +57,19 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const hasKeys = provider ? hasApiKeys(provider) : false
   const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
   const isOAuthLoggedIn = hasKeys && hasOAuthToken
+  const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
+  const configuredHost = resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china)
+  const endpoints = getCherryInEndpoints(configuredHost)
+
+  const getOAuthHost = useCallback(async () => {
+    if (providerId !== 'cherryin') return configuredHost
+    return (await ipcApi.request('cherryin.get_endpoint_selection')).host
+  }, [configuredHost, providerId])
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
+      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: await getOAuthHost() })
       setBalanceInfo(balance)
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
@@ -71,7 +77,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     } finally {
       setIsLoadingData(false)
     }
-  }, [])
+  }, [getOAuthHost])
 
   useEffect(() => {
     if (isOAuthLoggedIn) {
@@ -104,14 +110,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           toast.success(t('auth.get_key_success'))
         },
         {
-          oauthServer: CHERRYIN_OAUTH_SERVER
+          oauthServer: await getOAuthHost()
         }
       )
     } catch (error) {
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
     }
-  }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
+  }, [addApiKey, fetchData, getOAuthHost, refreshHasToken, t, updateProvider])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({
@@ -124,7 +130,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     setIsLoggingOut(true)
 
     try {
-      await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
+      await ipcApi.request('cherryin.logout', { apiHost: await getOAuthHost() })
       setOauthTokenOverride(false)
       setBalanceInfo(null)
 
@@ -146,11 +152,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     } finally {
       setIsLoggingOut(false)
     }
-  }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
+  }, [deleteApiKey, getOAuthHost, provider?.apiKeys, refreshHasToken, t])
 
-  const handleTopup = useCallback(() => {
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
-  }, [])
+  const handleTopup = useCallback(async () => {
+    window.open(getCherryInEndpoints(await getOAuthHost()).topup, '_blank')
+  }, [getOAuthHost])
 
   if (!provider) {
     return null
@@ -245,12 +251,13 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         <p className={cn(oauthCardClasses.serviceAttribution, 'text-muted-foreground')}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"
+            values={{ host: new URL(endpoints.official).hostname }}
             components={{
               link: (
                 <a
                   key="cherryin-service-link"
                   className={cn(oauthCardClasses.serviceLink, 'text-muted-foreground')}
-                  href={CHERRYIN_OAUTH_SERVER}
+                  href={endpoints.official}
                   rel="noreferrer"
                   target="_blank"
                 />
