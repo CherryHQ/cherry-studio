@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -24,9 +23,8 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
-import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
@@ -45,6 +43,7 @@ import {
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -277,16 +276,6 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
-}
-
-function createFolderComposerToken(path: string): ComposerDraftToken {
-  return {
-    id: createComposerSecureRandomId('folder-token'),
-    kind: 'folder',
-    label: getPathBasename(path),
-    description: path,
-    promptText: path
-  }
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -724,7 +713,7 @@ export default function ComposerSurface({
     onFolderPathDropped: (path) => {
       const editor = editorRef.current
       if (!editor || editor.isDestroyed) return
-      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
+      insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
     },
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
@@ -1659,10 +1648,10 @@ export default function ComposerSurface({
   )
 
   const memoizedHandlePaste = useCallback(
-    (_view: EditorView, event: ClipboardEvent) => {
+    (view: EditorView, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
-      const editor = editorRef.current
+      const editor = (view.dom as TiptapEditorHTMLElement).editor
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
@@ -1724,12 +1713,9 @@ export default function ComposerSurface({
         resolveKnowledgeBaseMarker
       })
 
-      if (plainTextOverride !== null) {
+      if (plainTextOverride !== null && editor) {
         event.preventDefault()
-        const currentEditor = editorRef.current
-        if (currentEditor) {
-          insertComposerPastedContent(currentEditor, plainTextOverride)
-        }
+        insertComposerPastedContent(editor, plainTextOverride)
         return true
       }
 

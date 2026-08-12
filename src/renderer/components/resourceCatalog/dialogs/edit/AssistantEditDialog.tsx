@@ -235,7 +235,7 @@ function AssistantEditDialogContent({
   )
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
-  // the user changes the form.
+  // the user changes the form, while a later close can explicitly discard it.
   const failedSaveKeyRef = useRef<string | null>(null)
 
   const wasOpenRef = useRef(false)
@@ -308,6 +308,7 @@ function AssistantEditDialogContent({
     }
     if (failedSaveKeyRef.current === changeKey) {
       toast.error(saveFailedMessage)
+      onOpenChange(false)
       return
     }
     void (async () => {

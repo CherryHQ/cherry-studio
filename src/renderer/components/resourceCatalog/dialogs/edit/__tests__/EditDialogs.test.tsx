@@ -3,6 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -221,6 +222,16 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+  useInfiniteQuery: () => ({
+    pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn()
+  }),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))
@@ -1036,6 +1047,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('repairs invalid legacy max tokens when enabling the limit', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, maxTokens: 0, enableMaxTokens: false }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: {
+          settings: {
+            maxTokens: 4096,
+            enableMaxTokens: true
+          }
+        }
+      })
+    )
+  })
+
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
@@ -1436,15 +1474,23 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
-  it('keeps the dialog open and shows an error when save fails', async () => {
+  it('shows an auto-save error and still allows the dialog to close', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
+    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Assistant' } })
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Broken Assistant')
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('keeps the dialog open after a successful auto-save', async () => {
@@ -1504,13 +1550,16 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('prompts without closing or retrying an unchanged failed assistant save', async () => {
+  it('allows discarding an unchanged failed assistant save without retrying it', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
+    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Closing Edit')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Save failed')
@@ -1518,13 +1567,12 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     await new Promise((resolve) => setTimeout(resolve, 700))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
@@ -1608,7 +1656,7 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('prompts without closing or retrying an unchanged failed agent save', async () => {
+  it('allows discarding an unchanged failed agent save without retrying it', async () => {
     updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
@@ -1628,8 +1676,21 @@ describe('edit dialogs', () => {
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('retries saving the agent when the form changes after a failed close', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
 
     fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))

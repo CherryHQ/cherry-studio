@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
         "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+        "mentionOnlyHint": "开启后机器人只在被 @ 时回复。关闭后可在 QQ 开放平台开启「接收所有消息」，让机器人处理群内每一条消息。",
+        "mentionOnlyLabel": "仅 @ 消息",
         "title": "QQ",
         "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
       },
@@ -1562,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "文件",
+          "resources": "文件和文件夹",
           "skills": "Skills"
         },
         "description": "从文件、Agents 或 Skills 中选择",
+        "load_failed": "加载工作区资源失败",
         "loading": "加载中...",
-        "no_file_found": {
-          "description": "当前工作区没有可搜索的文件",
-          "label": "未找到文件"
-        },
         "no_items_found": {
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "文件与会话"
+        "no_resources_found": {
+          "description": "当前工作区没有可搜索的文件或文件夹",
+          "label": "未找到资源"
+        },
+        "title": "资源与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -4488,14 +4491,27 @@
     },
     "pinned": "已固定",
     "price": {
+      "add_tier": "添加价格档位",
+      "cache_fallback_help": "缓存价格留空时回退到本档输入价格；输入 0 表示免费。",
       "cache_read": "缓存读取价格",
+      "cache_write": "缓存写入价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
+      "field_for_tier": "第 {{index}} 档{{field}}",
       "input": "输入价格",
       "million_tokens": "百万 Token",
+      "min_input_tokens": "生效输入 Token 数",
+      "min_input_tokens_help": "边界包含该值，且必须大于上一档。",
       "output": "输出价格",
-      "price": "价格"
+      "price": "价格",
+      "remove_tier": "删除第 {{index}} 个价格档位",
+      "tier": "档位 {{index}}",
+      "tier_from": "从 {{boundary}} 个输入 Token 起（含）",
+      "use_input_price": "使用输入价格",
+      "validation_min_input_tokens": "请输入正整数。",
+      "validation_min_input_tokens_order": "本档起点必须大于上一档。",
+      "validation_price": "请输入大于或等于 0 的有效价格。"
     },
     "reasoning": "推理",
     "rerank_model": "重排模型",
@@ -6693,6 +6709,10 @@
       "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本地嵌入和 OCR 推理。",
+          "label": "硬件加速"
+        },
         "cancel": "取消",
         "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
         "download": "下载",
@@ -7000,6 +7020,7 @@
       },
       "command": "命令",
       "config_description": "配置模型上下文协议服务器",
+      "copyLogs": "复制日志",
       "customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
       "deleteError": "删除服务器失败",
       "deleteServer": "删除服务器",
@@ -7053,6 +7074,7 @@
       },
       "logoUrl": "标志网址",
       "logs": "日志",
+      "logsHint": "MCP 服务器进程的日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -8149,10 +8171,12 @@
       "label": "按键",
       "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建对话",
+      "next_tab": "下一个标签页",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "open_tab_in_new_window": "在新窗口中打开标签页",
       "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
+      "prev_tab": "上一个标签页",
       "print": "打印",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名对话",

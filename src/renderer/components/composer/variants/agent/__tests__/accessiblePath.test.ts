@@ -35,9 +35,10 @@ describe('accessiblePath on a case-sensitive platform (linux)', () => {
   })
 
   it('is case-sensitive', async () => {
-    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+    const { getPathComparisonKey, isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
 
     expect(isPathWithinAccessiblePath('/Workspace/notes.md', ['/workspace'])).toBe(false)
+    expect(getPathComparisonKey('/Workspace/docs')).not.toBe(getPathComparisonKey('/workspace/docs'))
   })
 
   it('computes the relative path against the matching base', async () => {
@@ -70,9 +71,10 @@ describe('accessiblePath on a case-insensitive platform (macOS/Windows)', () => 
   const platform = { isMac: true, isWin: false, isLinux: false }
 
   it('matches regardless of case', async () => {
-    const { isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
+    const { getPathComparisonKey, isPathWithinAccessiblePath } = await loadAccessiblePath(platform)
 
     expect(isPathWithinAccessiblePath('/Workspace/docs/notes.md', ['/workspace'])).toBe(true)
+    expect(getPathComparisonKey('/Workspace/Docs/./')).toBe(getPathComparisonKey('/workspace/docs'))
   })
 
   it('accepts Windows drive-letter paths with backslashes or forward slashes', async () => {
