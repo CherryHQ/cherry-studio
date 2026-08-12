@@ -103,8 +103,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
   }
 
-  // Auth errors (401). 403 is handled below: the key was accepted, so telling the user it
-  // is invalid sends them off regenerating keys that were never the problem.
+  // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
+  // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     numStatus === 401 ||
     msg.includes('invalid_api_key') ||
@@ -130,8 +130,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
   }
 
-  // 403 = authenticated but not permitted. Kept below region/model/quota because those
-  // more specific causes also ship as 403.
+  // 403 = the request was refused, cause unspecified. Kept below region/model/quota because
+  // those more specific causes also ship as 403.
   if (numStatus === 403 || msg.includes('forbidden')) {
     return {
       category: 'permission',
