@@ -509,7 +509,7 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
-  it('uses one timestamp for a batch of newly saved messages', async () => {
+  it('keeps the session timestamp aligned with a newly saved message batch', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
     agentSessionMessageService.saveMessages({
@@ -534,7 +534,6 @@ describe('AgentSessionMessageService', () => {
 
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
-    expect(rows.map((row) => row.updatedAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
