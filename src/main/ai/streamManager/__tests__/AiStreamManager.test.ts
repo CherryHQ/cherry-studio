@@ -2640,6 +2640,49 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
+
+    it('keeps the thrown error when a lossy error chunk precedes it', async () => {
+      // The chunk carries only `error.message`; rebuilding from it would drop the
+      // statusCode / responseBody that error classification and the error block need.
+      vi.useRealTimers()
+
+      const apiError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://llm.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode: 403,
+        responseHeaders: {},
+        responseBody: '{"detail":"no access to this model"}',
+        isRetryable: false
+      })
+      // Deliver the chunk on the first pull and reject on the next, so the broadcast loop
+      // records `streamErrorText` *and* `threw` — the desync case where both are set.
+      let pulls = 0
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          pull(controller) {
+            pulls += 1
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' } as UIMessageChunk)
+            else controller.error(apiError)
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toMatchObject({
+        statusCode: 403,
+        responseBody: '{"detail":"no access to this model"}'
+      })
+    })
   })
 
   // ── continue-conversation accumulator seed ──────────────────────

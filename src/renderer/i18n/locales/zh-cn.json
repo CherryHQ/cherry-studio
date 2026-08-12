@@ -1564,20 +1564,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "文件",
+          "resources": "文件和文件夹",
           "skills": "Skills"
         },
         "description": "从文件、Agents 或 Skills 中选择",
+        "load_failed": "加载工作区资源失败",
         "loading": "加载中...",
-        "no_file_found": {
-          "description": "当前工作区没有可搜索的文件",
-          "label": "未找到文件"
-        },
         "no_items_found": {
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "文件与会话"
+        "no_resources_found": {
+          "description": "当前工作区没有可搜索的文件或文件夹",
+          "label": "未找到资源"
+        },
+        "title": "资源与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -2544,6 +2545,7 @@
       "ocr": "OCR 识别引擎未初始化，请检查 OCR 设置",
       "parse": "AI 返回的格式异常，请重试或更换模型",
       "payload": "请求内容过大，请减少发送的文件或文本量",
+      "permission": "服务商拒绝了此请求。请查看错误详情，并确认账户套餐、API 密钥权限或该资源的访问权限",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
       "quota": "账户额度已用完，请充值或更换服务商",
       "rate_limit": "请求过于频繁，请稍等片刻再试，或更换为更高速率的模型",
@@ -4499,14 +4501,27 @@
     },
     "pinned": "已固定",
     "price": {
+      "add_tier": "添加价格档位",
+      "cache_fallback_help": "缓存价格留空时回退到本档输入价格；输入 0 表示免费。",
       "cache_read": "缓存读取价格",
+      "cache_write": "缓存写入价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
+      "field_for_tier": "第 {{index}} 档{{field}}",
       "input": "输入价格",
       "million_tokens": "百万 Token",
+      "min_input_tokens": "生效输入 Token 数",
+      "min_input_tokens_help": "边界包含该值，且必须大于上一档。",
       "output": "输出价格",
-      "price": "价格"
+      "price": "价格",
+      "remove_tier": "删除第 {{index}} 个价格档位",
+      "tier": "档位 {{index}}",
+      "tier_from": "从 {{boundary}} 个输入 Token 起（含）",
+      "use_input_price": "使用输入价格",
+      "validation_min_input_tokens": "请输入正整数。",
+      "validation_min_input_tokens_order": "本档起点必须大于上一档。",
+      "validation_price": "请输入大于或等于 0 的有效价格。"
     },
     "reasoning": "推理",
     "rerank_model": "重排模型",
@@ -6704,6 +6719,10 @@
       "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本地嵌入和 OCR 推理。",
+          "label": "硬件加速"
+        },
         "cancel": "取消",
         "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
         "download": "下载",

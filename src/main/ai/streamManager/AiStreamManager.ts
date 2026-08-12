@@ -207,6 +207,13 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
 }
 
+/** The AI SDK `error` chunk carries only `error.message`, so rebuilding from it drops the
+ *  `statusCode`/`responseBody` that classification and the error block need. Prefer the
+ *  thrown error whenever it still carries them. */
+function hasHttpMetadata(error: SerializedError): boolean {
+  return error.statusCode != null || error.responseBody != null
+}
+
 /**
  * Append this turn's compaction anchors to an accumulated snapshot.
  *
@@ -216,15 +223,24 @@ function errorFromStreamChunk(errorText: string): SerializedError {
  * `compacting` → `done` transition) update in place instead of duplicating.
  * `data-*` parts never reach the model, so adding them cannot perturb the
  * prompt bytes the provider caches.
+ *
+ * A fold that settled as `skipped` changed nothing, so it leaves no timeline
+ * marker: its anchor is dropped here (along with any `compacting` snapshot
+ * already recorded under the same id) instead of persisting a part the UI
+ * renders as nothing.
  */
 function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   const anchors = exec.compactionAnchors
   if (!anchors?.length) return message
   const parts = [...message.parts]
   for (const anchor of anchors) {
-    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
     // Narrow on `type` before reading `id` — only data parts carry one.
     const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
+    if (anchor.data.status === 'skipped') {
+      if (at >= 0) parts.splice(at, 1)
+      continue
+    }
+    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
     if (at >= 0) parts[at] = part
     else parts.push(part)
   }
@@ -1794,10 +1810,11 @@ export class AiStreamManager extends BaseService {
       } else {
         logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
       }
+      const fromThrow = serializeError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted
+        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
           ? errorFromStreamChunk(result.streamErrorText)
-          : serializeError(result.threw.error)
+          : fromThrow
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }
