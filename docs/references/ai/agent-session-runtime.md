@@ -33,7 +33,8 @@ queue, and `resume` handling are driver internals.
 1. Renderer sends `Ai_Stream_Open` for topic `agent-session:<sessionId>`.
 2. `AgentChatContextProvider` validates the session:
    - the session must have an agent and workspace;
-   - the workspace path must pass `assertClaudeCodeWorkspaceDirectory`;
+   - system workspaces are materialized under Cherry's managed root, while user
+     workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
    - the agent must have a model.
 3. The provider atomically saves:

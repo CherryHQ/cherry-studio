@@ -28,7 +28,7 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
-import { ensureAgentDataDirectory, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
@@ -41,6 +41,12 @@ import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
+import {
+  AgentSessionWorkspaceError,
+  assertAgentSessionWorkspaceDirectory,
+  isAgentSessionWorkspaceError,
+  prepareAgentSessionWorkspaceDirectory
+} from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -57,12 +63,12 @@ import {
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import { getAppLanguage, t } from '@main/i18n'
+import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
+import { isPathInside } from '@main/utils/file'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -640,49 +646,9 @@ export function resolveClaudeExecutablePath(): string {
   )
 }
 
-export class AgentSessionWorkspaceError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'AgentSessionWorkspaceError'
-  }
-}
-
-export function isAgentSessionWorkspaceError(error: unknown): error is AgentSessionWorkspaceError {
-  return error instanceof AgentSessionWorkspaceError
-}
-
-export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
-  const workspace = session.workspace
-  switch (workspace.type) {
-    case AGENT_WORKSPACE_TYPE.SYSTEM:
-      // System workspaces are app-owned session directories; user workspaces
-      // must already exist, so auto-creating them would mask a bad user path.
-      await ensureSystemWorkspaceDirectory(workspace.path)
-      break
-    case AGENT_WORKSPACE_TYPE.USER:
-      break
-    default: {
-      const exhaustive: never = workspace.type
-      throw new AgentSessionWorkspaceError(`Unsupported workspace type: ${String(exhaustive)}`)
-    }
-  }
-  await assertClaudeCodeWorkspaceDirectory(session.id, workspace.path)
-}
-
-async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
-  const root = path.resolve(application.getPath('feature.agents.system_workspaces'))
-  const target = path.resolve(cwd)
-  const relative = path.relative(root, target)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
-  }
-  try {
-    await ensureAgentStorageDirectory(root, target)
-  } catch (error) {
-    logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
-  }
-}
+export { AgentSessionWorkspaceError, isAgentSessionWorkspaceError }
+export const prepareClaudeCodeWorkspaceDirectory = prepareAgentSessionWorkspaceDirectory
+export const assertClaudeCodeWorkspaceDirectory = assertAgentSessionWorkspaceDirectory
 
 async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
   try {
@@ -723,28 +689,6 @@ async function isPathWithinAllowedRoots(cwd: string, agentDataPath: string, requ
     resolvedTarget === resolvedAgentDataPath ||
     isPathInside(resolvedTarget, resolvedAgentDataPath)
   )
-}
-
-export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
-  const status = await getPathStatus(cwd)
-  if (status.ok && status.kind === 'directory') return
-  // The operation fails here, so this is where the workspace-path problem is
-  // reported: the directory policy and the user-facing (i18n'd) message both
-  // live on this consumer, surfaced to the renderer via the dispatch `blocked`
-  // reason / channel adapters; the session id goes to the log for operators.
-  logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
-  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
-}
-
-function workspacePathErrorMessage(path: string, status: PathStatus): string {
-  // The directory case returned already, so an `ok` status here means the path
-  // exists but is a file — i.e. "not a directory".
-  if (status.ok) {
-    return t('agent.session.workspace_status.not_directory', { path })
-  }
-  return status.reason === 'missing'
-    ? t('agent.session.workspace_status.missing', { path })
-    : t('agent.session.workspace_status.inaccessible', { path })
 }
 
 export async function getClaudeCodeLoginShellEnvironment(

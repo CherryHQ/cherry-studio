@@ -1,3 +1,4 @@
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   findByIdOrName: vi.fn(),
-  listTools: vi.fn()
+  listTools: vi.fn(),
+  prepareWorkspace: vi.fn(),
+  assertProviderUsable: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
@@ -20,7 +23,10 @@ vi.mock('@application', () => ({
     }
   }
 }))
-vi.mock('./modelInjection', () => ({ assertPiProviderUsable: vi.fn() }))
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
+  prepareAgentSessionWorkspaceDirectory: mocks.prepareWorkspace
+}))
+vi.mock('./modelInjection', () => ({ assertPiProviderUsable: mocks.assertProviderUsable }))
 vi.mock('./PiRuntimeConnection', () => ({ PiRuntimeConnection: vi.fn() }))
 
 const { PiRuntimeDriver } = await import('./PiRuntimeDriver')
@@ -28,6 +34,27 @@ const { PiRuntimeDriver } = await import('./PiRuntimeDriver')
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.listTools.mockReturnValue([])
+  mocks.prepareWorkspace.mockResolvedValue(undefined)
+  mocks.assertProviderUsable.mockResolvedValue(undefined)
+})
+
+describe('PiRuntimeDriver.validateSession', () => {
+  it('materializes a system workspace before validating the provider', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { path: '/data/Agents/system/2026-08-12/session-1', type: 'system' }
+    } as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+
+    await new PiRuntimeDriver().validateSession(session)
+
+    expect(mocks.prepareWorkspace).toHaveBeenCalledWith(session)
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
+    expect(mocks.prepareWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.assertProviderUsable.mock.invocationCallOrder[0]
+    )
+  })
 })
 
 describe('PiRuntimeDriver.listAvailableTools', () => {
