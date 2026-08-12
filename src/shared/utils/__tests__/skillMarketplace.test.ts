@@ -25,6 +25,8 @@ describe('parseGithubSkillUrl', () => {
   it.each([
     ['a repo root URL', 'https://github.com/owner/repo'],
     ['a directory URL without the file', 'https://github.com/owner/repo/tree/main/skills/foo'],
+    ['a tree URL, which denotes a directory', 'https://github.com/owner/repo/tree/main/skills/foo/SKILL.md'],
+    ['a filename the installer does not look for', 'https://github.com/owner/repo/blob/main/skills/foo/SKILL.MD'],
     ['a different file in the skill directory', 'https://github.com/owner/repo/blob/main/skills/foo/README.md'],
     ['a SKILL.md at the repo root', 'https://github.com/owner/repo/blob/main/SKILL.md'],
     ['a non-github host', 'https://gitlab.com/owner/repo/blob/main/skills/foo/SKILL.md'],
@@ -83,23 +85,43 @@ describe('buildGithubSkillResult', () => {
 })
 
 describe('resolveRefFromSegments', () => {
+  const head = (name: string, oid = 'a'.repeat(40)) => ({ name, oid, namespace: 'heads' as const })
+
   it('prefers the longest ref the remote actually has', () => {
-    // Both refs exist; splitting at the first segment would clone `feature` and look for
+    // Both refs exist; splitting at the first segment would fetch `feature` and look for
     // `foo/skills/demo` there.
-    expect(resolveRefFromSegments(['feature', 'feature/foo'], ['feature', 'foo', 'skills', 'demo'])).toEqual({
-      ref: 'feature/foo',
-      directoryPath: 'skills/demo'
+    expect(
+      resolveRefFromSegments(
+        [head('feature'), head('feature/foo', 'b'.repeat(40))],
+        ['feature', 'foo', 'skills', 'demo']
+      )
+    ).toEqual({ kind: 'resolved', ref: head('feature/foo', 'b'.repeat(40)), directoryPath: 'skills/demo' })
+  })
+
+  it('reports a repo-root descriptor instead of falling back to a shorter ref', () => {
+    // `feature/foo` consumes every segment, so the URL names SKILL.md at that branch's root. Falling
+    // through to `feature` would install `foo/SKILL.md` from an unrelated revision.
+    expect(resolveRefFromSegments([head('feature'), head('feature/foo')], ['feature', 'foo'])).toEqual({
+      kind: 'repo-root',
+      ref: head('feature/foo')
     })
   })
 
-  it('keeps at least one segment for the skill directory', () => {
-    expect(resolveRefFromSegments(['main', 'main/skills'], ['main', 'skills'])).toEqual({
-      ref: 'main',
-      directoryPath: 'skills'
-    })
+  it('refuses a name carried by both a branch and a tag', () => {
+    expect(
+      resolveRefFromSegments(
+        [head('v1'), { name: 'v1', oid: 'c'.repeat(40), namespace: 'tags' }],
+        ['v1', 'skills', 'demo']
+      )
+    ).toEqual({ kind: 'ambiguous', name: 'v1' })
   })
 
-  it('returns null when no ref matches, rather than guessing a boundary', () => {
-    expect(resolveRefFromSegments(['main'], ['a1b2c3', 'skills', 'demo'])).toBeNull()
+  it('carries the observed commit so the install cannot follow a moved branch', () => {
+    const resolution = resolveRefFromSegments([head('main', 'f'.repeat(40))], ['main', 'skills', 'demo'])
+    expect(resolution).toMatchObject({ kind: 'resolved', ref: { oid: 'f'.repeat(40) } })
+  })
+
+  it('reports no match rather than guessing a boundary', () => {
+    expect(resolveRefFromSegments([head('main')], ['a1b2c3', 'skills', 'demo'])).toEqual({ kind: 'no-match' })
   })
 })

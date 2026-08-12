@@ -122,27 +122,51 @@ function invalidPathPart(part: string): boolean {
   )
 }
 
+/** A branch or tag as the remote reports it, carrying the commit it pointed at when observed. */
+export type GithubRef = {
+  name: string
+  oid: string
+  namespace: 'heads' | 'tags'
+}
+
+export type GithubRefResolution =
+  | { kind: 'resolved'; ref: GithubRef; directoryPath: string }
+  /** Every segment is the ref, so the URL names a SKILL.md at the repo root — no directory to install. */
+  | { kind: 'repo-root'; ref: GithubRef }
+  /** A branch and a tag share the name, so the URL does not say which revision was meant. */
+  | { kind: 'ambiguous'; name: string }
+  | { kind: 'no-match' }
+
 /**
- * Split `refAndDirectory` at the boundary the repo's own refs prove, longest ref first: with both a
+ * Split `refAndDirectory` at the boundary the repo's own refs prove, longest first: with both a
  * `feature` branch and a `feature/foo` branch, `blob/feature/foo/skills/demo/SKILL.md` must resolve
  * to the latter rather than silently installing a different revision's `foo/skills/demo`.
  *
- * @param refNames branch and tag names as reported by the remote, without their `refs/*` prefix
- * @returns null when no ref matches — the caller must fail rather than guess a boundary
+ * The full-length match is tested before any shorter one. `blob/feature/foo/SKILL.md` on branch
+ * `feature/foo` is a repo-root descriptor, and reporting that is the only safe answer — skipping it
+ * to keep a directory segment would install `foo/SKILL.md` from the unrelated `feature` branch.
  */
 export function resolveRefFromSegments(
-  refNames: Iterable<string>,
+  refs: readonly GithubRef[],
   refAndDirectory: readonly string[]
-): { ref: string; directoryPath: string } | null {
-  const available = new Set(refNames)
-  // At least one segment must remain for the skill directory, so the ref can span at most length-1.
-  for (let length = refAndDirectory.length - 1; length >= 1; length--) {
-    const ref = refAndDirectory.slice(0, length).join('/')
-    if (available.has(ref)) {
-      return { ref, directoryPath: refAndDirectory.slice(length).join('/') }
-    }
+): GithubRefResolution {
+  const byName = new Map<string, GithubRef[]>()
+  for (const ref of refs) {
+    byName.set(ref.name, [...(byName.get(ref.name) ?? []), ref])
   }
-  return null
+
+  for (let length = refAndDirectory.length; length >= 1; length--) {
+    const name = refAndDirectory.slice(0, length).join('/')
+    const matches = byName.get(name)
+    if (!matches?.length) continue
+    if (matches.length > 1) return { kind: 'ambiguous', name }
+
+    const ref = matches[0]
+    return length === refAndDirectory.length
+      ? { kind: 'repo-root', ref }
+      : { kind: 'resolved', ref, directoryPath: refAndDirectory.slice(length).join('/') }
+  }
+  return { kind: 'no-match' }
 }
 
 /**
@@ -176,20 +200,20 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
   }
 
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
-  const [owner, repo, ...tail] = segments
+  const [owner, rawRepo, ...tail] = segments
+  // `tree` denotes a directory on GitHub, so only `blob` (and the raw host) can name a file.
   const refAndPath =
-    host === 'github.com' && (tail[0] === 'blob' || tail[0] === 'tree')
-      ? tail.slice(1)
-      : host === 'raw.githubusercontent.com'
-        ? tail
-        : null
+    host === 'github.com' && tail[0] === 'blob' ? tail.slice(1) : host === 'raw.githubusercontent.com' ? tail : null
   if (!refAndPath) return null
 
+  const repo = rawRepo?.replace(/\.git$/i, '')
   const fileName = refAndPath.at(-1)
   const refAndDirectory = refAndPath.slice(0, -1)
   const name = refAndDirectory.at(-1)
 
-  if (!owner || !repo || fileName?.toLowerCase() !== 'skill.md' || !name) return null
+  // Only the two spellings `findSkillMdPath` looks for: accepting `SKILL.MD` here would validate in
+  // the UI and then fail after the user approved the install.
+  if (!owner || !repo || !name || (fileName !== 'SKILL.md' && fileName !== 'skill.md')) return null
   if (![owner, repo].every((part) => GITHUB_REPO_PART.test(part))) return null
   // The shortest resolvable URL is one ref segment plus one directory segment.
   if (refAndDirectory.length < 2 || refAndDirectory.some(invalidPathPart)) return null
