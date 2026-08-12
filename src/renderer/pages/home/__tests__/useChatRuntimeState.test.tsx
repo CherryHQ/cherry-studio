@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   rollbackBranch: vi.fn(),
   activeExecutions: [] as ActiveExecution[],
   overlayExecutions: [] as ActiveExecution[],
+  liveMessageIds: [] as string[],
+  liveAssistants: [] as CherryUIMessage[],
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
 }))
 
@@ -44,7 +46,8 @@ vi.mock('@renderer/components/chat/flow', () => ({
   }) => ({
     topicId,
     activeNodeId,
-    messageIds: messages.map((message) => message.id)
+    messageIds: messages.map((message) => message.id),
+    messages
   })
 }))
 
@@ -52,8 +55,8 @@ vi.mock('@renderer/components/chat/messages/stream/useMessageStreamingLayers', (
   createOverlayRefreshHandoff: () => vi.fn(),
   useMessageStreamingLayers: () => ({
     partsByMessageId: {},
-    liveMessageIds: [],
-    streamingLayers: { liveMessageIds: [] }
+    liveMessageIds: mocks.liveMessageIds,
+    streamingLayers: { liveMessageIds: mocks.liveMessageIds }
   })
 }))
 
@@ -92,7 +95,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
     mocks.overlayOnFinish = options?.onFinish ?? null
     return {
       overlay: {},
-      liveAssistants: [],
+      liveAssistants: mocks.liveAssistants,
       disposeOverlay: vi.fn(),
       reset: vi.fn()
     }
@@ -142,13 +145,21 @@ const reservedMessage = {
   metadata: { status: 'pending', modelId: 'provider::model' }
 } as unknown as CherryUIMessage
 
-function RuntimeHost({ topicId, activeNodeId = null }: { topicId: string; activeNodeId?: string | null }) {
+function RuntimeHost({
+  topicId,
+  activeNodeId = null,
+  messages = []
+}: {
+  topicId: string
+  activeNodeId?: string | null
+  messages?: CherryUIMessage[]
+}) {
   const topic = useMemo(() => makeTopic(topicId), [topicId])
   useChatRuntimeState({
     topic,
     isHistoryLoading: false,
-    initialMessages: [],
-    uiMessages: [],
+    initialMessages: messages,
+    uiMessages: messages,
     refresh: mocks.refresh,
     activeNodeId,
     messagesCacheMutate: vi.fn(),
@@ -175,6 +186,8 @@ describe('useChatRuntimeState', () => {
     mocks.seedMessagesCache.mockResolvedValue(undefined)
     mocks.activeExecutions = []
     mocks.overlayExecutions = []
+    mocks.liveMessageIds = []
+    mocks.liveAssistants = []
     mocks.overlayOnFinish = null
   })
 
@@ -229,6 +242,31 @@ describe('useChatRuntimeState', () => {
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ activeNodeId: 'reserved-1' })
     )
+  })
+
+  it('projects branch flow with optimistic < persisted < live message authority', async () => {
+    const message = (id: string, text: string) =>
+      ({ id, role: 'assistant', parts: [{ type: 'text', text }] }) as CherryUIMessage
+    mocks.liveMessageIds = ['persisted-wins', 'live-wins']
+    mocks.liveAssistants = [message('live-wins', 'live')]
+
+    render(
+      <RuntimeHost
+        topicId="topic-1"
+        messages={[message('persisted-wins', 'persisted'), message('live-wins', 'persisted')]}
+      />
+    )
+
+    await act(async () => {
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([
+        message('persisted-wins', 'optimistic'),
+        message('live-wins', 'optimistic')
+      ])
+    })
+
+    const projected = mocks.onBranchLiveStateChange.mock.calls.at(-1)?.[0].messages as CherryUIMessage[]
+    expect(projected.find((item) => item.id === 'persisted-wins')?.parts).toEqual([{ type: 'text', text: 'persisted' }])
+    expect(projected.find((item) => item.id === 'live-wins')?.parts).toEqual([{ type: 'text', text: 'live' }])
   })
 
   it('lets the newer Main attempt replace a stale optimistic attempt for the same model and anchor', async () => {

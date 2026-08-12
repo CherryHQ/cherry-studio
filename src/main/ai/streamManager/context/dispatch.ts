@@ -101,20 +101,17 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const activeExecutions = hasLiveStream ? manager.inspect(req.topicId)?.executions : undefined
-  const prepared = await provider
-    .prepareDispatch(subscriber, req, { hasLiveStream, activeExecutions })
-    .catch((error: unknown) => {
-      if (isAgentSessionWorkspaceError(error)) {
-        return {
-          blocked: {
-            reason: 'agent-session-workspace' as const,
-            message: error.message
-          }
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
+    if (isAgentSessionWorkspaceError(error)) {
+      return {
+        blocked: {
+          reason: 'agent-session-workspace' as const,
+          message: error.message
         }
       }
-      throw error
-    })
+    }
+    throw error
+  })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }

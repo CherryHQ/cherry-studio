@@ -103,7 +103,7 @@ describe('dispatchStreamRequest — steer', () => {
 
     // No abort/evict — prepareDispatch observes the still-live stream and takes its inject branch,
     // and the persisted user row is enqueued as a pending steer before send (which just attaches).
-    expect(preparedWithCtx).toEqual({ hasLiveStream: true, activeExecutions: undefined })
+    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
     expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', false)
   })
@@ -130,7 +130,7 @@ describe('dispatchStreamRequest — steer', () => {
 
     expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
     expect(order).toEqual(['prepareDispatch', 'send'])
-    expect(preparedWithCtx).toEqual({ hasLiveStream: false, activeExecutions: undefined })
+    expect(preparedWithCtx).toEqual({ hasLiveStream: false })
   })
 
   it('never enqueues a chat steer for an agent-session topic (agent runtime owns its follow-ups)', async () => {
@@ -144,7 +144,7 @@ describe('dispatchStreamRequest — steer', () => {
     // persistent provider, so the agent path is untouched and still sees the live stream.
     expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
     expect(order).toEqual(['prepareDispatch', 'send'])
-    expect(preparedWithCtx).toEqual({ hasLiveStream: true, activeExecutions: undefined })
+    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
   })
 
   // stream-context-1: the workspace-blocked branch was uncovered (the only test stubbed

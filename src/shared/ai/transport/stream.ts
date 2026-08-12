@@ -5,6 +5,21 @@ import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
+export const aiStreamAdmissionReasons = {
+  SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
+  TARGET_NOT_IN_LIVE_GROUP: 'TARGET_NOT_IN_LIVE_GROUP',
+  MODEL_ALREADY_IN_LIVE_GROUP: 'MODEL_ALREADY_IN_LIVE_GROUP',
+  EXECUTION_NOT_READY: 'EXECUTION_NOT_READY',
+  EXECUTION_CHANGED: 'EXECUTION_CHANGED',
+  TOPIC_BUSY: 'TOPIC_BUSY'
+} as const
+
+export type AiStreamAdmissionReason = (typeof aiStreamAdmissionReasons)[keyof typeof aiStreamAdmissionReasons]
+
+export function isAiStreamAdmissionReason(value: unknown): value is AiStreamAdmissionReason {
+  return Object.values(aiStreamAdmissionReasons).some((reason) => reason === value)
+}
+
 export interface AiChatRequestBody extends AssistantTurnOptions {
   /** Topic ID for message routing and persistence. */
   topicId: string

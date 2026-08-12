@@ -18,6 +18,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -28,6 +29,7 @@ import type { UIMessageChunk } from 'ai'
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -95,12 +97,8 @@ export interface SendModelSpec {
 }
 
 type LiveExecutionChange =
-  | { mode: 'replace' }
+  | { mode: 'replace'; parentAnchorId: string; siblingsGroupId?: number }
   | { mode: 'append'; groupAnchorMessageId: string; parentAnchorId: string; siblingsGroupId: number }
-type ExecutionRetryAdmission =
-  | { mode: 'replace-live' }
-  | { mode: 'append-live'; groupAnchorMessageId: string }
-  | { mode: 'start-new' }
 
 export interface SendInput {
   topicId: string
@@ -181,13 +179,17 @@ function isPersistedReplyGroupAnchor(
   parentAnchorId: string,
   siblingsGroupId?: number
 ): boolean {
-  const message = messageService.getById(messageId)
-  return (
-    message.role === 'assistant' &&
-    message.topicId === topicId &&
-    message.parentId === parentAnchorId &&
-    (siblingsGroupId === undefined || message.siblingsGroupId === siblingsGroupId)
-  )
+  try {
+    const message = messageService.getById(messageId)
+    return (
+      message.role === 'assistant' &&
+      message.topicId === topicId &&
+      message.parentId === parentAnchorId &&
+      (siblingsGroupId === undefined || message.siblingsGroupId === siblingsGroupId)
+    )
+  } catch {
+    return false
+  }
 }
 
 function toActiveExecution(exec: StreamExecution): ActiveExecution {
@@ -567,6 +569,70 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: unified send ──────────────────────────────────────────
 
+  admitLiveExecutionChange(topicId: string, intent: LiveExecutionChangeIntent): LiveExecutionChangeAdmission {
+    const stream = this.activeStreams.get(topicId)
+    const isLive = Boolean(stream && isLiveStatus(stream.status))
+
+    if (intent.mode === 'start') {
+      if (isLive && intent.modelCount > 0) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+      }
+      return { mode: 'start-new' }
+    }
+
+    const targetMessageId = intent.mode === 'append' ? intent.targetMessageId : intent.anchorMessageId
+    if (!isPersistedReplyGroupAnchor(targetMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    }
+    if (!stream || !isLive) return { mode: 'start-new' }
+
+    if (intent.mode === 'append') {
+      if (stream.executions.has(intent.modelId)) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+      }
+      const groupExecution = [...stream.executions.values()].find((candidate) => {
+        if (!candidate.anchorMessageId) return false
+        if (intent.expectedGroupAnchorMessageId) {
+          if (candidate.anchorMessageId !== intent.expectedGroupAnchorMessageId) return false
+        } else if (intent.siblingsGroupId === undefined) {
+          if (candidate.anchorMessageId !== intent.targetMessageId) return false
+        } else if (candidate.siblingsGroupId !== intent.siblingsGroupId) {
+          return false
+        }
+        return isPersistedReplyGroupAnchor(
+          candidate.anchorMessageId,
+          topicId,
+          intent.parentAnchorId,
+          intent.siblingsGroupId
+        )
+      })
+      if (!groupExecution?.anchorMessageId) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      return { mode: 'append-live', groupAnchorMessageId: groupExecution.anchorMessageId }
+    }
+
+    const execution = stream.executions.get(intent.modelId)
+    if (!execution || execution.anchorMessageId !== intent.anchorMessageId) {
+      const compatibleExecution = [...stream.executions.values()].find(
+        (candidate) =>
+          candidate.anchorMessageId !== intent.anchorMessageId &&
+          candidate.anchorMessageId !== undefined &&
+          intent.siblingsGroupId !== undefined &&
+          candidate.siblingsGroupId === intent.siblingsGroupId &&
+          isPersistedReplyGroupAnchor(candidate.anchorMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)
+      )
+      if (!stream.executions.has(intent.modelId) && compatibleExecution?.anchorMessageId) {
+        return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
+      }
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    }
+    if (execution.status === 'streaming') {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_NOT_READY)
+    }
+    return { mode: 'replace-live' }
+  }
+
   /**
    * Single entry point. Live topic + an explicit execution change → update
    * that reply group; live topic + no models → inject listeners. Otherwise
@@ -587,40 +653,33 @@ export class AiStreamManager extends BaseService {
 
     if (existing && isLiveStatus(existing.status) && liveExecutionChange) {
       if (input.models.length !== 1) {
-        throw new Error('send(): a dynamic live execution change requires exactly one model')
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.SINGLE_MODEL_REQUIRED)
       }
       const [model] = input.models
       const previous = existing.executions.get(model.modelId)
-      if (liveExecutionChange.mode === 'append' && previous) {
-        throw new Error(`send(): model ${model.modelId} already belongs to topic ${input.topicId}'s live reply group`)
-      }
-      if (
-        liveExecutionChange.mode === 'append' &&
-        ![...existing.executions.values()].some(
-          (execution) => execution.anchorMessageId === liveExecutionChange.groupAnchorMessageId
-        )
-      ) {
-        throw new Error("send(): append target is not part of the topic's current live reply group")
-      }
-      if (
-        liveExecutionChange.mode === 'append' &&
-        !isPersistedReplyGroupAnchor(
-          liveExecutionChange.groupAnchorMessageId,
-          input.topicId,
-          liveExecutionChange.parentAnchorId,
-          liveExecutionChange.siblingsGroupId
-        )
-      ) {
-        throw new Error('send(): append target is not part of the requested persisted reply group')
-      }
-      if (liveExecutionChange.mode === 'replace') {
-        if (!previous || previous.anchorMessageId !== model.request.messageId) {
-          throw new Error("send(): retry target is not the selected topic's current live execution")
+      let admissionIntent: LiveExecutionChangeIntent
+      if (liveExecutionChange.mode === 'append') {
+        admissionIntent = {
+          mode: 'append',
+          modelId: model.modelId,
+          targetMessageId: liveExecutionChange.groupAnchorMessageId,
+          parentAnchorId: liveExecutionChange.parentAnchorId,
+          siblingsGroupId: liveExecutionChange.siblingsGroupId,
+          expectedGroupAnchorMessageId: liveExecutionChange.groupAnchorMessageId
         }
-        if (previous.status === 'streaming') {
-          throw new Error(`send(): model ${model.modelId} already has a live execution on topic ${input.topicId}`)
+      } else {
+        if (!model.request.messageId) {
+          throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+        }
+        admissionIntent = {
+          mode: 'replace',
+          modelId: model.modelId,
+          anchorMessageId: model.request.messageId,
+          parentAnchorId: liveExecutionChange.parentAnchorId,
+          siblingsGroupId: liveExecutionChange.siblingsGroupId
         }
       }
+      this.admitLiveExecutionChange(input.topicId, admissionIntent)
       const hasLiveSibling = [...existing.executions.entries()].some(
         ([modelId, execution]) => modelId !== model.modelId && execution.status === 'streaming'
       )
@@ -663,9 +722,7 @@ export class AiStreamManager extends BaseService {
       // so this throw is atomic w.r.t. the racing submit, and the caller (the approval handler) resolves
       // through its result shape, leaving the card actionable for a retry once the live turn settles.
       if (input.models.length > 0) {
-        throw new Error(
-          `send(): refusing to inject ${input.models.length} prepared model(s) onto live topic ${input.topicId} (raced a concurrent submit)`
-        )
+        this.admitLiveExecutionChange(input.topicId, { mode: 'start', modelCount: input.models.length })
       }
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return {
@@ -852,67 +909,34 @@ export class AiStreamManager extends BaseService {
     anchorMessageId: string,
     parentAnchorId: string,
     compatibleSiblingsGroupId?: number
-  ): Promise<ExecutionRetryAdmission> {
-    if (!isPersistedReplyGroupAnchor(anchorMessageId, topicId, parentAnchorId, compatibleSiblingsGroupId)) {
-      throw new Error('Retry target does not belong to the requested persisted reply group')
+  ): Promise<LiveExecutionChangeAdmission> {
+    const intent = {
+      mode: 'replace' as const,
+      modelId,
+      anchorMessageId,
+      parentAnchorId,
+      siblingsGroupId: compatibleSiblingsGroupId
     }
+    const admission = this.admitLiveExecutionChange(topicId, intent)
+    if (admission.mode !== 'replace-live') return admission
 
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return { mode: 'start-new' }
-
-    const execution = stream.executions.get(modelId)
-    if (!execution || execution.anchorMessageId !== anchorMessageId) {
-      if (isLiveStatus(stream.status)) {
-        const compatibleExecution =
-          compatibleSiblingsGroupId !== undefined
-            ? [...stream.executions.values()].find((candidate) => {
-                if (
-                  candidate.anchorMessageId === anchorMessageId ||
-                  candidate.anchorMessageId === undefined ||
-                  candidate.siblingsGroupId !== compatibleSiblingsGroupId
-                ) {
-                  return false
-                }
-                return isPersistedReplyGroupAnchor(
-                  candidate.anchorMessageId,
-                  topicId,
-                  parentAnchorId,
-                  compatibleSiblingsGroupId
-                )
-              })
-            : undefined
-        if (!stream.executions.has(modelId) && compatibleExecution?.anchorMessageId) {
-          return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
-        }
-        throw new Error("The selected assistant is not part of this topic's live reply group")
-      }
-      return { mode: 'start-new' }
-    }
-    if (execution.status === 'streaming') {
-      throw new Error('The selected assistant execution is not ready to retry')
-    }
+    const execution = this.activeStreams.get(topicId)?.executions.get(modelId)
+    if (!execution) throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_CHANGED)
 
     // Do not reset the row or replace the listener id until the old loop has completed every
     // terminal listener.
     await execution.loopPromise
-
-    if (!isPersistedReplyGroupAnchor(anchorMessageId, topicId, parentAnchorId, compatibleSiblingsGroupId)) {
-      throw new Error('Retry target changed persisted reply groups before retry could start')
-    }
 
     const current = this.activeStreams.get(topicId)
     if (!current) return { mode: 'start-new' }
     const currentExecution = current.executions.get(modelId)
     if (!currentExecution || currentExecution !== execution || currentExecution.anchorMessageId !== anchorMessageId) {
       if (isLiveStatus(current.status)) {
-        throw new Error('The selected assistant execution changed before retry could start')
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_CHANGED)
       }
       return { mode: 'start-new' }
     }
-    if (currentExecution.status === 'streaming') {
-      throw new Error('The selected assistant execution changed before retry could start')
-    }
-    return isLiveStatus(current.status) ? { mode: 'replace-live' } : { mode: 'start-new' }
+    return this.admitLiveExecutionChange(topicId, intent)
   }
 
   /** Whether any chat or agent turn is still able to write persisted stream state. */

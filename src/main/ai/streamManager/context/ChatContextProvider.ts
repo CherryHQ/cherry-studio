@@ -16,7 +16,7 @@ import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
 type PreparedLiveExecutionChange =
-  | { mode: 'replace' }
+  | { mode: 'replace'; parentAnchorId: string; siblingsGroupId?: number }
   | {
       mode: 'append'
       groupAnchorMessageId: string
@@ -67,12 +67,6 @@ export interface DispatchContext {
   requireIdle?: boolean
   /** Internal callers may require the session's agent ownership at the message-write boundary. */
   expectedAgentId?: string
-  /** Stable snapshot taken with `hasLiveStream`; includes terminal siblings retained by the live turn. */
-  activeExecutions?: ReadonlyArray<{
-    modelId: UniqueModelId
-    anchorMessageId?: string
-    siblingsGroupId?: number
-  }>
 }
 
 export interface ChatContextProvider {

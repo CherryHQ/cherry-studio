@@ -22,7 +22,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
-import { applyApprovalDecisions } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
   type AssistantTurnOptions,
@@ -42,6 +42,7 @@ import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types'
+import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -205,21 +206,6 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
   }
 }
 
-function isReplyGroupAnchor(
-  messageId: string,
-  topicId: string,
-  parentAnchorId: string,
-  siblingsGroupId: number
-): boolean {
-  const message = messageService.getById(messageId)
-  return (
-    message.role === 'assistant' &&
-    message.topicId === topicId &&
-    message.parentId === parentAnchorId &&
-    message.siblingsGroupId === siblingsGroupId
-  )
-}
-
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
 
@@ -320,44 +306,48 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
     }
 
+    // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
+    // for non-regenerate, so passing undefined parentAnchorId is harmless.
+    const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+
     if (liveGroupAppendMessageId) {
       const parentAnchorId = req.parentAnchorId
       if (!parentAnchorId) {
         throw new Error(`'regenerate-message' requires parentAnchorId`)
       }
       if (models.length !== 1) {
-        throw new Error('A live reply group can append exactly one model at a time')
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.SINGLE_MODEL_REQUIRED)
       }
-      const target = messageService.getById(liveGroupAppendMessageId)
-      if (target.role !== 'assistant' || target.topicId !== req.topicId || target.parentId !== parentAnchorId) {
-        throw new Error('Live reply-group target does not belong to the requested topic/user anchor')
+      if (siblingsGroupId === undefined) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
       }
-      const sourceExecution = ctx.activeExecutions?.find(
-        (execution) =>
-          execution.anchorMessageId !== undefined &&
-          (target.siblingsGroupId > 0
-            ? execution.siblingsGroupId === target.siblingsGroupId &&
-              isReplyGroupAnchor(execution.anchorMessageId, req.topicId, parentAnchorId, target.siblingsGroupId)
-            : execution.anchorMessageId === target.id)
-      )
-      if (!sourceExecution?.anchorMessageId) {
-        throw new Error("The selected assistant is not part of this topic's live reply group")
+      let targetSiblingsGroupId: number | undefined
+      try {
+        targetSiblingsGroupId = messageService.getById(liveGroupAppendMessageId).siblingsGroupId || undefined
+      } catch {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
       }
-      liveGroupSourceAnchorMessageId = sourceExecution.anchorMessageId
-      if (ctx.activeExecutions?.some((execution) => execution.modelId === models[0].id)) {
-        throw new Error(`Model ${models[0].id} is already part of this live reply group`)
+      const admission = application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'append',
+        modelId: models[0].id,
+        targetMessageId: liveGroupAppendMessageId,
+        parentAnchorId,
+        siblingsGroupId: targetSiblingsGroupId
+      })
+      if (admission.mode === 'append-live') {
+        liveGroupSourceAnchorMessageId = admission.groupAnchorMessageId
       }
     } else if (isRegenerate && ctx.hasLiveStream) {
       // An ordinary regenerate while the topic is live would build placeholder rows that send()'s
       // inject path discards. Only the explicit @-model live-group append is allowed through.
-      throw new Error('Cannot regenerate while a stream is live on this topic')
+      application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'start',
+        modelCount: models.length
+      })
     }
 
-    // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
-    // for non-regenerate, so passing undefined parentAnchorId is harmless.
-    const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
     if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
-      throw new Error('Live reply-group append did not resolve a parent and sibling group')
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     }
     const preparedLiveExecutionChange =
       liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
@@ -403,7 +393,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
-        preserveActiveNode: Boolean(liveGroupAppendMessageId),
+        preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [], turnOptions },
@@ -612,7 +602,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         siblingsGroupId: target.siblingsGroupId || undefined,
         liveExecutionChange:
           admission.mode === 'replace-live'
-            ? { mode: 'replace' }
+            ? {
+                mode: 'replace',
+                parentAnchorId: req.parentAnchorId,
+                siblingsGroupId: compatibleSiblingsGroupId
+              }
             : admission.mode === 'append-live'
               ? {
                   mode: 'append',

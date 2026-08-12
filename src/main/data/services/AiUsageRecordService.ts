@@ -49,7 +49,6 @@ import {
   eq,
   gt,
   gte,
-  inArray,
   isNotNull,
   isNull,
   lt,
@@ -89,6 +88,8 @@ export interface MessageRef {
   kind: AiUsageRecordMessageKind
   id: string
 }
+
+type MessageReadModelTarget = MessageRef & { containerId: string }
 
 export interface AiUsageCaptureContext {
   providerId: string
@@ -1126,26 +1127,36 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
   }
 }
 
-function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): boolean {
+function rebuildMessageUsageProjectionTx(
+  db: DbOrTx,
+  ref: MessageRef
+): { changed: boolean; target: MessageReadModelTarget } | null {
   const projection = getMessageUsageProjectionTx(db, ref)
   if (ref.kind === 'chat') {
-    const row = db.select({ stats: messageTable.stats }).from(messageTable).where(eq(messageTable.id, ref.id)).get()
-    if (!row) return false
+    const row = db
+      .select({ stats: messageTable.stats, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(eq(messageTable.id, ref.id))
+      .get()
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    return { changed, target: { ...ref, containerId: row.topicId } }
   } else {
     const row = db
-      .select({ stats: agentSessionMessageTable.stats })
+      .select({ stats: agentSessionMessageTable.stats, sessionId: agentSessionMessageTable.sessionId })
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
-    if (!row) return false
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) {
+      db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    }
+    return { changed, target: { ...ref, containerId: row.sessionId } }
   }
-  return true
 }
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
@@ -1352,7 +1363,7 @@ function insertRowsTx(
   db: DbOrTx,
   rows: readonly InsertAiUsageRecordRow[],
   warnOnConflict: boolean
-): { inserted: number; affectedMessages: MessageRef[] } {
+): { inserted: number; affectedMessages: MessageReadModelTarget[] } {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
   for (const row of rows) {
@@ -1377,36 +1388,23 @@ function insertRowsTx(
     inserted += 1
   }
 
-  for (const ref of affectedMessages.values()) rebuildMessageUsageProjectionTx(db, ref)
-  return { inserted, affectedMessages: [...affectedMessages.values()] }
+  const affectedReadModels = [...affectedMessages.values()].flatMap((ref) => {
+    const rebuilt = rebuildMessageUsageProjectionTx(db, ref)
+    return rebuilt ? [rebuilt.target] : []
+  })
+  return { inserted, affectedMessages: affectedReadModels }
 }
 
-function messageReadModelEffects(db: DbOrTx, refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
+function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
   const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
   const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
   const chatIdsByTopic = new Map<string, string[]>()
   const agentIdsBySession = new Map<string, string[]>()
-  if (chatIds.length > 0) {
-    for (const row of db
-      .select({ id: messageTable.id, topicId: messageTable.topicId })
-      .from(messageTable)
-      .where(inArray(messageTable.id, chatIds))
-      .all()) {
-      const ids = chatIdsByTopic.get(row.topicId) ?? []
-      ids.push(row.id)
-      chatIdsByTopic.set(row.topicId, ids)
-    }
-  }
-  if (agentIds.length > 0) {
-    for (const row of db
-      .select({ id: agentSessionMessageTable.id, sessionId: agentSessionMessageTable.sessionId })
-      .from(agentSessionMessageTable)
-      .where(inArray(agentSessionMessageTable.id, agentIds))
-      .all()) {
-      const ids = agentIdsBySession.get(row.sessionId) ?? []
-      ids.push(row.id)
-      agentIdsBySession.set(row.sessionId, ids)
-    }
+  for (const ref of refs) {
+    const idsByContainer = ref.kind === 'chat' ? chatIdsByTopic : agentIdsBySession
+    const ids = idsByContainer.get(ref.containerId) ?? []
+    ids.push(ref.id)
+    idsByContainer.set(ref.containerId, ids)
   }
   return [
     ...[...chatIdsByTopic].map(
@@ -1448,7 +1446,7 @@ export class AiUsageRecordService {
       if (result.inserted === 0) return
       notifyDataApiDataChange([
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
-        ...messageReadModelEffects(application.get('DbService').getDb(), result.affectedMessages)
+        ...messageReadModelEffects(result.affectedMessages)
       ])
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
@@ -1461,8 +1459,8 @@ export class AiUsageRecordService {
 
   refreshMessageProjection(ref: MessageRef): void {
     try {
-      const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (changed) notifyDataApiDataChange(messageReadModelEffects(application.get('DbService').getDb(), [ref]))
+      const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

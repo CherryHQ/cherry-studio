@@ -1,10 +1,12 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../types/requests'
+import { AiStreamAdmissionError } from '../admission'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -627,6 +629,13 @@ describe('AiStreamManager', () => {
 
     it('replaces one terminal execution in place without reordering its live sibling', async () => {
       const topicId = 'retry-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
       const first = mgr.send({
         topicId,
         models: [
@@ -656,7 +665,7 @@ describe('AiStreamManager', () => {
         ],
         listeners: [new FakeListener('l:retry')],
         siblingsGroupId: 7,
-        liveExecutionChange: { mode: 'replace' }
+        liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
       })
 
       const snapshot = mgr.inspect(topicId)!
@@ -701,10 +710,10 @@ describe('AiStreamManager', () => {
 
       await expect(
         mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant', 'user-1')
-      ).rejects.toThrow("not part of this topic's live reply group")
+      ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
       await expect(
         mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor', 'user-1')
-      ).rejects.toThrow("not part of this topic's live reply group")
+      ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
       expect(() =>
         mgr.send({
           topicId,
@@ -715,9 +724,9 @@ describe('AiStreamManager', () => {
             }
           ],
           listeners: [],
-          liveExecutionChange: { mode: 'replace' }
+          liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
         })
-      ).toThrow("retry target is not the selected topic's current live execution")
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
 
       expect(mgr.inspect(topicId)?.executions).toEqual([
         expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'current-assistant' })
@@ -749,10 +758,10 @@ describe('AiStreamManager', () => {
         mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1', 7)
       ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
       await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 'user-1', 7)).rejects.toThrow(
-        "not part of this topic's live reply group"
+        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
       )
       await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1')).rejects.toThrow(
-        "not part of this topic's live reply group"
+        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
       )
     })
 
@@ -798,7 +807,7 @@ describe('AiStreamManager', () => {
             siblingsGroupId: 7
           }
         })
-      ).toThrow("append target is not part of the topic's current live reply group")
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
 
       mockGetMessageById.mockImplementationOnce((id) => ({
         id,
@@ -825,7 +834,7 @@ describe('AiStreamManager', () => {
             siblingsGroupId: 7
           }
         })
-      ).toThrow('append target is not part of the requested persisted reply group')
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
       expect(mockStreamText).toHaveBeenCalledTimes(2)
 
       const appended = mgr.send({
@@ -879,8 +888,97 @@ describe('AiStreamManager', () => {
             siblingsGroupId: 7
           }
         })
-      ).toThrow('already belongs')
+      ).toThrow(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
       expect(mockStreamText).toHaveBeenCalledTimes(3)
+    })
+
+    it('uses the same admission reason during preflight and final live-group handoff', () => {
+      const topicId = 'consistent-admission-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+        listeners: [],
+        siblingsGroupId: 7
+      })
+
+      let preflightError: unknown
+      try {
+        mgr.admitLiveExecutionChange(topicId, {
+          mode: 'append',
+          modelId: 'provider-a::model-a',
+          targetMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        })
+      } catch (error) {
+        preflightError = error
+      }
+
+      let handoffError: unknown
+      try {
+        mgr.send({
+          topicId,
+          models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
+          listeners: [],
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      } catch (error) {
+        handoffError = error
+      }
+
+      expect(preflightError).toBeInstanceOf(AiStreamAdmissionError)
+      expect(handoffError).toBeInstanceOf(AiStreamAdmissionError)
+      expect((preflightError as AiStreamAdmissionError).reason).toBe(
+        aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP
+      )
+      expect((handoffError as AiStreamAdmissionError).reason).toBe((preflightError as AiStreamAdmissionError).reason)
+    })
+
+    it('accepts the exact live anchor after its persisted sibling group is backfilled', () => {
+      const topicId = 'backfilled-group-topic'
+      mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+        listeners: []
+      })
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+
+      const result = mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-b::model-b', request: { ...req(topicId), messageId: 'assistant-b' } }],
+        listeners: [],
+        siblingsGroupId: 7,
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
+      })
+
+      expect(result.mode).toBe('started')
+      expect(mgr.inspect(topicId)?.executions.map((execution) => execution.anchorMessageId)).toEqual([
+        'assistant-a',
+        'assistant-b'
+      ])
     })
 
     it('starts a fresh stream instead of appending to a terminal grace-period group', async () => {

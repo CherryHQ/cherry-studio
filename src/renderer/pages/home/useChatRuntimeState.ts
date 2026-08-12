@@ -89,6 +89,14 @@ function mergeActiveExecutions(...sources: ReadonlyArray<readonly ActiveExecutio
   })
 }
 
+function projectBranchFlowMessages(
+  optimisticReservations: CherryUIMessage[],
+  persistedMessages: CherryUIMessage[],
+  liveMessages: CherryUIMessage[]
+): CherryUIMessage[] {
+  return mergeMessagesById(optimisticReservations, persistedMessages, liveMessages)
+}
+
 function executionAttemptKey(execution: ActiveExecution): number {
   return execution.attemptId
 }
@@ -332,7 +340,7 @@ export function useChatRuntimeState({
     [activeStreamingMessageIds, messages]
   )
   const branchFlowLiveMessages = useMemo(
-    () => mergeMessagesById(branchLiveMessages, activeAnchorMessages, liveAssistants),
+    () => projectBranchFlowMessages(branchLiveMessages, activeAnchorMessages, liveAssistants),
     [activeAnchorMessages, branchLiveMessages, liveAssistants]
   )
   const branchFlowActiveNodeId =

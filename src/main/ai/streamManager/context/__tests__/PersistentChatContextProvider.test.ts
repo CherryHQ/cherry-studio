@@ -5,13 +5,14 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
+import { AiStreamAdmissionError } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -21,6 +22,20 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 // (`createUserMessageWithPlaceholders` → `getPathToNode`) without provider/model
 // resolution machinery. The history is what we assert on.
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
+const aiStreamManager = vi.hoisted(() => ({
+  admitLiveExecutionChange: vi.fn(),
+  awaitExecutionRetry: vi.fn(),
+  broadcastTopicError: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')
+  const base = mockApplicationFactory()
+  const originalGet = base.application.get
+  base.application.get = vi.fn((name: string) => (name === 'AiStreamManager' ? aiStreamManager : originalGet(name)))
+  return base
+})
+
 vi.mock('../modelResolution', () => ({
   resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
   resolveModels: vi.fn(() => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
@@ -618,6 +633,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       updatedAt: 250
     })
     const userSelectedBranch = messageService.reserveBranch('a2', true)
+    aiStreamManager.admitLiveExecutionChange.mockReturnValueOnce({
+      mode: 'append-live',
+      groupAnchorMessageId: 'a1'
+    })
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -628,10 +647,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         appendToLiveGroupMessageId: 'a2',
         mentionedModelIds: [appendedModelId]
       },
-      {
-        hasLiveStream: true,
-        activeExecutions: [{ modelId: MODEL_ID, anchorMessageId: 'a1', siblingsGroupId: 1 }]
-      }
+      { hasLiveStream: true }
     )
 
     const children = messageService.getChildrenByParentId('u1')
@@ -654,6 +670,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('rejects an @-selected model when only another reply group is live', async () => {
+    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
     await dbh.db.insert(messageTable).values({
       id: 'a2',
       parentId: 'u1',
@@ -677,23 +696,17 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           appendToLiveGroupMessageId: 'a2',
           mentionedModelIds: [MODEL_ID]
         },
-        {
-          hasLiveStream: true,
-          activeExecutions: [
-            {
-              modelId: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
-              anchorMessageId: 'a1',
-              siblingsGroupId: 1
-            }
-          ]
-        }
+        { hasLiveStream: true }
       )
-    ).rejects.toThrow("The selected assistant is not part of this topic's live reply group")
+    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
 
     expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
   })
 
   it('rejects a live anchor with the same sibling id under another parent', async () => {
+    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
     await dbh.db.insert(messageTable).values([
       {
         id: 'u2',
@@ -730,18 +743,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           appendToLiveGroupMessageId: 'a1',
           mentionedModelIds: [createUniqueModelId('anthropic', 'claude-sonnet-4-5')]
         },
-        {
-          hasLiveStream: true,
-          activeExecutions: [
-            {
-              modelId: MODEL_ID,
-              anchorMessageId: 'a3',
-              siblingsGroupId: 1
-            }
-          ]
-        }
+        { hasLiveStream: true }
       )
-    ).rejects.toThrow("The selected assistant is not part of this topic's live reply group")
+    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
   })
 })
 
