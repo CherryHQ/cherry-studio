@@ -55,6 +55,15 @@ export default defineCreator({
   ],
   models: [
     {
+      id: 'qwen3-5-4b',
+      name: 'Qwen3.5 4B',
+      family: 'qwen',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144
+    },
+    {
       id: 'qwen3-8-max',
       name: 'Qwen3.8 Max',
       family: 'qwen',
