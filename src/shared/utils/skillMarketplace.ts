@@ -93,6 +93,80 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   })
 }
 
+export type GithubSkillLocation = {
+  owner: string
+  repo: string
+  ref: string
+  /** Repo-relative directory holding SKILL.md — the single skill that gets installed. */
+  directoryPath: string
+  name: string
+}
+
+const GITHUB_REPO_PART = /^[a-zA-Z0-9_.-]+$/
+
+function invalidDirectoryPart(part: string): boolean {
+  return !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\')
+}
+
+/**
+ * Parse a GitHub URL pointing at one skill's SKILL.md file, e.g.
+ * `https://github.com/{owner}/{repo}/blob/{ref}/{dir}/SKILL.md` (or the `raw.githubusercontent.com`
+ * form). The renderer validates input and `SkillService` resolves the install with this same parser,
+ * so a URL the UI accepts is exactly one the installer can clone.
+ *
+ * The SKILL.md file name is required: the enclosing directory is what identifies the skill, and a
+ * bare repo or tree URL would leave the installer guessing which of several skills was meant.
+ */
+export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null {
+  let url: URL
+  try {
+    url = new URL(rawUrl.trim())
+  } catch {
+    return null
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const [owner, repo, ...tail] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  const refAndPath =
+    host === 'github.com' && (tail[0] === 'blob' || tail[0] === 'tree')
+      ? tail.slice(1)
+      : host === 'raw.githubusercontent.com'
+        ? tail
+        : null
+  if (!refAndPath) return null
+
+  const [ref, ...filePath] = refAndPath
+  const fileName = filePath.at(-1)
+  const directoryParts = filePath.slice(0, -1)
+  const name = directoryParts.at(-1)
+
+  if (!owner || !repo || !ref || fileName?.toLowerCase() !== 'skill.md' || !name) return null
+  if (![owner, repo, ref].every((part) => GITHUB_REPO_PART.test(part))) return null
+  if (directoryParts.some(invalidDirectoryPart)) return null
+
+  return { owner, repo, ref, directoryPath: directoryParts.join('/'), name }
+}
+
+/** Present a validated GitHub SKILL.md URL as an installable search result. */
+export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null {
+  const location = parseGithubSkillUrl(rawUrl)
+  if (!location) return null
+
+  const { owner, repo, ref, directoryPath, name } = location
+  const canonicalUrl = `https://github.com/${owner}/${repo}/blob/${ref}/${directoryPath}/SKILL.md`
+  return {
+    slug: `${owner}/${repo}/${directoryPath}`,
+    name,
+    description: null,
+    author: owner,
+    stars: 0,
+    downloads: 0,
+    sourceRegistry: 'github',
+    sourceUrl: canonicalUrl,
+    installSource: `github:${canonicalUrl}`
+  }
+}
+
 export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
   if (!parsed.success) throw new Error('Invalid skills.sh search response')

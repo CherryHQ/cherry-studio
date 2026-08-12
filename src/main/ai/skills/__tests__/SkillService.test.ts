@@ -531,6 +531,49 @@ describe('SkillService', () => {
       expect(createTempDirSpy).not.toHaveBeenCalled()
     })
 
+    it('clones the ref from a github URL and installs only the directory it points at', async () => {
+      const skillService = new SkillService()
+      const cloneDir = await createTempDir('github-install-')
+      vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(cloneDir as never)
+      const cloneSpy = vi
+        .spyOn(skillService as never, 'cloneRepository')
+        .mockImplementation(async (...args: unknown[]) => {
+          const skillDir = path.join(args[1] as string, 'skills', 'recruit-init')
+          await fs.promises.mkdir(skillDir, { recursive: true })
+          await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# recruit-init')
+        })
+      const installSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/dev/skills/recruit-init/SKILL.md'
+      })
+
+      // The ref must reach git: cloning the default branch would install a different revision.
+      expect(cloneSpy).toHaveBeenCalledWith('https://github.com/owner/repo', expect.any(String), 'dev')
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('skills', 'recruit-init')),
+        'marketplace',
+        'https://github.com/owner/repo/tree/dev/skills/recruit-init'
+      )
+    })
+
+    it('rejects a github URL that does not point at a SKILL.md file before cloning', async () => {
+      const skillService = new SkillService()
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+
+      for (const url of [
+        'https://github.com/owner/repo',
+        'https://github.com/owner/repo/tree/main/skills/recruit-init',
+        'https://example.com/owner/repo/blob/main/skills/x/SKILL.md'
+      ]) {
+        await expect(skillService.install({ installSource: `github:${url}` })).rejects.toThrow(
+          'Invalid GitHub skill URL'
+        )
+      }
+      expect(createTempDirSpy).not.toHaveBeenCalled()
+    })
+
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)

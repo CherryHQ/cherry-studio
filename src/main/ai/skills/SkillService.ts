@@ -25,6 +25,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
+import { parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -186,7 +187,8 @@ export class SkillService {
   /**
    * Install from a marketplace installSource handle.
    * Format: "claude-plugins:{owner}/{repo}/{directoryPath}",
-   * "skills.sh:{owner}/{repo}/{skillId}", or "clawhub:{owner}/{slug}".
+   * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
+   * or "github:{https URL of the skill's SKILL.md}".
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
     const { installSource } = options
@@ -200,6 +202,8 @@ export class SkillService {
         return this.installFromSkillsSh(identifier)
       case 'clawhub':
         return this.installFromClawhub(identifier)
+      case 'github':
+        return this.installFromGithub(identifier)
       default:
         throw new Error(`Unknown install source: ${source}`)
     }
@@ -499,6 +503,35 @@ export class SkillService {
     }
   }
 
+  /**
+   * Install the one skill a GitHub SKILL.md URL points at. No registry is involved: the URL carries
+   * the repo, the ref, and the exact directory, and the shared parser is the same one the UI
+   * validates with.
+   */
+  private async installFromGithub(identifier: string): Promise<InstalledSkill> {
+    const location = parseGithubSkillUrl(identifier)
+    if (!location) {
+      throw new Error(`Invalid GitHub skill URL: ${identifier}`)
+    }
+
+    const { owner, repo, ref, directoryPath } = location
+    logger.info('Installing from GitHub', { owner, repo, ref, directoryPath })
+
+    const repoUrl = `https://github.com/${owner}/${repo}`
+    const sourceUrl = `${repoUrl}/tree/${ref}/${directoryPath}`
+    const tempDir = await this.createTempDir('github')
+
+    try {
+      // ponytail: `--branch` takes a branch or tag, so a commit-SHA permalink fails loudly rather
+      // than silently installing a different revision. Fetch the SHA explicitly if that ever bites.
+      await this.cloneRepository(repoUrl, tempDir, ref)
+      const skillDir = await this.resolveSkillDirectory(tempDir, null, directoryPath)
+      return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
+    } finally {
+      await this.safeRemoveDirectory(tempDir)
+    }
+  }
+
   private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {
     const parts = identifier.split('/')
     if (parts.length !== 3 || parts.some((part) => !part)) {
@@ -723,10 +756,10 @@ export class SkillService {
   // Git operations
   // ===========================================================================
 
-  private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
+  private async cloneRepository(repoUrl: string, destDir: string, ref?: string): Promise<void> {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
 
-    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
+    const branch = ref ?? (await this.resolveDefaultBranch(gitCommand, repoUrl))
     if (branch) {
       await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
       return
