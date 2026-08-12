@@ -392,7 +392,6 @@ function collectAssistantPhraseCandidates(
     const targetId = bindingAssistantId ? (assistantIdRemap.get(bindingAssistantId) ?? bindingAssistantId) : undefined
     if (targetId && selectedTargetIds.has(targetId)) return
     if (Array.isArray(assistant.regularPhrases) && assistant.regularPhrases.length === 0) return
-    if (targetId) selectedTargetIds.add(targetId)
 
     if (!Array.isArray(assistant.regularPhrases)) {
       candidates.push({
@@ -404,6 +403,7 @@ function collectAssistantPhraseCandidates(
       return
     }
 
+    if (targetId) selectedTargetIds.add(targetId)
     assistant.regularPhrases.forEach((phrase, index) => {
       candidates.push({
         phrase,

@@ -585,6 +585,33 @@ describe('PromptMigrator', () => {
       expect(batches[0]).toEqual([expect.objectContaining({ title: 'Fallback phrase' })])
     })
 
+    it('should let a secondary slot fill a malformed primary phrase container', async () => {
+      const ctx = createMockContext({
+        tableExists: false,
+        assistantState: {
+          assistants: [{ id: 'default', regularPhrases: null }],
+          presets: [],
+          defaultAssistant: {
+            id: 'default',
+            regularPhrases: [
+              makePhrase({ id: makeUuid(83), title: 'Fallback phrase', content: 'secondary slot content' })
+            ]
+          }
+        }
+      })
+      ctx.sharedData.set('assistantIds', new Set(['remapped-default']))
+      ctx.sharedData.set('legacyAssistantIdRemap', new Map([['default', 'remapped-default']]))
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      expect(prepareResult.itemCount).toBe(1)
+      expect(batches[0]).toEqual([expect.objectContaining({ title: 'Fallback phrase' })])
+      expect(batches[1]).toEqual([expect.objectContaining({ targetType: 'assistant', targetId: 'remapped-default' })])
+    })
+
     it('should preserve conflicting phrases that share an id by assigning a new id', async () => {
       const legacyId = '550e8400-e29b-41d4-a716-446655440040'
       const assistantPhrase = makePhrase({ id: legacyId, title: 'Assistant', content: 'assistant content' })

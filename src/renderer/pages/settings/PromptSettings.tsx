@@ -18,23 +18,18 @@ import { usePromptMutations, usePromptMutationsById } from '@renderer/hooks/reso
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { type KeyboardEvent, useCallback, useMemo, useState } from 'react'
+import { GripVertical, Plus, Search, Trash2, X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type PromptDialogState = { prompt: Prompt | null } | null
 type PromptFormValue = { title: string; content: string; visibility: PromptVisibility }
+type PendingVisibilityChange = { payload: PromptFormValue; bindingCount: number }
+
+const PROMPT_BINDINGS_SWR_OPTIONS = { keepPreviousData: false } as const
 
 function getPromptSummary(prompt: Prompt) {
   return prompt.content.replace(/\s+/g, ' ').trim()
-}
-
-function activateOnKeyDown(event: KeyboardEvent<HTMLDivElement>, action: () => void) {
-  if (event.target !== event.currentTarget) return
-  if (event.key !== 'Enter' && event.key !== ' ') return
-
-  event.preventDefault()
-  action()
 }
 
 export function PromptSettings() {
@@ -42,6 +37,7 @@ export function PromptSettings() {
   const [search, setSearch] = useState('')
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [deleteTarget, setDeleteTarget] = useState<Prompt | null>(null)
+  const [pendingVisibilityChange, setPendingVisibilityChange] = useState<PendingVisibilityChange | null>(null)
   const [savingPrompt, setSavingPrompt] = useState(false)
   const [deletingPrompt, setDeletingPrompt] = useState(false)
   const { data, error, isLoading, refetch } = useQuery('/prompts', {})
@@ -57,9 +53,16 @@ export function PromptSettings() {
 
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const activePrompt = promptDialogPrompt ?? deleteTarget
-  const { data: activeBindings, refetch: refetchActiveBindings } = useQuery('/prompts/:id/bindings', {
-    enabled: Boolean(deleteTarget),
-    params: { id: deleteTarget?.id ?? '' }
+  const bindingQueryTarget =
+    deleteTarget ?? (promptDialogPrompt?.visibility === 'restricted' ? promptDialogPrompt : null)
+  const {
+    data: activeBindings,
+    isLoading: isLoadingBindings,
+    refetch: refetchActiveBindings
+  } = useQuery('/prompts/:id/bindings', {
+    enabled: Boolean(bindingQueryTarget),
+    params: { id: bindingQueryTarget?.id ?? '' },
+    swrOptions: PROMPT_BINDINGS_SWR_OPTIONS
   })
   const activeBindingCount = activeBindings?.length
   const { createPrompt } = usePromptMutations()
@@ -75,6 +78,15 @@ export function PromptSettings() {
       setSavingPrompt(true)
       try {
         if (promptDialogPrompt) {
+          if (promptDialogPrompt.visibility === 'restricted' && payload.visibility === 'global') {
+            const refreshedBindings = await refetchActiveBindings()
+            const bindingCount = Array.isArray(refreshedBindings) ? refreshedBindings.length : activeBindings?.length
+            if (bindingCount === undefined) throw new Error('Unable to load prompt bindings')
+            if (bindingCount > 0) {
+              setPendingVisibilityChange({ payload, bindingCount })
+              return
+            }
+          }
           await updatePrompt(payload)
         } else {
           await createPrompt(payload)
@@ -92,8 +104,24 @@ export function PromptSettings() {
         setSavingPrompt(false)
       }
     },
-    [createPrompt, promptDialogPrompt, t, updatePrompt]
+    [activeBindings, createPrompt, promptDialogPrompt, refetchActiveBindings, t, updatePrompt]
   )
+
+  const handleConfirmVisibilityChange = useCallback(async () => {
+    if (!pendingVisibilityChange) return
+
+    setSavingPrompt(true)
+    try {
+      await updatePrompt(pendingVisibilityChange.payload)
+      setPendingVisibilityChange(null)
+      setPromptDialog(null)
+    } catch (err) {
+      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
+      throw err
+    } finally {
+      setSavingPrompt(false)
+    }
+  }, [pendingVisibilityChange, t, updatePrompt])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -210,6 +238,22 @@ export function PromptSettings() {
       />
 
       <ConfirmDialog
+        open={pendingVisibilityChange !== null}
+        onOpenChange={(open) => {
+          if (!open && !savingPrompt) setPendingVisibilityChange(null)
+        }}
+        title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
+        description={t('settings.prompts.visibility.makeGlobalConfirmDescription', {
+          count: pendingVisibilityChange?.bindingCount ?? 0
+        })}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={savingPrompt}
+        onConfirm={handleConfirmVisibilityChange}
+      />
+
+      <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
           if (!open && !deletingPrompt) setDeleteTarget(null)
@@ -217,7 +261,7 @@ export function PromptSettings() {
         title={t('settings.prompts.delete')}
         description={
           deleteTarget?.visibility === 'restricted'
-            ? activeBindingCount === undefined
+            ? isLoadingBindings || activeBindingCount === undefined
               ? t('settings.prompts.deleteRestrictedConfirm')
               : activeBindingCount > 0
                 ? t('settings.prompts.deleteSharedConfirm', { count: activeBindingCount })
@@ -268,13 +312,7 @@ function PromptRow({
   const summary = getPromptSummary(prompt)
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={prompt.title}
-      onClick={onEdit}
-      onKeyDown={(event) => activateOnKeyDown(event, onEdit)}
-      className="group flex cursor-pointer items-center gap-3 bg-card px-3 py-2.5 transition-colors hover:bg-accent/30 focus-visible:bg-accent/30">
+    <div className="group flex items-center gap-3 bg-card px-3 py-2.5 transition-colors hover:bg-accent/30">
       <button
         ref={dragHandleProps?.ref}
         type="button"
@@ -285,10 +323,16 @@ function PromptRow({
         className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-foreground-tertiary hover:bg-accent/50 hover:text-foreground active:cursor-grabbing">
         <GripVertical size={14} />
       </button>
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-foreground text-sm leading-5">{prompt.title}</div>
-        <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</div>
-      </div>
+      <Button
+        variant="ghost"
+        aria-label={`${t('common.edit')} ${prompt.title}`}
+        onClick={onEdit}
+        className="h-auto min-w-0 flex-1 justify-start whitespace-normal rounded-md p-0 text-left hover:bg-transparent">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-foreground text-sm leading-5">{prompt.title}</span>
+          <span className="mt-0.5 line-clamp-2 block text-muted-foreground text-xs leading-5">{summary}</span>
+        </span>
+      </Button>
       <Badge variant="secondary" className="border-0 font-normal text-muted-foreground">
         {t(
           prompt.visibility === 'global'
@@ -296,19 +340,11 @@ function PromptRow({
             : 'settings.prompts.visibility.restricted.badge'
         )}
       </Badge>
-      <div className="flex shrink-0 items-center gap-1" onClick={(event) => event.stopPropagation()}>
+      <div className="flex shrink-0 items-center gap-1">
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={t('common.edit')}
-          onClick={onEdit}
-          className="text-muted-foreground hover:text-foreground">
-          <Pencil size={12} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('common.delete')}
+          aria-label={`${t('common.delete')} ${prompt.title}`}
           onClick={onDelete}
           className="text-muted-foreground hover:bg-error-subtle hover:text-error-subtle-foreground">
           <Trash2 size={12} />

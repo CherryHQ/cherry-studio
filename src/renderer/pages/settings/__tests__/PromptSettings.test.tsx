@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +23,15 @@ const prompts = [
     orderKey: 'a1',
     createdAt: '2026-05-02T00:00:00.000Z',
     updatedAt: '2026-05-02T00:00:00.000Z'
+  },
+  {
+    id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ae',
+    title: 'Second targeted prompt',
+    content: 'Available when linked elsewhere',
+    visibility: 'restricted' as const,
+    orderKey: 'a2',
+    createdAt: '2026-05-03T00:00:00.000Z',
+    updatedAt: '2026-05-03T00:00:00.000Z'
   }
 ]
 
@@ -31,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   createPrompt: vi.fn(),
   deletePrompt: vi.fn(),
   refetch: vi.fn(),
+  refetchBindings: vi.fn(),
   updatePrompt: vi.fn(),
   useQuery: vi.fn()
 }))
@@ -69,6 +79,11 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
           }>
           save prompt
         </button>
+        <button
+          type="button"
+          onClick={() => void onSave({ title: 'Saved title', content: 'Saved content', visibility: 'global' })}>
+          save global prompt
+        </button>
       </div>
     ) : null
 }))
@@ -83,7 +98,9 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => (options?.count === undefined ? key : `${key}:${options.count}`)
+  })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -105,11 +122,33 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  ConfirmDialog: ({ onConfirm, open }: { onConfirm: () => Promise<void>; open: boolean }) =>
+  ConfirmDialog: ({
+    cancelText,
+    confirmText,
+    description,
+    onConfirm,
+    onOpenChange,
+    open,
+    title
+  }: {
+    cancelText: string
+    confirmText: string
+    description: ReactNode
+    onConfirm: () => Promise<void>
+    onOpenChange: (open: boolean) => void
+    open: boolean
+    title: string
+  }) =>
     open ? (
-      <button type="button" onClick={() => void onConfirm()}>
-        confirm delete
-      </button>
+      <div role="dialog" aria-label={title}>
+        <span>{description}</span>
+        <button type="button" onClick={() => void onConfirm()}>
+          {confirmText}
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          {cancelText}
+        </button>
+      </div>
     ) : null,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
@@ -131,10 +170,20 @@ vi.mock('@cherrystudio/ui', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.useQuery.mockReturnValue({ data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch })
+  mocks.useQuery.mockImplementation((path: string) =>
+    path === '/prompts'
+      ? { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
+      : {
+          data: [],
+          error: undefined,
+          isLoading: false,
+          refetch: mocks.refetchBindings
+        }
+  )
   mocks.createPrompt.mockResolvedValue(prompts[0])
   mocks.updatePrompt.mockResolvedValue(prompts[0])
   mocks.deletePrompt.mockResolvedValue(undefined)
+  mocks.refetchBindings.mockResolvedValue([])
 })
 
 describe('PromptSettings', () => {
@@ -146,6 +195,9 @@ describe('PromptSettings', () => {
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.prompts.visibility.global.badge')).toBeInTheDocument()
     expect(screen.getByText('settings.prompts.visibility.restricted.badge')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.edit Global prompt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.delete Global prompt' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Global prompt' })).not.toBeInTheDocument()
   })
 
   it('creates a prompt with its selected visibility', async () => {
@@ -163,5 +215,65 @@ describe('PromptSettings', () => {
         visibility: 'global'
       })
     )
+  })
+
+  it('requires confirmation before making a linked restricted prompt global', async () => {
+    const user = userEvent.setup()
+    mocks.refetchBindings.mockResolvedValue([{ targetId: 'assistant-1' }, { targetId: 'agent-1' }])
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+    expect(confirmDialog).toHaveTextContent('settings.prompts.visibility.makeGlobalConfirmDescription:2')
+    expect(mocks.updatePrompt).not.toHaveBeenCalled()
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenCalledWith({
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global'
+      })
+    )
+  })
+
+  it('does not reuse the previous prompt binding count while a new delete target loads', async () => {
+    const user = userEvent.setup()
+    mocks.useQuery.mockImplementation((path: string, options?: { params?: { id?: string } }) => {
+      if (path === '/prompts') {
+        return { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
+      }
+
+      const loadingSecondTarget = options?.params?.id === prompts[2].id
+      return {
+        data: loadingSecondTarget ? undefined : [{ targetId: 'assistant-1' }, { targetId: 'agent-1' }],
+        error: undefined,
+        isLoading: loadingSecondTarget,
+        refetch: mocks.refetchBindings
+      }
+    })
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete Targeted prompt' }))
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
+      'settings.prompts.deleteSharedConfirm:2'
+    )
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    await user.click(screen.getByRole('button', { name: 'common.delete Second targeted prompt' }))
+
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
+      'settings.prompts.deleteRestrictedConfirm'
+    )
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts/:id/bindings', {
+      enabled: true,
+      params: { id: prompts[2].id },
+      swrOptions: { keepPreviousData: false }
+    })
   })
 })
