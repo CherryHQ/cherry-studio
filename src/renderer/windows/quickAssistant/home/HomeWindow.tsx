@@ -455,6 +455,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               route={route}
               topicId={temporaryTopicId ?? 'pending-temp'}
               assistant={currentAssistant ?? null}
+              model={currentModel}
               isOutputted={isOutputted}
               messages={displayMessages}
               partsByMessageId={partsByMessageId}

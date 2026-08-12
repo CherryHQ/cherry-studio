@@ -14,6 +14,7 @@ import { toMessageListItem } from '@renderer/components/chat/messages/utils/mess
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { Loader2 } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 
@@ -23,6 +24,7 @@ interface QuickAssistantMessageListProps {
   route: 'chat' | 'summary' | 'explanation'
   topicId: string
   assistant: Assistant | null
+  model?: Model
   isOutputted: boolean
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -33,6 +35,7 @@ function useQuickAssistantMessageListProviderValue({
   route,
   topicId,
   assistant,
+  model,
   messages,
   partsByMessageId,
   streamingLayers
@@ -41,22 +44,54 @@ function useQuickAssistantMessageListProviderValue({
   const platformActions = useMessagePlatformActions()
   const visibleMessages = useMemo(() => (route === 'chat' ? messages : messages.slice(1)), [messages, route])
   const messageItemCacheRef = useRef(
-    new WeakMap<CherryUIMessage, { assistantId?: string; item: MessageListItem; topicId: string }>()
+    new WeakMap<CherryUIMessage, { assistantId?: string; item: MessageListItem; modelId?: string; topicId: string }>()
   )
+  const createdAtCacheRef = useRef({ topicId, byMessageId: new Map<string, string>() })
+  if (createdAtCacheRef.current.topicId !== topicId) {
+    createdAtCacheRef.current = { topicId, byMessageId: new Map() }
+  }
+  const fallbackModel = useMemo(() => {
+    if (!model) return undefined
+    const { modelId } = parseUniqueModelId(model.id)
+    return {
+      id: model.apiModelId ?? modelId,
+      name: model.name,
+      provider: model.providerId,
+      group: model.group
+    }
+  }, [model])
 
   const messageItems = useMemo(
     () =>
       visibleMessages.map((message) => {
         const cached = messageItemCacheRef.current.get(message)
-        if (cached && cached.assistantId === assistant?.id && cached.topicId === topicId) {
+        if (
+          cached &&
+          cached.assistantId === assistant?.id &&
+          cached.modelId === model?.id &&
+          cached.topicId === topicId
+        ) {
           return cached.item
         }
 
-        const item = toMessageListItem(message, { assistantId: assistant?.id, topicId })
-        messageItemCacheRef.current.set(message, { assistantId: assistant?.id, item, topicId })
+        const baseItem = toMessageListItem(message, { assistantId: assistant?.id, topicId })
+        let createdAt = baseItem.createdAt || createdAtCacheRef.current.byMessageId.get(message.id)
+        if (!createdAt) {
+          createdAt = new Date().toISOString()
+          createdAtCacheRef.current.byMessageId.set(message.id, createdAt)
+        }
+        const item = {
+          ...baseItem,
+          createdAt,
+          ...(message.role === 'assistant' && {
+            modelId: baseItem.modelId ?? model?.id,
+            model: baseItem.model ?? fallbackModel
+          })
+        }
+        messageItemCacheRef.current.set(message, { assistantId: assistant?.id, item, modelId: model?.id, topicId })
         return item
       }),
-    [assistant?.id, topicId, visibleMessages]
+    [assistant?.id, fallbackModel, model?.id, topicId, visibleMessages]
   )
 
   const topic = useMemo<Topic>(
