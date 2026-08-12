@@ -1134,7 +1134,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
   })
 
-  it('shows a dsh todo_write snapshot in the status shortcut preview', () => {
+  it('shows a dsh todo_write snapshot in the floating task capsule', () => {
     const todoPart = {
       type: 'dynamic-tool',
       toolCallId: 'dsh-todos-1',
@@ -1156,14 +1156,13 @@ describe('AgentRightPane', () => {
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [todoPart] }}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
+        <AgentTaskProgressCapsule />
       </TestAgentRightPane>
     )
 
-    const preview = screen.getByTestId('status-shortcut-preview')
-    expect(within(preview).getByText('Connect the task list')).toHaveClass('line-through')
-    expect(within(preview).getByText('Verify the right pane')).toBeInTheDocument()
+    const details = screen.getByTestId('agent-task-progress-details')
+    expect(within(details).getByText('Connect the task list')).toHaveClass('text-muted-foreground')
+    expect(within(details).getByText('Verify the right pane')).toBeInTheDocument()
   })
 
   it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
