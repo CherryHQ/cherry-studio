@@ -200,6 +200,11 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
+      "suggestions": {
+        "inspect": "Inspect this workspace and identify the highest-priority issue to address",
+        "plan": "Turn the current project goal into a concrete implementation plan with next steps",
+        "review": "Review the current changes for risks and add the missing verification"
+      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -1487,6 +1492,11 @@
       "view_full_content": "View Full Content"
     },
     "home": {
+      "suggestions": {
+        "clarify": "Help me clarify the problem I am facing and decide the next step",
+        "explore": "Explore an interesting topic with me from a few different perspectives",
+        "learn": "Teach me a useful concept that I can apply right away"
+      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {

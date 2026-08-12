@@ -1303,6 +1303,22 @@ const ChatComposerInner = ({
   }, [actionsRef, streamScopeKey])
 
   useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
+      const input =
+        typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
+      if (input?.topicId !== streamScopeKey || !input.text) return
+
+      const currentDraft = actionsRef.current.getDraft()
+      actionsRef.current.replaceDraft({ text: input.text, tokens: currentDraft.tokens })
+      setText(input.text)
+      setDraftTokens(currentDraft.tokens.length ? currentDraft.tokens : undefined)
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    })
+  }, [actionsRef, resetHistoryIndex, setText, streamScopeKey])
+
+  useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 

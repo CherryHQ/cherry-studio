@@ -198,6 +198,11 @@
       "tooltip": "Git Bash là bắt buộc để chạy Agent trên Windows. Hãy cài đặt từ git-scm.com nếu máy chưa có."
     },
     "home": {
+      "suggestions": {
+        "inspect": "Kiểm tra không gian làm việc và xác định vấn đề cần ưu tiên xử lý nhất",
+        "plan": "Chuyển mục tiêu hiện tại của dự án thành kế hoạch triển khai cụ thể với các bước tiếp theo",
+        "review": "Rà soát rủi ro của các thay đổi hiện tại và bổ sung các bước kiểm tra còn thiếu"
+      },
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "icon": {
@@ -1467,6 +1472,11 @@
       "view_full_content": "Xem Toàn Bộ Nội Dung"
     },
     "home": {
+      "suggestions": {
+        "clarify": "Giúp tôi làm rõ vấn đề hiện tại và quyết định bước tiếp theo",
+        "explore": "Cùng tôi khám phá một chủ đề thú vị từ nhiều góc nhìn khác nhau",
+        "learn": "Dạy tôi một khái niệm hữu ích có thể áp dụng ngay"
+      },
       "welcome_title": "Hôm nay chúng ta nên nói về điều gì?"
     },
     "input": {

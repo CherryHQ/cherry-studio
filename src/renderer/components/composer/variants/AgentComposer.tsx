@@ -1058,6 +1058,23 @@ const AgentComposerInner = ({
   }, [actionsRef, sessionTopicId])
 
   useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
+      const input =
+        typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
+      if (input?.topicId !== sessionTopicId || !input.text) return
+
+      const currentDraft = actionsRef.current.getDraft()
+      actionsRef.current.replaceDraft({ text: input.text, tokens: currentDraft.tokens })
+      setText(input.text)
+      setDraftTokens(currentDraft.tokens)
+      draftTokensRef.current = currentDraft.tokens
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    })
+  }, [actionsRef, resetHistoryIndex, sessionTopicId, setText])
+
+  useEffect(() => {
     if (!launchOptions?.initialDraft) return
     const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     return () => window.cancelAnimationFrame(frameId)

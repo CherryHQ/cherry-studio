@@ -198,6 +198,11 @@
       "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "home": {
+      "suggestions": {
+        "inspect": "檢查目前工作區，找出最需要優先處理的問題",
+        "plan": "把目前專案目標整理成可執行的實作計畫和下一步",
+        "review": "審查目前變更的風險，並補充缺少的驗證"
+      },
       "welcome_title": "今天要做些什麼？"
     },
     "icon": {
@@ -1467,6 +1472,11 @@
       "view_full_content": "檢視完整內容"
     },
     "home": {
+      "suggestions": {
+        "clarify": "幫我釐清目前遇到的問題，並確定下一步",
+        "explore": "從幾個不同角度和我探索一個有趣的話題",
+        "learn": "教我一個可以立即應用的新概念"
+      },
       "welcome_title": "今天我們要談些什麼？"
     },
     "input": {

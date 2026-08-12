@@ -200,6 +200,11 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
+      "suggestions": {
+        "inspect": "检查当前工作区，找出最需要优先处理的问题",
+        "plan": "把当前项目目标整理成可执行的实现计划和下一步",
+        "review": "审查当前改动的风险，并补充缺失的验证"
+      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -1487,6 +1492,11 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
+      "suggestions": {
+        "clarify": "帮我梳理当前遇到的问题，并确定下一步",
+        "explore": "从几个不同角度和我探索一个有趣的话题",
+        "learn": "教我一个可以立即应用的新概念"
+      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {

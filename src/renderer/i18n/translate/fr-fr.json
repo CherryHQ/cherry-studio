@@ -198,6 +198,11 @@
       "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
     },
     "home": {
+      "suggestions": {
+        "inspect": "Inspecte cet espace de travail et identifie le problème le plus prioritaire",
+        "plan": "Transforme l’objectif actuel du projet en plan d’action concret avec les prochaines étapes",
+        "review": "Examine les risques des modifications actuelles et ajoute les vérifications manquantes"
+      },
       "welcome_title": "De quoi allons-nous parler aujourd'hui ?"
     },
     "icon": {
@@ -1467,6 +1472,11 @@
       "view_full_content": "Voir le contenu complet"
     },
     "home": {
+      "suggestions": {
+        "clarify": "Aide-moi à clarifier mon problème actuel et à déterminer la prochaine étape",
+        "explore": "Explore avec moi un sujet intéressant sous différents angles",
+        "learn": "Apprends-moi un concept utile que je peux appliquer immédiatement"
+      },
       "welcome_title": "De quoi parlerons-nous aujourd'hui ?"
     },
     "input": {

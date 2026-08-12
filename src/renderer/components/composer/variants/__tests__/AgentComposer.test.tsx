@@ -2,8 +2,10 @@ import { basename } from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -3278,6 +3280,49 @@ describe('AgentComposer', () => {
       expect.anything(),
       expect.anything()
     )
+  })
+
+  it('fills only the current session draft while preserving its tokens and without sending', async () => {
+    const skillToken: ComposerSerializedToken = {
+      id: 'skill:review-fast',
+      kind: 'skill',
+      label: 'Review fast',
+      promptText: 'Use the review skill.',
+      payload: reviewSkill,
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getDraft.mockReturnValue({ text: 'existing text', tokens: [skillToken] })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('other-session'),
+        text: 'Ignore me'
+      })
+    })
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Review the current changes', tokens: [skillToken] })
+    expect(mocks.surfaceProps?.text).toBe('Review the current changes')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
   })
 
   it('adopts launch options that arrive after the restored session first renders', async () => {

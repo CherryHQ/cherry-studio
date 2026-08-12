@@ -198,6 +198,11 @@
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
     },
     "home": {
+      "suggestions": {
+        "inspect": "Verifică acest spațiu de lucru și identifică problema cu cea mai mare prioritate",
+        "plan": "Transformă obiectivul actual al proiectului într-un plan concret cu pașii următori",
+        "review": "Analizează riscurile modificărilor curente și adaugă verificările care lipsesc"
+      },
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "icon": {
@@ -1467,6 +1472,11 @@
       "view_full_content": "Vezi conținutul complet"
     },
     "home": {
+      "suggestions": {
+        "clarify": "Ajută-mă să clarific problema actuală și să decid următorul pas",
+        "explore": "Explorează împreună cu mine un subiect interesant din perspective diferite",
+        "learn": "Învață-mă un concept util pe care îl pot aplica imediat"
+      },
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "input": {
