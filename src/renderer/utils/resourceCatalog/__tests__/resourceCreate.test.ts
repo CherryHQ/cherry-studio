@@ -44,15 +44,16 @@ describe('resource create DTO mapping', () => {
     })
   })
 
-  it('omits unsupported model tiers and knowledge bases for pi agents', () => {
+  it('uses pi runtime defaults and omits unsupported model tiers', () => {
     expect(buildCreateAgentCommand({ ...values, agentType: 'pi' })).toEqual({
       type: 'pi',
       name: 'Researcher',
       model: 'provider::model',
       description: 'Investigates a topic',
       instructions: 'Use cited sources',
+      knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
-      configuration: { avatar: '🤖', permission_mode: 'default' }
+      configuration: { avatar: '🤖', permission_mode: 'acceptEdits' }
     })
   })
 })

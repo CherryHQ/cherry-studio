@@ -41,6 +41,7 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
 
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('acceptEdits')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.knowledgeBases).toBe(true)
     expect(AGENT_RUNTIME_CAPABILITIES.pi.mcp).toBe(true)
   })

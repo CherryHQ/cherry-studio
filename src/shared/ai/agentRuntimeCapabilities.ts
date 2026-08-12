@@ -109,7 +109,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: false,
     slashCommands: PI_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'default' },
+    createDefaults: { permissionMode: 'acceptEdits' },
     // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
     // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
     // free-quota default is barred too — like claude, pi must not drive it directly.
