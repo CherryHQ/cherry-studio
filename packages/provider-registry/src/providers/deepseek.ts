@@ -1,80 +1,44 @@
 import { defineProvider } from './types'
 
-const flashEffortMap = {
+// api-docs.deepseek.com/zh-cn/guides/thinking_mode documents ONE effort table for V4 Flash and V4
+// Pro ("deepseek-v4-flash 与 deepseek-v4-pro 一致"). `xhigh` is sent as `max` because DeepSeek
+// degrades its own `xhigh` to `high`, leaving `max` as the only way to reach the top level.
+const v4EffortMap = {
   minimal: 'low' as const,
   low: 'low' as const,
   medium: 'high' as const,
   xhigh: 'max' as const
 }
 
-const proEffortMap = {
-  minimal: 'high' as const,
-  low: 'high' as const,
-  medium: 'high' as const,
-  xhigh: 'max' as const
-}
-
-const flashChatEffortWire = {
+const v4ChatEffortWire = {
   off: { operations: [{ target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }] },
   auto: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
       { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
     ],
-    effortMap: { auto: 'high' as const, ...flashEffortMap }
+    effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
       { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
     ],
-    effortMap: flashEffortMap
+    effortMap: v4EffortMap
   }
 }
 
-const proChatEffortWire = {
-  off: { operations: [{ target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }] },
-  auto: {
-    operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
-    ],
-    effortMap: { auto: 'high' as const, ...proEffortMap }
-  },
-  effort: {
-    operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
-    ],
-    effortMap: proEffortMap
-  }
-}
-
-const flashResponsesEffortWire = {
+const v4ResponsesEffortWire = {
   off: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
   },
   auto: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: { auto: 'high' as const, ...flashEffortMap }
+    effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: flashEffortMap
-  }
-}
-
-const proResponsesEffortWire = {
-  off: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
-  },
-  auto: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: { auto: 'high' as const, ...proEffortMap }
-  },
-  effort: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: proEffortMap
+    effortMap: v4EffortMap
   }
 }
 
@@ -134,16 +98,16 @@ export default defineProvider({
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { wire: flashChatEffortWire },
-        'openai-responses': { wire: flashResponsesEffortWire }
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
       }
     },
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { wire: proChatEffortWire },
-        'openai-responses': { wire: proResponsesEffortWire }
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
       }
     }
   ]
