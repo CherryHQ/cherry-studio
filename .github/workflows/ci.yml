@@ -193,8 +193,8 @@ jobs:
           fi
 
   main-test-shard:
-    name: main-test (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    name: main-test (${{ matrix.os }} ${{ matrix.shard }}/3)
+    runs-on: ${{ matrix.os }}
     needs: changes
     if: >-
       needs.changes.outputs.main == 'true' ||
@@ -207,6 +207,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Main-process tests gate on process.platform (symlinks, path casing, command
+        # resolution), so the win32/darwin branches only run on their own runner.
+        os: [ubuntu-latest, macos-latest, windows-2022]
         shard: [1, 2, 3]
     env:
       CI: true
@@ -219,6 +222,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: brew install python-setuptools
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5
