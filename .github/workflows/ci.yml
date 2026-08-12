@@ -318,6 +318,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Install Linux build dependencies
+        run: sudo apt-get install -y libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+
       - name: Smoke packaged Pi runtime
         run: pnpm test:package:pi
 
