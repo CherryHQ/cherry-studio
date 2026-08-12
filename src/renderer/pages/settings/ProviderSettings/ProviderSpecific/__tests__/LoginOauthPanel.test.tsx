@@ -60,7 +60,10 @@ describe('LoginOauthPanel', () => {
 
     await waitFor(() => expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS))
     expect(providerPatchMock).not.toHaveBeenCalled()
-    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
+    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', {
+      providerId: 'codex',
+      requestId: expect.any(String)
+    })
     expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success')
   })
 
@@ -80,7 +83,12 @@ describe('LoginOauthPanel', () => {
 
     const { unmount } = render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
     await user.click(await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' }))
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' }))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', {
+        providerId: 'codex',
+        requestId: expect.any(String)
+      })
+    )
 
     unmount()
     resolveSignIn({ accountId: null })
@@ -123,7 +131,10 @@ describe('LoginOauthPanel', () => {
 
     expect(await screen.findByText('settings.provider.codex.signing_in')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'common.cancel' })).toBeEnabled()
-    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in.attach', { providerId: 'codex' })
+    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in.attach', {
+      providerId: 'codex',
+      requestId: expect.any(String)
+    })
     expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
   })
 
@@ -195,7 +206,12 @@ describe('LoginOauthPanel', () => {
 
     const retryButton = await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' })
     expect(toast.error).not.toHaveBeenCalled()
-    expect(requestMock).toHaveBeenCalledWith('oauth.cancel_sign_in', { providerId: 'codex' })
+    const signInInput = requestMock.mock.calls.find(([channel]) => channel === 'oauth.sign_in')?.[1]
+    expect(signInInput).toEqual({ providerId: 'codex', requestId: expect.any(String) })
+    expect(requestMock).toHaveBeenCalledWith('oauth.cancel_sign_in', {
+      providerId: 'codex',
+      requestId: signInInput.requestId
+    })
 
     await user.click(retryButton)
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success'))

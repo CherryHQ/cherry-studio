@@ -20,9 +20,10 @@ async function mapSignInCancellation<T>(request: Promise<T>): Promise<T> {
 }
 
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
-  'oauth.sign_in': ({ providerId }) => mapSignInCancellation(runtime().signIn(providerId)),
-  'oauth.sign_in.attach': ({ providerId }) => mapSignInCancellation(runtime().joinActiveSignIn(providerId)),
-  'oauth.cancel_sign_in': ({ providerId }) => runtime().cancelSignIn(providerId),
+  'oauth.sign_in': ({ providerId, requestId }) => mapSignInCancellation(runtime().signIn(providerId, requestId)),
+  'oauth.sign_in.attach': ({ providerId, requestId }) =>
+    mapSignInCancellation(runtime().joinActiveSignIn(providerId, requestId)),
+  'oauth.cancel_sign_in': ({ providerId, requestId }) => runtime().cancelSignIn(providerId, requestId),
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),

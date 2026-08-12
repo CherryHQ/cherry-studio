@@ -40,6 +40,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   const [loggingOut, setLoggingOut] = useState(false)
   const mountedRef = useRef(false)
   const signInRequestRef = useRef<Promise<void> | null>(null)
+  const signInRequestIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     mountedRef.current = true
@@ -71,9 +72,11 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     if (existing) return existing
 
     setSigningIn(true)
+    const requestId = crypto.randomUUID()
+    signInRequestIdRef.current = requestId
     const request = Promise.resolve().then(async () => {
       try {
-        const account = await ipcApi.request('oauth.sign_in', { providerId })
+        const account = await ipcApi.request('oauth.sign_in', { providerId, requestId })
         await applySignInSuccess(account)
       } catch (error) {
         if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
@@ -83,6 +86,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       } finally {
         if (signInRequestRef.current === request) {
           signInRequestRef.current = null
+          if (signInRequestIdRef.current === requestId) signInRequestIdRef.current = null
           if (mountedRef.current) setSigningIn(false)
         }
       }
@@ -92,9 +96,11 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }, [applySignInSuccess, providerId, ns, t])
 
   const attachActiveSignIn = useCallback(async () => {
+    const requestId = crypto.randomUUID()
+    signInRequestIdRef.current = requestId
     setSigningIn(true)
     try {
-      const result = await ipcApi.request('oauth.sign_in.attach', { providerId })
+      const result = await ipcApi.request('oauth.sign_in.attach', { providerId, requestId })
       if (result.status === 'completed') {
         await applySignInSuccess(result.account)
         return
@@ -116,7 +122,10 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       logger.error(`${providerId} attached sign-in failed`, error as Error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
-      if (mountedRef.current) setSigningIn(false)
+      if (signInRequestIdRef.current === requestId) {
+        signInRequestIdRef.current = null
+        if (mountedRef.current) setSigningIn(false)
+      }
     }
   }, [applySignInSuccess, ns, providerId, showAccountId, t])
 
@@ -143,9 +152,12 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }, [refreshStatus])
 
   const handleCancelSignIn = useCallback(async () => {
+    const requestId = signInRequestIdRef.current
+    if (!requestId) return
+
     setCancellingSignIn(true)
     try {
-      await ipcApi.request('oauth.cancel_sign_in', { providerId })
+      await ipcApi.request('oauth.cancel_sign_in', { providerId, requestId })
     } catch (error) {
       logger.error(`Failed to cancel ${providerId} sign-in`, error as Error)
       toast.error(t(`${ns}.sign_in_failed`))
