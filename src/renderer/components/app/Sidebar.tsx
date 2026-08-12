@@ -47,7 +47,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
@@ -167,6 +167,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     },
     [activeTab, defaultPaintingProvider, openTab, updateTab]
   )
+  const handleOpenLaunchpad = useCallback(() => {
+    openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
+  }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')
   }, [])
@@ -178,6 +181,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
       if (activeTab?.url === path) return
+
+      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return
+      }
 
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
@@ -204,7 +213,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon
       })
     },
-    [activeTab, openableMiniAppById, openTab, t, updateTab]
+    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
@@ -235,8 +244,27 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // favorites order. Unrenderable rows (no route/icon, or an uninstalled mini app)
   // are dropped here but stay in the preference.
   const entries = useMemo(
-    () => favorites.flatMap((favorite) => resolveSidebarEntry(favorite, variantContext) ?? []),
-    [favorites, variantContext]
+    () =>
+      favorites.flatMap((favorite) => {
+        const entry = resolveSidebarEntry(favorite, variantContext)
+        if (!entry) return []
+
+        return [
+          {
+            ...entry,
+            contextMenuItems: [
+              ...(entry.contextMenuItems ?? []),
+              {
+                type: 'item' as const,
+                id: `sidebar.manage.${entry.key}`,
+                label: t('launchpad.manage_sidebar'),
+                onSelect: handleOpenLaunchpad
+              }
+            ]
+          }
+        ]
+      }),
+    [favorites, handleOpenLaunchpad, t, variantContext]
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new entry

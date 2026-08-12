@@ -146,17 +146,17 @@ function textOf(parts: CherryUIMessage['parts'] | undefined): string {
     .join('')
 }
 
-function installControlledAnimationFrames() {
+function installControlledCommitTimers() {
   let nextId = 1
-  const callbacks = new Map<number, FrameRequestCallback>()
-  const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+  const callbacks = new Map<number, () => void>()
+  const request = vi.spyOn(window, 'setTimeout').mockImplementation(((handler: () => void) => {
     const id = nextId++
-    callbacks.set(id, callback)
+    callbacks.set(id, handler)
     return id
-  })
-  const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
-    callbacks.delete(id)
-  })
+  }) as unknown as typeof window.setTimeout)
+  const cancel = vi.spyOn(window, 'clearTimeout').mockImplementation(((id?: number) => {
+    if (id !== undefined) callbacks.delete(id)
+  }) as unknown as typeof window.clearTimeout)
 
   return {
     callbacks,
@@ -166,7 +166,7 @@ function installControlledAnimationFrames() {
       const entry = callbacks.entries().next().value
       if (!entry) return
       callbacks.delete(entry[0])
-      entry[1](performance.now())
+      entry[1]()
     }
   }
 }
@@ -322,8 +322,8 @@ describe('useExecutionOverlay', () => {
     expect(result.current.overlay['anchor-a'][1]).toBe(settledTool)
   })
 
-  it('coalesces burst snapshots from every execution into one render per animation frame', async () => {
-    const frames = installControlledAnimationFrames()
+  it('coalesces burst snapshots from every execution into one render per commit flush', async () => {
+    const frames = installControlledCommitTimers()
     const ui = [asst('anchor-a'), asst('anchor-b')]
     let renderCount = 0
     const { result } = renderHook(() => {
@@ -353,7 +353,7 @@ describe('useExecutionOverlay', () => {
   })
 
   it('flushes a terminal snapshot immediately instead of waiting for the next frame', async () => {
-    const frames = installControlledAnimationFrames()
+    const frames = installControlledCommitTimers()
     const onFinish = vi.fn()
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { onFinish }))
@@ -366,7 +366,9 @@ describe('useExecutionOverlay', () => {
       await drainStreamMicrotasks()
     })
 
-    await waitFor(() => expect(textOf(result.current.overlay['anchor-a'])).toBe('final'))
+    // The terminal flush is synchronous in the reader's finally — no timer needed
+    // (waitFor would rely on the timers this test holds captive).
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('final')
     expect(onFinish).toHaveBeenCalledTimes(1)
     expect(frames.callbacks.size).toBe(0)
     expect(frames.cancel).toHaveBeenCalledTimes(1)
@@ -395,7 +397,7 @@ describe('useExecutionOverlay', () => {
   })
 
   it('prevents a cancelled frame from restoring snapshots after a destructive clear', async () => {
-    const frames = installControlledAnimationFrames()
+    const frames = installControlledCommitTimers()
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
 
@@ -404,12 +406,12 @@ describe('useExecutionOverlay', () => {
       fake.emit(A, { type: 'text-delta', id: 't', delta: 'stale' } as CherryUIMessageChunk)
       await drainStreamMicrotasks()
     })
-    const staleFrame = frames.callbacks.values().next().value as FrameRequestCallback
+    const staleFlush = frames.callbacks.values().next().value as () => void
 
     act(() => result.current.clear())
     expect(frames.callbacks.size).toBe(0)
 
-    act(() => staleFrame(performance.now()))
+    act(() => staleFlush())
 
     expect(result.current.overlay).toEqual({})
   })

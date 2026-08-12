@@ -19,6 +19,7 @@ import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExten
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
   editorInstance: undefined as any,
+  currentView: undefined as any,
   stabilizeEditor: false,
   simulateDeferredEditorStyle: false,
   actions: undefined as ComposerSurfaceActions | undefined,
@@ -246,6 +247,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         }
       }
     }
+    mocks.currentView = { dom: { editor } }
 
     if (!mocks.stabilizeEditor) return editor
     if (!mocks.editorInstance) {
@@ -429,6 +431,7 @@ describe('ComposerSurface', () => {
     clearMockTimers()
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
+    mocks.currentView = undefined
     mocks.stabilizeEditor = false
     mocks.simulateDeferredEditorStyle = false
     mocks.actions = undefined
@@ -3241,7 +3244,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
@@ -3588,7 +3591,7 @@ describe('ComposerSurface', () => {
       preventDefault: vi.fn(),
       clipboardData
     }
-    const handled = mocks.editorOptions.handlePaste(null, pasteEvent)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, pasteEvent)
 
     expect(handled).toBe(true)
     expect(pasteEvent.preventDefault).toHaveBeenCalled()
@@ -3644,7 +3647,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
@@ -3700,7 +3703,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
@@ -3754,7 +3757,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(mocks.insertContent).toHaveBeenCalledWith([
@@ -3788,7 +3791,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
@@ -3809,7 +3812,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
@@ -3875,7 +3878,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(mocks.insertContent).toHaveBeenCalledWith([
@@ -3931,7 +3934,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(mocks.insertContent).toHaveBeenCalledWith([
@@ -3990,7 +3993,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'report.pdf' }])
@@ -4093,7 +4096,7 @@ describe('ComposerSurface', () => {
   })
 
   it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
-    render(<ComposerSurface {...baseProps} />)
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -4104,11 +4107,47 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('keeps long pasted text in the active editor when its ref is stale', async () => {
+    render(<ComposerSurface {...baseProps} supportedExts={['.png']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const pastedText = 'a'.repeat(2001)
+    const insertContent = vi.fn(() => ({ run: mocks.chainRun }))
+    const viewEditor = {
+      isDestroyed: false,
+      state: {
+        selection: mocks.selection,
+        doc: { descendants: mocks.docDescendants }
+      },
+      chain: () => ({
+        focus: () => ({
+          setMeta: () => ({ insertContent })
+        })
+      })
+    }
+    const view = { dom: { editor: viewEditor } }
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(view, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
   it('intercepts file-only clipboard paste synchronously', async () => {
@@ -4125,7 +4164,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
@@ -4144,7 +4183,7 @@ describe('ComposerSurface', () => {
       }
     }
 
-    const handled = mocks.editorOptions.handlePaste(null, event)
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()

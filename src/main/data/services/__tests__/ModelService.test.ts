@@ -45,6 +45,15 @@ const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReaso
   }
 }
 
+const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'ollama' as const,
+  wire: {
+    off: { operations: [{ target: 'think', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'think', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'think', value: { source: 'effort' } }] }
+  }
+}
+
 beforeEach(() => {
   lookupModelMock.mockReset()
   lookupModelMock.mockReturnValue({
@@ -366,6 +375,38 @@ describe('ModelService.update', () => {
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
     expect(row.name).toBe('My GPT-4o')
     expect(row.pricing).toBeNull()
+  })
+
+  it('keeps an input-token tier as a sparse pricing delta over a flat registry baseline', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    const pricing = {
+      input: { perMillionTokens: 5, currency: 'USD' as const },
+      output: { perMillionTokens: 15, currency: 'USD' as const },
+      inputTokenTiers: [
+        {
+          minInputTokens: 200_000,
+          input: { perMillionTokens: 10, currency: 'USD' as const },
+          output: { perMillionTokens: 30, currency: 'USD' as const }
+        }
+      ]
+    }
+
+    modelService.update('openai', 'gpt-4o', { pricing })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toEqual(pricing)
   })
 
   it('stores model group edits in the sparse group column', async () => {
@@ -1524,6 +1565,40 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
     expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
+  })
+
+  it('uses Ollama toggle and effort controls for an unknown model that declares the thinking capability', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'acme-thinker:latest',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        },
+        registryData
+      }
+    ])
+
+    expect(created.reasoning).toMatchObject({
+      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }],
+      selectableEfforts: ['low', 'medium', 'high', 'none']
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'acme-thinker:latest')))
+    expect(row.reasoning).toMatchObject({
+      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+    })
   })
 })
 

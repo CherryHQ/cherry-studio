@@ -78,21 +78,20 @@ For each migrated Agent:
 - Imported resume tokens remain unchanged. If the latest Claude transcript
   cannot be made available, the normal runtime resume attempt surfaces the
   failure to the user.
-- A symlinked v1 Agent root is treated as an external user workspace: identity
-  may be read from its resolved directory, but the target is never removed.
-- Identity symlinks are followed only when they resolve inside the source
-  workspace and are materialized as ordinary files/directories.
-- Ordinary workspace symlinks remain links. Targets under identity entries are
-  rewritten to Agent data; other internal targets are rewritten to the new
-  Session workspace; external and dangling targets retain their meaning.
+- A symlinked v1 Agent root is skipped without following or removing it.
+- Identity and ordinary workspace symlinks are skipped. Migration copies only
+  regular files and directories so link permissions or unsupported link targets
+  cannot block the rest of the migration.
 - Ordinary workspace content is scanned once. The first verified private
   staging copy is reused as the regular-content source for later Sessions, so
-  migration does not need an additional full-size template. Symlinks are
-  omitted while cloning and recreated with each Session's rewritten target.
+  migration does not need an additional full-size template.
 
 Before reading or copying Agent identity and workspace content, migration
 validates every exact v2 target against every v1 source, then clears the final
-`Data/Agents/{agentId}` directories and planned managed Session workspaces.
+`Data/Agents/{agentId}` directories and planned managed Session workspaces that
+are not themselves legacy sources. A target already used as the same Agent's
+exact legacy workspace is retained, including case-only path variants on
+Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
 Validation completes for the whole cleanup plan before any target is removed.
 This avoids hashing or copying data only to fail on stale retry output, while
 leaving legacy short-ID and external user workspaces unchanged. A target
@@ -116,15 +115,16 @@ external user workspace because those paths remain the source of truth when a
 user downgrades to v1. Retry cleanup removes only the exact v2 Agent and managed
 Session targets owned by the current migration plan.
 
-Each entry records its source metadata before copying, verifies that the source
-metadata is unchanged after the copy, and requires the complete private staging
-entry to match the copied-content fingerprint before atomically publishing it.
-After planned targets are cleared, a concurrently created destination is
-fingerprinted and reused only when it is identical. A source that changes
-inside the copy window aborts before workspace publication. UUID staging paths
-keep partial copies out of the final workspace and only the current run's
-staging path is removed; the migration never sweeps other prefix-matching
-entries.
+Filesystem copies use content fingerprints rather than source metadata. Each
+source is fingerprinted before copying, and the complete private staging entry
+must match that fingerprint before atomic publication. Once that verified
+snapshot exists, later inode or timestamp changes do not invalidate it. This
+tolerates cloud-storage hydration and preserves a deterministic source snapshot
+without requiring a user-owned directory to remain quiescent. After planned
+targets are cleared, a concurrently created destination is fingerprinted and
+reused only when it is identical. UUID staging paths keep partial copies out of
+the final workspace and only the current run's staging path is removed; the
+migration never sweeps other prefix-matching entries.
 
 `app_state.key = 'migration_v2_status'` records that the v2 database and file
 copies are ready. It does not mean the v1-compatible source layout was removed,
@@ -159,6 +159,8 @@ remain excluded for as long as v1 downgrade support exists.
 ## Intentionally dropped data
 
 - v1 scheduled-task run logs.
+- Malformed or non-array legacy Agent MCP payloads, and non-string entries in
+  MCP arrays. Valid string MCP IDs in mixed arrays are retained.
 - Dangling Agent/MCP, Agent/skill, channel/task, and other relationship rows
   that cannot satisfy v2 foreign keys.
 - Additional legacy accessible paths after the primary workspace.

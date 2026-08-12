@@ -18,7 +18,8 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
-  type PersistenceBackend
+  type PersistenceBackend,
+  stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -93,13 +94,17 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    // Strip empty text/reasoning parts so invisible (zero-height) message blocks
-    // are never written to storage. Applied for all statuses. The `finalMessage`
+    // Strip live-only status parts (e.g. data-retry), then empty
+    // text/reasoning parts so neither can reach storage. Applied for all
+    // statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]), status)
+          parts: finalizeInterruptedParts(
+            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
+            status
+          )
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens

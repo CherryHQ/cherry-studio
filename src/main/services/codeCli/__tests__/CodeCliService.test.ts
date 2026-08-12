@@ -809,6 +809,44 @@ describe('CodeCliService', () => {
       expect(launch![2]).toMatchObject({ shell: false, detached: true })
     })
 
+    it('uses xdg-terminal-exec to respect the configured default terminal', async () => {
+      const spawn = await mockLinuxSpawn(['xdg-terminal-exec', 'gnome-terminal'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/my project'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('xdg-terminal-exec')
+      expect(launch?.[1]).toEqual([
+        '--dir=/home/me/my project',
+        '--',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('prefers x-terminal-emulator over xterm', async () => {
+      const spawn = await mockLinuxSpawn(['x-terminal-emulator', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('x-terminal-emulator')
+      expect(launch?.[1]).toEqual(['-e', 'bash', '-c', expect.stringContaining("cd '/home/me/proj' && clear && ")])
+    })
+
     it('reports a failed launch when the terminal process errors at spawn', async () => {
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementation(((cmd: string) => {
@@ -896,6 +934,20 @@ describe('CodeCliService', () => {
       })
 
       expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
+    })
+
+    it('requires a provider for a normal Pi launch', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.PI,
+        model: 'gpt-5',
+        providerId: '',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for pi' })
     })
 
     it('exempts the Claude login flow from the provider/model requirement', async () => {

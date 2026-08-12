@@ -97,6 +97,8 @@
         "clientSecret": "[to be translated]:Client Secret",
         "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
         "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "[to be translated]:QQ",
         "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
@@ -451,11 +453,11 @@
         "collapse": "طي العرض",
         "collapse_all": "طي الكل",
         "conversation": "المحادثات",
-        "drag_hint": "اسحب لإعادة الترتيب. اسحب المهام لضبط العرض والمجموعات المخفية.",
         "earlier": "أقدم",
         "expand_all": "توسيع الكل",
         "no_workdir": "لا دليل عمل",
         "show_more": "توسيع العرض",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "هذا الأسبوع",
         "today": "اليوم",
         "unknown_agent": "وكيل غير معروف",
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "حذف دليل العمل هذا سيؤدي أيضاً إلى حذف جميع المهام تحته. تُحذف سجلات قاعدة البيانات فقط؛ المجلد الفعلي على القرص لن يُحذف.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "فشل حذف دليل العمل"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "حذف دليل العمل",
           "trigger": "حذف دليل العمل"
         },
@@ -1006,6 +1026,10 @@
         "CherryNotify": {
           "description": "[to be translated]:Sends a notification through a connected channel",
           "label": "[to be translated]:Notify"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Markdown is easier for the agent to read",
+          "label": "[to be translated]:File to Markdown"
         },
         "CherryWebFetch": {
           "description": "يجلب صفحة ويب ويقرأها",
@@ -1540,18 +1564,19 @@
       "resource_panel": {
         "categories": {
           "agents": "الوكلاء",
-          "files": "الملفات",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "المهارات"
         },
         "description": "اختر من الملفات، الوكلاء، أو المهارات",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "جارٍ التحميل...",
-        "no_file_found": {
-          "description": "لا توجد ملفات متاحة في المجلدات المسموح بها",
-          "label": "لم يتم العثور على ملف"
-        },
         "no_items_found": {
           "description": "لا توجد ملفات أو وكلاء أو مهارات متاحة",
           "label": "لم يتم العثور على عناصر"
+        },
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
         },
         "title": "الموارد"
       },
@@ -1677,11 +1702,6 @@
       "new": {
         "branch": {
           "created": "تم إنشاء فرع جديد",
-          "disabled": {
-            "active": "[to be translated]:This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "[to be translated]:You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "[to be translated]:There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "فرع جديد"
         },
         "context": "سياق جديد"
@@ -1742,12 +1762,6 @@
       "top": "الرجوع للأعلى"
     },
     "resend": "أعد الإرسال",
-    "resource_view": {
-      "menu": {
-        "agent": "[to be translated]:Agents",
-        "assistant": "[to be translated]:Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "حفظ في ملف محلي"
@@ -1920,6 +1934,7 @@
         "time": "الوقت",
         "title": "وضع العرض"
       },
+      "draft": "[to be translated]:Draft",
       "edit": {
         "placeholder": "أدخل اسماً جديداً",
         "title": "تعديل الاسم",
@@ -2164,6 +2179,7 @@
       "openai_codex": "[to be translated]:OpenAI Codex",
       "openclaw": "[to be translated]:OpenClaw",
       "opencode": "[to be translated]:OpenCode",
+      "pi": "[to be translated]:Pi",
       "qoder_cli": "[to be translated]:Qoder CLI",
       "qwen_code": "[to be translated]:Qwen Code"
     },
@@ -2529,6 +2545,7 @@
       "ocr": "لم يتم تهيئة محرك OCR، تحقق من إعدادات OCR",
       "parse": "أرجع الذكاء الاصطناعي استجابة غير صالحة، المحاولة أو تبديل النموذج",
       "payload": "محتوى الطلب كبير جداً، تقليل حجم الملف أو النص",
+      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
       "proxy": "خطأ في الوكيل أو شهادة SSL، تحقق من إعدادات الوكيل والشبكة",
       "quota": "نفدت حصة الحساب، الشحن أو تبديل المزود",
       "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
@@ -2553,6 +2570,7 @@
       "503": "الخدمة غير متوفرة. المحاولة لاحقاً",
       "504": "انتهت مهلة البوابة. المحاولة لاحقاً"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "آخر خطأ",
     "maxEmbeddingsPerCall": "أقصى عدد تضمينات لكل استدعاء",
     "message": "رسالة الخطأ",
@@ -2989,6 +3007,28 @@
       "title": "استورد محادثات ChatGPT",
       "untitled_conversation": "محادثة بدون عنوان"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "اختر ملف الاستيراد",
       "label": "هل أنت متأكد من رغبتك في استيراد بيانات خارجية؟"
@@ -3027,10 +3067,20 @@
           "selected_notes": "{{count}} ملاحظات محددة"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "حدد الملاحظات الحالية كمصادر لقاعدة المعرفة",
           "empty_description": "أنشئ ملاحظات في ميزة الملاحظات، ثم عد لتحديدها هنا.",
           "empty_title": "لم يتم العثور على ملاحظات",
-          "loading": "جاري تحميل الملاحظات…"
+          "loading": "جاري تحميل الملاحظات…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "يدعم PDF و DOCX و MD و XLSX و TXT و CSV",
@@ -3169,7 +3219,6 @@
       "updated_at": "محدث {{time}}"
     },
     "name_required": "اسم قاعدة المعرفة مطلوب",
-    "not_set": "غير محدد",
     "provider_not_found": "لم يتم العثور على المزود",
     "rag": {
       "chunk_overlap": "حجم التداخل",
@@ -3184,12 +3233,13 @@
       "chunking": "تقسيم الأجزاء",
       "default_separator": "تلقائي (موصى به)",
       "document_count": "الأجزاء المطلوبة (أعلى K)",
-      "download_local_embedding": "[to be translated]:Download Local Model",
       "download_local_embedding_failed": "[to be translated]:Failed to download the local embedding model",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "نموذج التضمين",
       "embedding_model_select": "اختيار النموذج",
       "file_processing": "معالجة الملف",
       "file_processing_hint": "المعالجة الأولية للمستندات تعمل تلقائياً أثناء استيراد المستند. اختيار المزود المناسب يمكن أن يحسن جودة تحليل المستند.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "عدد الرموز المتداخلة المحفوظة بين الأجزاء المتجاورة لتقليل الفواصل الدلالية.",
         "chunk_separator": "الفاصل هو النص الذي يُقسّم عنده، بصيغة مُهَرَّبة. مع تشغيل التجزيء الذكي يضيف نقطة توقف؛ عند إيقافه يُقسم النص فقط بهذا الفاصل.",
@@ -3203,6 +3253,8 @@
       },
       "processor": "مزود المعالجة",
       "processor_not_configured": "[to be translated]:Not configured",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "معطل",
       "rerank_model": "نموذج إعادة الترتيب",
       "reset_action": "استعادة الافتراضيات",
@@ -3289,6 +3341,7 @@
   },
   "launchpad": {
     "apps": "تطبيقات",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "تطبيقات مصغرة",
     "miniApps": "التطبيقات المصغرة",
     "pin_to_sidebar": "تثبيت في الشريط الجانبي",
@@ -3359,11 +3412,6 @@
           },
           "heartbeat_interval": {
             "label": "فاصل النبض (دقائق)"
-          },
-          "instructions": {
-            "hint": "يحدد دور الوكيل وحدود سلوكه",
-            "label": "توجيه النظام",
-            "placeholder": "أخبر الوكيل من هو وماذا يمكنه أن يفعل…"
           },
           "max_turns": {
             "help": "0 يعني استخدام الافتراضي",
@@ -3559,8 +3607,7 @@
           "step": {
             "basic": "معلومات أساسية",
             "capability": "المهارات",
-            "knowledge": "المعرفة",
-            "persona": "الشخصية"
+            "knowledge": "المعرفة"
           },
           "submit": "إنشاء",
           "submit_failed": "فشل الإنشاء"
@@ -3925,7 +3972,7 @@
         "title": "تأكيد الحذف"
       },
       "failed": "فشل الحذف",
-      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "generating_unavailable": "[to be translated]:A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "تم الحذف بنجاح"
     },
@@ -4073,6 +4120,9 @@
     "restore": {
       "failed": "فشل الاسترداد",
       "success": "تم الاسترداد بنجاح"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -4223,6 +4273,8 @@
         "taskOutput": "عرض مخرجات المهمة",
         "taskStop": "إيقاف المهمة",
         "taskUpdate": "تحديث المهمة",
+        "toMarkdown": "[to be translated]:To Markdown",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "كتابة المهام",
         "tool": "أداة",
         "webFetch": "جلب الويب",
@@ -4273,6 +4325,8 @@
       "thinkingHeader": "التفكير",
       "truncated": "المخرجات مقتطعة (الأصلية: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "تم {{count}}",
         "done_other": "تم {{count}}",
         "file_one": "{{count}} ملف",
@@ -4425,7 +4479,8 @@
     "invalid_model": "نموذج غير صالح",
     "json_parse_error": "تنسيق JSON غير صالح",
     "multi_select": {
-      "label": "توازي نماذج متعددة (متعارض مع مساعد متعدد)"
+      "label": "توازي نماذج متعددة (متعارض مع مساعد متعدد)",
+      "tooltip": "[to be translated]:Multi-model simultaneous responses"
     },
     "no_matches": "لا توجد نماذج متاحة",
     "parameter_name": "اسم المُعامل",
@@ -4437,14 +4492,27 @@
     },
     "pinned": "مثبت",
     "price": {
+      "add_tier": "[to be translated]:Add pricing tier",
+      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "[to be translated]:Cache Read Price",
+      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "التكلفة",
       "currency": "العملة",
       "custom": "مخصص",
+      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "سعر الإدخال",
       "million_tokens": "مليون توكن",
+      "min_input_tokens": "[to be translated]:Starts at input tokens",
+      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "سعر الإخراج",
-      "price": "السعر"
+      "price": "السعر",
+      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
+      "tier": "[to be translated]:Tier {{index}}",
+      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "[to be translated]:Use input price",
+      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
+      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
+      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
     },
     "reasoning": "تفكير",
     "rerank_model": "إعادة ترتيب",
@@ -4596,6 +4664,8 @@
         "font_size_medium": "متوسط",
         "font_size_small": "صغير",
         "font_title": "إعدادات الخط",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "خط Serif",
         "show_table_of_contents": "إظهار جدول المحتويات",
         "show_table_of_contents_description": "عرض شريط جانبي لجدول المحتويات لسهولة التنقل داخل المستندات",
@@ -5363,6 +5433,7 @@
         "insertRowBefore": "إدراج لأعلى"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "إدراج صيغة رياضية",
@@ -5833,6 +5904,76 @@
         "title": "تصحيح الأخطاء"
       },
       "description": "مساعد ذكاء اصطناعي قوي للمنتجين",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support staff investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not redact or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "جاري التنزيل...",
       "enterprise": {
         "title": "مؤسسة"
@@ -5946,11 +6087,41 @@
         "skip_file_data_title": "نسخة احتياطية مصغرة"
       },
       "clear_cache": {
+        "approximately": "[to be translated]:Approx. {{size}}",
         "button": "مسح التخزين المؤقت",
-        "confirm": "سيؤدي مسح التخزين المؤقت لحذف بيانات التطبيق، بما في ذلك بيانات minapp. هذا الإجراء غير قابل للتراجع، استمرار؟",
+        "calculating": "[to be translated]:Calculating…",
         "error": "خطأ أثناء مسح التخزين المؤقت",
+        "legacy_warning": {
+          "confirm": "[to be translated]:Select Anyway",
+          "description": "[to be translated]:After cleanup finishes, the v1 data included in this option will be permanently deleted. Without a backup, this data cannot be recovered.",
+          "message": "[to be translated]:v1 data will be permanently deleted",
+          "title": "[to be translated]:Select leftover v1 data?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "[to be translated]:Leftover v1 data, including old conversation history and settings. Clearing it cannot be undone.",
+            "title": "[to be translated]:Leftover data from v1"
+          },
+          "normal_cache": {
+            "description": "[to be translated]:Clears cache and temporary files created while using the app to free up storage space. Your conversation history and settings will not be deleted.",
+            "title": "[to be translated]:App cache"
+          },
+          "orphaned_data": {
+            "description": "[to be translated]:Removes unused files, leftover knowledge bases, and temporary backup restore files.",
+            "title": "[to be translated]:Leftover files and knowledge bases"
+          },
+          "site_data": {
+            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
+            "title": "[to be translated]:Website and mini app data"
+          }
+        },
+        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
+        "selected_total": "[to be translated]:Selected total",
         "success": "تم مسح التخزين المؤقت",
-        "title": "مسح التخزين المؤقت"
+        "title": "مسح التخزين المؤقت",
+        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
+        "unavailable": "[to be translated]:Unable to calculate",
+        "waiting_for_legacy_database": "[to be translated]:Waiting for the old database to be released. Close other Cherry Studio windows; cleanup will continue after their connections close."
       },
       "data": {
         "title": "مجلد البيانات"
@@ -5993,6 +6164,7 @@
       "import_settings": {
         "button": "استورد ملف Json",
         "chatgpt": "استورد من ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "استورد بيانات من تطبيقات خارجية"
       },
       "joplin": {
@@ -6364,6 +6536,23 @@
         "token_placeholder": "إدخال رمز ملاحظات Siyuan"
       },
       "title": "إعدادات البيانات",
+      "v1_remigration": {
+        "acknowledgement": "[to be translated]:I understand the risk and want to continue.",
+        "back": "[to be translated]:Back",
+        "backup_acknowledgement": "[to be translated]:I have backed up my data",
+        "backup_button": "[to be translated]:Back Up All Data Now",
+        "backup_message": "[to be translated]:Back up all current data before continuing. Continuing will permanently delete your current v2 data, and this action cannot be undone.",
+        "button": "[to be translated]:Rerun Migration",
+        "confirm": "[to be translated]:Rerun Migration",
+        "confirm_countdown": "[to be translated]:Rerun Migration ({{seconds}}s)",
+        "dialog_title": "[to be translated]:Rerun v1 Data Migration",
+        "error": "[to be translated]:Failed to start v1 data migration again",
+        "final_confirmation": "[to be translated]:Confirm that you want to delete the current v2 data and rerun the v1 data migration.",
+        "final_message": "[to be translated]:Your current v2 data will be permanently deleted. This action cannot be undone.",
+        "final_retained": "[to be translated]:Your original v1 data will be kept and imported again after restart.",
+        "next": "[to be translated]:Next",
+        "title": "[to be translated]:Rerun v1 Data Migration"
+      },
       "webdav": {
         "autoSync": {
           "label": "نسخ احتياطي تلقائي",
@@ -6521,6 +6710,10 @@
       "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "[to be translated]:Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "[to be translated]:Hardware acceleration"
+        },
         "cancel": "[to be translated]:Cancel",
         "description": "[to be translated]:Models that run locally on your device — download once, then use offline with no API key.",
         "download": "[to be translated]:Download",
@@ -6531,6 +6724,7 @@
         "notice": {
           "downloadFailed": "[to be translated]:Download failed. Check your connection and try again.",
           "inUse": "[to be translated]:Still used by a knowledge base; the weights were kept.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "[to be translated]:Remove failed. Check the logs for details."
         },
         "ocr": {
@@ -6827,6 +7021,7 @@
       },
       "command": "أمر",
       "config_description": "تكوين خوادم بروتوكول سياق النموذج (MCP)",
+      "copyLogs": "[to be translated]:Copy logs",
       "customRegistryPlaceholder": "أدخل رابط السجل الخاص، مثل: https://npm.company.com",
       "deleteError": "فشل حذف الخادم",
       "deleteServer": "حذف الخادم",
@@ -6880,6 +7075,7 @@
       },
       "logoUrl": "رابط شعار URL",
       "logs": "السجلات",
+      "logsHint": "[to be translated]:Logs from the MCP server process",
       "longRunning": "وضع التشغيل الطويل",
       "longRunningTooltip": "عند التفعيل، يدعم الخادم المهام طويلة الأمد. عند تلقي إشعارات التقدم، سيتم إعادة تعيين المهلة وتمديد الحد الأقصى لوقت التنفيذ إلى 10 دقائق.",
       "marketplaces": "المتاجر",
@@ -7378,6 +7574,16 @@
         "label": "النموذج السريع",
         "setting_title": "إعداد النموذج السريع",
         "tooltip": "يوصى باختيار نموذج خفيف ولا يوصى باختيار نموذج تفكير."
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Retry chat, embedding, and rerank calls; chat can fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "مخصص",
@@ -7966,10 +8172,12 @@
       "label": "مفتاح",
       "move_tab_to_first": "انقل اللسان إلى الأول",
       "new_topic": "موضوع جديد",
+      "next_tab": "[to be translated]:Next Tab",
       "occupied_by_other_application": "هذا الاختصار مستخدم بالفعل بواسطة النظام أو تطبيق آخر",
       "open_tab_in_new_window": "افتح اللسان في نافذة جديدة",
       "pin_tab": "بدّل تثبيت اللسان",
       "press_shortcut": "اضغط على الاختصار",
+      "prev_tab": "[to be translated]:Previous Tab",
       "print": "[to be translated]:Print",
       "quick_assistant": "المساعد السريع",
       "rename_topic": "أعد تسمية الموضوع",
@@ -8085,6 +8293,10 @@
           "doc2x": {
             "description": "محرك متقدم لاستعادة الملفات.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "[to be translated]:PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",

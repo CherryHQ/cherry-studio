@@ -22,10 +22,13 @@
         "count_tokens": "[to be translated]:Estimate how many input tokens a set of Anthropic-format messages uses.",
         "generate_content": "[to be translated]:Generate content through Gemini's `generateContent` method. Request and response bodies follow the Gemini API format; `streamGenerateContent` is served on the same path.",
         "get_knowledge_base": "[to be translated]:Fetch a single knowledge base by ID.",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "[to be translated]:Service health, current time and version. No authentication required.",
         "info": "[to be translated]:API name, version and the main endpoints. No authentication required.",
         "list_knowledge_bases": "[to be translated]:List the knowledge bases available in this Cherry Studio instance.",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "[to be translated]:List the models available through this gateway, in the OpenAI models format.",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "[to be translated]:Create a message. Request and response bodies follow the Anthropic Messages format; set `stream: true` for incremental output.",
         "responses": "[to be translated]:Create a response. Request and response bodies follow the OpenAI Responses format.",
         "search_knowledge_bases": "[to be translated]:Search one or more knowledge bases and return the matching document chunks."
@@ -87,6 +90,10 @@
       "message": "[to be translated]:This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
       "title": "[to be translated]:Reset App Data"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "ملفات HTML",
     "open_file": "افتح ملفاً",
     "pdf_files": "ملفات PDF",
@@ -96,6 +103,12 @@
     "save_file": "حفظ الملف",
     "select_folder": "اختر مجلداً",
     "word_document": "مستند Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

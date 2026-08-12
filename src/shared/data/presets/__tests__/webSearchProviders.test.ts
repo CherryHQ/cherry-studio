@@ -49,6 +49,19 @@ describe('web search provider schemas', () => {
     )
   })
 
+  it('models Firecrawl as one provider with keyword search and URL fetch capabilities', () => {
+    const firecrawl = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'firecrawl')
+
+    expect(firecrawl).toBeDefined()
+    expect(firecrawl!.capabilities.map((capability) => capability.feature)).toEqual(['searchKeywords', 'fetchUrls'])
+    expect(firecrawl!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
+      feature: 'fetchUrls',
+      requiresApiHost: true,
+      requiresApiKey: false,
+      apiHost: 'https://api.firecrawl.dev'
+    })
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
@@ -143,6 +156,7 @@ describe('client web provider readiness', () => {
   it('supports both hostless and hosted URL-fetch capabilities without provider-id rules', () => {
     expect(isWebSearchProviderReady(provider('fetch'), 'fetchUrls')).toBe(true)
     expect(isWebSearchProviderReady(provider('jina'), 'fetchUrls')).toBe(true)
+    expect(isWebSearchProviderReady(provider('firecrawl'), 'fetchUrls')).toBe(true)
     expect(isWebSearchProviderReady(provider('fetch'), 'searchKeywords')).toBe(false)
   })
 

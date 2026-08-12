@@ -231,8 +231,27 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       !topic?.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
         : resolveAssistantModelId(topic?.assistantId)
+    const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
+    const reservedBranchId =
+      req.trigger === 'submit-message' &&
+      req.parentAnchorId &&
+      (hasExplicitReservedTarget ||
+        (req.targetMode === undefined && messageService.isAwaitingInputLeaf(req.parentAnchorId, req.topicId)))
+        ? req.parentAnchorId
+        : undefined
+
+    if (hasExplicitReservedTarget && !reservedBranchId) {
+      throw new Error("'reserved-branch' target requires parentAnchorId")
+    }
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      // A reserved branch belongs to another tree path and must never be injected as a steer
+      // into the topic's running turn. Renderer queues it until idle; this synchronous check
+      // is the main-process race backstop and performs no writes on rejection.
+      if (hasExplicitReservedTarget || reservedBranchId) {
+        throw new Error('Cannot submit a reserved branch while a stream is live on this topic')
+      }
+
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
@@ -288,16 +307,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
       req.trigger === 'submit-message'
-        ? ({
-            mode: 'create' as const,
-            dto: {
-              role: 'user' as const,
-              parentId: req.parentAnchorId,
+        ? reservedBranchId
+          ? ({
+              mode: 'fill-reserved' as const,
+              id: reservedBranchId,
               data: { parts: req.userMessageParts },
-              status: 'success' as const,
               modelId: defaultModelId
-            }
-          } as const)
+            } as const)
+          : ({
+              mode: 'create' as const,
+              dto: {
+                role: 'user' as const,
+                parentId: req.parentAnchorId,
+                data: { parts: req.userMessageParts },
+                status: 'success' as const,
+                modelId: defaultModelId
+              }
+            } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
     // Container trace: one trace tree per topic. Each model's `ai.turn` span is
@@ -775,9 +801,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           ...extra
         })
       }
+      // A fold that changed nothing (empty summary) or threw is served with UN-compacted
+      // history, so it must settle as `skipped` (metric-free) — settling `done` here is exactly
+      // what makes an untouched history render a false "context compacted" marker.
+      const skip = () =>
+        compactionSink?.(anchorId, {
+          status: 'skipped',
+          phase: 'turn-start',
+          startedAt,
+          completedAt: new Date().toISOString()
+        })
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
-        settle()
+        skip()
         return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
@@ -787,8 +823,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
       compactionSink?.(anchorId, {
-        status: 'done',
+        status: 'skipped',
         phase: 'turn-start',
         startedAt,
         completedAt: new Date().toISOString()

@@ -59,6 +59,15 @@ const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
 const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
+const WINDOWS_UV_EBUSY_ERRNO = -4082
+
+const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
+  const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
+  const isLevelDbDirectory = parentDirectory === 'leveldb' || parentDirectory.endsWith('.leveldb')
+  if (path.basename(sourcePath) !== 'LOCK' || !isLevelDbDirectory || !(error instanceof Error)) return false
+  const nodeError = error as NodeJS.ErrnoException
+  return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
+}
 
 interface DirectBackupMetadata {
   version: number
@@ -1729,13 +1738,32 @@ class BackupManager {
                 })
                 await fs.chmod(destPath, entry.stats.mode)
               } catch (error) {
-                await fs.remove(destPath).catch(() => {})
+                try {
+                  await fs.remove(destPath)
+                } catch {
+                  throw error
+                }
+                if (isSkippableLevelDbLockError(sourcePath, error)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
                 throw error
               }
             } else if (entry.isSymlink) {
               await fs.copy(sourcePath, destPath, { dereference: true })
             } else {
-              await fs.copy(sourcePath, destPath)
+              try {
+                await fs.copy(sourcePath, destPath)
+              } catch (copyError) {
+                // Skip files that are locked by another process (e.g., LevelDB LOCK file
+                // in Local Storage held by the renderer). These files are not needed for
+                // backup integrity and will be recreated on restore if needed.
+                if (isSkippableLevelDbLockError(sourcePath, copyError)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
+                throw copyError
+              }
             }
             onProgress(entry.stats.size)
           } else if (entry.isSymlink) {

@@ -3,6 +3,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -23,6 +25,7 @@ vi.mock('@data/dataApiDataChange', () => ({
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
 const ASSISTANT_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
+const FILE_ENTRY_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d003'
 type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 
 describe('AgentSessionMessageService', () => {
@@ -55,8 +58,21 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
-  describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
-    it('finds only pending assistant rows and resolves them to error', async () => {
+  it('reports message existence per session', async () => {
+    await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'hi' }] } }
+    })
+
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
+    expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('findPendingAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
+    it('finds only pending assistant rows and resolves them to error with the given data', async () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
@@ -73,12 +89,46 @@ describe('AgentSessionMessageService', () => {
         message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
       })
 
-      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
+      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([
+        { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
+      ])
 
-      agentSessionMessageService.markMessagesError([PENDING])
-      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
+      const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
+      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
+      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       expect(row.status).toBe('error')
+      expect(row.data).toEqual(finalizedData)
+    })
+
+    it('discards resume tokens only for the affected sessions', async () => {
+      const OTHER_SESSION_ID = 'session-2'
+      await seedSession({ id: OTHER_SESSION_ID, name: 'Other', orderKey: 'a1' })
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d020'
+      const EARLIER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d021'
+      const OTHER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d022'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-earlier',
+        message: { id: EARLIER, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-crashed',
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: OTHER_SESSION_ID,
+        runtimeResumeToken: 'token-other',
+        message: { id: OTHER, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: { parts: [] } }], [SESSION_ID])
+
+      // The whole crashed session loses its tokens — the earlier turn's token would still resume
+      // the untrusted external CLI state, so the next connection must start without one.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(OTHER_SESSION_ID)).toBe('token-other')
     })
   })
 
@@ -118,6 +168,49 @@ describe('AgentSessionMessageService', () => {
       input: updatedInput,
       approval: { id: 'approval-1', approved: true }
     })
+  })
+
+  it('keeps attachment refs in sync with agent-session message history', async () => {
+    await dbh.db.insert(fileEntryTable).values({
+      id: FILE_ENTRY_ID,
+      origin: 'internal',
+      name: 'report',
+      ext: 'pdf',
+      size: 42,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    const filePart = {
+      type: 'file' as const,
+      url: 'file:///stale/location/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+    }
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'inspect' }, filePart, filePart] }
+      }
+    })
+
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([
+      expect.objectContaining({ fileEntryId: FILE_ENTRY_ID, sourceId: USER_MESSAGE_ID, role: 'attachment' })
+    ])
+
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'attachment removed' }] }
+    })
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [filePart] } }
+    })
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
   })
 
   it('creates messages with service-owned audit timestamps', async () => {

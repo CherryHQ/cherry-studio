@@ -202,6 +202,41 @@ const STYLE_CONTENT = `
   border-radius: 3px;
 }
 
+.RichEditorWrapper .BackToTopButton {
+  position: absolute;
+  right: 44px;
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    visibility 0.2s ease;
+}
+
+.RichEditorWrapper .BackToTopButton:hover {
+  color: var(--foreground);
+}
+
+.RichEditorWrapper .BackToTopButton.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .TableOfContentsWrapper .table-of-contents {
   display: flex;
   flex-direction: column;
@@ -421,6 +456,7 @@ type RichEditorWrapperProps = DivProps & {
   $isFullWidth?: boolean
   $fontFamily?: 'default' | 'serif'
   $fontSize?: number
+  $lineBreaks?: boolean
 }
 
 type ToolbarButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -466,6 +502,7 @@ export const RichEditorWrapper = ({
   $isFullWidth,
   $fontFamily,
   $fontSize,
+  $lineBreaks,
   className,
   style,
   ...props
@@ -479,6 +516,7 @@ export const RichEditorWrapper = ({
     minHeight: $minHeight ? `${$minHeight}px` : undefined,
     maxHeight: $maxHeight ? `${$maxHeight}px` : undefined,
     '--editor-font-size': $fontSize ? `${$fontSize}px` : undefined,
+    '--editor-paragraph-white-space': $lineBreaks ? 'pre-line' : undefined,
     ...style
   }
 

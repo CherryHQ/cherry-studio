@@ -1,6 +1,6 @@
 import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
@@ -51,6 +51,7 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
@@ -74,6 +75,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
+  type AgentArtifactFile,
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentRunTask,
@@ -148,6 +150,8 @@ interface AgentRightPaneMeta {
   workspaceId?: string
   workspacePath?: string
   workspaceType?: AgentWorkspaceType
+  /** Active model — supplies the context-usage denominator and guards against stale readings. */
+  model?: Model
 }
 
 interface AgentRightPaneRuntime {
@@ -359,6 +363,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  model,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -538,13 +543,15 @@ function AgentRightPaneStateProvider({
       conversationState,
       workspaceId,
       workspacePath,
-      workspaceType
+      workspaceType,
+      model
     }),
     [
       agentAvatar,
       agentId,
       agentName,
       conversationState,
+      model,
       sessionId,
       sessionName,
       traceId,
@@ -997,12 +1004,13 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
   const meta = useAgentRightPaneMeta()
+  const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
-  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
+  const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
 
   return (
     <div className="h-full space-y-4 overflow-auto p-3 text-sm">
@@ -1038,19 +1046,22 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         </section>
       )}
 
-      <ContextUsageSummary
+      {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={false} />}
+
+      <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
-        color={contextUsageColor}
+        maxTokens={maxTokens}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
-      <AgentRightPaneHighlights status={status} includeTasks={false} />
+      <AgentRightPaneHighlights status={status} includeTasks={false} includeArtifacts={false} />
     </div>
   )
 }
 
-function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  if (!active) return null
   const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
   return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
 }
@@ -1153,14 +1164,43 @@ function AgentRightPaneHighlightSection({
   )
 }
 
+function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: AgentArtifactFile[]; compact: boolean }) {
+  const actions = useAgentRightPaneActions()
+  const { t } = useTranslation()
+
+  return (
+    <AgentRightPaneHighlightSection
+      title={t('agent.right_pane.info.artifacts')}
+      icon={<Package size={14} className="text-muted-foreground" />}
+      compact={compact}>
+      <ul className="space-y-0.5">
+        {artifacts.map((artifact) => (
+          <li key={`${artifact.toolCallId}-${artifact.path}`}>
+            <button
+              type="button"
+              onClick={() => actions.openArtifactFile(artifact.path)}
+              title={artifact.path}
+              className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+              <FileText size={14} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </AgentRightPaneHighlightSection>
+  )
+}
+
 function AgentRightPaneHighlights({
   status,
   compact = false,
-  includeTasks = true
+  includeTasks = true,
+  includeArtifacts = true
 }: {
   status: AgentRightPaneStatus
   compact?: boolean
   includeTasks?: boolean
+  includeArtifacts?: boolean
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
@@ -1169,7 +1209,7 @@ function AgentRightPaneHighlights({
   const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
   const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
   const tasks = includeTasks ? status.tasks : []
-  const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
+  const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
   const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
@@ -1198,6 +1238,8 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
+      {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
+
       {workflowRunTasks.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.workflows')}
@@ -1224,28 +1266,6 @@ function AgentRightPaneHighlights({
           <RunTaskList tasks={shellRunTasks} sessionId={meta.sessionId} />
         </AgentRightPaneHighlightSection>
       )}
-
-      {artifacts.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.info.artifacts')}
-          icon={<Package size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <ul className="space-y-0.5">
-            {artifacts.map((artifact) => (
-              <li key={`${artifact.toolCallId}-${artifact.path}`}>
-                <button
-                  type="button"
-                  onClick={() => actions.openArtifactFile(artifact.path)}
-                  title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
-                  <FileText size={14} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </AgentRightPaneHighlightSection>
-      )}
     </div>
   )
 }
@@ -1255,17 +1275,16 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
-  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <ContextUsageSummary
+      <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
-        color={contextUsageColor}
+        maxTokens={maxTokens}
         isCompacting={isCompacting}
       />
       <AgentRightPaneHighlights status={status} compact />
