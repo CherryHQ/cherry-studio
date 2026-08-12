@@ -330,6 +330,25 @@ describe('EditModelDrawer pricing', () => {
     })
   })
 
+  it('saves valid base pricing while a new trailing tier is incomplete', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={modelWithFullPricing} />)
+
+    await user.click(screen.getByRole('button', { name: 'models.price.add_tier' }))
+    const inputPrice = screen.getByLabelText('models.price.input')
+    await user.clear(inputPrice)
+    await user.type(inputPrice, '4')
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
+      input: { perMillionTokens: 4, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
+      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
+    })
+  })
+
   it('does not save an additional tier with a duplicate boundary', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)

@@ -178,10 +178,14 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
   tiers?: ParsedModelPricingTier[]
 } {
   const errors: ModelPricingDraftErrors = draft.tiers.map(() => ({}))
+  const tiersToParse = [...draft.tiers]
+  while (tiersToParse.length > 1 && tiersToParse.at(-1)?.minInputTokens.trim() === '') {
+    tiersToParse.pop()
+  }
   const parsedTiers: ParsedModelPricingTier[] = []
   let previousMinInputTokens = 0
 
-  for (const [index, tier] of draft.tiers.entries()) {
+  for (const [index, tier] of tiersToParse.entries()) {
     const tierErrors = errors[index]
     let minInputTokens = 0
 
