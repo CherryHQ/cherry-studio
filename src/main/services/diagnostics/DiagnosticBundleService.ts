@@ -21,7 +21,6 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
@@ -124,6 +123,7 @@ async function writeBundleZip(
     path.join(path.dirname(destination), `.cherry-studio-diagnostics-${randomUUID()}.tmp`)
   )
   const output = createAtomicWriteStream(stagingPath)
+  const { ZipArchive } = await import('archiver')
   const archive = new ZipArchive({ zlib: { level: 1 } })
   const completion = new Promise<void>((resolve, reject) => {
     output.once('finish', resolve)

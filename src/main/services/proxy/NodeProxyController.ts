@@ -2,7 +2,6 @@ import axios from 'axios'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
-import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 import { type NodeProxyLogger, ProxyBypassRuleMatcher } from './bypassRules'
@@ -26,6 +25,11 @@ import {
 // Ref: https://github.com/nodejs/undici/blob/main/lib/global.js
 const SOCKS_DISPATCHER_SYMBOL = Symbol.for('undici.globalDispatcher.1')
 const globalDispatcherRegistry = globalThis as typeof globalThis & Record<symbol, Dispatcher | undefined>
+
+interface HttpProxyAgents {
+  http: http.Agent
+  https: http.Agent
+}
 
 class SelectiveDispatcher extends Dispatcher {
   constructor(
@@ -68,7 +72,7 @@ class SelectiveDispatcher extends Dispatcher {
 
 export class NodeProxyController {
   private proxyDispatcher: Dispatcher | null = null
-  private proxyAgent: ProxyAgent | null = null
+  private httpProxyAgents: HttpProxyAgents | null = null
   private currentConfigKey: string | null = null
   private proxyEndpoint: ProxyEndpoint | null = null
   private normalizedBypassRules: string[] = []
@@ -93,7 +97,7 @@ export class NodeProxyController {
     this.originalAxiosAdapter = axios.defaults.adapter
   }
 
-  configure(config: NodeProxyConfig): void {
+  async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedByPassRules = normalizeProxyBypassRules(config.proxyBypassRules)
     const configKey = JSON.stringify({
@@ -106,10 +110,11 @@ export class NodeProxyController {
     }
 
     const proxyEndpoint = normalizeProxyEndpoint(proxyUrl)
+    const httpProxyAgents = proxyEndpoint ? await this.createHttpProxyAgents(proxyUrl!, proxyEndpoint) : null
     this.proxyBypassRuleMatcher.updateByPassRules(normalizedByPassRules, this.logger)
     this.setEnvironment(proxyUrl, normalizedByPassRules)
     this.setGlobalFetchProxy(proxyEndpoint)
-    this.setGlobalHttpProxy(proxyUrl)
+    this.setGlobalHttpProxy(httpProxyAgents)
     this.proxyEndpoint = proxyEndpoint
     this.normalizedBypassRules = normalizedByPassRules
     this.routingVersion += 1
@@ -149,33 +154,52 @@ export class NodeProxyController {
     }
   }
 
-  private setGlobalHttpProxy(proxyUrl: string | undefined) {
-    if (!proxyUrl) {
+  private async createHttpProxyAgents(proxyUrl: string, endpoint: ProxyEndpoint): Promise<HttpProxyAgents> {
+    if (endpoint.kind === 'socks') {
+      const { SocksProxyAgent } = await import('socks-proxy-agent')
+      return {
+        http: new SocksProxyAgent(proxyUrl),
+        https: new SocksProxyAgent(proxyUrl)
+      }
+    }
+
+    const [{ HttpProxyAgent }, { HttpsProxyAgent }] = await Promise.all([
+      import('http-proxy-agent'),
+      import('https-proxy-agent')
+    ])
+    return {
+      http: new HttpProxyAgent(endpoint.url),
+      https: new HttpsProxyAgent(endpoint.url)
+    }
+  }
+
+  private setGlobalHttpProxy(agents: HttpProxyAgents | null) {
+    const previousAgents = this.httpProxyAgents
+    this.httpProxyAgents = agents
+
+    if (!agents) {
       http.get = this.originalHttpGet
       http.request = this.originalHttpRequest
       https.get = this.originalHttpsGet
       https.request = this.originalHttpsRequest
+    } else {
+      http.get = this.bindHttpMethod(this.originalHttpGet, agents.http)
+      http.request = this.bindHttpMethod(this.originalHttpRequest, agents.http)
+      https.get = this.bindHttpMethod(this.originalHttpsGet, agents.https)
+      https.request = this.bindHttpMethod(this.originalHttpsRequest, agents.https)
+    }
 
+    for (const agent of new Set(previousAgents ? [previousAgents.http, previousAgents.https] : [])) {
       try {
-        this.proxyAgent?.destroy()
+        agent.destroy()
       } catch (error) {
         this.logger?.error?.('Failed to destroy proxy agent:', error as Error)
       }
-
-      this.proxyAgent = null
-      return
     }
-
-    const agent = new ProxyAgent()
-    this.proxyAgent = agent
-    http.get = this.bindHttpMethod(this.originalHttpGet, agent)
-    http.request = this.bindHttpMethod(this.originalHttpRequest, agent)
-    https.get = this.bindHttpMethod(this.originalHttpsGet, agent)
-    https.request = this.bindHttpMethod(this.originalHttpsRequest, agent)
   }
 
   // oxlint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private bindHttpMethod(originalMethod: Function, agent: http.Agent | https.Agent) {
+  private bindHttpMethod(originalMethod: Function, agent: http.Agent) {
     return (...args: any[]) => {
       let url: string | URL | undefined
       let options: http.RequestOptions | https.RequestOptions

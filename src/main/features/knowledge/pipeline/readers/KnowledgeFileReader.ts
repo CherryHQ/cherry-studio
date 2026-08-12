@@ -3,7 +3,6 @@ import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/type
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
-import { DocxReader } from '@vectorstores/readers/docx'
 import { HTMLReader } from '@vectorstores/readers/html'
 import { JSONReader } from '@vectorstores/readers/json'
 import { MarkdownReader } from '@vectorstores/readers/markdown'
@@ -13,9 +12,7 @@ import { TextFileReader } from '@vectorstores/readers/text'
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import { AnydocReader } from './files/AnydocReader'
-import { DocReader } from './files/DocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
-import { EpubReader } from './files/EpubReader'
 
 export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
   const extension = getFileExt(filePath).toLowerCase()
@@ -26,11 +23,20 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.csv':
       return new CSVReader()
     case '.doc':
-      return new AnydocReader(() => new DocReader())
+      return new AnydocReader(async () => {
+        const { DocReader } = await import('./files/DocReader')
+        return new DocReader()
+      })
     case '.docx':
-      return new AnydocReader(() => new DocxReader())
+      return new AnydocReader(async () => {
+        const { DocxReader } = await import('@vectorstores/readers/docx')
+        return new DocxReader()
+      })
     case '.epub':
-      return new AnydocReader(() => new EpubReader(), true)
+      return new AnydocReader(async () => {
+        const { EpubReader } = await import('./files/EpubReader')
+        return new EpubReader()
+      }, true)
     case '.ppt':
     case '.pptx':
     case '.xls':
