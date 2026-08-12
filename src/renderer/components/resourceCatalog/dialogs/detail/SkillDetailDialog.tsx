@@ -80,7 +80,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-blue-violet-subtle text-blue-violet">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-blue-400/10 text-blue-400 dark:bg-blue-300/10 dark:text-blue-300">
               <ToolCase size={22} strokeWidth={1.5} className="lucide-custom" />
             </div>
             <div className="-translate-y-px min-w-0">
@@ -88,7 +88,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="h-5 border-0 bg-blue-violet-subtle px-2 py-0 text-blue-violet text-xs">
+                  className="h-5 border-0 bg-blue-400/10 px-2 py-0 text-blue-400 text-xs dark:bg-blue-300/10 dark:text-blue-300">
                   {t('library.type.skill')}
                 </Badge>
                 <span className="text-foreground-tertiary text-xs leading-5">{skill.source}</span>

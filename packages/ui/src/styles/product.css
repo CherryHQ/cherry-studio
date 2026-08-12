@@ -57,10 +57,6 @@
   --resource-list-row-active-foreground: var(--accent-foreground);
   --resource-list-row-selected: var(--accent);
   --resource-list-row-selected-foreground: var(--accent-foreground);
-
-  /* Stable product color: blue violet */
-  --blue-violet: var(--cs-indigo-400);
-  --blue-violet-subtle: color-mix(in srgb, var(--blue-violet) 10%, transparent);
 }
 
 .dark {
@@ -81,7 +77,4 @@
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);
-
-  /* Stable product color: blue violet */
-  --blue-violet: var(--cs-indigo-300);
 }

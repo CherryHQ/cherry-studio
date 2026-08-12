@@ -147,7 +147,6 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
 | User message | `--chat-user` | User-message surface |
 | Resource-list rows | `--resource-list-row-hover`, `--resource-list-row-active`, `--resource-list-row-active-foreground`, `--resource-list-row-selected`, `--resource-list-row-selected-foreground` | Cross-surface resource navigation row states; hover preserves the row's existing foreground hierarchy, while active and selected use explicit surface pairs |
-| Blue violet | `--blue-violet`, `--blue-violet-subtle` | Reusable blue-violet foreground and quiet surface |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.

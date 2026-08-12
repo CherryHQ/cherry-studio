@@ -337,8 +337,6 @@
   --color-resource-list-row-active-foreground: var(--resource-list-row-active-foreground);
   --color-resource-list-row-selected: var(--resource-list-row-selected);
   --color-resource-list-row-selected-foreground: var(--resource-list-row-selected-foreground);
-  --color-blue-violet: var(--blue-violet);
-  --color-blue-violet-subtle: var(--blue-violet-subtle);
 
   /* ==================== */
   /* Compatibility: Existing Semantic Colors */
