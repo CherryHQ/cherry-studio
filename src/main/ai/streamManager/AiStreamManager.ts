@@ -1374,14 +1374,15 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
+    const isTopicDone = !isLiveStatus(stream.status)
     const result: StreamErrorResult = {
       error,
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
-      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec?.anchorMessageId,
-      isTopicDone: true
+      isTopicDone
     }
     for (const listener of stream.listeners.values()) {
       if (listener.id.startsWith('persistence:')) continue

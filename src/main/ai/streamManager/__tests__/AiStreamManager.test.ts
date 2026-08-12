@@ -500,13 +500,18 @@ describe('AiStreamManager', () => {
       })
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      expect(() =>
+      let admissionError: unknown
+      try {
         mgr.send({
           topicId: 'a',
           models: [{ modelId: 'provider-a::model-a', request: req('a') }],
           listeners: [new FakeListener('wc:2')]
         })
-      ).toThrow(/refusing to inject/)
+      } catch (error) {
+        admissionError = error
+      }
+      expect(admissionError).toBeInstanceOf(AiStreamAdmissionError)
+      expect((admissionError as AiStreamAdmissionError).reason).toBe(aiStreamAdmissionReasons.TOPIC_BUSY)
       // No second stream launched; the live stream is untouched.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
     })
@@ -625,6 +630,51 @@ describe('AiStreamManager', () => {
         isTopicDone: true,
         topicAttemptWatermark: newerAttempt
       })
+    })
+
+    it('keeps a live sibling open when another execution terminal persistence fails', async () => {
+      const topicId = 'persistence-failure-topic'
+      const failedModelId = 'provider-a::model-a'
+      const liveModelId = 'provider-b::model-b'
+      const renderer = new FakeListener('wc:persistence-failure')
+      const persistence = new FakeListener('persistence:sqlite:persistence-failure', 'persistence')
+      persistence.onDoneImpl = (result) => {
+        if (result.modelId !== failedModelId) return
+        mgr.broadcastTopicError(topicId, failedModelId, error('write failed'))
+        throw new TerminalPersistenceError('write failed')
+      }
+      const started = mgr.send({
+        topicId,
+        models: [
+          { modelId: failedModelId, request: req(topicId) },
+          { modelId: liveModelId, request: req(topicId) }
+        ],
+        listeners: [renderer, persistence]
+      })
+
+      await mgr.onExecutionDone(topicId, failedModelId)
+
+      expect(renderer.doneResults).toEqual([])
+      expect(renderer.errorResults).toEqual([
+        expect.objectContaining({
+          modelId: failedModelId,
+          attemptId: started.activeExecutions[0].attemptId,
+          isTopicDone: false
+        })
+      ])
+      expect(renderer.errorResults[0]).not.toHaveProperty('topicAttemptWatermark')
+
+      mgr.onChunk(topicId, liveModelId, chunk('still streaming'))
+      expect(renderer.chunks).toEqual([chunk('still streaming')])
+
+      await mgr.onExecutionDone(topicId, liveModelId)
+      expect(renderer.doneResults).toEqual([
+        expect.objectContaining({
+          modelId: liveModelId,
+          isTopicDone: true,
+          topicAttemptWatermark: started.activeExecutions[1].attemptId
+        })
+      ])
     })
 
     it('replaces one terminal execution in place without reordering its live sibling', async () => {

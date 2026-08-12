@@ -41,6 +41,7 @@ vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
   }))
 }))
 
+const { TerminalPersistenceError } = await import('../../../ai/streamManager/listeners/PersistenceListener')
 const { translateService } = await import('../translateService')
 
 const TARGET: TranslateLanguage = {
@@ -198,10 +199,12 @@ describe('translateService.open', () => {
     const persistence = listeners.find((l: { id: string }) => l.id.includes('persistence'))
     const wc = listeners.find((l: { id: string }) => l.id.startsWith('wc:'))
 
-    await persistence.onDone({
-      finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
-      status: 'success'
-    })
+    await expect(
+      persistence.onDone({
+        finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
+        status: 'success'
+      })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
 
     expect(wc.onError).toHaveBeenCalledTimes(1)
     expect(wc.onError).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', isTopicDone: true }))
