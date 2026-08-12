@@ -1038,7 +1038,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({
       type: 'usage',
       invocation: {
-        requestId: pending.requestId,
+        requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
         ...(usage ? { usage } : {}),

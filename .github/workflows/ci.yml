@@ -28,6 +28,7 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
       provider-registry: ${{ steps.filter.outputs.provider-registry }}
       scripts: ${{ steps.filter.outputs.scripts }}
+      packaged-pi: ${{ steps.filter.outputs.packaged-pi }}
       extension-table-plus: ${{ steps.filter.outputs.extension-table-plus }}
       test-infra: ${{ steps.filter.outputs.test-infra }}
     steps:
@@ -65,6 +66,16 @@ jobs:
               - 'packages/provider-registry/**'
             scripts:
               - 'scripts/**'
+            packaged-pi:
+              - 'src/main/ai/runtime/pi/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'electron.vite.config.ts'
+              - 'electron-builder.yml'
+              - 'scripts/before-pack.js'
+              - 'scripts/after-pack.js'
+              - 'scripts/packaged-pi-smoke.mjs'
+              - '.github/workflows/ci.yml'
             extension-table-plus:
               - 'packages/extension-table-plus/**'
             test-infra:
@@ -270,9 +281,49 @@ jobs:
           pnpm rebuild:node
           pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/3
 
+  packaged-pi-smoke:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.packaged-pi == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    env:
+      CI: true
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm dependencies
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Smoke packaged Pi runtime
+        run: pnpm test:package:pi
+
   general-test:
     runs-on: ubuntu-latest
-    needs: [changes, main-test-shard, package-test]
+    needs: [changes, main-test-shard, package-test, packaged-pi-smoke]
     if: >-
       always() &&
       (needs.changes.outputs.main == 'true' ||
@@ -281,6 +332,7 @@ jobs:
       needs.changes.outputs.ui == 'true' ||
       needs.changes.outputs.provider-registry == 'true' ||
       needs.changes.outputs.scripts == 'true' ||
+      needs.changes.outputs.packaged-pi == 'true' ||
       needs.changes.outputs.test-infra == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch')
@@ -289,9 +341,11 @@ jobs:
         env:
           MAIN_RESULT: ${{ needs.main-test-shard.result }}
           PACKAGE_RESULT: ${{ needs.package-test.result }}
+          PACKAGED_PI_RESULT: ${{ needs.packaged-pi-smoke.result }}
         run: |
           test "$MAIN_RESULT" = "success" || test "$MAIN_RESULT" = "skipped"
           test "$PACKAGE_RESULT" = "success" || test "$PACKAGE_RESULT" = "skipped"
+          test "$PACKAGED_PI_RESULT" = "success" || test "$PACKAGED_PI_RESULT" = "skipped"
 
   package-test:
     runs-on: ubuntu-latest

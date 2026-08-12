@@ -545,7 +545,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'sdk-request-1',
+        requestId: 'claude-agent:sdk-request-1',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'current-turn',
         usage: {
@@ -600,7 +600,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'background-request',
+        requestId: 'claude-agent:background-request',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'stateless',
         usage: {
@@ -4396,7 +4396,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'pre-steer-request',
+          requestId: 'claude-agent:pre-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
@@ -4459,7 +4459,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'post-steer-request',
+          requestId: 'claude-agent:post-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 }

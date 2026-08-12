@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
   getApiKeys: vi.fn(),
-  getRotatedApiKey: vi.fn(),
+  resolveApiKey: vi.fn(),
   getByKey: vi.fn(),
   hasToken: vi.fn()
 }))
@@ -12,7 +12,7 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getByProviderId,
     getApiKeys: mocks.getApiKeys,
-    getRotatedApiKey: mocks.getRotatedApiKey
+    resolveApiKey: mocks.resolveApiKey
   }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
@@ -50,7 +50,7 @@ beforeEach(() => {
     endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
   })
   mocks.getByKey.mockResolvedValue({ id: 'p::m', providerId: 'p', name: 'M', capabilities: [] })
-  // getApiKeys / getRotatedApiKey are synchronous on ProviderService.
+  // getApiKeys / resolveApiKey are synchronous on ProviderService.
   mocks.getApiKeys.mockReturnValue([{ id: 'k1', key: 'sk-test', isEnabled: true }])
 })
 
@@ -59,14 +59,14 @@ describe('assertPiProviderUsable', () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
 
     expect(mocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
-    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
   it('rejects providers with no enabled usable key', async () => {
     mocks.getApiKeys.mockReturnValue([{ id: 'k1', key: '   ', isEnabled: true }])
 
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingApiKeyError)
-    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
   it('rejects providers with no pi API mapping', async () => {
@@ -107,16 +107,24 @@ describe('resolvePiProviderInjection', () => {
     expect(injection.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
     expect(injection.providerConfig.api).toBe('openai-responses')
     // The round-robin key rotation is a plain-api-key concern; adapter providers skip it.
-    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
   it('resolves a plain api-key provider through the rotated key', async () => {
-    mocks.getRotatedApiKey.mockReturnValue('sk-rotated')
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'sk-rotated',
+      apiKeySelection: { attribution: 'matched', id: 'k1', masked: 'sk-****' }
+    })
 
     const injection = await resolvePiProviderInjection('p::m')
 
     expect(injection.transportAdapter).toBeUndefined()
     expect(injection.apiKey).toBe('sk-rotated')
-    expect(mocks.getRotatedApiKey).toHaveBeenCalledWith('p')
+    expect(mocks.resolveApiKey).toHaveBeenCalledWith('p')
+    expect(injection.usageCapture.credentialReceipt).toEqual({
+      attribution: 'matched',
+      id: 'k1',
+      masked: 'sk-****'
+    })
   })
 })

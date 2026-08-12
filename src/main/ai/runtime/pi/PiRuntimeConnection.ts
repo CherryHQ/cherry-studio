@@ -5,7 +5,14 @@ import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentSession, AgentSessionEvent, CompactionResult, ContextUsage } from '@earendil-works/pi-coding-agent'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
+import type {
+  AgentSession,
+  AgentSessionEvent,
+  CompactionResult,
+  ContextUsage,
+  ProviderConfig
+} from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { PromptBuilder } from '@main/ai/agents/prompt'
@@ -29,12 +36,19 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
-  AgentRuntimeUserInput
+  AgentRuntimeUserInput,
+  AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
 import { buildMcpToolDefinitions } from './piMcpToolAdapter'
-import { loadPiAi, loadPiAnthropicMessagesApi, loadPiOpenAiResponsesApi, loadPiSdk } from './piSdk'
+import {
+  loadPiAi,
+  loadPiAnthropicMessagesApi,
+  loadPiApiStreamSimple,
+  loadPiOpenAiResponsesApi,
+  loadPiSdk
+} from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 import { AUTONOMY_TOOL_NAMES, buildAutonomyToolDefinitions } from './piToolAdapter'
@@ -43,6 +57,7 @@ import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
+const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
 /** Agent persona assembler, shared across pi connections (mtime-cached reads). */
 const promptBuilder = new PromptBuilder()
 
@@ -52,6 +67,7 @@ interface PendingSteer {
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
+  private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
   private session?: AgentSession
   private unsubscribe?: () => void
@@ -66,6 +82,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
+  private _usageCapture?: AgentSessionUsageCapture
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -74,6 +91,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly pendingSteers: PendingSteer[] = []
 
   readonly events = this.eventQueue
+
+  get usageCapture(): AgentSessionUsageCapture | undefined {
+    return this._usageCapture
+  }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
@@ -98,6 +119,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId
+    this._usageCapture = injection.usageCapture
 
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
@@ -113,11 +135,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // OAuth token + provider headers + payload rewrite per call (the placeholder
     // key is never used for auth). pi's api-family stream functions must be
     // in-hand before the sync `streamSimple` is invoked, so load them here.
-    const providerConfig = injection.transportAdapter
+    const routedProviderConfig = injection.transportAdapter
       ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
       : injection.providerName === 'cherryin' && injection.providerConfig.api === 'anthropic-messages'
         ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
         : injection.providerConfig
+    const providerConfig = withPiInvocationCapture(
+      routedProviderConfig,
+      routedProviderConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api)),
+      (message) => this.recordProviderInvocation(message)
+    )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
     // global auth.json/models.json. The real key is a runtime override; the
@@ -173,7 +200,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         createPiApprovalExtension({
           sessionId: this.input.sessionId,
           workspacePath,
-          emit: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
+          emit: (event) => this.eventQueue.push(event),
+          getInteractionState: () =>
+            application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
           getPermissionMode: () => this.permissionMode,
           isDisabled: (toolName) => this.disabledTools.has(toolName),
           // Scheduled/headless autonomy tools cannot wait for a renderer approval prompt.
@@ -303,21 +332,26 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
-   * Reconcile Pi against the current agent snapshot. Permission and disabled-tool
-   * changes reach the approval extension before the rebuild decision, so a policy
-   * tighten takes effect during a live turn; any spawn-frozen difference is rebuilt
-   * by the host at the next safe boundary.
+   * Reconcile Pi against the current agent snapshot. Disabled tools tighten immediately;
+   * permission-mode changes wait for an idle boundary. Any spawn-frozen difference is
+   * rebuilt by the host at the next safe boundary.
    */
   async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
     const agent = agentService.getAgent(this.input.agentId)
     if (!agent?.model) return 'invalid'
 
     const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
+    // Changing the permission mode can alter admission for the current tool loop, so defer it until
+    // pi is idle. Disabled tools only tighten policy and still apply immediately below.
+    const applicablePermissionMode = this.session?.isStreaming ? this.permissionMode : nextPermissionMode
     const nextDisabledTools = normalizeDisabledTools(agent.disabledTools)
+    const applicableDisabledTools = this.session?.isStreaming
+      ? new Set([...this.disabledTools, ...nextDisabledTools])
+      : nextDisabledTools
     const policyChanged =
-      nextPermissionMode !== this.permissionMode || !setsEqual(nextDisabledTools, this.disabledTools)
-    this.permissionMode = nextPermissionMode
-    this.disabledTools = nextDisabledTools
+      applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
+    this.permissionMode = applicablePermissionMode
+    this.disabledTools = applicableDisabledTools
 
     if (buildPiConnectionSignature(agent, input.modelId) !== this.connectionSignature) return 'rebuild'
     return policyChanged ? 'patched' : 'current'
@@ -411,9 +445,43 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
+  private recordProviderInvocation(message: AssistantMessage): void {
+    if (this._usageCapture?.owner !== 'agent-sdk') return
+    if (message.stopReason === 'error' || message.stopReason === 'aborted') return
+
+    const providerRequestId = message.responseId?.trim() || `${message.timestamp}:${message.model}`
+    const requestId = `pi-agent:${this.input.sessionId}:${providerRequestId}`
+    if (this.committedInvocationIds.has(requestId)) return
+    this.committedInvocationIds.add(requestId)
+
+    const noCacheTokens = finiteTokenCount(message.usage.input)
+    const cacheReadTokens = finiteTokenCount(message.usage.cacheRead)
+    const cacheWriteTokens = finiteTokenCount(message.usage.cacheWrite)
+    const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+    const outputTokens = finiteTokenCount(message.usage.output)
+    this.eventQueue.push({
+      type: 'usage',
+      invocation: {
+        requestId,
+        model: message.responseModel?.trim() || message.model || this.modelId,
+        messageAssociation: 'current-turn',
+        usage: {
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          ...(message.usage.reasoning !== undefined
+            ? { reasoningTokens: finiteTokenCount(message.usage.reasoning) }
+            : {}),
+          noCacheTokens,
+          cacheReadTokens,
+          cacheWriteTokens
+        }
+      }
+    })
+  }
+
   private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
-    // Retry pending — a later compaction_end settles it (mirrors the agent_end willRetry hold).
-    if (event.willRetry) return
     if (event.errorMessage || event.aborted) {
       // A failed manual /compact is a host turn: settle it with EXACTLY ONE terminal error (never
       // turn-complete, which would report the failure as a junk empty-assistant success and feed the
@@ -428,6 +496,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
       return
     }
+    // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.
+    // pi emits this successful compaction_end only once before retrying the model.
     this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
     this.maybeCompleteManualCompactTurn()
   }
@@ -568,15 +638,31 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
   }
 }
 
+function withPiInvocationCapture(
+  config: ProviderConfig,
+  streamSimple: NonNullable<ProviderConfig['streamSimple']>,
+  onComplete: (message: AssistantMessage) => void
+): ProviderConfig {
+  return {
+    ...config,
+    streamSimple: (model, context, options) => {
+      const stream = streamSimple(model, context, options)
+      void stream.result().then(onComplete)
+      return stream
+    }
+  }
+}
+
+function finiteTokenCount(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
 /**
- * pi's built-in tool names are lowercase (`bash`/`read`/`edit`/`write`/…), but Cherry's
- * tool vocabulary is Claude-capitalized (`Bash`/`Read`/…) and the agent editor writes those
- * ids verbatim into `disabledTools`. The live approval gate (`has`) and the `excludeTools`
- * bake-out both match pi's lowercase names, so case-fold here or a disabled tool silently
- * runs at main-process privilege (a fail-open on a hard-block control).
+ * Alias only known pi built-ins from legacy Claude casing (`Bash` → `bash`). Custom and MCP ids are
+ * runtime-native and case-sensitive, so preserve them exactly or their hard block silently misses.
  */
 function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {
-  return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
+  return new Set((disabledTools ?? []).map((tool) => PI_BUILTIN_TOOL_ALIASES.get(tool.toLowerCase()) ?? tool))
 }
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {

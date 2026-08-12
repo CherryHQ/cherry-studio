@@ -10,8 +10,8 @@
  *   1. disabledTools  → block (all modes)
  *   2. global-install → block bash that installs into shared/global locations (all modes)
  *   3. rtk rewrite    → mutate `event.input.command` in place (bash only)
- *   4. approval       → per permission mode: auto-allow, or register + emit a
- *      `tool-approval-request` chunk, await the renderer decision, then
+ *   4. approval       → per permission mode: auto-allow, fail closed without a
+ *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
  *
  * The gate keys off pi's lowercase built-in tool names; it never assumes Claude
@@ -20,19 +20,19 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
+import { lstat, realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { rtkRewrite } from '@main/utils/rtk'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
+import type { AgentRuntimeEvent } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
@@ -54,8 +54,10 @@ export interface PiApprovalContext {
   /** Session workspace root — the auto-approve fast-path only skips approval when a tool's resolved
    *  `path` stays inside this directory; anything outside falls through to a normal approval prompt. */
   workspacePath: string
-  /** Push a chunk into the connection's event stream (bound to the AsyncEventQueue). */
-  emit: (chunk: CherryUIMessageChunk) => void
+  /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
+  emit: (event: AgentRuntimeEvent) => void
+  /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
+  getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Live permission mode; read at fire-time so a mid-session `applyPolicyUpdate` takes effect. */
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
@@ -105,9 +107,18 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
       if (ctx.autoApprovedTools.has(toolName)) return
       const mode = ctx.getPermissionMode() ?? 'default'
-      if (!requiresApproval(mode, toolName, input, ctx.workspacePath)) return
+      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath))) return
+
+      const interactionState = ctx.getInteractionState()
+      if (interactionState.userResponse === 'unavailable') {
+        return {
+          block: true,
+          reason: 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+        }
+      }
 
       const approvalId = randomUUID()
+      const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
       const decision = await new Promise<DispatchDecision>((resolve) => {
         const pending = toolApprovalRegistry.register({
           approvalId,
@@ -115,6 +126,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
           toolCallId,
           toolName,
           originalInput: { ...input },
+          presentation,
           signal: extCtx.signal,
           resolve
         })
@@ -122,13 +134,17 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         // synchronous resolve (e.g. the turn was aborted as the tool fired) already
         // settled the promise, and emitting would leave an unanswerable card.
         if (!pending) return
-        const request: LanguageModelV3ToolApprovalRequest = {
+        ctx.emit({
           type: 'tool-approval-request',
-          approvalId,
-          toolCallId,
-          providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
-        }
-        ctx.emit(request)
+          request: {
+            approvalId,
+            toolCallId,
+            toolName,
+            input: { ...input },
+            presentation,
+            providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
+          }
+        })
       })
 
       if (!decision.approved) {
@@ -141,18 +157,20 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
 }
 
 /** Whether a tool must surface an approval request under the given mode. */
-function requiresApproval(
+async function requiresApproval(
   mode: AgentPermissionMode,
   toolName: string,
   input: Record<string, unknown>,
   workspacePath: string
-): boolean {
+): Promise<boolean> {
   if (mode === 'bypassPermissions') return false
   // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
   // inside the workspace; an out-of-workspace read/write falls through to a normal prompt so a
   // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
-  if (READ_ONLY_TOOLS.has(toolName)) return !isToolPathInsideWorkspace(input, workspacePath)
-  if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) return !isToolPathInsideWorkspace(input, workspacePath)
+  if (READ_ONLY_TOOLS.has(toolName)) return !(await isToolPathInsideWorkspace(input, workspacePath, false))
+  if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) {
+    return !(await isToolPathInsideWorkspace(input, workspacePath, true))
+  }
   // `default` (and the unsupported-for-pi `plan`) gate everything else.
   return true
 }
@@ -163,20 +181,72 @@ function requiresApproval(
  * missing/empty `path` defaults to the workspace root, `~`/`~/…` expand to the home dir, a leading
  * `@` is stripped, absolute paths pass through, and everything else joins onto the workspace. Any
  * ambiguity (non-string path, `file://` URL, resolution failure) is treated as OUTSIDE so approval
- * is required. All six auto-eligible tools (read/grep/find/ls/edit/write) take a `path` arg.
+ * is required. Existing targets and the workspace are canonicalized before comparison so a symlink
+ * cannot make an outside target look lexically inside. For a new edit/write target, the nearest
+ * existing parent is canonicalized and the missing suffix is appended for classification.
  */
-function isToolPathInsideWorkspace(input: Record<string, unknown>, workspacePath: string): boolean {
+async function isToolPathInsideWorkspace(
+  input: Record<string, unknown>,
+  workspacePath: string,
+  allowMissingTarget: boolean
+): Promise<boolean> {
   const raw = input.path
   // grep/find/ls default a missing/empty path to "." → the workspace root, which is inside.
-  if (raw === undefined || raw === null || raw === '') return true
-  if (typeof raw !== 'string') return false
+  if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
-  const resolved = resolveToolPath(raw, workspacePath)
+  const resolved = resolveToolPath(raw || '.', workspacePath)
   if (resolved === undefined) return false
 
-  // Same relative-path containment idiom pi uses in `getCwdRelativePath`.
-  const rel = path.relative(workspacePath, resolved)
+  const [canonicalWorkspace, canonicalTarget] = await Promise.all([
+    canonicalizeExistingPath(workspacePath),
+    canonicalizeToolTarget(resolved, allowMissingTarget)
+  ])
+  if (!canonicalWorkspace || !canonicalTarget) return false
+
+  const rel = path.relative(canonicalWorkspace, canonicalTarget)
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
+}
+
+async function canonicalizeExistingPath(target: string): Promise<string | undefined> {
+  try {
+    return await realpath(target)
+  } catch {
+    return undefined
+  }
+}
+
+async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
+  try {
+    return await realpath(target)
+  } catch (error) {
+    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
+    try {
+      await lstat(target)
+      return undefined
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    }
+  }
+
+  let parent = path.dirname(target)
+  while (true) {
+    try {
+      const canonicalParent = await realpath(parent)
+      return path.resolve(canonicalParent, path.relative(parent, target))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      try {
+        await lstat(parent)
+        return undefined
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      }
+      const next = path.dirname(parent)
+      if (next === parent) return undefined
+      parent = next
+    }
+  }
 }
 
 /** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined

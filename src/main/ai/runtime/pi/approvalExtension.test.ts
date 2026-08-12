@@ -1,5 +1,9 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
@@ -13,13 +17,29 @@ const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegis
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
 
-const WORKSPACE = '/work/space'
+let testRoot: string
+let workspace: string
+let outside: string
+
+beforeAll(() => {
+  testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
+  workspace = join(testRoot, 'workspace')
+  outside = join(testRoot, 'outside')
+  mkdirSync(workspace)
+  mkdirSync(outside)
+  writeFileSync(join(workspace, 'inside.txt'), 'inside')
+  writeFileSync(join(outside, 'secret.txt'), 'outside')
+  symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
+})
+
+afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 
 /** Build the gate, capturing its `tool_call` handler + emitted chunks. */
 function buildGate(
   overrides: Partial<{
     workspacePath: string
     getPermissionMode: () => AgentPermissionMode | undefined
+    getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
   }> = {}
@@ -28,9 +48,10 @@ function buildGate(
   let handler!: Handler
   const factory = createPiApprovalExtension({
     sessionId: 's1',
-    workspacePath: WORKSPACE,
-    emit: (chunk) => emitted.push(chunk),
+    workspacePath: workspace,
+    emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
+    getInteractionState: () => ({ userResponse: 'stream' }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     ...overrides
@@ -50,7 +71,7 @@ const toolEvent = (toolName: string, input: Record<string, unknown>) => ({
   toolCallId: `tc-${toolName}`,
   input
 })
-const flush = () => new Promise((r) => setTimeout(r, 0))
+const flush = () => vi.waitFor(() => expect(toolApprovalRegistry.size()).toBeGreaterThan(0))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -61,7 +82,7 @@ beforeEach(() => {
 describe('createPiApprovalExtension — policy + approval gate', () => {
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
-    await expect(handler(toolEvent('read', { path: 'x' }), extCtx)).resolves.toBeUndefined()
+    await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
   })
 
@@ -72,10 +93,17 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     expect(emitted).toHaveLength(1)
     expect(emitted[0].type).toBe('tool-approval-request')
-    expect(emitted[0].toolCallId).toBe('tc-bash')
-    expect(emitted[0].providerMetadata.cherry.transport).toBe('pi-agent')
+    expect(emitted[0].request).toMatchObject({
+      toolCallId: 'tc-bash',
+      toolName: 'bash',
+      input: { command: 'ls' },
+      presentation: 'stream'
+    })
+    expect(emitted[0].request.providerMetadata.cherry.transport).toBe('pi-agent')
 
-    expect(toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: true })).toMatchObject({ sessionId: 's1' })
+    expect(toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })).toMatchObject({
+      sessionId: 's1'
+    })
     await expect(pending).resolves.toBeUndefined()
   })
 
@@ -83,7 +111,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
-    toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: false, reason: 'not allowed' })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, reason: 'not allowed' })
     await expect(pending).resolves.toEqual({ block: true, reason: 'not allowed' })
   })
 
@@ -92,7 +120,10 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const event = toolEvent('bash', { command: 'ls' })
     const pending = handler(event, extCtx)
     await flush()
-    toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: true, updatedInput: { command: 'ls -a' } })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, {
+      approved: true,
+      updatedInput: { command: 'ls -a' }
+    })
     await pending
     expect(event.input).toEqual({ command: 'ls -a' })
   })
@@ -101,6 +132,30 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
     await expect(handler(toolEvent('bash', { command: 'rm -rf x' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
+  })
+
+  it('fails closed immediately when an approval-required tool has no responder', async () => {
+    const { handler, emitted } = buildGate({
+      getInteractionState: () => ({ userResponse: 'unavailable' })
+    })
+
+    await expect(handler(toolEvent('bash', { command: 'ls' }), extCtx)).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('unattended')
+    })
+    expect(emitted).toHaveLength(0)
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('marks an out-of-stream approval for message presentation', async () => {
+    const { handler, emitted } = buildGate({ getInteractionState: () => ({ userResponse: 'message' }) })
+    const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
+    await flush()
+
+    expect(emitted[0].request.presentation).toBe('message')
+    expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.presentation).toBe('message')
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await pending
   })
 
   it('acceptEdits auto-allows write but still gates bash', async () => {
@@ -139,7 +194,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const pending = handler(event, extCtx)
     await flush()
     expect(event.input.command).toBe('rtk-rewritten')
-    toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: true })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
     await pending
     expect(event.input.command).toBe('rtk-rewritten')
   })
@@ -217,7 +272,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   describe('workspace path scoping for the auto-approve fast-path', () => {
     it('still auto-allows a read with a relative in-workspace path', async () => {
       const { handler, emitted } = buildGate()
-      await expect(handler(toolEvent('read', { path: 'src/index.ts' }), extCtx)).resolves.toBeUndefined()
+      await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
       expect(emitted).toHaveLength(0)
     })
 
@@ -231,7 +286,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     it('requires approval for a read whose absolute path is outside the workspace', async () => {
       const { handler, emitted } = buildGate()
-      void handler(toolEvent('read', { path: '/etc/passwd' }), extCtx)
+      void handler(toolEvent('read', { path: join(outside, 'secret.txt') }), extCtx)
       await flush()
       expect(emitted).toHaveLength(1)
       expect(emitted[0].type).toBe('tool-approval-request')
@@ -247,7 +302,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     it('requires approval for a read that traverses out of the workspace', async () => {
       const { handler, emitted } = buildGate()
-      void handler(toolEvent('read', { path: '../../etc/passwd' }), extCtx)
+      void handler(toolEvent('read', { path: '../outside/secret.txt' }), extCtx)
       await flush()
       expect(emitted).toHaveLength(1)
       expect(emitted[0].type).toBe('tool-approval-request')
@@ -255,7 +310,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     it('acceptEdits gates an edit whose absolute path is outside the workspace', async () => {
       const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
-      void handler(toolEvent('edit', { path: '/Users/v/.zshrc', edits: [] }), extCtx)
+      void handler(toolEvent('edit', { path: join(outside, 'new.txt'), edits: [] }), extCtx)
       await flush()
       expect(emitted).toHaveLength(1)
       expect(emitted[0].type).toBe('tool-approval-request')
@@ -265,6 +320,22 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
       await expect(handler(toolEvent('write', { path: 'out.txt', content: 'x' }), extCtx)).resolves.toBeUndefined()
       expect(emitted).toHaveLength(0)
+    })
+
+    it('requires approval for a read that escapes through an in-workspace symlink', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('read', { path: 'escape/secret.txt' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('acceptEdits requires approval for a new write target below an escaping symlink', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
+      void handler(toolEvent('write', { path: 'escape/new.txt', content: 'x' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
     })
   })
 })

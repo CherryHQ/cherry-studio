@@ -62,6 +62,7 @@
     "test:pkg:ui": "vitest run --project ui",
     "test:shared": "vitest run --project shared",
     "test:provider-registry": "vitest run --project provider-registry",
+    "test:package:pi": "node scripts/packaged-pi-smoke.mjs",
     "test:update": "pnpm test:renderer --update",
     "test:coverage": "vitest run --coverage --silent",
     "test:ui": "vitest --ui",

@@ -1682,13 +1682,13 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
 
-    const normalizedModel = normalizeClaudeModelAlias(invocation.model)
+    const normalizedModel = normalizeAgentSdkModelAlias(invocation.model)
     const frozenModel = capture.frozenModels.find((candidate) =>
-      candidate.aliases.some((alias) => normalizeClaudeModelAlias(alias) === normalizedModel)
+      candidate.aliases.some((alias) => normalizeAgentSdkModelAlias(alias) === normalizedModel)
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
     aiUsageRecordService.recordInvocation({
-      requestId: `claude-agent:${invocation.requestId}`,
+      requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
         providerId: capture.providerId,
         providerName: capture.providerName,
@@ -3056,7 +3056,7 @@ function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined
   }
 }
 
-function normalizeClaudeModelAlias(value: string): string {
+function normalizeAgentSdkModelAlias(value: string): string {
   return value.trim().replace(/\[1m\]$/, '')
 }
 

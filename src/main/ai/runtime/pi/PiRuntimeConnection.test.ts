@@ -26,7 +26,11 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   resolveInjection: vi.fn(),
   getPath: vi.fn(),
+  getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
+  loadPiApiStreamSimple: vi.fn(),
+  providerStreamSimple: vi.fn(),
+  providerResult: undefined as unknown,
   readdirSync: vi.fn(),
   // autonomy collaborators
   listChannels: vi.fn(),
@@ -66,7 +70,13 @@ vi.mock('node:fs', async (importOriginal) => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
-vi.mock('@application', () => ({ application: { getPath: mocks.getPath } }))
+vi.mock('@application', () => ({
+  application: {
+    getPath: mocks.getPath,
+    get: (name: string) =>
+      name === 'AgentSessionRuntimeService' ? { getInteractionState: mocks.getInteractionState } : {}
+  }
+}))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: { listChannels: mocks.listChannels } }))
@@ -90,7 +100,10 @@ vi.mock('./piToolAdapter', () => ({
 // only how its output is merged into customTools and how the approval gate treats those names.
 vi.mock('./piMcpToolAdapter', () => ({ buildMcpToolDefinitions: mocks.buildMcpToolDefinitions }))
 vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
-vi.mock('./piSdk', () => ({ loadPiSdk: mocks.loadPiSdk }))
+vi.mock('./piSdk', () => ({
+  loadPiSdk: mocks.loadPiSdk,
+  loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
+}))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
@@ -159,6 +172,17 @@ function userInput(text: string, systemReminder = false): AgentRuntimeUserInput 
   }
 }
 
+function approvalGateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
+  const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+  let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
+  factories[1]({
+    on: (evt: string, candidate: unknown) => {
+      if (evt === 'tool_call') handler = candidate as typeof handler
+    }
+  })
+  return handler
+}
+
 async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): Promise<AgentRuntimeEvent[]> {
   const out: AgentRuntimeEvent[] = []
   const iter = events[Symbol.asyncIterator]()
@@ -200,6 +224,7 @@ beforeEach(() => {
     workspace: { path: WORKSPACE, type: 'system' }
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
+  mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   mocks.listChannels.mockReturnValue([])
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
   mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
@@ -216,10 +241,28 @@ beforeEach(() => {
     providerName: 'p',
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
     apiKey: 'real-key',
-    modelId: 'm'
+    modelId: 'm',
+    usageCapture: {
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'unknown' },
+      providerId: 'p',
+      providerName: 'P',
+      source: null,
+      frozenModels: [{ modelId: 'p::m', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }]
+    }
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
   mocks.loadPiSdk.mockResolvedValue(fakePi)
+  mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
+  mocks.providerResult = {
+    role: 'assistant',
+    responseId: 'default-response',
+    model: 'm',
+    stopReason: 'stop',
+    timestamp: 1,
+    usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 }
+  }
+  mocks.providerStreamSimple.mockImplementation(() => ({ result: () => Promise.resolve(mocks.providerResult) }))
   mocks.reload.mockResolvedValue(undefined)
   mocks.sessionCreate.mockReturnValue({})
   mocks.sessionOpen.mockReturnValue({})
@@ -334,6 +377,63 @@ describe('PiRuntimeConnection', () => {
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_ID)).toBe(true)
+  })
+
+  it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    expect(conn.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId: 'p' })
+
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-1',
+      model: 'm',
+      stopReason: 'stop',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 3, cacheWrite: 2, reasoning: 1, totalTokens: 19 }
+    }
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    providerConfig.streamSimple({}, {})
+    await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledTimes(2))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.filter((event) => event.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'pi-agent:sess-1:response-1',
+          model: 'm',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 15,
+            outputTokens: 4,
+            totalTokens: 19,
+            reasoningTokens: 1,
+            noCacheTokens: 10,
+            cacheReadTokens: 3,
+            cacheWriteTokens: 2
+          }
+        }
+      }
+    ])
+  })
+
+  it('does not emit invocation usage for failed assistant responses', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'failed-response',
+      model: 'm',
+      stopReason: 'error',
+      timestamp: 1,
+      usage: { input: 10, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 10 }
+    }
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {})
+    await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledOnce())
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
   })
 
   it('send routes normal messages to prompt', async () => {
@@ -621,6 +721,28 @@ describe('PiRuntimeConnection', () => {
     expect(complete).toMatchObject({ anchor: { trigger: 'auto', preTokens: 900, postTokens: 300 } })
   })
 
+  it('emits compaction-complete before retrying the surrounding turn', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    const iter = conn.events[Symbol.asyncIterator]()
+    cb({ type: 'compaction_start', reason: 'overflow' } as unknown as AgentSessionEvent)
+    cb({
+      type: 'compaction_end',
+      reason: 'overflow',
+      result: { summary: 's', firstKeptEntryId: 'e', tokensBefore: 900, estimatedTokensAfter: 300 },
+      aborted: false,
+      willRetry: true
+    } as unknown as AgentSessionEvent)
+
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'compaction-start' } })
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'compaction-complete' } })
+
+    // The retry continues the same host turn; only the eventual agent terminal closes it.
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    await expect(iter.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+  })
+
   it('surfaces a failed compaction as a compaction-error event', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const cb = mocks.subscribeCb!
@@ -797,8 +919,9 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
-  it('reconciles a live permission update before requesting rebuild for baked tool changes', async () => {
+  it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    mocks.isStreaming = true
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -806,16 +929,41 @@ describe('PiRuntimeConnection', () => {
       configuration: { permission_mode: 'bypassPermissions' }
     })
 
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('current')
+
+    const handler = approvalGateHandler()
+    void handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-active', input: { command: 'ls' } }, {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(toolApprovalRegistry.size()).toBe(1)
+    toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+
+    mocks.isStreaming = false
     await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+    await expect(
+      handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-idle', input: { command: 'ls' } }, {})
+    ).resolves.toBeUndefined()
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('applies an exact camelCase MCP disable immediately during reconcile', async () => {
+    const toolName = 'mcp__githubServer__searchIssues'
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
+    mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: toolName }])
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.isStreaming = true
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
       instructions: 'Be helpful.',
-      configuration: { permission_mode: 'bypassPermissions' },
-      disabledTools: ['edit']
+      mcps: ['srv-1'],
+      disabledTools: [toolName]
     })
     await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('rebuild')
+
+    await expect(
+      approvalGateHandler()({ type: 'tool_call', toolName, toolCallId: 'tc-mcp-live', input: {} }, {})
+    ).resolves.toMatchObject({ block: true })
   })
 
   describe('MCP bridging', () => {
@@ -844,6 +992,23 @@ describe('PiRuntimeConnection', () => {
         { name: 'mcp__srv__do', label: 'do' }
       ])
       expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, 'mcp__srv__do'])
+    })
+
+    it('preserves an exact camelCase MCP disabled id in startup excludeTools and the live gate', async () => {
+      const toolName = 'mcp__githubServer__searchIssues'
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: ['srv-1'],
+        disabledTools: [toolName]
+      })
+      mocks.buildMcpToolDefinitions.mockResolvedValue([{ name: toolName }])
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.createOpts?.excludeTools).toEqual([toolName])
+      await expect(
+        gateHandler()({ type: 'tool_call', toolName, toolCallId: 'tc-mcp-disabled', input: {} }, {})
+      ).resolves.toMatchObject({ block: true })
     })
 
     it('never auto-approves bridged MCP tool names', async () => {

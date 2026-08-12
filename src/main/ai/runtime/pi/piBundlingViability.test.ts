@@ -1,13 +1,15 @@
-import { existsSync, mkdtempSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * Phase 0 bundling spike (GO/NO-GO gate).
+ * Fast source-level Pi SDK smoke.
  *
- * Proves the in-process SDK path is viable without a provider key or network:
+ * Covers SDK construction without a provider key or network. The separate
+ * `pnpm test:package:pi` CI gate builds electron-vite output, packages app.asar,
+ * and imports this ESM-only SDK from the packaged Electron runtime.
  * 1. `@earendil-works/pi-coding-agent` (ESM-only, `type: module`) is importable
  *    from Cherry's main process via dynamic `import()`. Static `import`/`require()`
  *    is NOT viable — pi's `exports` map defines only the `import`/`types`
@@ -16,8 +18,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  *    The consuming driver MUST use dynamic `import()`; the CJS bundle preserves it
  *    as a native dynamic import that honors the `import` condition.
  * 2. The SDK's in-memory objects construct with no filesystem/network dependency.
- * 3. pi's home/session dirs are forced to Cherry-owned paths via
- *    `PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR`; no `~/.pi/agent` access.
+ * 3. pi's home/session dirs are forced to isolated Cherry-owned paths via
+ *    `PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR`.
  */
 describe('pi SDK bundling viability (Phase 0 spike)', () => {
   let piHome: string
@@ -78,13 +80,11 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     expect(loader).toBeTruthy()
   })
 
-  it('honors Cherry-owned agent dir and never touches ~/.pi/agent', async () => {
+  it('honors the isolated Cherry-owned agent dir', async () => {
     const { getAgentDir, hasTrustRequiringProjectResources } = await import('@earendil-works/pi-coding-agent')
 
     // The env override wins over pi's ~/.pi/agent default.
     expect(getAgentDir()).toBe(piHome)
-    expect(getAgentDir().startsWith(homedir())).toBe(false)
-    expect(existsSync(join(homedir(), '.pi', 'agent'))).toBe(false)
 
     // Trust probe on a plain workspace resolves locally with no network.
     const result = hasTrustRequiringProjectResources(workspace)

@@ -234,17 +234,15 @@ interface PiUsageLike {
 function extractAssistantUsage(message: unknown): PiUsageLike | undefined {
   if (typeof message !== 'object' || message === null) return undefined
   const record = message as { role?: unknown; usage?: unknown }
-  if (record.role !== 'assistant') return undefined
-  const usage = record.usage
-  if (typeof usage !== 'object' || usage === null) return undefined
-  const u = usage as Record<string, unknown>
+  if (record.role !== 'assistant' || typeof record.usage !== 'object' || record.usage === null) return undefined
+  const usage = record.usage as Record<string, unknown>
   return {
-    input: numeric(u.input),
-    output: numeric(u.output),
-    cacheRead: numeric(u.cacheRead),
-    cacheWrite: numeric(u.cacheWrite),
-    reasoning: typeof u.reasoning === 'number' ? u.reasoning : undefined,
-    totalTokens: typeof u.totalTokens === 'number' ? u.totalTokens : undefined
+    input: numeric(usage.input),
+    output: numeric(usage.output),
+    cacheRead: numeric(usage.cacheRead),
+    cacheWrite: numeric(usage.cacheWrite),
+    reasoning: typeof usage.reasoning === 'number' ? usage.reasoning : undefined,
+    totalTokens: typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined
   }
 }
 

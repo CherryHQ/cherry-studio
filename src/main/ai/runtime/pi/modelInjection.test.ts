@@ -151,6 +151,45 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
     expect(injection.providerConfig.apiKey).not.toBe(REAL_KEY)
     expect(injection.providerConfig.authHeader).toBeUndefined()
+    expect(injection.usageCapture).toMatchObject({
+      owner: 'agent-sdk',
+      providerId: 'anthropic',
+      credentialReceipt: { attribution: 'unknown' }
+    })
+  })
+
+  it('freezes the selected key receipt and model aliases for invocation accounting', () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      name: 'Anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    const model = makeModel({ id: 'anthropic::claude', apiModelId: 'claude-sonnet-4', name: 'Sonnet' })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY, {
+      attribution: 'matched',
+      id: 'key-1',
+      label: 'Primary',
+      masked: 'sk-****'
+    })
+
+    expect(injection.usageCapture).toEqual({
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'matched', id: 'key-1', label: 'Primary', masked: 'sk-****' },
+      providerId: 'anthropic',
+      providerName: 'Anthropic',
+      source: null,
+      frozenModels: [
+        {
+          modelId: 'anthropic::claude',
+          modelName: 'Sonnet',
+          aliases: ['anthropic::claude', 'claude-sonnet-4'],
+          pricingSnapshot: null
+        }
+      ]
+    })
+    expect(JSON.stringify(injection.usageCapture)).not.toContain(REAL_KEY)
   })
 
   it('derives image input support from capabilities', () => {
@@ -205,6 +244,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-responses')
     expect(injection.providerConfig.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
     expect(injection.modelId).toBe('grok-build')
+    expect(injection.usageCapture.credentialReceipt).toEqual({ attribution: 'auth', method: 'oauth' })
   })
 
   it('throws PiUnsupportedProviderError for a login-based external-CLI provider even with no key', () => {

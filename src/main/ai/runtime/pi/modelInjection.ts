@@ -11,9 +11,11 @@
  */
 
 import { application } from '@application'
+import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type PiApi, resolvePiApi } from '@shared/ai/piModelCompatibility'
 import {
   MODALITY,
@@ -26,6 +28,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
+import type { AgentSessionUsageCapture } from '../types'
 
 /**
  * Non-secret placeholder written into the `registerProvider` config. pi
@@ -65,6 +68,8 @@ export class PiMissingApiKeyError extends Error {
 export interface PiProviderInjection {
   /** pi provider name to register + target with `setRuntimeApiKey`. Cherry's provider id. */
   providerName: string
+  /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
+  api: PiApi
   /** Config for `pi.registerProvider(providerName, config)`. `apiKey` is the placeholder. */
   providerConfig: ProviderConfig
   /** The real Cherry API key — inject via `AuthStorage.setRuntimeApiKey`, never into the config. */
@@ -77,6 +82,8 @@ export interface PiProviderInjection {
    * from this adapter; `apiKey` is then only the placeholder (no real app-side key).
    */
   transportAdapter?: ProviderTransportAdapter
+  /** Frozen attribution selected together with the credential used by this connection. */
+  usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
 
 /**
@@ -86,7 +93,12 @@ export interface PiProviderInjection {
  *
  * @throws PiUnsupportedProviderError when the provider's endpoint has no pi mapping.
  */
-export function buildPiProviderInjection(provider: Provider, model: Model, apiKey: string): PiProviderInjection {
+export function buildPiProviderInjection(
+  provider: Provider,
+  model: Model,
+  apiKey: string,
+  credentialReceipt?: AiUsageCredentialReceipt
+): PiProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
   const api = resolvePiApi(provider, model)
@@ -113,9 +125,26 @@ export function buildPiProviderInjection(provider: Provider, model: Model, apiKe
 
   return {
     providerName: provider.id,
+    api,
     providerConfig,
     apiKey,
     modelId,
+    usageCapture: {
+      owner: 'agent-sdk',
+      credentialReceipt:
+        credentialReceipt ?? (transportAdapter ? { attribution: 'auth', method: 'oauth' } : { attribution: 'unknown' }),
+      providerId: provider.id,
+      providerName: provider.name ?? null,
+      source: null,
+      frozenModels: [
+        {
+          modelId: model.id,
+          modelName: model.name ?? model.id,
+          aliases: [...new Set([model.id, modelId])],
+          pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
+        }
+      ]
+    },
     ...(transportAdapter ? { transportAdapter } : {})
   }
 }
@@ -140,9 +169,9 @@ export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): 
     return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
   }
 
-  const apiKey = providerService.getRotatedApiKey(providerId)
-  if (!apiKey.trim()) throw new PiMissingApiKeyError(providerId)
-  return buildPiProviderInjection(provider, model, apiKey)
+  const resolvedApiKey = providerService.resolveApiKey(providerId)
+  if (!resolvedApiKey.value.trim()) throw new PiMissingApiKeyError(providerId)
+  return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection)
 }
 
 /**
