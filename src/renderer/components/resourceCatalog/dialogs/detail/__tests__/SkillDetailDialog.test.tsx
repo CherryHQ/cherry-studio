@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 
-const { listFilesMock, readSkillFileMock } = vi.hoisted(() => ({
+const { listFilesMock, readSkillFileMock, uiLanguage } = vi.hoisted(() => ({
   listFilesMock: vi.fn(),
-  readSkillFileMock: vi.fn()
+  readSkillFileMock: vi.fn(),
+  uiLanguage: { current: 'en-US' }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -17,7 +18,8 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) => key,
+    i18n: { language: uiLanguage.current }
   })
 }))
 
@@ -85,6 +87,7 @@ describe('SkillDetailDialog', () => {
   beforeEach(() => {
     listFilesMock.mockReset()
     readSkillFileMock.mockReset()
+    uiLanguage.current = 'en-US'
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -99,6 +102,18 @@ describe('SkillDetailDialog', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  // The system locale and the app language differ often enough that one machine's default hides the
+  // bug; asserting both orders means whichever locale the runner has, one case still catches it.
+  it.each([
+    ['zh-CN', /^2026\/\d{2}\/\d{2}$/],
+    ['en-US', /^\d{2}\/\d{2}\/2026$/]
+  ])('formats dates for the selected app language (%s), not the system locale', (language, expected) => {
+    uiLanguage.current = language
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText(expected)).toBeInTheDocument()
   })
 
   it('shows skill metadata in a dialog without file preview or delete entry points', () => {

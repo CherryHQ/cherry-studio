@@ -1,6 +1,8 @@
 const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
+const MONTH_MS = 30 * DAY_MS
+const YEAR_MS = 365 * DAY_MS
 
 export function createDurationFormatter(language?: string): (durationMs: number) => string {
   const millisecondFormatter = new Intl.NumberFormat(language, {
@@ -60,5 +62,17 @@ export const formatRelativeTime = (value: string, language: string, now = Date.n
     return formatter.format(hours, 'hour')
   }
 
-  return formatter.format(Math.round(diffMs / DAY_MS), 'day')
+  const days = Math.round(diffMs / DAY_MS)
+  if (Math.abs(days) < 30) {
+    return formatter.format(days, 'day')
+  }
+
+  // Months and years use fixed averages because Intl has no calendar-aware relative unit. At this
+  // distance the exact boundary matters far less than not rendering "412 days ago".
+  const months = Math.round(diffMs / MONTH_MS)
+  if (Math.abs(months) < 12) {
+    return formatter.format(months, 'month')
+  }
+
+  return formatter.format(Math.round(diffMs / YEAR_MS), 'year')
 }

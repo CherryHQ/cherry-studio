@@ -3882,13 +3882,6 @@
       "placeholder": "New tag name..."
     },
     "tag_sync_failed": "Failed to sync tags",
-    "time_ago": {
-      "days": "{{count}} day(s) ago",
-      "hours": "{{count}} hour(s) ago",
-      "just_now": "Just now",
-      "minutes": "{{count}} minute(s) ago",
-      "months": "{{count}} month(s) ago"
-    },
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",

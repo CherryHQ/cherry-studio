@@ -3882,13 +3882,6 @@
       "placeholder": "新标签名..."
     },
     "tag_sync_failed": "标签同步失败",
-    "time_ago": {
-      "days": "{{count}} 天前",
-      "hours": "{{count}} 小时前",
-      "just_now": "刚刚",
-      "minutes": "{{count}} 分钟前",
-      "months": "{{count}} 个月前"
-    },
     "title": "资源库",
     "toolbar": {
       "add_group_placeholder": "分组名...",
