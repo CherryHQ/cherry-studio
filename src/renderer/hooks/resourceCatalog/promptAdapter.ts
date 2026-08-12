@@ -1,4 +1,5 @@
-import { resolveTemplate, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'

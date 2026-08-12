@@ -51,6 +51,7 @@ function createMockContext(
   )
 
   const db = {
+    all: vi.fn().mockReturnValue([]),
     transaction: vi.fn().mockImplementation((fn: (tx: unknown) => void) => {
       fn(txProxy)
     }),

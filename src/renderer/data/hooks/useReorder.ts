@@ -19,15 +19,9 @@
  * See `docs/references/data/data-ordering-guide.md` for the end-to-end flow.
  */
 
-import {
-  type ParamsOption,
-  resolveTemplate,
-  useInvalidateCache,
-  useMutation,
-  useReadCache,
-  useWriteCache
-} from '@data/hooks/useDataApi'
+import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
 import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'

@@ -36,6 +36,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { isDev } from '@renderer/utils/platform'
 import type {
   ApiPath,
@@ -59,6 +60,8 @@ import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infi
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
+
+export { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 
 const logger = loggerService.withContext('useDataApi')
 
@@ -1393,38 +1396,6 @@ async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator,
   if (infiniteKeys.length > 0) {
     await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
   }
-}
-
-/**
- * Replace Express-style `:name` and greedy `:name*` placeholders in a path
- * template with values from `params`.
- *
- * This is the single canonical path-replacement point for all data hooks — both
- * `useQuery`/`useMutation` (via `params` option) and internal key building go
- * through here. This guarantees a template path + params and a pre-resolved
- * path (e.g., `providerPath(id)`) produce byte-for-byte identical cache keys.
- *
- * Greedy params (`:name*`) consume the rest of the path segment, allowing IDs
- * that themselves contain `/` (e.g., `/models/:uniqueModelId*` where the id is
- * `openai:gpt-4/variant`).
- *
- * The leading `/` anchor in the placeholder regex distinguishes path params
- * (`/:providerId`) from verb-style RPC suffixes (`models:resolve`,
- * `models:reconcile`) — the latter are static literal segments and must not be
- * substituted, even when other params are supplied.
- *
- * @internal
- * @throws Error if a placeholder has no corresponding value in `params`
- */
-export function resolveTemplate(path: string, params?: Record<string, string | number>): string {
-  if (!params || !path.includes(':')) return path
-  return path.replace(/(?<=\/):([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
-    const value = params[key]
-    if (value === undefined || value === null) {
-      throw new Error(`Missing param "${key}" for path "${path}"`)
-    }
-    return String(value)
-  })
 }
 
 /**

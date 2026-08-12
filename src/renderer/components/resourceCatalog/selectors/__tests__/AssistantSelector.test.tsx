@@ -63,6 +63,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
+  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
+}))
+
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({

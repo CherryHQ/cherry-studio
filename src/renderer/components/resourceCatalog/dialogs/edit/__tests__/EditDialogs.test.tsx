@@ -758,7 +758,10 @@ describe('edit dialogs', () => {
     selectTab('Prompts')
     expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
     expect(useQueryMock).toHaveBeenCalledWith('/prompts', { enabled: true, query: { visibility: 'restricted' } })
-    expect(useQueryMock).toHaveBeenCalledWith(`/prompt-bindings/assistant/${ASSISTANT.id}`, { enabled: true })
+    expect(useQueryMock).toHaveBeenCalledWith('/prompt-bindings/:targetType/:targetId', {
+      enabled: true,
+      params: { targetType: 'assistant', targetId: ASSISTANT.id }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
 
@@ -1163,6 +1166,9 @@ describe('edit dialogs', () => {
           },
           isLoading: false
         }
+      }
+      if (path === '/prompts' || path.startsWith('/prompt-bindings/')) {
+        return { data: [], isLoading: false, refetch: vi.fn() }
       }
       return { data: { items: [] }, isLoading: false }
     })

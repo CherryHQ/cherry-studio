@@ -67,6 +67,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create/steps/CapabilitySte
   CapabilityStep: () => <div data-testid="capability-step" />
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
+  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual

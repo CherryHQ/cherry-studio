@@ -5,7 +5,7 @@ import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/r
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, MessageSquareText, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -182,7 +182,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
         ) : (boundPromptsData ?? []).length === 0 ? (
           <div className="flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
-            <MessageSquareText size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
+            <Zap size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
             <p className="text-foreground-tertiary text-xs">{t('settings.prompts.binding.noLinked')}</p>
           </div>
         ) : (
