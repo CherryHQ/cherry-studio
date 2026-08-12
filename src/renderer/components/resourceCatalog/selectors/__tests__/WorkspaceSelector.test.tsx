@@ -353,6 +353,8 @@ describe('WorkspaceSelector', () => {
     selectFolderMock.mockResolvedValue('/Users/jd/new-project')
     const { onChange } = renderSelector()
     openPopover()
+    await waitFor(() => expect(refetchWorkspacesMock).toHaveBeenCalledOnce())
+    refetchWorkspacesMock.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
@@ -361,7 +363,7 @@ describe('WorkspaceSelector', () => {
         body: { path: '/Users/jd/new-project' }
       })
     )
-    expect(refetchWorkspacesMock).toHaveBeenCalled()
+    expect(refetchWorkspacesMock).not.toHaveBeenCalled()
     expect(onChange).toHaveBeenCalledWith('workspace-created')
   })
 
