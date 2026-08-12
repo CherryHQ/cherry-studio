@@ -75,19 +75,19 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
   useEffect(() => clearPendingSearch, [clearPendingSearch])
 
-  const sourceCounts = useMemo(() => {
-    const counts = new Map<SkillSearchSource, number>()
-    for (const result of results) {
-      counts.set(result.sourceRegistry, (counts.get(result.sourceRegistry) ?? 0) + 1)
-    }
-    return counts
-  }, [results])
-
   // GitHub installs one skill from the URL itself — the registries have nothing to search.
   const githubResult = useMemo(
     () => (isGithubSource && submittedUrl.trim() ? buildGithubSkillResult(submittedUrl) : null),
     [isGithubSource, submittedUrl]
   )
+
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<SkillSearchSource, number>()
+    for (const result of githubResult ? [...results, githubResult] : results) {
+      counts.set(result.sourceRegistry, (counts.get(result.sourceRegistry) ?? 0) + 1)
+    }
+    return counts
+  }, [githubResult, results])
   const githubUrlInvalid = isGithubSource && submittedUrl.trim().length > 0 && !githubResult
 
   const visibleResults = useMemo(() => {

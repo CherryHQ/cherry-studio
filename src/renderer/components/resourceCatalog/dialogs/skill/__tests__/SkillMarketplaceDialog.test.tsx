@@ -327,6 +327,9 @@ describe('SkillMarketplaceDialog', () => {
 
       expect(searchMock).not.toHaveBeenCalled()
       expect(screen.getByText('resume-review')).toBeInTheDocument()
+      // The dropdown counts what each source currently offers, and GitHub's one row is not in
+      // `results` — reading only the registry list would leave it blank.
+      expect(within(sourceSelect()).getByRole('option', { name: 'GitHub1' })).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
       await waitFor(() => {
         expect(installMock).toHaveBeenCalledWith(
