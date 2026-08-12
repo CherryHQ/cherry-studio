@@ -386,7 +386,8 @@ describe('AgentSessionRuntimeService', () => {
       expect(listener).toHaveBeenCalledWith({
         sessionId: 'session-1',
         assistantMessageId: 'assistant-1',
-        status: 'success'
+        status: 'success',
+        boundary: 'turn'
       })
       expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
     })
@@ -4355,8 +4356,16 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'steer-boundary', inputs: injected })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
       await expect(reader.read()).resolves.toMatchObject({ done: true })
+      const onTurnTerminal = vi.fn()
+      service.onTurnTerminal(onTurnTerminal)
       void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
+      expect(onTurnTerminal).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        assistantMessageId: 'assistant-1',
+        status: 'success',
+        boundary: 'row-roll'
+      })
 
       expect(getEntry(service).currentTurn.assistantMessageId).toBe(reservedContext?.assistantMessageId)
       expect(mocks.saveMessage).toHaveBeenLastCalledWith({
@@ -4372,13 +4381,13 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const continuationTurnId = getEntry(service).currentTurn.turnId
-      const onTurnTerminal = vi.fn()
-      service.onTurnTerminal(onTurnTerminal)
+      onTurnTerminal.mockClear()
       service.markTurnTerminal('session-1', 'success', continuationTurnId)
       expect(onTurnTerminal).toHaveBeenCalledWith({
         sessionId: 'session-1',
         assistantMessageId: reservedContext?.assistantMessageId,
-        status: 'success'
+        status: 'success',
+        boundary: 'turn'
       })
 
       void service.closeSession('session-1')

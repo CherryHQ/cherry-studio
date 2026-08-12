@@ -21,6 +21,17 @@ import { wrapExternalContent } from './security/ExternalContentGuard'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
+class AgentSessionRunNotStartedError extends Error {
+  constructor(readonly reason: 'busy' | 'session-invalid') {
+    super(
+      reason === 'busy'
+        ? 'The Agent Session is busy. Please try again shortly.'
+        : 'The Agent Session is no longer available.'
+    )
+    this.name = 'AgentSessionRunNotStartedError'
+  }
+}
+
 const TYPING_INTERVAL_MS = 4000
 
 /** Max number of entries in the session tracker before evicting oldest entries. */
@@ -430,7 +441,7 @@ export class ChannelMessageHandler {
         )
       } catch (streamError) {
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
-        if (isAgentSessionWorkspaceError(streamError)) {
+        if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
@@ -818,13 +829,16 @@ export class ChannelMessageHandler {
     }
 
     try {
-      await startAgentSessionRun({
+      const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })
+      // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
+      // Add durable admission only if channels require guaranteed busy-session delivery.
+      if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.

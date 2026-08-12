@@ -120,6 +120,7 @@ export type AgentSessionTurnTerminalEvent = {
   sessionId: string
   assistantMessageId: string
   status: AgentSessionRuntimeTerminalStatus
+  boundary: 'turn' | 'row-roll'
 }
 
 export interface BeginAgentSessionTurnInput {
@@ -868,6 +869,9 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const completedTurn = this.currentTurn(entry)
+    const isRowRoll =
+      entry.runtimeState.execution.kind === 'steer-transition' &&
+      entry.runtimeState.execution.sourceTurn === completedTurn
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
       const executionOwnsTurn =
@@ -883,7 +887,8 @@ export class AgentSessionRuntimeService extends BaseService {
       this._onTurnTerminal.fire({
         sessionId: entry.sessionId,
         assistantMessageId: completedTurn.assistantMessageId,
-        status
+        status,
+        boundary: isRowRoll ? 'row-roll' : 'turn'
       })
     }
 

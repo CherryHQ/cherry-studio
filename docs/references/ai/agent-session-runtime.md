@@ -103,6 +103,8 @@ the steer user message sorts between the two assistant rows instead of dangling
 after the whole turn. `willContinueTopic()` keeps the topic stream alive across
 the roll (and across a mid-flight compaction) so the continuation carries the
 renderer listeners.
+The source row's terminal event is marked `row-roll`; lifecycle consumers must
+not treat it as completion of the work that continues in A2.
 
 ## Cross-Session delivery
 
@@ -201,8 +203,10 @@ failed     permanent routing/admission failure; no automatic retry
 SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
 state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
 provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
-shutting-down targets remain `accepted` until a known wake event. A temporarily missing or
-inaccessible workspace also remains `accepted` instead of destroying durable intent. Filesystem
+shutting-down targets remain `accepted` until a known wake event. A temporarily inaccessible
+workspace also remains `accepted` instead of destroying durable intent; a missing path is a
+permanent routing error. Workspace probes are time-bounded so an unreachable mount cannot hold
+backup quiescing indefinitely. Filesystem
 availability has no reliable app event, so the lifecycle owner runs a low-frequency accepted-row
 sweep as a fallback in addition to ordinary terminal/idle/quiesce-release kicks. Permanent routing
 errors and unknown admission failures enter structured `failed` terminal state rather than retrying
@@ -259,11 +263,13 @@ After commit
 
 Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
 as already completed, so a crash after terminal persistence but before or during finalization can
-rerun it without creating a second result. If live terminal persistence throws, the Agent Session
-backend best-effort advances the existing placeholder from `pending` to `error` before the generic
-terminal event runs and discards the Session's now-untrusted resume tokens, allowing delivery
-finalization to fail the request instead of wedging its FIFO. Result dispatch remains outside the
-transaction.
+rerun it without creating a second result. A backend with a pre-existing placeholder persists an
+empty terminal row when accumulation produced no final snapshot. If live terminal persistence
+throws, the Agent Session backend best-effort advances the placeholder from `pending` to `error`
+before the generic terminal event runs. If that repair also fails transiently, the next idle or
+fallback kick retries it once no runtime owns the placeholder. The runtime resume token remains
+owned by the live CLI session rather than being cleared only in SQLite. Result dispatch remains
+outside the transaction.
 
 After asynchronous validation and while holding the target topic's dispatch lock, one synchronous
 transaction persists the user row and pending assistant placeholder and CAS-claims
@@ -314,11 +320,12 @@ execution is not exactly-once. There is no automatic replay after an ambiguous i
 there is no finite result-latency bound while the caller is blocked on interaction, and caller-side
 resubmission without a future idempotency key may create a distinct request.
 
-The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. Each
-materialization uses an unpredictable boundary around trusted metadata and the model-authored body,
-and literal `system-reminder` tags in that body are defanged. The envelope is informational context,
-not authority: database metadata remains the source of truth, and model text that imitates another
-envelope never changes trusted routing fields.
+The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. Stable
+delivery/content markers carry an unpredictable per-materialization boundary and an explicit notice
+that only the metadata is host-authored while the body is untrusted. The body is normalized for
+invisible/full-width delimiter tricks, and literal `system-reminder` tags are defanged. The envelope
+is informational context, not authority: database metadata remains the source of truth, and model
+text that imitates another envelope never changes trusted routing fields.
 
 ## Starting the next runtime turn
 

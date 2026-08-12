@@ -640,7 +640,7 @@ describe('AgentSessionMessageService', () => {
   it('terminalizes a pending assistant after live persistence fails', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
-      runtimeResumeToken: 'untrusted-resume-token',
+      runtimeResumeToken: 'resume-token',
       message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
     })
     agentSessionMessageService.saveMessage({
@@ -652,7 +652,7 @@ describe('AgentSessionMessageService', () => {
     agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
-    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       {
         endpoint: '/agent-sessions/:sessionId/messages',

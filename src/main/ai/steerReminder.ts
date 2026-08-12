@@ -1,3 +1,5 @@
+import { defangSystemReminderTags } from './untrustedContent'
+
 /**
  * Wrap a steer message — one the user sent while the assistant was already working — so the model
  * treats it as a mid-task redirect rather than a fresh prompt (invariant 7). Mirrors opencode's
@@ -20,10 +22,6 @@ export function wrapSteerReminder(text: string): string {
     'Please address this message and continue with your tasks.',
     SYSTEM_REMINDER_CLOSE
   ].join('\n')
-}
-
-export function defangSystemReminderTags(text: string): string {
-  return text.replace(/<(\/?\s*system-reminder\b[^>]*)>/gi, '&lt;$1>')
 }
 
 /** Extract complete reminder bodies from a trusted SDK synthetic message. */

@@ -351,6 +351,19 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('finalizes an empty successful placeholder instead of leaving it pending', async () => {
+    const listener = makeMessageServiceListener()
+
+    await listener.onDone({ finalMessage: undefined, status: 'success' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
+      data: { parts: [] },
+      status: 'success',
+      runtimeStats: undefined
+    })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')

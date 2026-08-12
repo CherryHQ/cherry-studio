@@ -68,6 +68,7 @@ export class AgentSessionDeliveryService extends BaseService {
     const runtime = application.get('AgentSessionRuntimeService')
     this.registerDisposable(
       runtime.onTurnTerminal((event) => {
+        if (event.boundary === 'row-roll') return
         this.track(`terminal:${event.assistantMessageId}`, this.handleTurnTerminal(event))
       })
     )
@@ -506,7 +507,14 @@ export class AgentSessionDeliveryService extends BaseService {
       }
       throw error
     }
-    if (assistant.status === 'pending') return true
+    if (assistant.status === 'pending') {
+      if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) return true
+      // The runtime is idle, so no writer can still complete this placeholder. Reuse the owning
+      // persistence repair primitive; a transient DB failure is retried by the next idle/sweep kick.
+      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
+      if (assistant.status === 'pending') return true
+    }
 
     const result = agentSessionMessageService.finalizeSessionDelivery({
       requestSessionId: sessionId,

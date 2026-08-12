@@ -673,6 +673,8 @@ export class AgentSessionWorkspaceError extends Error {
   }
 }
 
+const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
+
 export function isAgentSessionWorkspaceError(error: unknown): error is AgentSessionWorkspaceError {
   return error instanceof AgentSessionWorkspaceError
 }
@@ -706,7 +708,7 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
     await ensureAgentStorageDirectory(root, target)
   } catch (error) {
     logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }), true)
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
   }
 }
 
@@ -752,14 +754,33 @@ async function isPathWithinAllowedRoots(cwd: string, agentDataPath: string, requ
 }
 
 export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
-  const status = await getPathStatus(cwd)
+  const status = await getWorkspacePathStatus(cwd)
   if (status.ok && status.kind === 'directory') return
   // The operation fails here, so this is where the workspace-path problem is
   // reported: the directory policy and the user-facing (i18n'd) message both
   // live on this consumer, surfaced to the renderer via the dispatch `blocked`
   // reason / channel adapters; the session id goes to the log for operators.
   logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
-  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status), !status.ok)
+  throw new AgentSessionWorkspaceError(
+    workspacePathErrorMessage(cwd, status),
+    // ENOENT cannot distinguish deletion from an unmounted volume; fail closed until the
+    // platform provides a volume-availability event that can wake one exact delivery.
+    !status.ok && status.reason === 'inaccessible'
+  )
+}
+
+async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
+  // Node's stat is not abortable; the race bounds scheduler ownership even if the OS call lingers.
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const timeoutResult = new Promise<PathStatus>((resolve) => {
+    timeout = setTimeout(() => resolve({ ok: false, reason: 'inaccessible' }), WORKSPACE_PROBE_TIMEOUT_MS)
+    timeout.unref?.()
+  })
+  try {
+    return await Promise.race([getPathStatus(cwd), timeoutResult])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
 }
 
 function workspacePathErrorMessage(path: string, status: PathStatus): string {

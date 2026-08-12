@@ -631,13 +631,6 @@ export class AgentSessionMessageService {
           )
         )
         .run()
-      if (result.changes > 0) {
-        // The persisted history no longer proves the CLI state represented by any prior token.
-        tx.update(sessionMessagesTable)
-          .set({ runtimeResumeToken: null })
-          .where(eq(sessionMessagesTable.sessionId, sessionId))
-          .run()
-      }
       return result
     })
     if (changed.changes > 0) this.publishDeliveryChange(messageId, 'projection')

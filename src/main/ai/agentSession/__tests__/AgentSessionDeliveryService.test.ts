@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   finalize: vi.fn(),
   findByTurnRef: vi.fn(),
   getMessage: vi.fn(),
+  markTerminalError: vi.fn(),
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
   resolveCrash: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     finalizeSessionDelivery: mocks.finalize,
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
+    markAssistantMessageTerminalError: mocks.markTerminalError,
     listAcceptedSessionDeliveries: mocks.listAccepted,
     listRecoverableSessionDeliveries: mocks.listRecoverable,
     resolveCrashOrphanedMessages: mocks.resolveCrash
@@ -145,6 +147,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getMessage.mockReturnValue(accepted)
+    mocks.markTerminalError.mockReset()
     mocks.validateDispatch.mockResolvedValue({
       sessionId: 'target',
       agentId: 'agent-1',
@@ -264,6 +267,49 @@ describe('AgentSessionDeliveryService', () => {
       assistantMessageId: 'assistant-1',
       outcome: 'success'
     })
+  })
+
+  it('retries idle placeholder repair after a transient DB failure', async () => {
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    const failedAssistant = { ...assistant, status: 'error' }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValueOnce(assistant).mockReturnValueOnce(assistant).mockReturnValueOnce(failedAssistant)
+    mocks.markTerminalError.mockImplementationOnce(() => {
+      throw new Error('database busy')
+    })
+    mocks.runtimeBusy.mockReturnValue(false)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+    expect(mocks.finalize).not.toHaveBeenCalled()
+
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).toHaveBeenCalledTimes(2)
+    expect(mocks.markTerminalError).toHaveBeenLastCalledWith('target', 'assistant-1')
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'failed'
+    })
+  })
+
+  it('ignores row-roll terminal events', async () => {
+    mocks.findByTurnRef.mockReturnValue(accepted)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.terminalListeners) {
+      listener({ sessionId: 'target', assistantMessageId: 'assistant-1', status: 'success', boundary: 'row-roll' })
+    }
+    await flush()
+
+    expect(mocks.findByTurnRef).not.toHaveBeenCalled()
+    expect(mocks.finalize).not.toHaveBeenCalled()
   })
 
   it('keeps a delivery owned when send throws after installing a live stream', async () => {

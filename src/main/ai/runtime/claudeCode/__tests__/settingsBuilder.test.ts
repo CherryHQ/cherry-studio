@@ -2678,16 +2678,36 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.warmToolsCache).not.toHaveBeenCalled()
     })
 
-    it('classifies unavailable workspace paths as retryable but files as permanent', async () => {
+    it('retries inaccessible workspace paths but fails missing paths and files permanently', async () => {
       mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible' })
       await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
         retryable: true
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
       })
 
       mocks.getPathStatus.mockResolvedValueOnce({ ok: true, kind: 'file' })
       await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
         retryable: false
       })
+    })
+
+    it('bounds a stalled workspace probe and classifies the timeout as retryable', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.getPathStatus.mockReturnValueOnce(new Promise(() => undefined))
+        const validation = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')
+        const assertion = expect(validation).rejects.toMatchObject({ retryable: true })
+
+        await vi.advanceTimersByTimeAsync(5_001)
+
+        await assertion
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('overlaps MCP warming with independent environment construction', async () => {
