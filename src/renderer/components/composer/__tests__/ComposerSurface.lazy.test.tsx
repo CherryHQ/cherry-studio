@@ -30,7 +30,7 @@ vi.mock('../ComposerSurfaceRuntime', () => {
   }
 })
 
-function Harness() {
+function Harness({ editable = true }: { editable?: boolean } = {}) {
   const [text, setText] = useState('draft')
   const props: ComposerSurfaceProps = {
     text,
@@ -52,15 +52,36 @@ function Harness() {
     quickPanelEnabled: true,
     enableDragDrop: true,
     enableSpellCheck: true,
-    editable: true,
+    editable,
     fontSize: 14,
-    narrowMode: false
+    narrowMode: true,
+    renderLeftControls: () => <span>Composer tools</span>
   }
 
   return <ComposerSurface {...props} />
 }
 
 describe('deferred ComposerSurface', () => {
+  it('matches the regular composer shell before loading the rich runtime', () => {
+    const { container } = render(<Harness editable={undefined} />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    const inputbar = container.querySelector<HTMLElement>('[data-composer-inputbar]')
+    const narrowLayout = container.querySelector<HTMLElement>('.narrow-mode')
+
+    expect(input).toBeEnabled()
+    expect(input).toHaveClass('w-full')
+    expect(input).toHaveAttribute('rows', '1')
+    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', lineHeight: '1.4' })
+    expect(narrowLayout).toHaveClass('max-w-[calc(800px+3rem)]', 'px-6')
+    expect(narrowLayout).toContainElement(inputbar)
+    expect(inputbar).toContainElement(screen.getByText('Composer tools'))
+    expect(inputbar?.querySelector('[data-composer-toolbar]')).toContainElement(
+      screen.getByRole('button', { name: 'Send' })
+    )
+    expect(mocks.runtimeLoads).toBe(0)
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
