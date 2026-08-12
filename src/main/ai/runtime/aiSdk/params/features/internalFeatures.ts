@@ -16,7 +16,6 @@ import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
-import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
@@ -37,8 +36,6 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   gatewayUsageNormalizeFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
-  // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
-  deepseekResponsesReasoningReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams

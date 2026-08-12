@@ -186,6 +186,9 @@ export function buildCapabilityProviderOptions(
         reasoningOptions.options
       )
       break
+    case 'open-responses':
+      providerSpecificOptions = buildOpenResponsesProviderOptions(reasoningOptions.options)
+      break
     case 'anthropic':
     case 'azure-anthropic':
       providerSpecificOptions = buildAnthropicProviderOptions(reasoningOptions.options)
@@ -375,7 +378,8 @@ function buildOpenAIProviderOptions(
     providerOptions = {
       ...providerOptions,
       ...reasoningOptions,
-      // TODO: Remove after migrating to @ai-sdk/open-responses (#13462).
+      // Non-allowlisted ids still served by @ai-sdk/openai (grok-cli's grok models,
+      // relay gpt aliases) need the model-id allowlist bypass.
       ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
@@ -401,6 +405,17 @@ function buildOpenAIProviderOptions(
     store: false
   }
   return { openai: providerOptions }
+}
+
+/**
+ * Options for `@ai-sdk/open-responses` models (namespace 'openai' via `name: 'openai'`).
+ * The package accepts only `reasoningEffort`/`reasoningSummary` — OpenAI-only keys
+ * (store/serviceTier/textVerbosity/forceReasoning) are deliberately not sent.
+ */
+function buildOpenResponsesProviderOptions(
+  reasoningOptions: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  return { openai: { ...reasoningOptions } }
 }
 
 function buildAnthropicProviderOptions(

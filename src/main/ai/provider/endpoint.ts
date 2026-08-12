@@ -118,6 +118,8 @@ export function resolveProviderOptionsKey(
     case 'azure':
     case 'azure-responses':
     case 'huggingface':
+    // `createOpenResponses({ name: 'openai' })` keeps the wire namespace 'openai'.
+    case 'open-responses':
       return 'openai'
     case 'anthropic':
     case 'azure-anthropic':

@@ -27,7 +27,6 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
-import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -244,32 +243,20 @@ export async function resolveProviderAiSdkConfig(
         }
       }))
     },
-    // Doubao's built-in search rides the generic OpenAI Responses adapter, which auto-adds
-    // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
-    // tool but 400s on that include, so strip it on the way out (arkResponses.ts).
-    {
-      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
-      build: withSelectedApiKey((ctx) => {
-        const config = buildGenericProviderConfig(ctx)
-        config.providerSettings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-          const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
-          return normalizeArkResponsesResponse(input, response)
-        }
-        return config
-      })
-    },
     // DashScope's web_extractor (help.aliyun.com/zh/model-studio/web-extractor) is a Responses tool that
-    // must accompany web_search and needs thinking mode. @ai-sdk/openai drops any tool id it does not
-    // know, so it is appended to the serialized body (dashscopeWebExtractor.ts) rather than via a factory.
+    // must accompany web_search and needs thinking mode. It has no tool factory, so it is
+    // appended to the serialized body (dashscopeWebExtractor.ts).
     {
-      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
+      match: (p, id) => id === 'open-responses' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
-        const config = buildGenericProviderConfig(ctx)
+        const config = buildOpenResponsesConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
+    // Spec-neutral Responses dialect (deepseek/doubao/fireworks/… + custom providers).
+    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
@@ -767,6 +754,30 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
+  }
+}
+
+/**
+ * `createOpenResponses` takes a full POST endpoint URL and a `name` that sets both the
+ * providerOptions namespace and the model's `provider` string. `name: 'openai'` keeps
+ * wire options under `providerOptions.openai` and lets tool-factory resolution fall
+ * back to the OpenAI extension — matching the `@ai-sdk/openai` behavior it replaces.
+ */
+function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-responses'> {
+  return {
+    providerId: 'open-responses',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      url: `${ctx.baseConfig.baseURL.replace(/\/+$/, '')}/responses`,
+      name: 'openai',
+      apiKey: ctx.baseConfig.apiKey,
+      headers: {
+        ...defaultAppHeaders(),
+        ...getExtraHeaders(ctx.actualProvider),
+        // Parity with buildCommonOptions' 'openai' branch — these providers received it before.
+        'X-Api-Key': ctx.baseConfig.apiKey
+      }
+    }
   }
 }
 
