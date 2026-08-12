@@ -4,9 +4,9 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { projectBranchMessagesToUI, useTopicMessages } from '../useTopicMessages'
+import { useTopicMessages } from '../useTopicMessages'
 
-function createAssistantMessage(id: string, modelId: string, createdAt: string): Message {
+function createAssistantMessage(id: string, modelId: string, createdAt: string, siblingsGroupId = 1): Message {
   return {
     id,
     topicId: 'topic-1',
@@ -15,7 +15,7 @@ function createAssistantMessage(id: string, modelId: string, createdAt: string):
     data: { parts: [] },
     searchableText: '',
     status: 'success',
-    siblingsGroupId: 1,
+    siblingsGroupId,
     modelId,
     createdAt,
     updatedAt: createdAt
@@ -190,32 +190,42 @@ describe('useTopicMessages', () => {
     expect(mutate).toHaveBeenCalledWith()
   })
 
-  it('keeps repeated replies from the same model visible in a multi-model group', () => {
+  it('uses one group classification for multi-model display and single-model navigation', () => {
     const firstModelReply = createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z')
     const otherModelReply = createAssistantMessage('reply-b-1', 'provider-b::model-b', '2026-01-01T00:00:02.000Z')
     const secondModelReply = createAssistantMessage('reply-a-2', 'provider-a::model-a', '2026-01-01T00:00:03.000Z')
+    const activeRegenerate = createAssistantMessage('reply-c-1', 'provider-c::model-c', '2026-01-01T00:00:04.000Z', 2)
+    const offPathRegenerate = createAssistantMessage('reply-c-2', 'provider-c::model-c', '2026-01-01T00:00:05.000Z', 2)
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            { message: firstModelReply, siblingsGroup: [otherModelReply, secondModelReply] },
+            { message: activeRegenerate, siblingsGroup: [offPathRegenerate] }
+          ],
+          nextCursor: undefined,
+          activeNodeId: 'reply-c-1'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    } as never)
 
-    const messages = projectBranchMessagesToUI([
-      {
-        message: firstModelReply,
-        siblingsGroup: [otherModelReply, secondModelReply]
-      }
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([
+      'reply-a-1',
+      'reply-b-1',
+      'reply-a-2',
+      'reply-c-1'
     ])
-
-    expect(messages.map((message) => message.id)).toEqual(['reply-a-1', 'reply-b-1', 'reply-a-2'])
-  })
-
-  it('keeps a single-model regenerate group on its active reply', () => {
-    const activeReply = createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z')
-    const regeneratedReply = createAssistantMessage('reply-a-2', 'provider-a::model-a', '2026-01-01T00:00:02.000Z')
-
-    const messages = projectBranchMessagesToUI([
-      {
-        message: activeReply,
-        siblingsGroup: [regeneratedReply]
-      }
-    ])
-
-    expect(messages.map((message) => message.id)).toEqual(['reply-a-1'])
+    expect(Object.keys(result.current.siblingsMap).sort()).toEqual(['reply-c-1', 'reply-c-2'])
+    expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
 })

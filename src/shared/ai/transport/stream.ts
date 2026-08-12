@@ -132,6 +132,8 @@ export interface StreamDonePayload {
   topicId: string
   executionId?: UniqueModelId
   attemptId?: number
+  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   status: 'success' | 'paused'
   isTopicDone?: boolean
@@ -143,6 +145,8 @@ export interface StreamErrorPayload {
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
   attemptId?: number
+  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean

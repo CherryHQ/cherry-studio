@@ -104,6 +104,7 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
       anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
@@ -120,6 +121,7 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
       anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
@@ -137,6 +139,7 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
       anchorMessageId: result.anchorMessageId,
       isTopicDone: result.isTopicDone,
       error: result.error

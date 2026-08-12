@@ -35,6 +35,7 @@ function createMockAiApi() {
         anchorMessageId?: string
         status: string
         isTopicDone?: boolean
+        topicAttemptWatermark?: number
       }) => void
     >,
     error: [] as Array<
@@ -44,6 +45,7 @@ function createMockAiApi() {
         attemptId?: number
         anchorMessageId?: string
         isTopicDone?: boolean
+        topicAttemptWatermark?: number
         error: SerializedError
       }) => void
     >
@@ -111,10 +113,11 @@ function createMockAiApi() {
       status: 'success' | 'paused',
       isTopicDone?: boolean,
       anchorMessageId?: string,
-      attemptId?: number
+      attemptId?: number,
+      topicAttemptWatermark?: number
     ) => {
       for (const cb of [...listeners.done]) {
-        cb({ topicId, executionId, attemptId, status, isTopicDone, anchorMessageId })
+        cb({ topicId, executionId, attemptId, status, isTopicDone, anchorMessageId, topicAttemptWatermark })
       }
     },
     emitError: (
@@ -122,10 +125,19 @@ function createMockAiApi() {
       executionId: UniqueModelId | undefined,
       isTopicDone?: boolean,
       anchorMessageId?: string,
-      attemptId?: number
+      attemptId?: number,
+      topicAttemptWatermark?: number
     ) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, attemptId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
+        cb({
+          topicId,
+          executionId,
+          attemptId,
+          isTopicDone,
+          anchorMessageId,
+          topicAttemptWatermark,
+          error: STREAM_ERROR
+        })
       }
     }
   }
@@ -238,7 +250,7 @@ describe('TopicStreamSubscription', () => {
 
     mock.emitChunk(TOPIC, A, textChunk('retry'), 'assistant-1', 2)
     // A delayed terminal from the prior attempt must not close the retry branch.
-    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 1)
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 1, 1)
     mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 2)
     mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 2)
 
@@ -379,6 +391,53 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, undefined, 'success', true)
     expect(await readAll(sa)).toEqual([textChunk('replayA')])
     expect(await readAll(sb)).toEqual([textChunk('replayB')])
+    sub.dispose()
+  })
+
+  it('closes finished sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
+        { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
+      ] satisfies StreamChunkPayload[]
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const live = sub.register(B, 'assistant-b', 1)
+    await tick()
+
+    mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
+
+    expect(await readAll(live)).toEqual([textChunk('replayB')])
+    expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
+  it('does not reopen covered attempts when the topic terminal arrives before attach replay', async () => {
+    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const live = sub.register(B, 'assistant-b', 1)
+    await tick()
+
+    mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
+        { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
+      ]
+    })
+    await tick()
+
+    expect(await readAll(live)).toEqual([])
+    expect(sub.hasAnyOpenBranch()).toBe(false)
     sub.dispose()
   })
 

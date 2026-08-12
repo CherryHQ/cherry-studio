@@ -43,6 +43,7 @@ export interface StreamDoneResult {
   status: 'success'
   modelId?: UniqueModelId
   attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
@@ -55,6 +56,7 @@ export interface StreamPausedResult {
   status: 'paused'
   modelId?: UniqueModelId
   attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
@@ -68,6 +70,7 @@ export interface StreamErrorResult {
   status: 'error'
   modelId?: UniqueModelId
   attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings

@@ -64,6 +64,7 @@ export class TopicStreamSubscription {
   #attachInFlight: Promise<void> | null = null
   #disposed = false
   #topicOpen = false
+  #terminalAttemptWatermark: number | undefined
 
   constructor(topicId: string) {
     this.#topicId = topicId
@@ -162,7 +163,14 @@ export class TopicStreamSubscription {
     let branch = this.#branches.get(key)
     if (!branch) {
       branch = createBranch(executionId, anchorMessageId, attemptId)
-      if (this.#terminalFor(executionId, anchorMessageId, attemptId)) this.#closeBranch(branch)
+      if (
+        this.#terminalFor(executionId, anchorMessageId, attemptId) ||
+        (attemptId !== undefined &&
+          this.#terminalAttemptWatermark !== undefined &&
+          attemptId <= this.#terminalAttemptWatermark)
+      ) {
+        this.#closeBranch(branch)
+      }
       this.#branches.set(key, branch)
     }
     return branch
@@ -213,7 +221,8 @@ export class TopicStreamSubscription {
     error: SerializedError,
     executionId?: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: number
+    attemptId?: number,
+    topicAttemptWatermark?: number
   ): void {
     const chunk: CherryUIMessageChunk = { type: 'data-error', data: { ...error } }
 
@@ -223,7 +232,12 @@ export class TopicStreamSubscription {
       return
     }
 
-    this.#enqueueErrorToBranches(chunk, [...this.#branches.values()])
+    const branches = [...this.#branches.values()].filter(
+      (branch) =>
+        topicAttemptWatermark === undefined ||
+        (branch.attemptId !== undefined && branch.attemptId <= topicAttemptWatermark)
+    )
+    this.#enqueueErrorToBranches(chunk, branches)
   }
 
   #enqueueErrorToBranches(chunk: CherryUIMessageChunk, branches: Branch[]): void {
@@ -272,6 +286,34 @@ export class TopicStreamSubscription {
     this.#terminateBranches([...this.#branches.values()], terminal)
   }
 
+  #applyTerminal(
+    executionId: UniqueModelId | undefined,
+    terminal: ExecutionTerminal,
+    anchorMessageId?: string,
+    attemptId?: number,
+    topicAttemptWatermark?: number
+  ): void {
+    if (topicAttemptWatermark === undefined) {
+      if (executionId) this.#emitTerminal(executionId, terminal, anchorMessageId, attemptId)
+      else this.#terminateAll(terminal)
+      return
+    }
+
+    this.#terminalAttemptWatermark = Math.max(this.#terminalAttemptWatermark ?? 0, topicAttemptWatermark)
+    const exactKey = executionId ? branchKey(executionId, anchorMessageId, attemptId) : undefined
+    const coveredBranches = [...this.#branches.entries()]
+      .filter(([, branch]) => branch.attemptId !== undefined && branch.attemptId <= topicAttemptWatermark)
+      .filter(([key]) => key !== exactKey)
+      .map(([, branch]) => branch)
+
+    if (executionId) {
+      for (const branch of coveredBranches) this.#closeBranch(branch)
+      this.#emitTerminal(executionId, terminal, anchorMessageId, attemptId)
+    } else {
+      this.#terminateBranches(coveredBranches, terminal)
+    }
+  }
+
   #terminateBranches(branches: Branch[], terminal: ExecutionTerminal): void {
     for (const branch of branches) {
       const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
@@ -310,21 +352,37 @@ export class TopicStreamSubscription {
           isAbort: data.status === 'paused',
           isError: false
         }
-        if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId, data.attemptId)
-        else this.#terminateAll(terminal)
+        this.#applyTerminal(
+          data.executionId,
+          terminal,
+          data.anchorMessageId,
+          data.attemptId,
+          data.isTopicDone ? data.topicAttemptWatermark : undefined
+        )
         if (topicStateChanged) this.#notifyTopicStateChange()
       }),
       ipcApi.on('ai.stream.error', (data) => {
         if (data.topicId !== this.#topicId) return
         const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        this.#enqueueError(data.error, data.executionId, data.anchorMessageId, data.attemptId)
+        this.#enqueueError(
+          data.error,
+          data.executionId,
+          data.anchorMessageId,
+          data.attemptId,
+          data.isTopicDone ? data.topicAttemptWatermark : undefined
+        )
         const terminal: ExecutionTerminal = {
           ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
           isAbort: false,
           isError: true
         }
-        if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId, data.attemptId)
-        else this.#terminateAll(terminal)
+        this.#applyTerminal(
+          data.executionId,
+          terminal,
+          data.anchorMessageId,
+          data.attemptId,
+          data.isTopicDone ? data.topicAttemptWatermark : undefined
+        )
         if (topicStateChanged) this.#notifyTopicStateChange()
       })
     )

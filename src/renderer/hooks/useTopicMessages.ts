@@ -39,6 +39,11 @@ interface DisplayBranchMessage {
   isActiveBranch: boolean
 }
 
+interface BranchProjection {
+  displayMessages: DisplayBranchMessage[]
+  siblingsMap: Record<string, SharedMessage[]>
+}
+
 /**
  * Bucket an assistant siblings-group (on-path `active` + off-path `siblings`)
  * by `modelId`. Each bucket = one model's regenerate cohort (1..N siblings
@@ -76,77 +81,41 @@ function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): Sh
   return bucket.find((m) => m.id === activeMessageId) ?? pickLatest(bucket)
 }
 
-/**
- * Flatten a branch response into a renderer-friendly message list.
- *
- * Visibility rules:
- * - User siblings: alternate branches — only the active one is on the path;
- *   off-path branches go through the sibling navigator.
- * - Assistant siblings: use `modelId` only to distinguish a regenerate cohort
- *   from a multi-model display group.
- *   - A single-model group is a regenerate cohort, so it displays only the
- *     active member (or the latest member when off-path).
- *   - A multi-model group displays every persisted member. This keeps later
- *     replies from the same model visible in creation order instead of
- *     replacing each other.
- *
- * This preserves the regenerate navigator without collapsing repeated-model
- * replies inside a multi-model display group.
- */
-function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
-  const result: DisplayBranchMessage[] = []
+/** Project display rows and sibling navigation from one shared group classification. */
+function projectBranchMessages(items: BranchMessage[]): BranchProjection {
+  const displayMessages: DisplayBranchMessage[] = []
+  const siblingsMap: Record<string, SharedMessage[]> = {}
   for (const item of items) {
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0 || item.message.role === 'user') {
-      result.push({ message: item.message, isActiveBranch: true })
+    if (!item.siblingsGroup || item.siblingsGroup.length === 0) {
+      displayMessages.push({ message: item.message, isActiveBranch: true })
       continue
     }
 
-    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    if (buckets.size === 1) {
-      const message = pickDisplayMember(buckets.values().next().value!, item.message.id)
-      result.push({ message, isActiveBranch: message.id === item.message.id })
-      continue
-    }
-
-    const displayMembers = [item.message, ...item.siblingsGroup].sort(compareMessageOrder)
-    for (const message of displayMembers) {
-      result.push({ message, isActiveBranch: message.id === item.message.id })
-    }
-  }
-  return result
-}
-
-/**
- * Build a map keyed by each sibling member's id, where the value is the
- * complete ordered group (including the member itself). Members are sorted
- * by `createdAt` so navigator position (`< 2/3 >`) is stable and matches
- * the order in which branches were created.
- *
- * - User siblings → one group per `siblings_group_id` (all members).
- * - Assistant siblings → a navigator only for a single-model regenerate
- *   group. Multi-model groups already render every member directly.
- */
-function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[]> {
-  const map: Record<string, SharedMessage[]> = {}
-  for (const item of items) {
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
-
+    const members = [item.message, ...item.siblingsGroup]
     if (item.message.role === 'user') {
-      const group = [item.message, ...item.siblingsGroup].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      for (const member of group) map[member.id] = group
+      displayMessages.push({ message: item.message, isActiveBranch: true })
+      const group = members.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      for (const member of group) siblingsMap[member.id] = group
       continue
     }
 
-    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    if (buckets.size > 1) continue
-
-    for (const bucket of buckets.values()) {
-      if (bucket.length < 2) continue
-      bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      for (const member of bucket) map[member.id] = bucket
+    const buckets = bucketAssistantSiblingsByModel(members)
+    const isMultiModelGroup = buckets.size > 1
+    if (isMultiModelGroup) {
+      for (const message of members.sort(compareMessageOrder)) {
+        displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
+      }
+      continue
     }
+
+    const bucket = buckets.values().next().value!
+    const message = pickDisplayMember(bucket, item.message.id)
+    displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
+    if (bucket.length < 2) continue
+    bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    for (const member of bucket) siblingsMap[member.id] = bucket
   }
-  return map
+  return { displayMessages, siblingsMap }
 }
 
 // ── Hook ──
@@ -235,9 +204,10 @@ export function useTopicMessages(
   }, [enabled, isLoading, isRefreshing, pagesBelongToTopic, topicId])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
+  const branchProjection = useMemo(() => projectBranchMessages(branchItems), [branchItems])
   const uiMessages = useMemo<CherryUIMessage[]>(
-    () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
-    [branchItems]
+    () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
+    [branchProjection.displayMessages]
   )
   const loadedMessageIds = useMemo(() => {
     const ids = new Set<string>()
@@ -268,8 +238,6 @@ export function useTopicMessages(
     { routeParams: { topicId } }
   )
 
-  const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
-
   // `refresh` revalidates every loaded page and returns the flattened
   // uiMessages so `useChatWithHistory`'s on-done handler can push DB truth
   // into `useChat.state.messages`. Reuses the same projection helper as the
@@ -289,7 +257,7 @@ export function useTopicMessages(
 
   return {
     uiMessages,
-    siblingsMap,
+    siblingsMap: branchProjection.siblingsMap,
     isLoading: enabled && (isLoading || isStale),
     isStale,
     refresh,
@@ -309,7 +277,14 @@ export function projectBranchMessagesToUI(
   branchItems: BranchMessage[],
   cache: WeakMap<SharedMessage, CherryUIMessage> = new WeakMap()
 ): CherryUIMessage[] {
-  return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
+  return projectDisplayMessagesToUI(projectBranchMessages(branchItems).displayMessages, cache)
+}
+
+function projectDisplayMessagesToUI(
+  displayMessages: DisplayBranchMessage[],
+  cache: WeakMap<SharedMessage, CherryUIMessage>
+): CherryUIMessage[] {
+  return displayMessages.map(({ message, isActiveBranch }) => {
     const cached = cache.get(message)
     if (cached && cached.metadata?.isActiveBranch === isActiveBranch) return cached
     const projected = sharedMessageToUIMessage(message)

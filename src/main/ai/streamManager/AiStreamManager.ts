@@ -1257,6 +1257,7 @@ export class AiStreamManager extends BaseService {
       status: 'error',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
+      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },
@@ -1297,7 +1298,16 @@ export class AiStreamManager extends BaseService {
   broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
-    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    const exec = modelId ? stream.executions.get(modelId) : undefined
+    const result: StreamErrorResult = {
+      error,
+      status: 'error',
+      modelId,
+      attemptId: exec?.attemptId,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      anchorMessageId: exec?.anchorMessageId,
+      isTopicDone: true
+    }
     for (const listener of stream.listeners.values()) {
       if (listener.id.startsWith('persistence:')) continue
       try {
@@ -1321,7 +1331,16 @@ export class AiStreamManager extends BaseService {
   terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
-    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    const exec = modelId ? stream.executions.get(modelId) : undefined
+    const result: StreamErrorResult = {
+      error,
+      status: 'error',
+      modelId,
+      attemptId: exec?.attemptId,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      anchorMessageId: exec?.anchorMessageId,
+      isTopicDone: true
+    }
     for (const listener of stream.listeners.values()) {
       if (listener.id.startsWith('persistence:')) continue
       try {
@@ -1430,7 +1449,13 @@ export class AiStreamManager extends BaseService {
    * runtime's `broadcastTopicError` + terminal mark.
    */
   private failChatContinuation(previous: ActiveStream, carried: StreamListener[], error: SerializedError): void {
-    const result: StreamErrorResult = { error, status: 'error', modelId: undefined, isTopicDone: true }
+    const result: StreamErrorResult = {
+      error,
+      status: 'error',
+      modelId: undefined,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(previous),
+      isTopicDone: true
+    }
     for (const listener of carried) {
       if (listener.id.startsWith('persistence:')) continue
       try {
@@ -1720,6 +1745,7 @@ export class AiStreamManager extends BaseService {
       status: 'success',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
+      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
@@ -1740,12 +1766,19 @@ export class AiStreamManager extends BaseService {
       status: 'paused' as const,
       modelId: exec.modelId,
       attemptId: exec.attemptId,
+      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
     await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+  }
+
+  private getTopicAttemptWatermark(stream: ActiveStream): number {
+    let watermark = 0
+    for (const execution of stream.executions.values()) watermark = Math.max(watermark, execution.attemptId)
+    return watermark
   }
 
   /**

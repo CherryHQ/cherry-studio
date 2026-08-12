@@ -587,6 +587,34 @@ describe('AiStreamManager', () => {
       expect(listener.chunks).toHaveLength(1)
     })
 
+    it('publishes the highest topic attempt when the final execution has an older attempt', async () => {
+      const listener = new FakeListener('l:watermark')
+      const result = mgr.send({
+        topicId: 'watermark-topic',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('watermark-topic') },
+          { modelId: 'provider-b::model-b', request: req('watermark-topic') }
+        ],
+        listeners: [listener]
+      })
+      const olderAttempt = result.activeExecutions[0].attemptId
+      const newerAttempt = result.activeExecutions[1].attemptId
+
+      await mgr.onExecutionDone('watermark-topic', 'provider-b::model-b')
+      await mgr.onExecutionDone('watermark-topic', 'provider-a::model-a')
+
+      expect(listener.doneResults[0]).toMatchObject({
+        attemptId: newerAttempt,
+        isTopicDone: false
+      })
+      expect(listener.doneResults[0]).not.toHaveProperty('topicAttemptWatermark')
+      expect(listener.doneResults[1]).toMatchObject({
+        attemptId: olderAttempt,
+        isTopicDone: true,
+        topicAttemptWatermark: newerAttempt
+      })
+    })
+
     it('replaces one terminal execution in place without reordering its live sibling', async () => {
       const topicId = 'retry-topic'
       const first = mgr.send({
