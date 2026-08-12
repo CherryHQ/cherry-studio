@@ -713,6 +713,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
     ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? CURRENT_SESSION_ISO,
     isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
