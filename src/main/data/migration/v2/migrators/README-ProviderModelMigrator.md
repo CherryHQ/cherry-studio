@@ -134,7 +134,7 @@ providers always take routing families from the current registry.
 | Missing/empty provider ID | Skip and warn |
 | Duplicate provider ID | Keep the first and warn |
 | Missing, empty, or route-unsafe model ID | Skip and warn |
-| All candidate model IDs are invalid | Fail preparation so the source configuration is not silently discarded |
+| All candidate model IDs are invalid | Keep the provider, omit invalid models, and surface an aggregated warning |
 | Duplicate model ID within a provider | Keep the first and warn |
 | Retired provider | Skip and warn |
 | Missing final-v1 preset baseline | Preserve mapped provider values and warn |

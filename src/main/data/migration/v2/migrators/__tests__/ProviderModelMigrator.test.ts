@@ -178,22 +178,6 @@ describe('ProviderModelMigrator', () => {
       expect(result.error).toContain('provider_model_prepare_failed')
       expect(result.error).toContain('Provider/model preparation failed')
     })
-
-    it('fails preparation when every legacy model id is invalid', async () => {
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [makeProvider('openai', [{ id: 'jackrong-qwopus3.5-27b-v3@?' }, { id: 'legacy-model#fragment' }])]
-        }
-      })
-
-      const result = await migrator.prepare(migrationContext)
-
-      expect(result.success).toBe(false)
-      expect(result.itemCount).toBe(0)
-      expect(result.warnings).toContain('Skipped 2 model(s) with invalid id')
-      expect(result.error).toContain('provider_model_prepare_failed')
-      expect(result.error).toContain('All 2 legacy model(s) had invalid ids')
-    })
   })
 
   describe('execute', () => {
@@ -285,6 +269,36 @@ describe('ProviderModelMigrator', () => {
 
       const models = await dbh.db.select().from(userModelTable)
       expect(models.filter((model) => model.providerId === 'openai').map((model) => model.modelId)).toEqual(['gpt-4o'])
+    })
+
+    it('keeps the provider and API key when every legacy model id is invalid', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('openai', [{ id: 'jackrong-qwopus3.5-27b-v3@?' }, { id: 'legacy-model#fragment' }]),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+      const validateResult = await migrator.validate(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+      expect(validateResult.success).toBe(true)
+
+      const provider = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai')).get()
+      const models = dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai')).all()
+
+      expect(provider?.apiKeys).toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: 'sk-valid', isEnabled: true })])
+      )
+      expect(models).toEqual([])
     })
 
     it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {

@@ -429,12 +429,10 @@ export class ProviderModelMigrator extends BaseMigrator {
       let skippedInvalidId = 0
       let skippedInvalidModels = 0
       let skippedDuplicateModels = 0
-      let sourceModelCount = 0
       const cleanProviderModels = (provider: LegacyProvider): LegacyProvider['models'] => {
         const cleaned: NonNullable<LegacyProvider['models']> = []
         const seenModelIds = new Set<string>()
         for (const model of provider.models ?? []) {
-          sourceModelCount++
           if (typeof model?.id !== 'string' || model.id.length === 0) {
             skippedInvalidModels++
             logger.warn('Model with missing or empty id skipped', { providerId: provider.id, name: model?.name })
@@ -511,17 +509,6 @@ export class ProviderModelMigrator extends BaseMigrator {
       }
       if (skippedDuplicateModels > 0) {
         warnings.push(`Skipped ${skippedDuplicateModels} duplicate model(s)`)
-      }
-
-      if (sourceModelCount > 0 && this.totalModelCount === 0) {
-        const phaseError = new Error(`All ${sourceModelCount} legacy model(s) had invalid ids`)
-        logger.error('Preparation failed', phaseError)
-        return {
-          success: false,
-          itemCount: 0,
-          warnings,
-          error: formatPhaseError(PROVIDER_MODEL_MIGRATION_ERROR_IDS.prepare, phaseError)
-        }
       }
 
       logger.info('Preparation completed', {
