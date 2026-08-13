@@ -172,7 +172,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
           <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
             {t('settings.prompts.titleLabel')}
             <Input

@@ -330,7 +330,7 @@ function PromptRow({
         className="h-auto min-w-0 flex-1 justify-start whitespace-normal rounded-md p-0 text-left hover:bg-transparent">
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-foreground text-sm leading-5">{prompt.title}</span>
-          <span className="mt-0.5 line-clamp-2 block text-muted-foreground text-xs leading-5">{summary}</span>
+          <span className="wrap-anywhere mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</span>
         </span>
       </Button>
       <Badge variant="secondary" className="border-0 font-normal text-muted-foreground">
