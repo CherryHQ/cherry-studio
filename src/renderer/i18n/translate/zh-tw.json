@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋"
       }
     },
     "channels": {
@@ -3487,6 +3490,12 @@
         "context_compress_model": "壓縮模型",
         "context_compress_model_follow": "預設",
         "context_count": "上下文數量",
+        "context_count_follow_global": "跟隨全域設定（{{count}} 則）",
+        "context_count_unlimited": "不限制",
+        "context_globally_disabled": "全域已關閉上下文管理，此處的轉存與壓縮設定暫不生效",
+        "context_inherited": "目前跟隨全域設定：{{compress}}，工具輸出超過 {{threshold}} 字元時轉存",
+        "context_inherited_compress_off": "自動壓縮已關閉",
+        "context_inherited_compress_on": "自動壓縮已開啟",
         "context_management": "上下文管理",
         "context_truncate_threshold": "工具輸出截斷閾值（字元）",
         "creative": "創意",
@@ -4103,6 +4112,9 @@
       "failed": "還原失敗",
       "success": "還原成功"
     },
+    "retry": {
+      "status": "正在使用 {{model}} 重試 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "儲存成功"
@@ -4471,14 +4483,27 @@
     },
     "pinned": "已固定",
     "price": {
+      "add_tier": "[to be translated]:Add pricing tier",
+      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "快取讀取價格",
+      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
+      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "輸入價格",
       "million_tokens": "百萬 Token",
+      "min_input_tokens": "[to be translated]:Starts at input tokens",
+      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "輸出價格",
-      "price": "價格"
+      "price": "價格",
+      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
+      "tier": "[to be translated]:Tier {{index}}",
+      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "[to be translated]:Use input price",
+      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
+      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
+      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
     },
     "reasoning": "推理",
     "rerank_model": "重新排序模型",
@@ -4630,6 +4655,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字型設定",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "襯線字型",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便在檔案內導覽",
@@ -5397,6 +5424,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "插入數學公式",
@@ -5985,10 +6013,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "建立獨立的 Cherry 小助手工作階段，並預先選取回饋 Skill。",
-          "title": "詢問 Cherry 小助手"
+          "description": "使用內建的問題回饋 Agent 取得使用協助或提交回饋。",
+          "title": "向問題回饋助手求助"
         },
-        "agent_error": "無法開啟 Cherry 小助手以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟問題回饋助手，請再試一次。",
         "button": "回饋",
         "diagnostics": {
           "description": "確認最近的診斷資訊後，一鍵匿名上傳。",
@@ -7462,6 +7490,20 @@
         "use_all_keys": "使用金鑰"
       },
       "collapse_all": "全部折疊",
+      "context_management": {
+        "compress_enabled": "自動壓縮",
+        "compress_enabled_description": "接近上下文視窗上限時自動摘要較早的對話。助理可單獨覆寫",
+        "compress_model": "壓縮模型",
+        "compress_model_follow": "跟隨目前模型",
+        "enabled": "啟用上下文管理",
+        "enabled_description": "自動管理對話上下文：轉存過長的工具輸出，並在接近視窗上限時壓縮歷史。關閉後不做處理，超出模型視窗的請求將失敗",
+        "max_messages": "保留最近訊息數",
+        "max_messages_description": "僅傳送最近若干則訊息，更早的訊息不進入上下文；留空表示不限制。助理可單獨覆寫",
+        "max_messages_unlimited": "不限制",
+        "title": "上下文管理",
+        "truncate_threshold": "工具輸出截斷閾值（字元）",
+        "truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫"
+      },
       "default_assistant_model": "預設助理模型",
       "default_assistant_model_description": "助理未設定模型時使用。",
       "docs": "模型文件",
@@ -7574,6 +7616,16 @@
         "label": "快速模型",
         "setting_title": "快速模型設定",
         "tooltip": "請選擇輕量模型，並避免使用推理模型。"
+      },
+      "retry": {
+        "backoff": "指數退避",
+        "description": "重試聊天、嵌入與重新排序的呼叫；聊天失敗時可回退到其他模型",
+        "fallback_models": "備用模型",
+        "fallback_models_count": "已選擇 {{count}} 個模型",
+        "fallback_models_description": "當主要模型失敗時依序嘗試的模型",
+        "label": "模型呼叫重試",
+        "max_attempts": "最大重試次數",
+        "tooltip": "重試和回退機制僅在模型開始串流內容之前適用"
       },
       "toolbar": {
         "custom_add": "自訂",
@@ -8162,10 +8214,12 @@
       "label": "按鍵",
       "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增對話",
+      "next_tab": "下一個分頁",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式佔用",
       "open_tab_in_new_window": "在新視窗中開啟分頁",
       "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
+      "prev_tab": "上一個分頁",
       "print": "列印",
       "quick_assistant": "快速助理",
       "rename_topic": "重新命名對話",

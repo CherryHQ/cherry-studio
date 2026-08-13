@@ -52,7 +52,7 @@ describe('FeedbackDialog', () => {
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
   })
 
-  it('shows diagnostics, Cherry Assistant, and GitHub in the requested order', () => {
+  it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
     const diagnostics = screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })

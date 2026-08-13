@@ -347,7 +347,7 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.manage.title': '管理智能体',
         'agent.session.list.title': '任务',
-        'settings.about.feedback.agent.description': '创建独立的 Cherry 小助手会话，并预先选中反馈 Skill。'
+        'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。'
       })[key] ?? key
   })
 }))
@@ -784,7 +784,7 @@ describe('AgentPage', () => {
         text: 'Use the cherry-studio-feedback skill.',
         tokens: [
           expect.objectContaining({
-            description: '创建独立的 Cherry 小助手会话，并预先选中反馈 Skill。',
+            description: '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
             id: 'skill:cherry-studio-feedback',
             kind: 'skill',
             promptText: 'Use the cherry-studio-feedback skill.'

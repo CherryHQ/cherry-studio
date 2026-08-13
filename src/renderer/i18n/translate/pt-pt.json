@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistente integrado do Cherry Studio. Diagnostique problemas, guie operações, recolha FAQs, envie bugs/pedidos de recursos e pesquise/crie Competências"
+      },
+      "cherry_support": {
+        "description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback"
       }
     },
     "channels": {
@@ -3487,6 +3490,12 @@
         "context_compress_model": "Modelo de compressão",
         "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_count_follow_global": "Seguir definição global ({{count}})",
+        "context_count_unlimited": "Sem limite",
+        "context_globally_disabled": "A gestão de contexto está desativada globalmente, pelo que as definições de descarga e compressão aqui não têm efeito",
+        "context_inherited": "A seguir as definições globais: {{compress}}; saídas de ferramentas acima de {{threshold}} caracteres são descarregadas",
+        "context_inherited_compress_off": "compressão automática desativada",
+        "context_inherited_compress_on": "compressão automática ativada",
         "context_management": "Gestão de contexto",
         "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
@@ -4103,6 +4112,9 @@
       "failed": "Restauração falhou",
       "success": "Restauração bem-sucedida"
     },
+    "retry": {
+      "status": "A tentar novamente com {{model}} · tentativa {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Guardado com sucesso"
@@ -4471,14 +4483,27 @@
     },
     "pinned": "Fixado",
     "price": {
+      "add_tier": "[to be translated]:Add pricing tier",
+      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "Preço de Leitura de Cache",
+      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
+      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "Preço de entrada",
       "million_tokens": "Um milhão de tokens",
+      "min_input_tokens": "[to be translated]:Starts at input tokens",
+      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "Preço de saída",
-      "price": "Preço"
+      "price": "Preço",
+      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
+      "tier": "[to be translated]:Tier {{index}}",
+      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "[to be translated]:Use input price",
+      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
+      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
+      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
     },
     "reasoning": "Raciocínio",
     "rerank_model": "Modelo de reclassificação",
@@ -4630,6 +4655,8 @@
         "font_size_medium": "Médio",
         "font_size_small": "Pequeno",
         "font_title": "Definições do tipo de letra",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Tipo de letra serifado",
         "show_table_of_contents": "Mostrar índice",
         "show_table_of_contents_description": "Apresenta uma barra lateral com o índice para facilitar a navegação no documento",
@@ -5397,6 +5424,7 @@
         "insertRowBefore": "inserir acima"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "inserir fórmula matemática",
@@ -5985,10 +6013,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Inicie uma sessão separada do Assistente Cherry com a skill de feedback preparada.",
-          "title": "Perguntar ao Assistente Cherry"
+          "description": "Converse com o Agent integrado Cherry Support para obter ajuda com o Cherry Studio ou partilhar feedback.",
+          "title": "Pedir ajuda ao Cherry Support"
         },
-        "agent_error": "Não foi possível abrir o Assistente Cherry para feedback. Por favor, tente novamente.",
+        "agent_error": "Não foi possível abrir o Cherry Support. Tente novamente.",
         "button": "Comentários",
         "diagnostics": {
           "description": "Reveja as informações de diagnóstico recentes e carregue-as anonimamente num só passo.",
@@ -7462,6 +7490,20 @@
         "use_all_keys": "Use chaves"
       },
       "collapse_all": "Recolher tudo",
+      "context_management": {
+        "compress_enabled": "Compressão automática",
+        "compress_enabled_description": "Resume automaticamente os turnos mais antigos ao aproximar-se do limite da janela de contexto. Os assistentes podem substituir esta definição",
+        "compress_model": "Modelo de compressão",
+        "compress_model_follow": "Seguir o modelo atual",
+        "enabled": "Ativar gestão de contexto",
+        "enabled_description": "Gere automaticamente o contexto da conversa: descarrega saídas de ferramentas demasiado grandes e comprime o histórico perto do limite da janela. Se desativada, nada é gerido e os pedidos que excedam a janela falham",
+        "max_messages": "Mensagens recentes mantidas",
+        "max_messages_description": "Envia apenas as mensagens mais recentes; as anteriores são excluídas do contexto. Deixe vazio para não limitar. Os assistentes podem substituir esta definição",
+        "max_messages_unlimited": "Sem limite",
+        "title": "Gestão de contexto",
+        "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
+        "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
+      },
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",
@@ -7574,6 +7616,16 @@
         "label": "Modelo rápido",
         "setting_title": "Configuração rápida do modelo",
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
+      "retry": {
+        "backoff": "Recuo exponencial",
+        "description": "Repete as chamadas de chat, embeddings e reordenação; o chat pode recorrer a outros modelos",
+        "fallback_models": "Modelos de reserva",
+        "fallback_models_count": "{{count}} modelos selecionados",
+        "fallback_models_description": "Modelos experimentados por ordem quando o modelo principal falha",
+        "label": "Repetição de chamadas ao modelo",
+        "max_attempts": "Número máximo de tentativas",
+        "tooltip": "As repetições e os modelos de reserva só se aplicam antes de o modelo começar a transmitir conteúdo"
       },
       "toolbar": {
         "custom_add": "Personalizado",
