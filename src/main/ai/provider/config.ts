@@ -311,8 +311,7 @@ export async function resolveProviderAiSdkConfig(
           // any doubao-seedream-* model must use the doubao extension (POSTs JSON
           // to /images/generations), not the generic /images/edits multipart path.
           (/^doubao-seedream/i.test(model.apiModelId ?? model.id) &&
-            typeof p.apiHost === 'string' &&
-            /ark\.cn-beijing\.volces\.com/i.test(p.apiHost)) ||
+            /ark\.cn-beijing\.volces\.com/i.test(getBaseUrl(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) ?? '')) ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: withSelectedApiKey((ctx) => ({
