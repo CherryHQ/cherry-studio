@@ -14,7 +14,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import type { DbOrTx, DbType } from '@data/db/types'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
@@ -45,7 +45,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -333,11 +333,32 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
-  purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): void {
+  purgeByTopicIdsTx(tx: DbOrTx, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
 
+    const roots = tx
+      .select({ id: messageTable.id, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(and(inArray(messageTable.topicId, uniqueTopicIds), isNull(messageTable.parentId)))
+      .all()
+    for (const root of roots) {
+      this.flattenUnderTx(tx, root.id, eq(messageTable.topicId, root.topicId))
+    }
+
     tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds)).run()
+  }
+
+  /**
+   * Re-hang rows the caller is about to delete directly under `parentId`, so the self-FK
+   * cascade recurses one level instead of one per message — past SQLITE_MAX_TRIGGER_DEPTH
+   * (1000) SQLite aborts the delete with "too many levels of trigger recursion".
+   */
+  private flattenUnderTx(tx: DbOrTx, parentId: string, scope: SQL): void {
+    tx.update(messageTable)
+      .set({ parentId })
+      .where(and(scope, isNotNull(messageTable.parentId)))
+      .run()
   }
 
   /**
@@ -1899,6 +1920,10 @@ export class MessageService {
         // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
         // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
         // from getDescendantIds for the response and the activeNodeId check.)
+        for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
+          const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+          this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
+        }
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
@@ -2049,6 +2074,7 @@ export class MessageService {
 
       if (deletedIds.length === 0) return { deletedIds }
 
+      this.flattenUnderTx(tx, rootId, eq(messageTable.topicId, topicId))
       tx.delete(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
         .run()
