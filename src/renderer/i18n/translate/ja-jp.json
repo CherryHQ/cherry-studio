@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
         "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
-        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
-        "mentionOnlyLabel": "[to be translated]:@Mention only",
+        "mentionOnlyHint": "[to be translated]:このボットはオンの状態では@メンションのみに応答します。グループ内のすべてのメッセージを受信したい場合はオフにしてください（QQオープンプラットフォームで「すべてのメッセージを受信する」許可が必要です）。",
+        "mentionOnlyLabel": "[@Mention only]",
         "title": "QQ",
         "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[to be translated]:{{count}} channel",
-          "channels_count_other": "[to be translated]:{{count}} channels",
-          "channels_empty": "[to be translated]:No channels will be changed.",
-          "channels_title": "[to be translated]:Channels changed to no work directory",
+          "channels_count_one": "[to be translated]:{{count}}チャンネル",
+          "channels_count_other": "[to be translated]:{{count}}チャンネル",
+          "channels_empty": "[変更されるチャンネルはありません。]",
+          "channels_title": "チャンネルの設定が「作業ディレクトリなし」に変更されました。",
           "content": "この作業フォルダーを削除すると、その配下のすべてのタスクも削除されます。削除されるのはデータベースのレコードのみで、ディスク上の実際のフォルダーは削除されません。",
-          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
+          "disk_preserved": "ディスク上のフォルダーおよびそのファイルは削除されません。",
           "error": {
             "failed": "ワークフォルダーの削除に失敗しました"
           },
-          "more_count_one": "[to be translated]:…and {{count}} more item",
-          "more_count_other": "[to be translated]:…and {{count}} more items",
-          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
-          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
-          "preview_loading": "[to be translated]:Loading deletion impact…",
-          "sessions_count_one": "[to be translated]:{{count}} session",
-          "sessions_count_other": "[to be translated]:{{count}} sessions",
-          "sessions_empty": "[to be translated]:No sessions will be deleted.",
-          "sessions_title": "[to be translated]:Sessions to be deleted",
-          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
-          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
-          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
-          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
+          "more_count_one": "…そしてさらに{{count}}件のアイテム",
+          "more_count_other": "…そしてさらに{{count}}件のアイテム",
+          "preview": "[to be translated]: 「{{name}}」を削除すると、そのセッションが削除され、関連するチャンネルやスケジュールされたタスクも無効になります。この操作は元に戻すことができません。",
+          "preview_failed": "[削除の影響を確認することができませんでした。そのため、このワークディレクトリを削除することはできません。]",
+          "preview_loading": "[to be translated]: 削除処理の影響を読み込んでいます…",
+          "sessions_count_one": "[to be translated]：{{count}}セッション",
+          "sessions_count_other": "[to be translated]:{{count}}セッション",
+          "sessions_empty": ">[to be translated]:セッションは一切削除されません。",
+          "sessions_title": "[to be translated]: 削除するセッション",
+          "tasks_count_one": "[to be translated]:{{count}}件のスケジュール済みタスク",
+          "tasks_count_other": "[to be translated]:{{count}}件のスケジュールされたタスク",
+          "tasks_empty": "予定されているタスクに変更はありません。",
+          "tasks_title": "[to be translated]: スケジュールされていたタスクにおいて、作業ディレクトリを使用しない設定に変更されました。",
           "title": "作業フォルダーを削除",
           "trigger": "作業フォルダーを削除"
         },
@@ -1563,19 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "エージェント",
-          "resources": "[to be translated]:Files & Folders",
+          "resources": "[to be translated]: ファイルとフォルダ",
           "skills": "スキル"
         },
         "description": "ファイル、エージェント、またはスキルから選択",
-        "load_failed": "[to be translated]:Failed to load workspace resources",
+        "load_failed": "[to be translated]: ワークスペースのリソースを読み込むことに失敗しました。",
         "loading": "読み込み中...",
         "no_items_found": {
           "description": "ファイル、エージェント、スキルは利用できません",
           "label": "アイテムが見つかりません"
         },
         "no_resources_found": {
-          "description": "[to be translated]:No searchable files or folders in the current workspace",
-          "label": "[to be translated]:No Resources Found"
+          "description": "現在のワークスペースに検索可能なファイルやフォルダはありません。",
+          "label": "[翻訳対象]:リソースが見つかりませんでした。"
         },
         "title": "リソース"
       },
@@ -2544,7 +2544,7 @@
       "ocr": "OCR エンジンが初期化されていません。OCR 設定を確認してください",
       "parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",
       "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
-      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
+      "permission": "プロバイダーはこのリクエストを拒否しました。エラーの詳細、ご利用のアカウントプラン、APIキーの権限、またはこのリソースへのアクセス権限を確認してください。",
       "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
       "quota": "アカウントの利用枠が不足しています。チャージするかプロバイダーを変更してください",
       "rate_limit": "短時間にリクエストが多すぎます。しばらく待ってから再試行するか、より高いレート制限のモデルに切り替えてください",
@@ -2569,7 +2569,7 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
-    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
+    "image_unreadable_for_non_vision_model": "選択されたモデルは画像をサポートしておらず、Cherry Studioでは添付ファイルから読み取り可能なテキストを抽出することができませんでした。画像処理が可能なモデルを選択するか、画像を削除して再度試してください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -3233,12 +3233,12 @@
       "default_separator": "自動（推奨）",
       "document_count": "文書数",
       "download_local_embedding_failed": "ローカル埋め込みモデルのダウンロードに失敗しました",
-      "download_local_model": "[to be translated]:Download Local Model",
+      "download_local_model": "[to be translated]：ローカルモデルのダウンロード",
       "embedding_model": "埋め込みモデル",
       "embedding_model_select": "モデル選択",
       "file_processing": "ファイル処理",
       "file_processing_hint": "ファイルの処理はドキュメントのインポート時に自動的に実行されます。適切なプロバイダーを選択することで、ドキュメントの解析品質を向上させることができます。",
-      "file_processing_none": "[to be translated]:Don't use",
+      "file_processing_none": "「[to be translated]」：使用しないでください。",
       "hints": {
         "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
         "chunk_separator": "テキストを分割するデリミタ（エスケープ済み）。スマートチャンキングが有効な場合は区切り点として機能し、無効な場合はこのデリミタのみでテキストが分割されます。",
@@ -3252,8 +3252,8 @@
       },
       "processor": "処理プロバイダー",
       "processor_not_configured": "設定されていません",
-      "processor_not_downloaded": "[to be translated]:Not downloaded",
-      "processor_unreachable": "[to be translated]:Service not running",
+      "processor_not_downloaded": "[要翻訳]: ダウンロードされていません。",
+      "processor_unreachable": "サービスが実行されていません。",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -4052,12 +4052,12 @@
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
       "stream_admission": {
-        "execution_changed": "[to be translated]:The response changed before the retry started. Please try again.",
-        "execution_not_ready": "[to be translated]:This response is still generating and cannot be retried yet.",
-        "model_already_in_live_group": "[to be translated]:This model is already generating in the active reply group.",
-        "single_model_required": "[to be translated]:Select one model to add to the active reply group.",
-        "target_not_in_live_group": "[to be translated]:The selected response is no longer in the active reply group. Please try again.",
-        "topic_busy": "[to be translated]:This conversation is still generating. Wait for it to finish and try again."
+        "execution_changed": "[再試行を開始する前にレスポンスが変更されました。もう一度試してください。]",
+        "execution_not_ready": "この応答はまだ生成中であり、再度試行することはできません。",
+        "model_already_in_live_group": "このモデルは、すでにアクティブなリプライグループ内で生成処理を行っています。",
+        "single_model_required": "アクティブな返信グループに追加するモデルを1つ選択してください。",
+        "target_not_in_live_group": "選択された回答はもはや有効な回答グループに含まれていません。再度試してください。",
+        "topic_busy": "この会話はまだ処理中です。完了するまで待ってから再度試してください。"
       },
       "table": {
         "invalid": "有効なテーブルデータを取得できません"
@@ -4074,7 +4074,7 @@
         "title": "グループの回答を削除"
       },
       "retry_failed": "エラーになったメッセージを再試行",
-      "retry_skipped_same_model": "[to be translated]:Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
+      "retry_skipped_same_model": "[to be translated]: 詳細なエラー内容は省略しますが、{{count}}件の返信が検討から除外されました。これは、「Retry All」オプションが各モデルに対して最大1回の再試行しか行わないためです。"
     },
     "ignore": {
       "knowledge": {
@@ -4506,27 +4506,27 @@
     },
     "pinned": "固定済み",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "[to be translated]:価格体系の追加",
+      "cache_fallback_help": "このティアの入力価格を使用するには、キャッシュ価格を空欄のままにしてください。無料で利用する場合は0を入力してください。",
       "cache_read": "キャッシュ読み取り価格",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "[to be translated]: キャッシュ書き込み価格",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[to be translated]: {{field}}, ティア {{index}}",
       "input": "入力価格",
       "million_tokens": "百万トークン",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "[to be translated]: 入力トークンから開始",
+      "min_input_tokens_help": "[翻訳対象]: 包含的境界線（inclusive boundary）；これは前の階層（tier）よりも大きくなければならない。",
       "output": "出力価格",
       "price": "価格",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "[to be translated]:価格帯 {{index}} を削除する",
+      "tier": "[todonarihan]:ティア {{index}}",
+      "tier_from": "[to be translated]: {{boundary}} 以降の入力トークン（含む）",
+      "use_input_price": "[to be translated]：入力価格を使用します。",
+      "validation_min_input_tokens": "「正の整数を入力してください。」",
+      "validation_min_input_tokens_order": "[要翻訳]：その階層は前の階層の後に開始されなければなりません。",
+      "validation_price": "[to be translated]:0以上の価格を入力してください。"
     },
     "reasoning": "思考",
     "rerank_model": "リランクモデル",
@@ -4678,8 +4678,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "フォント設定",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "[要翻訳]: 行折りモード",
+        "line_breaks_description": "[to be translated]: 1回の改行を新しい行として表示する（Obsidianスタイル）。このオプションを無効にすると、改行はすべてスペースに統合され、段落を区切るのは空白行のみとなる。",
         "serif_font": "セリフフォント",
         "show_table_of_contents": "目次アウトラインを表示",
         "show_table_of_contents_description": "目次アウトラインサイドバーを表示し、文書内のナビゲーションを容易にする",
@@ -5447,7 +5447,7 @@
         "insertRowBefore": "上に挿入"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "[to be translated]:トップに戻る",
     "commands": {
       "blockMath": {
         "description": "数式を挿入します",
@@ -6725,8 +6725,8 @@
       "invalidTool": "無効なツール名またはキー",
       "localModels": {
         "acceleration": {
-          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
-          "label": "[to be translated]:Hardware acceleration"
+          "description": "[to be translated]: DirectMLやCoreMLを使用して、ローカルでのエンベディング処理やOCR（光学分類）の推論処理を高速化する。",
+          "label": "[to be translated]: ハードウェアアクセラレーション"
         },
         "cancel": "キャンセル",
         "description": "デバイス上でローカルに動作するモデル — 一度ダウンロードすれば、APIキーなしでオフラインで使用できます。",
@@ -7035,7 +7035,7 @@
       },
       "command": "コマンド",
       "config_description": "モデルコンテキストプロトコルサーバーの設定",
-      "copyLogs": "[to be translated]:Copy logs",
+      "copyLogs": "[翻訳対象]: ログデータのコピー",
       "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
       "deleteError": "サーバーの削除に失敗しました",
       "deleteServer": "サーバーを削除",
@@ -7089,7 +7089,7 @@
       },
       "logoUrl": "ロゴURL",
       "logs": "ログ",
-      "logsHint": "[to be translated]:Logs from the MCP server process",
+      "logsHint": "[MCPサーバープロセスからのログ]",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -8200,12 +8200,12 @@
       "label": "キー",
       "move_tab_to_first": "タブを最初に移動",
       "new_topic": "新しいトピック",
-      "next_tab": "[to be translated]:Next Tab",
+      "next_tab": "次のタブ",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "open_tab_in_new_window": "新しいウィンドウでタブを開く",
       "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
-      "prev_tab": "[to be translated]:Previous Tab",
+      "prev_tab": "[to be translated]:前のタブ",
       "print": "印刷",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
@@ -8323,8 +8323,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
-            "name": "[to be translated]:Local Document"
+            "description": "[to be translated]: このマシン上でPDFを完全にMarkdown形式に変換できます。テキスト層を持つドキュメントは直接解析されますが、スキャンされたデータについてはローカルのOCRモデルが利用されます。",
+            "name": "[to be translated]:ローカルドキュメント"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) をインプロセスで実行 — 完全オフライン、APIキー不要、認識処理はバックグラウンドスレッドで実行されるためUIが応答性を保ちます。初回使用前に環境依存関係でモデル（約140MB）をダウンロードしてください。",

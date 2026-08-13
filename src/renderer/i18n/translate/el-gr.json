@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Εισάγετε το Client Secret του QQ Bot σας",
         "description": "Λήψη και απάντηση μηνυμάτων μέσω του επίσημου API του QQ Bot.",
-        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
-        "mentionOnlyLabel": "[to be translated]:@Mention only",
+        "mentionOnlyHint": "Όταν είναι ενεργό, το βοτ απαντά μόνο στις αναφορές (@mentions). Απενεργοποιήστε το για να λαμβάνετε όλα τα μηνύματα της ομάδας (απαιτείται άδεια “λήψης όλων των μηνυμάτων” στην QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID συνομιλίας σας στη σωστή μορφή."
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[to be translated]:{{count}} channel",
-          "channels_count_other": "[to be translated]:{{count}} channels",
-          "channels_empty": "[to be translated]:No channels will be changed.",
-          "channels_title": "[to be translated]:Channels changed to no work directory",
+          "channels_count_one": "[Να μεταφραστεί]: {{count}} κανάλια",
+          "channels_count_other": "[Επί προγραμματισμό φράσης: “To be translated:” Θα πρέπει να υπάρξει ένας αριθμός (με τη σύμβολο του πινάκα “{{”) που θα αναφέρεται στον αριθμό των καναλιών. Αυτός ο αριθμός θα πρέπει να αντικατασταθεί στο τέλος της φράσης. Για παράδειγμα: “Υπάρχουν {{count}} κανάλια.”]  \nΤελικό κείμενο: “Υπάρχουν {{count}} κανάλια.”",
+          "channels_empty": "Δεν θα αλλάξουν κανένα κανάλι.",
+          "channels_title": "Τα κανάλια έχουν αλλαχθεί σε έναν κατάλογο που δεν περιέχει καμία δουλειά (δηλαδή σε έναν κατάλογο που δεν περιέχει αρχεία που να μπορούν να επεξεργαστούν από το πρόγραμμα).",
           "content": "Η διαγραφή αυτού του φακέλου εργασίας θα διαγράψει επίσης όλες τις εργασίες που βρίσκονται κάτω από αυτόν. Διαγράφονται μόνο οι εγγραφές της βάσης δεδομένων· ο πραγματικός φάκελος στον δίσκο δεν θα διαγραφεί.",
-          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
+          "disk_preserved": "Η φακέλα στον δίσκο και τα αρχεία της δεν θα διαγραφούν.",
           "error": {
             "failed": "Αποτυχία διαγραφής του καταλόγου εργασίας"
           },
-          "more_count_one": "[to be translated]:…and {{count}} more item",
-          "more_count_other": "[to be translated]:…and {{count}} more items",
-          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
-          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
-          "preview_loading": "[to be translated]:Loading deletion impact…",
-          "sessions_count_one": "[to be translated]:{{count}} session",
-          "sessions_count_other": "[to be translated]:{{count}} sessions",
-          "sessions_empty": "[to be translated]:No sessions will be deleted.",
-          "sessions_title": "[to be translated]:Sessions to be deleted",
-          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
-          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
-          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
-          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
+          "more_count_one": "…και άλλα {{count}} αντικείμενα.",
+          "more_count_other": "…και ακόμη {{count}} αντικείμενα",
+          "preview": "Η διαγραφή του “{{name}}” απομακρύνει τις συνδρομές (sessions) του, αλλάζει τα σχετικά κανάλια (channels) και τις προγραμματισμένες εργασίες (scheduled tasks), καθώς και την κατευθύνση του καταλόγου εργασιών (work directory). Αυτή η ενέργεια δεν μπορεί να ανακληθεί.",
+          "preview_failed": "Η επίδραση της διαγραφής δεν μπόρεσε να αναγκαστεί, οπότε αυτός ο κατάλογος εργασίας δεν μπορεί να διαγραφεί ακόμη.",
+          "preview_loading": "[Για να μεταφραστεί]: Συγκεκριμένεται το αντίκτυπο της διαγραφής…",
+          "sessions_count_one": "[Για μετάφραση]: {{count}} συνεδρίες",
+          "sessions_count_other": "[Θα πρέπει να μεταφραστεί]: {{count}} σεσιόνες",
+          "sessions_empty": "Δεν θα διαγραφούν καμία από τις συνεδρίες.",
+          "sessions_title": "Συνεδρίες που πρέπει να διαγραφούν",
+          "tasks_count_one": "[Να μεταφραστεί]: {{count}} προγραμματισμένες εργασίες",
+          "tasks_count_other": "[Να μεταφραστεί]: {{count}} προγραμματισμένες εργασίες",
+          "tasks_empty": "Κανένα από τα προγραμματισμένα καθήκοντα δεν θα αλλάξει.",
+          "tasks_title": "Οι προγραμματισμένες εργασίες έχουν αλλαχθεί έτσι ώστε να μη χρησιμοποιούν κανέναν κατάλογο εργασίας (work directory).",
           "title": "Διαγραφή καταλόγου εργασίας",
           "trigger": "Διαγραφή καταλόγου εργασίας"
         },
@@ -1563,19 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Πράκτορες",
-          "resources": "[to be translated]:Files & Folders",
+          "resources": "Αρχεία & Πολιτείες",
           "skills": "Δεξιότητες"
         },
         "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
-        "load_failed": "[to be translated]:Failed to load workspace resources",
+        "load_failed": "Αποτύχησε η φόρτωση των πόρων του χώρου εργασίας.",
         "loading": "Φόρτωση...",
         "no_items_found": {
           "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
           "label": "Δεν βρέθηκαν στοιχεία"
         },
         "no_resources_found": {
-          "description": "[to be translated]:No searchable files or folders in the current workspace",
-          "label": "[to be translated]:No Resources Found"
+          "description": "Δεν υπάρχουν αρχεία ή φακέλες που να μπορούν να αναζητηθούν στον τρέχοντα χώρο δουλειάς.",
+          "label": "Δεν βρέθηκαν πόροι."
         },
         "title": "Πόροι"
       },
@@ -2544,7 +2544,7 @@
       "ocr": "Η μηχανή OCR δεν έχει αρχικοποιηθεί, ελέγξτε τις ρυθμίσεις OCR",
       "parse": "Η τεχνητή νοημοσύνη επέστρεψε μη έγκυρη απάντηση, παρακαλώ δοκιμάστε ξανά ή αλλάξτε μοντέλο",
       "payload": "Το περιεχόμενο του αιτήματος είναι πολύ μεγάλο, παρακαλώ μειώστε το μέγεθος του αρχείου ή του κειμένου",
-      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
+      "permission": "Ο πάροχος απέρριψε αυτόν τον αιτήμα. Ελέγξτε τις λεπτομέρειες του σφαλματού, το πλάνο λογαριασμού σας, τις άδειες πρόσβασης του API και τις ρυθμίσεις πρόσβασης σε αυτόν τον πόρο.",
       "proxy": "Σφάλμα διακομιστή μεσολάβησης ή πιστοποιητικού SSL, ελέγξτε τις ρυθμίσεις μεσολάβησης και δικτύου",
       "quota": "Εξαντλήθηκε το όριο λογαριασμού, φορτίστε ή αλλάξτε πάροχο",
       "rate_limit": "Πάρα πολλά αιτήματα σε σύντομο χρονικό διάστημα. Περιμένετε λίγο και δοκιμάστε ξανά, ή μεταβείτε σε μοντέλο με υψηλότερο όριο ρυθμού",
@@ -2569,7 +2569,7 @@
       "503": "Η υπηρεσία δεν είναι διαθέσιμη, παρακαλώ δοκιμάστε ξανά",
       "504": "Υπερχρονισμός φάρων, παρακαλώ δοκιμάστε ξανά"
     },
-    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
+    "image_unreadable_for_non_vision_model": "Το επιλεγμένο μοντέλο δεν υποστηρίζει την ανάλυση εικόνων, και το Cherry Studio δεν κατάφερε να εξαγάγει διαβάσιμο κείμενο από το ανεπιφύλακτο αρχείο. Επιλέξτε ένα μοντέλο που διαθέτει ικανότητες ανάλυσης εικόνων, ή αφαιρέστε την εικόνα και προσπαθήστε ξανά.",
     "lastError": "Τελευταίο σφάλμα",
     "maxEmbeddingsPerCall": "Μέγιστες ενσωματώσεις ανά κλήση",
     "message": "Μήνυμα σφάλματος",
@@ -3233,12 +3233,12 @@
       "default_separator": "Αυτόματη (συνιστάται)",
       "document_count": "Καταμέτρηση Εγγράφων",
       "download_local_embedding_failed": "Αποτυχία λήψης του τοπικού μοντέλου ενσωμάτωσης",
-      "download_local_model": "[to be translated]:Download Local Model",
+      "download_local_model": "Κατεβάστε το τοπικό μοντέλο (Download the local model).",
       "embedding_model": "Μοντέλο ενσωματώσεων",
       "embedding_model_select": "Επιλογή Μοντέλου",
       "file_processing": "Επεξεργασία Αρχείων",
       "file_processing_hint": "Η επεξεργασία αρχείων εκτελείται αυτόματα κατά την εισαγωγή εγγράφων. Η επιλογή του κατάλληλου παρόχου μπορεί να βελτιώσει την ποιότητα ανάλυσης των εγγράφων.",
-      "file_processing_none": "[to be translated]:Don't use",
+      "file_processing_none": "Μην το χρησιμοποιείτε.",
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
         "chunk_separator": "Διαχωριστικό στο οποίο σπάει το κείμενο, σε διαφυγμένη μορφή. Με την έξυπνη κατάτμηση ενεργοποιημένη προσθέτει σημείο διακοπής· με απενεργοποιημένη, το κείμενο χωρίζεται μόνο από αυτό το διαχωριστικό.",
@@ -3252,8 +3252,8 @@
       },
       "processor": "Πάροχος Επεξεργασίας",
       "processor_not_configured": "Δεν έχει ρυθμιστεί",
-      "processor_not_downloaded": "[to be translated]:Not downloaded",
-      "processor_unreachable": "[to be translated]:Service not running",
+      "processor_not_downloaded": "Δεν έχει ληφθεί υπό σκοπό το φάιλο. (The file has not been downloaded.)",
+      "processor_unreachable": "Η υπηρεσία δεν εκτελείται.",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο ανακατάταξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -4052,12 +4052,12 @@
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
       },
       "stream_admission": {
-        "execution_changed": "[to be translated]:The response changed before the retry started. Please try again.",
-        "execution_not_ready": "[to be translated]:This response is still generating and cannot be retried yet.",
-        "model_already_in_live_group": "[to be translated]:This model is already generating in the active reply group.",
-        "single_model_required": "[to be translated]:Select one model to add to the active reply group.",
-        "target_not_in_live_group": "[to be translated]:The selected response is no longer in the active reply group. Please try again.",
-        "topic_busy": "[to be translated]:This conversation is still generating. Wait for it to finish and try again."
+        "execution_changed": "Η απάντηση άλλαξε πριν ξεκινήσει η μεταπροσπάθεια (προσπάθεια επανεκτέλεσης της ζήτησης). Παρακαλούμε, προσπαθήστε ξανά.",
+        "execution_not_ready": "Αυτή η απάντηση εξακολουθεί να δημιουργείται και δεν μπορεί ακόμη να επαναπροσπαθηθεί.",
+        "model_already_in_live_group": "Αυτό το μοντέλο έχει ήδη αρχίσει να δημιουργεί απαντήσεις μέσα στην ενεργή ομάδα απαντήσεων (active reply group).",
+        "single_model_required": "Επιλέξτε ένα μοντέλο για να προστεθεί στην ενεργή ομάδα απαντήσεων.",
+        "target_not_in_live_group": "Η επιλεγμένη απάντηση δεν βρίσκεται πλέον στον ομίλο των ενεργών απαντήσεων. Προσπάθηστε ξανά.",
+        "topic_busy": "Αυτή η συνομιλία εξακολουθεί να γίνεται. Περιμένετε έως να ολοκληρωθεί και προσπαθήστε ξανά."
       },
       "table": {
         "invalid": "Αδυναμία ανάκτησης έγκυρων δεδομένων πίνακα"
@@ -4074,7 +4074,7 @@
         "title": "Διαγραφή ομαδοποιημένων απαντήσεων"
       },
       "retry_failed": "Αποτυχημένο μήνυμα επανάληψης",
-      "retry_skipped_same_model": "[to be translated]:Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
+      "retry_skipped_same_model": "Παραλείφθηκαν {{count}} επιπλέον αποτυχημένα απαντήματα, διότι η εντολή “Retry All” επιτρέπει μέγιστον έναν προσπαθεία επανάληψης για κάθε μοντέλο."
     },
     "ignore": {
       "knowledge": {
@@ -4506,27 +4506,27 @@
     },
     "pinned": "Σταθεροποιημένο",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "Προσθήκη επιπέδων τιμολόγησης",
+      "cache_fallback_help": "[Για να μεταφραστεί]: Αφήστε τις τιμές του κεσμένου αρχείου (cache) κενές ώστε να χρησιμοποιηθεί η εισόδηση της συγκεκριμένης κατηγορίας (tier); Εισάγετε “0” για δωρεάν.",
       "cache_read": "Τιμή Ανάγνωσης Cache",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "“Cache Write Price”",
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[Για προσωποποίηση]: {{field}}, επίπεδο {{index}}",
       "input": "Τιμή εισόδου",
       "million_tokens": "Ένα εκατομμύριο Token",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "Ξεκινά από τα τοκέντα εισόδου (input tokens).",
+      "min_input_tokens_help": "Συμπεριλαμβανομένα όρια: Πρέπει να είναι μεγαλύτερα από το προηγούμενο επίπεδο.",
       "output": "Τιμή εξόδου",
       "price": "Τιμή",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "Αφαιρέστε το επίπεδο τιμών {{index}}.",
+      "tier": "Επίπεδο {{index}}",
+      "tier_from": "Από τους τοκενς εισόδου που βρίσκονται μέσα στο χώρο ορίωσης ({{boundary}}), συμπεριλαμβανομένου και του τοκένα του ίδιου του χώρου ορίωσης.",
+      "use_input_price": "[Να μεταφραστεί]: Χρησιμοποιήστε την τιμή εισόδου.",
+      "validation_min_input_tokens": "Εισάγετε ένα θετικό ακέραιο αριθμό.",
+      "validation_min_input_tokens_order": "Το επίπεδο πρέπει να ξεκινήσει μετά το προηγούμενο επίπεδο.",
+      "validation_price": "Εισάγετε έναν τιμή ίσο ή μεγαλύτερο με 0."
     },
     "reasoning": "Συλλογισμός",
     "rerank_model": "Μοντέλο ανακατάταξης",
@@ -4678,8 +4678,8 @@
         "font_size_medium": "Μεσαίο",
         "font_size_small": "μικρό",
         "font_title": "ρυθμίσεις γραμματοσειράς",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "Μοντός διακοπής γραμμής (Line Break Mode)",
+        "line_breaks_description": "[Να μεταφραστεί]: Να αναπαρασταθεί ένας διάλυσμας γραμμάτων ως μια νέα γραμμή (στυλ Obsidian). Όταν απενεργοποιείται αυτή η λειτουργικότητα, τα διαλύσματα γραμμάτων συγκλωνίζονται σε κενά, μέχρι που μια άδεια γραμμή διαχωρίζει τα παραγράφους.",
         "serif_font": "σειρά γραμματοσειρών",
         "show_table_of_contents": "Εμφάνιση περιεχομένων καταλόγου",
         "show_table_of_contents_description": "Εμφάνιση πλευρικής στήλης περιεχομένων για εύκολη πλοήγηση στο έγγραφο",
@@ -5447,7 +5447,7 @@
         "insertRowBefore": "Εισάγετε παραπάνω"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "Επιστροφή στην κορυφή",
     "commands": {
       "blockMath": {
         "description": "Εισαγωγή μαθηματικού τύπου",
@@ -6725,8 +6725,8 @@
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "localModels": {
         "acceleration": {
-          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
-          "label": "[to be translated]:Hardware acceleration"
+          "description": "Χρησιμοποιήστε το DirectML ή το CoreML για να επιταχύνετε τις επεξεργασίες ενσωμάτωσης δεδομένων και τις λειτουργίες αναγνώρισης κειμένου άπο της φωτογραφίας (OCR – Optical Character Recognition).",
+          "label": "Απευκόλυνση με συσκευαστικά μέσα (Hardware acceleration)"
         },
         "cancel": "Ακύρωση",
         "description": "Μοντέλα που εκτελούνται τοπικά στη συσκευή σας — κατεβάστε μία φορά, στη συνέχεια χρησιμοποιήστε τα εκτός σύνδεσης χωρίς κλειδί API.",
@@ -7035,7 +7035,7 @@
       },
       "command": "Εντολή",
       "config_description": "Ρυθμίζει το πλαίσιο συντονισμού πρωτοκόλλων διακομιστή",
-      "copyLogs": "[to be translated]:Copy logs",
+      "copyLogs": "Κάπια εντολή ή λειτουργία που αφορά την αντιγραφή λογαριασμών (logs).",
       "customRegistryPlaceholder": "Παρακαλώ εισάγετε τη διεύθυνση του ιδιωτικού αποθετηρίου, π.χ.: https://npm.company.com",
       "deleteError": "Αποτυχία διαγραφής διακομιστή",
       "deleteServer": "Διαγραφή διακομιστή",
@@ -7089,7 +7089,7 @@
       },
       "logoUrl": "URL Λογότυπου",
       "logs": "Αρχεία καταγραφής",
-      "logsHint": "[to be translated]:Logs from the MCP server process",
+      "logsHint": "Συντακτικά ηλεκτρονικών αρχείων από τη διαδικασία του διακομιστή MCP:",
       "longRunning": "Μακροχρόνια λειτουργία",
       "longRunningTooltip": "Όταν ενεργοποιηθεί, ο διακομιστής υποστηρίζει μακροχρόνιες εργασίες, επαναφέρει το χρονικό όριο μετά από λήψη ειδοποίησης προόδου και επεκτείνει το μέγιστο χρονικό όριο σε 10 λεπτά.",
       "marketplaces": "Αγορές",
@@ -8200,12 +8200,12 @@
       "label": "Πλήκτρο",
       "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
-      "next_tab": "[to be translated]:Next Tab",
+      "next_tab": "Επόμενο καρτέλο (Next Tab)",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
       "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
       "pin_tab": "Εναλλαγή σταθεροποίησης καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
-      "prev_tab": "[to be translated]:Previous Tab",
+      "prev_tab": "Προηγούμενο καρτέλο (Previous Tab)",
       "print": "Εκτύπωση",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -8323,8 +8323,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
-            "name": "[to be translated]:Local Document"
+            "description": "[Να μεταφραστεί]: Μετατρέπει αρχεία PDF σε μορφή Markdown εξ ολοκλήρου σε αυτόν τον υπολογιστή. Τα έγγραφα που περιέχουν μόνο κείμενο αναλύονται απευθείας· τα αρχεία που έχουν σαρωθεί χρησιμοποιούν το τοπικό μοντέλο OCR (Optical Character Recognition).",
+            "name": "[Να μεταφραστεί]: Τοπικό Φάκελο (Local Document)"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) που εκτελείται εντός της διεργασίας — πλήρως εκτός σύνδεσης, χωρίς κλειδί API, με αναγνώριση σε νήμα παρασκηνίου ώστε το UI να παραμένει ανταποκρινόμενο. Κατεβάστε το μοντέλο (~140MB) στις Εξαρτήσεις Περιβάλλοντος πριν την πρώτη χρήση.",
