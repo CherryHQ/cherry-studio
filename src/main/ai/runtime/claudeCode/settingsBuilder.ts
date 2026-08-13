@@ -92,6 +92,7 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
+import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeUserInput } from '../types'
 import {
   type Environment,
@@ -105,7 +106,7 @@ import {
   isLarkFormSubmissionCommand,
   isPermanentDeletionToolName
 } from './assistantCommandSafety'
-import { decisionToPermissionResult, toolApprovalRegistry } from './ToolApprovalRegistry'
+import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')

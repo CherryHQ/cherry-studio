@@ -201,7 +201,7 @@ vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: mocks.refreshShellEnv
 }))
 
-vi.mock('../ToolApprovalRegistry', () => ({
+vi.mock('../../toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister

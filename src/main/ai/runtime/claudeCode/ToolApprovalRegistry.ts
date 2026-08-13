@@ -1,13 +1,6 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
 
 import type { DispatchDecision } from '../toolApproval/ToolApprovalRegistry'
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
-
-// The registry itself is driver-neutral (resolves `DispatchDecision`). Claude
-// re-exports it and keeps its SDK-native conversion local, so `PermissionResult`
-// never enters the shared runtime path (plan D4).
-export { toolApprovalRegistry }
-export type { DispatchDecision }
 
 /**
  * Map a neutral `DispatchDecision` to the Claude Agent SDK `PermissionResult`
