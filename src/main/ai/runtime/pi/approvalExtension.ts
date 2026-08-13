@@ -7,10 +7,11 @@
  * approval round-trip. Steering (the 4th) is deferred (plan D6).
  *
  * Pipeline per `tool_call`:
- *   1. disabledTools  → block (all modes)
- *   2. global-install → block bash that installs into shared/global locations (all modes)
- *   3. rtk rewrite    → mutate `event.input.command` in place (bash only)
- *   4. approval       → per permission mode: auto-allow, fail closed without a
+ *   1. disabledTools  → block (all modes, including bypassPermissions)
+ *   2. global-install → block bash that installs into shared/global locations (except bypass)
+ *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
+ *   4. bypass         → allow unconditionally; the mode promises no further gate
+ *   5. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
  *
@@ -32,6 +33,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
+import { detectDestructiveCommand } from '../toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
@@ -92,11 +94,16 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
       }
 
-      // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place.
+      const mode = ctx.getPermissionMode() ?? 'default'
+      const bypass = mode === 'bypassPermissions'
+
+      // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
+      // makes commands runnable and applies in every mode; the install block is a permission guard,
+      // so an explicit bypass skips it.
       if (toolName === 'bash') {
         const command = typeof input.command === 'string' ? input.command : ''
         if (command.trim()) {
-          const reason = detectGlobalInstall(command)
+          const reason = bypass ? null : detectGlobalInstall(command)
           if (reason) {
             logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
             return {
@@ -112,10 +119,14 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         }
       }
 
-      // (4) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
+      // (4) bypassPermissions means bypass: the user asked for an agent that never stops, so nothing
+      // below applies — not the always-prompt tools, not the path containment checks. Only the
+      // disabledTools block in (1) still holds.
+      if (bypass) return
+
+      // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
       // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-      const mode = ctx.getPermissionMode() ?? 'default'
       const approvalRequired = ctx.approvalRequiredTools.has(toolName)
       if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
       if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired)))
@@ -180,7 +191,21 @@ async function requiresApproval(
   alwaysPrompt: boolean
 ): Promise<boolean> {
   if (alwaysPrompt) return true
-  if (mode === 'bypassPermissions') return false
+  // `auto` runs unattended by default and only stops for the two things a wrong call cannot undo:
+  // touching a file outside the allowed roots, and a destructive shell command. Everything else —
+  // including every MCP tool — goes through. The path check is the real boundary; the command
+  // patterns are a best-effort net (see destructiveCommand.ts), so this mode is convenience, not
+  // containment.
+  if (mode === 'auto') {
+    if (toolName === 'bash') {
+      const command = typeof input.command === 'string' ? input.command : ''
+      return detectDestructiveCommand(command) !== null
+    }
+    if (READ_ONLY_TOOLS.has(toolName) || EDIT_TOOLS.has(toolName)) {
+      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
+    }
+    return false
+  }
   // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
   // inside an allowed root; any other read/write falls through to a normal prompt so a
   // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.

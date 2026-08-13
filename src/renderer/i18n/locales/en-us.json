@@ -667,13 +667,15 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
+            "description_pi": "Works on its own. Asks only before deleting things or touching files outside the workspace.",
             "title": "Approve for Me",
             "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply.",
+            "warning_pi": "Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
           },
           "confirmChange": {
             "description": "Switching modes updates the automatically approved tools.",
@@ -3488,9 +3490,9 @@
               "claude_code": "Advanced: Claude Agent",
               "pi": "Fast: Pi"
             },
-            "selected": {
-              "claude_code": "Advanced",
-              "pi": "Fast"
+            "option_description": {
+              "claude_code": "More capable — plan mode and per-tier models",
+              "pi": "Faster responses, lower overhead"
             }
           },
           "small_model": {
