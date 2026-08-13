@@ -76,7 +76,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     vi.spyOn(manager, 'hasLiveStream').mockReturnValue(false)
     sendSpy = vi.spyOn(manager, 'send').mockImplementation((input: { topicId: string }) => {
       events.push(`send:${input.topicId}`)
-      return { mode: 'started', executionIds: [] }
+      return { mode: 'started', activeExecutions: [] }
     }) as unknown as ReturnType<typeof vi.spyOn>
   })
 

@@ -7,7 +7,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import { WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type {
   AiStreamOpenRequest,
@@ -49,6 +49,17 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
       logger.error(`${route} failed`, serializeError(e))
     }
     throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+  }
+}
+
+async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof AiStreamAdmissionError) {
+      throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    throw error
   }
 }
 
@@ -164,7 +175,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    return exposeAiStreamAdmission(() =>
+      application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    )
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)

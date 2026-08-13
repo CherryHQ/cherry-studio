@@ -12,7 +12,9 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import(
+  '../../../streamManager/listeners/PersistenceListener'
+)
 const { AgentSessionMessageBackend } = await import('../AgentSessionMessageBackend')
 
 describe('AgentSessionMessageBackend', () => {
@@ -26,13 +28,17 @@ describe('AgentSessionMessageBackend', () => {
       sessionId: 'session-1',
       assistantMessageId: 'assistant-1'
     })
-    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend })
+    const onPersistFailed = vi.fn()
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed })
 
-    await listener.onDone({
-      status: 'success',
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
-    })
+    await expect(
+      listener.onDone({
+        status: 'success',
+        finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+      })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
 
     expect(mocks.markTerminalError).toHaveBeenCalledWith('session-1', 'assistant-1')
+    expect(onPersistFailed).toHaveBeenCalledOnce()
   })
 })
