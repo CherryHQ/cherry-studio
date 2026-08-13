@@ -3447,6 +3447,18 @@
             "hint": "Descompunerea sarcinii și planificarea",
             "label": "Model de plan (opțional)"
           },
+          "runtime": {
+            "immutable_hint": "Nu poate fi schimbat după creare",
+            "label": "Mod de rulare",
+            "option": {
+              "claude_code": "Avansat: Claude Agent",
+              "pi": "Rapid: Pi"
+            },
+            "selected": {
+              "claude_code": "Avansat",
+              "pi": "Rapid"
+            }
+          },
           "small_model": {
             "hint": "Verificări ușoare și formatare",
             "label": "Model mic (opțional)"

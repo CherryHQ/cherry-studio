@@ -3447,6 +3447,18 @@
             "hint": "Décomposition et planification des tâches",
             "label": "Modèle de plan (optionnel)"
           },
+          "runtime": {
+            "immutable_hint": "Ne peut pas être modifié après la création",
+            "label": "Mode d’exécution",
+            "option": {
+              "claude_code": "Avancé : Claude Agent",
+              "pi": "Rapide : Pi"
+            },
+            "selected": {
+              "claude_code": "Avancé",
+              "pi": "Rapide"
+            }
+          },
           "small_model": {
             "hint": "Vérifications et formatage légers",
             "label": "Petit modèle (optionnel)"

@@ -3479,8 +3479,12 @@
             "immutable_hint": "Cannot be changed after creation",
             "label": "Runtime mode",
             "option": {
-              "claude_code": "Advanced: Powered by Claude Code",
-              "pi": "Quick: Powered by Pi"
+              "claude_code": "Advanced: Claude Agent",
+              "pi": "Fast: Pi"
+            },
+            "selected": {
+              "claude_code": "Advanced",
+              "pi": "Fast"
             }
           },
           "small_model": {

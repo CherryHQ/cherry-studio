@@ -3447,6 +3447,18 @@
             "hint": "Aufgabenzerlegung und Planung",
             "label": "Plan-Modell (optional)"
           },
+          "runtime": {
+            "immutable_hint": "Kann nach der Erstellung nicht geändert werden",
+            "label": "Laufzeitmodus",
+            "option": {
+              "claude_code": "Erweitert: Claude Agent",
+              "pi": "Schnell: Pi"
+            },
+            "selected": {
+              "claude_code": "Erweitert",
+              "pi": "Schnell"
+            }
+          },
           "small_model": {
             "hint": "Leichtgewichtige Überprüfungen und Formatierung",
             "label": "Kleines Modell (optional)"

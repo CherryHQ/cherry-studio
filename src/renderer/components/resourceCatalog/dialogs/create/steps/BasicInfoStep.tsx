@@ -39,6 +39,17 @@ const AGENT_RUNTIME_OPTIONS: { value: AgentType; labelKey: string; labelFallback
   AGENT_RUNTIME_CAPABILITIES
 ).map(([value, caps]) => ({ value: value as AgentType, labelKey: caps.labelKey, labelFallback: caps.labelFallback }))
 
+const AGENT_RUNTIME_SELECTED_LABELS: Record<AgentType, { labelKey: string; labelFallback: string }> = {
+  'claude-code': {
+    labelKey: 'library.config.agent.field.runtime.selected.claude_code',
+    labelFallback: 'Advanced'
+  },
+  pi: {
+    labelKey: 'library.config.agent.field.runtime.selected.pi',
+    labelFallback: 'Fast'
+  }
+}
+
 type ModelFieldProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
@@ -95,15 +106,17 @@ function AgentRuntimeModelFields({
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('library.config.agent.field.runtime.label')}</FormLabel>
-            <FormDescription className="text-xs">
-              {t('library.config.agent.field.runtime.immutable_hint')}
-            </FormDescription>
             <Select value={field.value} onValueChange={(value) => handleRuntimeChange(value as AgentType)}>
               <FormControl>
                 <SelectTrigger
                   className="h-9 w-full rounded-md"
                   aria-label={t('library.config.agent.field.runtime.label')}>
-                  <SelectValue />
+                  <SelectValue>
+                    {t(
+                      AGENT_RUNTIME_SELECTED_LABELS[field.value].labelKey,
+                      AGENT_RUNTIME_SELECTED_LABELS[field.value].labelFallback
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
@@ -114,6 +127,9 @@ function AgentRuntimeModelFields({
                 ))}
               </SelectContent>
             </Select>
+            <FormDescription className="text-xs">
+              {t('library.config.agent.field.runtime.immutable_hint')}
+            </FormDescription>
             <FormMessage />
           </FormItem>
         )}

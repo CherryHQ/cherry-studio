@@ -3447,6 +3447,18 @@
             "hint": "Phân rã nhiệm vụ và lập kế hoạch",
             "label": "Mô hình kế hoạch (tùy chọn)"
           },
+          "runtime": {
+            "immutable_hint": "Không thể thay đổi sau khi tạo",
+            "label": "Chế độ chạy",
+            "option": {
+              "claude_code": "Nâng cao: Claude Agent",
+              "pi": "Nhanh: Pi"
+            },
+            "selected": {
+              "claude_code": "Nâng cao",
+              "pi": "Nhanh"
+            }
+          },
           "small_model": {
             "hint": "Kiểm tra nhẹ và định dạng",
             "label": "Mô hình nhỏ (tùy chọn)"

@@ -70,7 +70,7 @@ const PI_BUILTIN_COMMANDS = [
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
-    labelFallback: 'Advanced: Powered by Claude Code',
+    labelFallback: 'Advanced: Claude Agent',
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
     heartbeat: true,
@@ -96,7 +96,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   },
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'Quick: Powered by Pi',
+    labelFallback: 'Fast: Pi',
     // Pi has neither plan mode nor Claude's model-side auto-approval classifier.
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan' && mode !== 'auto'),
     modelTiers: false,

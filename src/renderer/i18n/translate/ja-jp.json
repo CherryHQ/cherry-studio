@@ -3447,6 +3447,18 @@
             "hint": "タスクの分解と計画",
             "label": "プラン モデル (オプション)"
           },
+          "runtime": {
+            "immutable_hint": "作成後は変更できません",
+            "label": "実行モード",
+            "option": {
+              "claude_code": "高度：Claude Agent",
+              "pi": "高速：Pi"
+            },
+            "selected": {
+              "claude_code": "高度",
+              "pi": "高速"
+            }
+          },
           "small_model": {
             "hint": "軽量なチェックとフォーマット",
             "label": "小型モデル（オプション）"

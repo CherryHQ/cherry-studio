@@ -3447,6 +3447,18 @@
             "hint": "Decomposição e planeamento de tarefas",
             "label": "Modelo do plano (opcional)"
           },
+          "runtime": {
+            "immutable_hint": "Não pode ser alterado após a criação",
+            "label": "Modo de execução",
+            "option": {
+              "claude_code": "Avançado: Claude Agent",
+              "pi": "Rápido: Pi"
+            },
+            "selected": {
+              "claude_code": "Avançado",
+              "pi": "Rápido"
+            }
+          },
           "small_model": {
             "hint": "Verificações leves e formatação",
             "label": "Modelo pequeno (opcional)"

@@ -3479,8 +3479,12 @@
             "immutable_hint": "创建后不可切换",
             "label": "运行模式",
             "option": {
-              "claude_code": "增强：基于 Claude Code",
-              "pi": "快捷：基于 Pi"
+              "claude_code": "增强：Claude Agent",
+              "pi": "快速：Pi"
+            },
+            "selected": {
+              "claude_code": "增强",
+              "pi": "快速"
             }
           },
           "small_model": {

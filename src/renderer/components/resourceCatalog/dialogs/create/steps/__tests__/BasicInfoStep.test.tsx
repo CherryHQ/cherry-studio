@@ -101,8 +101,11 @@ describe('BasicInfoStep', () => {
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
     const runtimeSelect = screen.getByLabelText('library.config.agent.field.runtime.label')
     expect(runtimeSelect).toHaveAttribute('role', 'combobox')
-    expect(screen.getByText('library.config.agent.field.runtime.option.claude_code')).toBeInTheDocument()
+    expect(runtimeSelect).toHaveTextContent('library.config.agent.field.runtime.selected.claude_code')
     await user.click(runtimeSelect)
+    expect(
+      screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.claude_code' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' })).toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
@@ -117,6 +120,9 @@ describe('BasicInfoStep', () => {
     await user.click(screen.getByLabelText('library.config.agent.field.runtime.label'))
     await user.click(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' }))
 
+    expect(screen.getByLabelText('library.config.agent.field.runtime.label')).toHaveTextContent(
+      'library.config.agent.field.runtime.selected.pi'
+    )
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.acceptEdits.title'
     )
