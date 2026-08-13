@@ -73,7 +73,7 @@ export interface Tab {
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
   isDormant?: boolean // 是否已休眠
-  isPinned?: boolean // 是否置顶（豁免 LRU）
+  isPinned?: boolean // 是否置顶（soft cap 下豁免 LRU；超过 hard cap 时可能休眠）
   savedState?: TabSavedState // 休眠前保存的状态
 }
 
