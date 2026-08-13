@@ -49,7 +49,7 @@ jobs:
         run: |
           pnpm i18n:sync && pnpm i18n:translate && pnpm format
           # auto-translate-i18n.ts swallows per-key API errors and keeps the placeholder, so it can exit 0 on an outage.
-          if grep -rl '\[to be translated\]' src/renderer/i18n src/main/i18n; then
+          if grep -rl --include='*.json' '\[to be translated\]' src/renderer/i18n/translate src/main/i18n/translate; then
             echo "::error::Translation left [to be translated] placeholders in the files above"
             exit 1
           fi
