@@ -20,10 +20,7 @@ export function useOwnerResourceActivation<TOwner, TResource>({
     requestGenerationRef.current += 1
   }, [])
 
-  useEffect(
-    () => cancelOwnerResourceActivation,
-    [cancelOwnerResourceActivation, createResourceForOwner, loadResourceForOwner]
-  )
+  useEffect(() => cancelOwnerResourceActivation, [cancelOwnerResourceActivation])
 
   const activateOwnerResource = useCallback(
     async (owner: TOwner) => {

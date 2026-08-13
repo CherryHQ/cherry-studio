@@ -220,6 +220,42 @@ describe('useResourceEntityRail', () => {
     expect(onPickResource).toHaveBeenCalledExactlyOnceWith(RESOURCES[1])
   })
 
+  it('completes a pending owner lookup across an unrelated parent rerender', async () => {
+    const latest = createDeferred<TestResource | null>()
+    const onPickResource = vi.fn()
+    const loadResourceForEntity = vi.fn(() => latest.promise)
+    const { result, rerender } = renderRail({ loadResourceForEntity, onPickResource })
+
+    let selection!: Promise<void>
+    await act(async () => {
+      selection = result.current.handleSelect(ENTITIES[0])
+      await Promise.resolve()
+    })
+
+    rerender({
+      entities: ENTITIES,
+      resources: RESOURCES,
+      getResourceParentId: (resource) => resource.entityId,
+      activeEntityId: 'assistant-a',
+      isLoading: false,
+      isError: false,
+      onPickResource,
+      loadResourceForEntity,
+      onCreateResource: vi.fn().mockResolvedValue(null),
+      onActivationError: vi.fn(),
+      reorder: vi.fn().mockResolvedValue(undefined),
+      refetchEntities: vi.fn().mockResolvedValue(undefined),
+      onReorderError: vi.fn()
+    })
+
+    await act(async () => {
+      latest.resolve(RESOURCES[0])
+      await selection
+    })
+
+    expect(onPickResource).toHaveBeenCalledExactlyOnceWith(RESOURCES[0])
+  })
+
   it('does not let an older owner create overwrite a newer selection', async () => {
     const firstCreate = createDeferred<TestResource | null>()
     const onPickResource = vi.fn()
