@@ -426,7 +426,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Time",
+        "time": "Task",
         "title": "Display mode",
         "workdir": "Work directory"
       },
@@ -1931,7 +1931,7 @@
       "display": {
         "assistant": "Assistant",
         "tag": "Tag",
-        "time": "Time",
+        "time": "Conversation",
         "title": "Display mode"
       },
       "draft": "Draft",
@@ -2438,11 +2438,15 @@
     "sessions": "Sessions",
     "settings": "Settings",
     "sort": {
+      "activity_at": "Activity time",
+      "created_at": "Creation time",
+      "manual_order": "Manual order",
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",
         "desc": "Sort by Pinyin (Z-A)",
         "label": "Sort by Pinyin"
-      }
+      },
+      "title": "Sort order"
     },
     "stop": "Stop",
     "subscribe": "Subscribe",

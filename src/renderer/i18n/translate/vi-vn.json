@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Thời gian",
+        "time": "Tác vụ",
         "title": "Chế độ hiển thị",
         "workdir": "Thư mục làm việc"
       },
@@ -1911,7 +1911,7 @@
       "display": {
         "assistant": "Trợ lý",
         "tag": "Nhãn",
-        "time": "Thời gian",
+        "time": "Cuộc trò chuyện",
         "title": "Chế độ hiển thị"
       },
       "draft": "Bản nháp",
@@ -2416,11 +2416,15 @@
     "sessions": "Phiên",
     "settings": "Cài đặt",
     "sort": {
+      "activity_at": "Thời gian hoạt động",
+      "created_at": "Thời gian tạo",
+      "manual_order": "Thứ tự thủ công",
       "pinyin": {
         "asc": "Sắp xếp theo phiên âm (A-Z)",
         "desc": "Sắp xếp theo phiên âm (Z-A)",
         "label": "Sắp xếp theo bính âm"
-      }
+      },
+      "title": "Thứ tự sắp xếp"
     },
     "stop": "Dừng lại",
     "subscribe": "Đăng ký",

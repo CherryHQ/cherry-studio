@@ -1,5 +1,5 @@
-import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Bot, Clock, Folder, History } from 'lucide-react'
+import type { AgentSessionDisplayMode, TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
+import { Activity, Bot, CalendarPlus, Clock, Folder, GripVertical, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,17 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
   time: <Clock size={16} />,
   workdir: <Folder size={16} />
 }
+const SESSION_SORT_OPTIONS: TopicSessionSortBy[] = ['createdAt', 'lastActivityAt', 'orderKey']
+const SESSION_SORT_LABEL_KEYS: Record<TopicSessionSortBy, string> = {
+  createdAt: 'common.sort.created_at',
+  lastActivityAt: 'common.sort.activity_at',
+  orderKey: 'common.sort.manual_order'
+}
+const SESSION_SORT_ICONS: Record<TopicSessionSortBy, ReactNode> = {
+  createdAt: <CalendarPlus size={16} />,
+  lastActivityAt: <Activity size={16} />,
+  orderKey: <GripVertical size={16} />
+}
 
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
@@ -24,7 +35,9 @@ type SessionListOptionsMenuProps = {
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSortByChange: (sortBy: TopicSessionSortBy) => void
   sectionIds?: readonly string[]
+  sortBy: TopicSessionSortBy
 }
 
 export function SessionListOptionsMenu({
@@ -34,7 +47,9 @@ export function SessionListOptionsMenu({
   onChange,
   onManageAgents,
   onOpenHistoryRecords,
-  sectionIds
+  onSortByChange,
+  sectionIds,
+  sortBy
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
 
@@ -48,6 +63,16 @@ export function SessionListOptionsMenu({
         label: t(SESSION_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}
+      sort={{
+        onChange: onSortByChange,
+        options: SESSION_SORT_OPTIONS.map((option) => ({
+          icon: SESSION_SORT_ICONS[option],
+          label: t(SESSION_SORT_LABEL_KEYS[option]),
+          value: option
+        })),
+        title: t('common.sort.title'),
+        value: sortBy
+      }}
       sectionToggle={
         sectionIds
           ? {

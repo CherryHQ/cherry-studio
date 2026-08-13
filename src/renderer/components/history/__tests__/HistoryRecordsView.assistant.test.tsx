@@ -1012,9 +1012,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true }))
     const pinnedCall = hookMocks.useTopics.mock.calls.find(([options]) => options?.pinned === true)
     expect(pinnedCall?.[0]).not.toHaveProperty('sortBy')
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(
-      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt' })
-    )
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'createdAt' }))
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
     const gammaSource = screen.getByRole('button', { name: /Gamma assistant/ })
@@ -1024,7 +1022,7 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(alphaSource)
 
     expect(hookMocks.useTopics).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'lastActivityAt' })
+      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'createdAt' })
     )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
@@ -1039,17 +1037,25 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {
+    const liveAssistantIds = new Set(['assistant-alpha'])
     const topics = [
       createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
       createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
-      createTopic({ id: 'topic-missing', assistantId: undefined, name: 'Missing assistant topic', orderKey: 'c' })
+      createTopic({
+        id: 'topic-missing',
+        assistantId: 'assistant-deleted',
+        name: 'Missing assistant topic',
+        orderKey: 'c'
+      })
     ]
     hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean }) => ({
       topics: topics.filter(
         (topic) =>
           (options?.pinned === undefined || topic.pinned === options.pinned) &&
           (!options?.assistantId ||
-            (options.assistantId === 'unlinked' ? !topic.assistantId : topic.assistantId === options.assistantId))
+            (options.assistantId === 'unlinked'
+              ? topic.assistantId == null || !liveAssistantIds.has(topic.assistantId)
+              : topic.assistantId === options.assistantId))
       ),
       error: undefined,
       hasNext: false,

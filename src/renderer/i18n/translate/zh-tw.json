@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "時間",
+        "time": "任務",
         "title": "顯示模式",
         "workdir": "工作目錄"
       },
@@ -1911,7 +1911,7 @@
       "display": {
         "assistant": "助理",
         "tag": "標籤",
-        "time": "時間",
+        "time": "對話",
         "title": "顯示模式"
       },
       "draft": "草稿",
@@ -2416,11 +2416,15 @@
     "sessions": "工作階段",
     "settings": "設定",
     "sort": {
+      "activity_at": "活動時間",
+      "created_at": "建立時間",
+      "manual_order": "手動排序",
       "pinyin": {
         "asc": "依拼音遞增",
         "desc": "依拼音遞減",
         "label": "依拼音排序"
-      }
+      },
+      "title": "排序方式"
     },
     "stop": "停止",
     "subscribe": "訂閱",

@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Temps",
+        "time": "Tâche",
         "title": "Mode d'affichage",
         "workdir": "Répertoire de travail"
       },
@@ -1910,7 +1910,7 @@
       "display": {
         "assistant": "Assistant",
         "tag": "Étiquette",
-        "time": "Temps",
+        "time": "Conversation",
         "title": "Mode d'affichage"
       },
       "draft": "Brouillon",
@@ -2415,11 +2415,15 @@
     "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
+      "activity_at": "Heure d’activité",
+      "created_at": "Heure de création",
+      "manual_order": "Ordre manuel",
       "pinyin": {
         "asc": "Trier par pinyin (A-Z)",
         "desc": "Trier par pinyin (Z-A)",
         "label": "Trier par pinyin"
-      }
+      },
+      "title": "Ordre de tri"
     },
     "stop": "Arrêter",
     "subscribe": "S'abonner",

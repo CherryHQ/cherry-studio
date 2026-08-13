@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "エージェント",
-        "time": "時間",
+        "time": "タスク",
         "title": "表示モード",
         "workdir": "作業フォルダー"
       },
@@ -1910,7 +1910,7 @@
       "display": {
         "assistant": "アシスタント",
         "tag": "タグ",
-        "time": "時間",
+        "time": "会話",
         "title": "表示モード"
       },
       "draft": "ドラフト",
@@ -2415,11 +2415,15 @@
     "sessions": "セッション",
     "settings": "設定",
     "sort": {
+      "activity_at": "アクティビティ時刻",
+      "created_at": "作成日時",
+      "manual_order": "手動順序",
       "pinyin": {
         "asc": "ピンインで昇順ソート",
         "desc": "ピンインで降順ソート",
         "label": "ピンインでソート"
-      }
+      },
+      "title": "並び順"
     },
     "stop": "停止",
     "subscribe": "購読",

@@ -426,7 +426,7 @@
       },
       "display": {
         "agent": "智能体",
-        "time": "时间",
+        "time": "任务",
         "title": "展示方式",
         "workdir": "工作目录"
       },
@@ -1931,7 +1931,7 @@
       "display": {
         "assistant": "助手",
         "tag": "标签",
-        "time": "时间",
+        "time": "对话",
         "title": "展示方式"
       },
       "draft": "草稿",
@@ -2438,11 +2438,15 @@
     "sessions": "会话",
     "settings": "设置",
     "sort": {
+      "activity_at": "活动时间",
+      "created_at": "创建时间",
+      "manual_order": "手动排序",
       "pinyin": {
         "asc": "按拼音升序",
         "desc": "按拼音降序",
         "label": "按拼音排序"
-      }
+      },
+      "title": "排序方式"
     },
     "stop": "停止",
     "subscribe": "订阅",

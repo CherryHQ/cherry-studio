@@ -368,9 +368,8 @@ describe('AgentSessionService', () => {
       ).toEqual(['s4', 's3', 's1'])
     })
 
-    it('searchScope=name matches session name only; name-or-owner also matches description and live agent name', async () => {
+    it('searches session names and optional live-agent names, but never descriptions', async () => {
       await seedFlat()
-      // 'first' appears only in s1's description — the resource-list name scope must not match it.
       expect(agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt', q: 'first' }).items).toEqual(
         []
       )
@@ -381,8 +380,7 @@ describe('AgentSessionService', () => {
           q: 'first',
           searchScope: 'name-or-owner'
         }).items
-      ).toHaveLength(1)
-      // 'Test Agent' matches via the owning agent's name — only linked sessions.
+      ).toEqual([])
       expect(
         agentSessionService
           .listByCursor({ pinned: false, sortBy: 'lastActivityAt', q: 'Test Agent', searchScope: 'name-or-owner' })

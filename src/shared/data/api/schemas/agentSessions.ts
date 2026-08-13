@@ -100,7 +100,8 @@ export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 /**
  * Search scope: `name` is a literal substring over the session name
  * (resource-list behavior); `name-or-owner` additionally ORs the session
- * description and owning live agent's name (Agent History behavior).
+ * name with the owning live agent's name (Agent History behavior). Session
+ * descriptions are not searched by either scope.
  */
 export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>

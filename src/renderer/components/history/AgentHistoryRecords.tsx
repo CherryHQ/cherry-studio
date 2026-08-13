@@ -52,7 +52,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
   const bandContinuityKey = JSON.stringify({ ownerScope, q: debouncedSearch })
-  const historySortBy = 'lastActivityAt' as const
+  const historySortBy = 'createdAt' as const
 
   const pinnedSessionsSource = useSessions(ownerScope, {
     pageSize: HISTORY_PAGE_SIZE,
@@ -399,7 +399,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const rowDescriptor = useMemo(
     () => ({
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
-      getUpdatedAt: (session: SessionListItem) => session.lastActivityAt,
+      getUpdatedAt: (session: SessionListItem) => session.createdAt,
       getSourceLabel: (session: SessionListItem) =>
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unlinkedAgentLabel,
       renderAvatar: (session: SessionListItem) => {

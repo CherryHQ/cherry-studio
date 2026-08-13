@@ -93,9 +93,8 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 
 /**
  * Search predicate for the flat list/stats paths. `name` matches the session
- * name only; `name-or-owner` preserves Agent History search by OR-ing the
- * session description and owning live agent's name (queries using this scope
- * must LEFT JOIN the agent table on live agents only).
+ * name only; `name-or-owner` additionally ORs the owning live agent's name
+ * (queries using this scope must LEFT JOIN the agent table on live agents only).
  */
 function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSearchScope): SQL | undefined {
   const trimmed = q?.trim()
@@ -103,9 +102,8 @@ function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSe
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
   if (scope === 'name') return nameMatch
-  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
   const agentNameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, descriptionMatch, agentNameMatch)
+  return or(nameMatch, agentNameMatch)
 }
 
 /**

@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agente",
-        "time": "Tempo",
+        "time": "Tarefa",
         "title": "Modo de exibição",
         "workdir": "Pasta de trabalho"
       },
@@ -1910,7 +1910,7 @@
       "display": {
         "assistant": "Assistente",
         "tag": "Etiqueta",
-        "time": "Tempo",
+        "time": "Conversa",
         "title": "Modo de exibição"
       },
       "draft": "Rascunho",
@@ -2416,11 +2416,15 @@
     "sessions": "Sessões",
     "settings": "Configurações",
     "sort": {
+      "activity_at": "Hora da atividade",
+      "created_at": "Hora de criação",
+      "manual_order": "Ordem manual",
       "pinyin": {
         "asc": "Ordenar por Pinyin em ordem crescente",
         "desc": "Ordenar por Pinyin em ordem decrescente",
         "label": "Ordenar por Pinyin"
-      }
+      },
+      "title": "Ordenação"
     },
     "stop": "Parar",
     "subscribe": "Subscrever",

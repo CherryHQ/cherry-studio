@@ -584,7 +584,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.add.title': 'Add task',
         'agent.add.title': 'Add Agent',
         'agent.session.display.agent': 'Agent',
-        'agent.session.display.time': 'Time',
+        'agent.session.display.time': 'Task',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
@@ -656,6 +656,10 @@ vi.mock('react-i18next', () => ({
         'common.retry': 'Retry',
         'common.save': 'Save',
         'common.saved': 'Saved',
+        'common.sort.activity_at': 'Activity time',
+        'common.sort.created_at': 'Creation time',
+        'common.sort.manual_order': 'Manual order',
+        'common.sort.title': 'Sort order',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
         'message.tools.status.done': 'Done',
@@ -912,6 +916,7 @@ describe('Sessions', () => {
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.sort_type', 'orderKey')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
@@ -1165,17 +1170,22 @@ describe('Sessions', () => {
     expect(screen.queryByText('Ordinary task')).not.toBeInTheDocument()
   })
 
-  it('forces the flat time mode in the right panel even when the agent display mode is stored', () => {
+  it('forces flat display in the right panel while following the selected session sort', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.sort_type', 'lastActivityAt')
     setupSessions()
 
     render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
 
-    // The classic right panel is the parent switch and forces the flat activity stream, so agent grouping is
-    // never engaged and the agent pins query stays disabled. Reverting the `isRightPanel ? 'time' :`
+    // The classic right panel is the parent switch and forces flat display, so agent grouping is never
+    // engaged and the agent pins query stays disabled. Reverting the `isRightPanel ? 'time' :`
     // force would flip displayMode back to the stored 'agent' and enable it.
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
     expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      'agent-a',
+      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt' })
+    )
   })
 
   it('separates pinned and ordinary tasks while showing every loaded session', () => {
@@ -1203,8 +1213,9 @@ describe('Sessions', () => {
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
   })
 
-  it('requests separate pin-order and recent-activity streams in time mode', () => {
+  it('requests separate pin-order and creation-order streams in flat mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
 
     render(<SessionsForTest />)
 
@@ -1214,7 +1225,7 @@ describe('Sessions', () => {
     )
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
       undefined,
-      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt', pageSize: 50, enabled: true })
+      expect.objectContaining({ pinned: false, sortBy: 'createdAt', pageSize: 50, enabled: true })
     )
   })
 
@@ -2912,18 +2923,30 @@ describe('Sessions', () => {
     expect(badge).toHaveTextContent('Pending')
   })
 
-  it('persists display mode selection from the header menu', async () => {
+  it('persists display mode and sorting independently from the shared session menu', async () => {
     render(<SessionsForTest />)
 
-    const displayModeContent = openSessionListOptions()
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    let displayModeContent = openSessionListOptions()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Task' })).toBeInTheDocument()
     expect(
       within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' })
     ).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Creation time' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Activity time' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Manual order' })).toBeInTheDocument()
     fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Agent' }))
 
     await vi.waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
+      expect(preferenceMocks.values.get('agent.session.sort_type')).toBe('orderKey')
+    })
+
+    displayModeContent = openSessionListOptions()
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Activity time' }))
+
+    await vi.waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'lastActivityAt')
+      expect(preferenceMocks.values.get('agent.session.display_mode')).toBe('agent')
     })
   })
 

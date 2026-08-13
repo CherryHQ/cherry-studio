@@ -381,6 +381,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -432,7 +433,6 @@ const Sessions = ({
     : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
       ? sessionDisplayMode
       : 'time'
-  const sessionSortBy = displayMode === 'time' ? ('lastActivityAt' as const) : ('orderKey' as const)
   const defaultGroupVisibleCount =
     displayMode === 'time' ? Number.POSITIVE_INFINITY : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
   const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
@@ -2347,6 +2347,7 @@ const Sessions = ({
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
                   onManageAgents={onManageAgents}
                   onOpenHistoryRecords={onOpenHistoryRecords}
+                  onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
                   sectionIds={
                     displayMode === 'agent'
                       ? [SESSION_AGENT_SECTION_ID]
@@ -2354,6 +2355,7 @@ const Sessions = ({
                         ? [SESSION_SYSTEM_WORKSPACE_SECTION_ID, SESSION_WORKDIR_SECTION_ID]
                         : undefined
                   }
+                  sortBy={sessionSortBy}
                 />
               }
             />

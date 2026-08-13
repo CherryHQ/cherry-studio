@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agente",
-        "time": "Tiempo",
+        "time": "Tarea",
         "title": "Modo de visualización",
         "workdir": "Carpeta de trabajo"
       },
@@ -1910,7 +1910,7 @@
       "display": {
         "assistant": "Asistente",
         "tag": "Etiqueta",
-        "time": "Tiempo",
+        "time": "Conversación",
         "title": "Modo de visualización"
       },
       "draft": "Borrador",
@@ -2415,11 +2415,15 @@
     "sessions": "Sesiones",
     "settings": "Configuración",
     "sort": {
+      "activity_at": "Hora de actividad",
+      "created_at": "Hora de creación",
+      "manual_order": "Orden manual",
       "pinyin": {
         "asc": "Ordenar por pinyin ascendente",
         "desc": "Ordenar por pinyin descendente",
         "label": "Ordenar por pinyin"
-      }
+      },
+      "title": "Orden de clasificación"
     },
     "stop": "Detener",
     "subscribe": "Suscribirse",

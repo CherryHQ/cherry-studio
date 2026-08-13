@@ -1,5 +1,5 @@
-import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Bot, Clock, History } from 'lucide-react'
+import type { TopicDisplayMode, TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
+import { Activity, Bot, CalendarPlus, Clock, GripVertical, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,6 +14,17 @@ const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
   assistant: <Bot size={16} />,
   time: <Clock size={16} />
 }
+const TOPIC_SORT_OPTIONS: TopicSessionSortBy[] = ['createdAt', 'lastActivityAt', 'orderKey']
+const TOPIC_SORT_LABEL_KEYS: Record<TopicSessionSortBy, string> = {
+  createdAt: 'common.sort.created_at',
+  lastActivityAt: 'common.sort.activity_at',
+  orderKey: 'common.sort.manual_order'
+}
+const TOPIC_SORT_ICONS: Record<TopicSessionSortBy, ReactNode> = {
+  createdAt: <CalendarPlus size={16} />,
+  lastActivityAt: <Activity size={16} />,
+  orderKey: <GripVertical size={16} />
+}
 
 type TopicListOptionsMenuProps = {
   historyRecordsActive?: boolean
@@ -22,7 +33,9 @@ type TopicListOptionsMenuProps = {
   onChange: (mode: TopicDisplayMode) => void
   onManageAssistants?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSortByChange: (sortBy: TopicSessionSortBy) => void
   sectionIds?: readonly string[]
+  sortBy: TopicSessionSortBy
 }
 
 export function TopicListOptionsMenu({
@@ -32,7 +45,9 @@ export function TopicListOptionsMenu({
   onChange,
   onManageAssistants,
   onOpenHistoryRecords,
-  sectionIds
+  onSortByChange,
+  sectionIds,
+  sortBy
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
 
@@ -46,6 +61,16 @@ export function TopicListOptionsMenu({
         label: t(TOPIC_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}
+      sort={{
+        onChange: onSortByChange,
+        options: TOPIC_SORT_OPTIONS.map((option) => ({
+          icon: TOPIC_SORT_ICONS[option],
+          label: t(TOPIC_SORT_LABEL_KEYS[option]),
+          value: option
+        })),
+        title: t('common.sort.title'),
+        value: sortBy
+      }}
       sectionToggle={
         sectionIds
           ? {

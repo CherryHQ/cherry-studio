@@ -335,8 +335,12 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.title') return 'Conversations'
         if (key === 'chat.topics.list') return 'Conversation List'
         if (key === 'chat.topics.display.title') return 'Display mode'
-        if (key === 'chat.topics.display.time') return 'Time'
+        if (key === 'chat.topics.display.time') return 'Conversation'
         if (key === 'chat.topics.display.assistant') return 'Assistant'
+        if (key === 'common.sort.activity_at') return 'Activity time'
+        if (key === 'common.sort.created_at') return 'Creation time'
+        if (key === 'common.sort.manual_order') return 'Manual order'
+        if (key === 'common.sort.title') return 'Sort order'
         if (key === 'common.retry') return 'Retry'
         if (key === 'chat.topics.draft') return 'Draft'
         if (key === 'chat.topics.group.today') return 'Today'
@@ -903,6 +907,7 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'emoji',
       'assistant.tab.sort_type': 'list',
+      'topic.sort_type': 'createdAt',
       'topic.tab.display_mode': 'assistant',
       'topic.tab.position': 'left',
       'data.export.menus.docx': true,
@@ -1052,7 +1057,7 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
-  it('requests separate pin-order and recent-activity streams in time mode', () => {
+  it('requests separate pin-order and creation-order streams in flat mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
 
     renderTopicList()
@@ -1063,7 +1068,7 @@ describe('Topics', () => {
     )
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
-      expect.objectContaining({ query: { pinned: false, sortBy: 'lastActivityAt' }, limit: 50, enabled: true })
+      expect.objectContaining({ query: { pinned: false, sortBy: 'createdAt' }, limit: 50, enabled: true })
     )
   })
 
@@ -1384,15 +1389,22 @@ describe('Topics', () => {
     expect(screen.queryByText('Ordinary topic')).not.toBeInTheDocument()
   })
 
-  it('forces the flat time mode in the right panel even when assistant mode is stored', () => {
+  it('forces flat display in the right panel while following the selected topic sort', () => {
     // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
-    // switch and must ignore the stored display mode, using the flat activity stream. Assistants are
+    // switch and must ignore the stored display mode. Assistants are
     // still fetched as move targets, so the rendered list must prove that assistant grouping is off.
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({
+        query: { assistantId: 'assistant-1', pinned: false, sortBy: 'lastActivityAt' }
+      })
+    )
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {
@@ -2815,7 +2827,7 @@ describe('Topics', () => {
     }
   })
 
-  it('renders the topic header display mode and history actions in the shared menu', async () => {
+  it('persists display mode and sorting independently from the shared topic menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toHaveAttribute('data-ui', 'chat.topic-list')
@@ -2823,12 +2835,23 @@ describe('Topics', () => {
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
     let optionsMenu = openTopicListOptions()
-    expect(within(optionsMenu).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    expect(within(optionsMenu).getByRole('button', { name: 'Conversation' })).toBeInTheDocument()
     expect(within(optionsMenu).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    expect(within(optionsMenu).getByRole('button', { name: 'Creation time' })).toBeInTheDocument()
+    expect(within(optionsMenu).getByRole('button', { name: 'Activity time' })).toBeInTheDocument()
+    expect(within(optionsMenu).getByRole('button', { name: 'Manual order' })).toBeInTheDocument()
     expect(within(optionsMenu).getByRole('button', { name: 'History' })).toBeInTheDocument()
 
-    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Time' }))
+    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Conversation' }))
     await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('createdAt')
+    })
+
+    optionsMenu = openTopicListOptions()
+    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Activity time' }))
+    await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('lastActivityAt')
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
     })
 
@@ -3894,6 +3917,7 @@ describe('Topics', () => {
 
   it('uses the drag rect fallback when dropping without a prior insertion line', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -3925,6 +3949,7 @@ describe('Topics', () => {
 
   it('keeps multi-topic same-group drops at the fallback insertion index', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -3976,6 +4001,7 @@ describe('Topics', () => {
 
   it('keeps assistant grouped topics stable during cross-group drag hover', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -3999,6 +4025,7 @@ describe('Topics', () => {
 
   it('keeps assistant grouped topics stable during same-group drag hover', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -4022,6 +4049,7 @@ describe('Topics', () => {
 
   it('persists same-group drops using the last insertion line position', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -4062,6 +4090,7 @@ describe('Topics', () => {
 
   it('moves topics across assistant groups before ordering them at the target position', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -4097,6 +4126,7 @@ describe('Topics', () => {
   it('rolls back the optimistic row order when a cross-assistant move fails', async () => {
     topicDataMocks.moveTopic.mockRejectedValueOnce(new Error('order failed'))
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
 
@@ -4121,6 +4151,7 @@ describe('Topics', () => {
 
   it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
         return {
@@ -4193,6 +4224,7 @@ describe('Topics', () => {
 
   it('allows unlinked assistant topics to move into known assistant groups', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -4235,6 +4267,7 @@ describe('Topics', () => {
 
   it('does not drop topics into pinned or unlinked assistant groups', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {

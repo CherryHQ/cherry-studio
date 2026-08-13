@@ -85,6 +85,7 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   const [collapsedGroupIds, setCollapsedGroupIds] = usePersistCache('ui.assistant.entity_rail.expansion')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
@@ -494,6 +495,8 @@ export function AssistantResourceList({
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
             onManageAssistants={onManageAssistants}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
+            sortBy={topicSortBy}
           />
         }
         onSelect={handleSelect}

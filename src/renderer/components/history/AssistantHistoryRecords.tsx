@@ -77,7 +77,7 @@ const AssistantHistoryRecords = ({
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
   const bandContinuityKey = JSON.stringify({ ownerScope, q: debouncedSearch })
-  const historySortBy = 'lastActivityAt' as const
+  const historySortBy = 'createdAt' as const
   const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
     searchScope: 'name-or-owner',
@@ -190,6 +190,7 @@ const AssistantHistoryRecords = ({
     [renamingTopics]
   )
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
+  const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
 
   const topics = useMemo<HistoryTopicItem[]>(() => {
     const projected = projectedBandTopics
@@ -201,15 +202,14 @@ const AssistantHistoryRecords = ({
       }))
       .filter((topic) => {
         if (!ownerScope) return true
-        if (ownerScope === 'unlinked') return topic.assistantId == null
+        if (ownerScope === 'unlinked') return topic.assistantId == null || !assistantById.has(topic.assistantId)
         return topic.assistantId === ownerScope
       })
     return [...projected.filter((topic) => topic.pinned), ...projected.filter((topic) => !topic.pinned)]
-  }, [optimisticTopicPatches, optimisticallyRemovedTopicIds, ownerScope, projectedBandTopics])
+  }, [assistantById, optimisticTopicPatches, optimisticallyRemovedTopicIds, ownerScope, projectedBandTopics])
   const isTopicsLoadingMore = topics.length > 0 && isBandLoadingMore
   const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
   const isTopicPinned = useCallback((topicId: string) => topicById.get(topicId)?.pinned === true, [topicById])
-  const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
     [assistants]
@@ -552,7 +552,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.lastActivityAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.createdAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {

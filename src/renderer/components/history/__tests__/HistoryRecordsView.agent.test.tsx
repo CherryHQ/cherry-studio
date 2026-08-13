@@ -387,7 +387,7 @@ function setupAgentHistory({
     ownerScope?: string,
     q?: string,
     pinned?: boolean,
-    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'lastActivityAt'
+    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'createdAt'
   ) => {
     const normalizedQuery = q?.trim().toLowerCase()
     return projectedSessions
@@ -397,9 +397,7 @@ function setupAgentHistory({
         if (ownerScope && session.agentId !== ownerScope) return false
         if (!normalizedQuery) return true
         const agentName = session.agentId ? agents.find((agent) => agent.id === session.agentId)?.name : undefined
-        return [session.name, session.description, agentName].some((value) =>
-          value?.toLowerCase().includes(normalizedQuery)
-        )
+        return [session.name, agentName].some((value) => value?.toLowerCase().includes(normalizedQuery))
       })
       .sort((left, right) => {
         if (sortBy !== 'orderKey') {
@@ -518,7 +516,7 @@ describe('HistoryRecordsView agent mode', () => {
       pinned: false,
       q: '',
       searchScope: 'name-or-owner',
-      sortBy: 'lastActivityAt'
+      sortBy: 'createdAt'
     })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
@@ -635,7 +633,7 @@ describe('HistoryRecordsView agent mode', () => {
       'agent-alpha',
       expect.objectContaining({
         pinned: false,
-        sortBy: 'lastActivityAt'
+        sortBy: 'createdAt'
       })
     )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
@@ -725,13 +723,13 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
   })
 
-  it('searches by session name, description, and live-agent name', () => {
+  it('searches by session and live-agent name, but not task description', () => {
     setupAgentHistory()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.getByText('Beta session')).toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'beta session' } })
 

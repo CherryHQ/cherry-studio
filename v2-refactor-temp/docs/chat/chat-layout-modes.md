@@ -20,7 +20,9 @@ preference. The layout is derived from the resource-list display mode.
 
 ## State
 
-- Display mode and topic/session position are stored as Preference data.
+- Display mode, topic/session position, and topic/session item sort are stored as Preference data.
+- `topic.sort_type` and `agent.session.sort_type` both default to `createdAt`. Changing display mode does not change
+  either sort preference.
 - `topic.tab.show` controls whether the left resource list is expanded.
 - Classic-layout right-pane state is persisted independently per surface via
   `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:
@@ -60,8 +62,8 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
   rail's re-entry behavior.
 - The right panel shares the existing RightPanel chrome with branch, trace,
   files, status, and flow panels.
-- Right-panel topic/session lists use the flat time display and do not write the
-  left list's display-mode collapse state.
+- Right-panel topic/session lists use the flat display, follow the corresponding selected item sort, and do not
+  write the left list's display-mode collapse state.
 
 ## Composer Entity Controls
 
@@ -85,9 +87,9 @@ Classic-layout agent chats keep the workspace control visible in the composer.
 
 ## Data Flow
 
-Topic and session lists use independent pinned and unpinned cursor streams.
-Search and owner scoping are applied by DataApi so each surface can page without
-loading the complete collection into the renderer.
+Topic and session lists use independent pinned and unpinned cursor streams. Ordinary rows can use creation order,
+activity order, or manual order; pinned rows keep their independent pin order. Search and owner scoping are applied
+by DataApi so each surface can page without loading the complete collection into the renderer.
 
 - Home list surfaces use `useTopics`; exact selection, latest-topic, and reusable
   placeholder lookups come from `useAssistantTopicsSource`.

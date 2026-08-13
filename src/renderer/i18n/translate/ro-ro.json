@@ -424,7 +424,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Timp",
+        "time": "Sarcină",
         "title": "Mod de afișare",
         "workdir": "Director de lucru"
       },
@@ -1910,7 +1910,7 @@
       "display": {
         "assistant": "Asistent",
         "tag": "Etichetă",
-        "time": "Timp",
+        "time": "Conversație",
         "title": "Mod afișare"
       },
       "draft": "Proiect",
@@ -2417,11 +2417,15 @@
     "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
+      "activity_at": "Ora activității",
+      "created_at": "Ora creării",
+      "manual_order": "Ordine manuală",
       "pinyin": {
         "asc": "Sortează după Pinyin (A-Z)",
         "desc": "Sortează după Pinyin (Z-A)",
         "label": "Sortează după Pinyin"
-      }
+      },
+      "title": "Ordine de sortare"
     },
     "stop": "Oprește",
     "subscribe": "Abonează-te",

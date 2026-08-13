@@ -285,6 +285,7 @@ export function Topics({
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
@@ -307,7 +308,6 @@ export function Topics({
   const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const defaultGroupVisibleCount = displayMode === 'time' ? Number.POSITIVE_INFINITY : DEFAULT_TOPIC_GROUP_VISIBLE_COUNT
   const isAssistantDisplayMode = displayMode === 'assistant'
-  const topicSortBy = isAssistantDisplayMode ? ('orderKey' as const) : ('lastActivityAt' as const)
   const [remoteQuery, setRemoteQuery] = useState('')
   const debouncedRemoteQuery = useDebouncedValue(remoteQuery, TOPIC_SEARCH_DEBOUNCE_MS)
   const isTopicListEnabled = dataEnabled && (!isRightPanel || assistantIdFilter !== undefined)
@@ -1738,7 +1738,9 @@ export function Topics({
                   onChange={handleTopicDisplayModeChange}
                   onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
+                  onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
                   sectionIds={topicAssistantSectionIds}
+                  sortBy={topicSortBy}
                 />
               }
             />
@@ -1759,6 +1761,8 @@ export function Topics({
                   onChange={handleTopicDisplayModeChange}
                   onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
+                  onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
+                  sortBy={topicSortBy}
                 />
               }
             />
@@ -1770,7 +1774,9 @@ export function Topics({
               onChange={handleTopicDisplayModeChange}
               onManageAssistants={onManageAssistants}
               onOpenHistoryRecords={onOpenHistoryRecords}
+              onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
               sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
+              sortBy={topicSortBy}
             />
           )}
         </ResourceList.Header>
