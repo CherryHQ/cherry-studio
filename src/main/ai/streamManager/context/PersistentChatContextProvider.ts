@@ -17,8 +17,10 @@ import {
   CONTEXT_COMPACT_TRIGGER_RATIO
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
+import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -37,10 +39,14 @@ import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/
 import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
+import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
+import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -74,6 +80,16 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
   return (anchorId, data) =>
     subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+}
+
+/** Media cost table for the turn. Unreachable provider row → the openai table. */
+function resolveRowDialect(model: Model | undefined): TokenDialect {
+  if (!model) return 'openai'
+  try {
+    return resolveModelTokenDialect(providerService.getByProviderId(model.providerId), model)
+  } catch {
+    return 'openai'
+  }
 }
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
@@ -452,6 +468,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -542,6 +559,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         parent.id,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -686,6 +704,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         anchor.id,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -784,6 +803,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.userMessageId,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -832,8 +852,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
   }
 
-  private estimateTotal(rows: CompactionRow[]): number {
-    return rows.reduce((s, r) => s + estimateRowTokens(r), 0)
+  private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
+    return rows.reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
   }
 
   /**
@@ -842,7 +862,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
    * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
-  private estimateContext(effective: CompactionRow[]): number {
+  private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
     let anchorIdx = -1
     for (let i = effective.length - 1; i >= 0; i--) {
       if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
@@ -850,9 +870,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         break
       }
     }
-    if (anchorIdx < 0) return this.estimateTotal(effective)
+    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
     const base = effective[anchorIdx].contextTokens as number
-    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r), 0)
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
     return base + tail
   }
 
@@ -871,6 +891,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[],
+    assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
@@ -896,7 +917,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // (provider prefix caches hold).
     const d = findDeepestMarker(rows)
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
-    const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
+    // A folded marker's blob stays allow-listed, so the summary must name its
+    // path or the model holds fs_read with no legal argument.
+    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
+    const effective = applyDeepestMarker(
+      rows,
+      d >= 0 ? manifestHandles(d) : undefined,
+      d >= 0 ? manifestPaths(d) : undefined
+    )
+
+    // A user-drawn window, unlike a space-saving fold, must also revoke
+    // read_file / fs_read access to whatever slid out of it.
+    const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
+      const servedIds = new Set(windowed.map((r) => r.id))
+      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
+    }
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
@@ -904,6 +939,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    // NOT gated on `contextSettings.enabled`: that switch owns the overflow
+    // policy, while this decides how much history is sent at all.
+    if (contextSettings.maxMessages != null) {
+      // RAW rows, no compaction state: a summary covers everything up to its
+      // boundary, so serving one would carry pre-window content back in.
+      const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
+      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+    }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
 
@@ -917,12 +960,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
-    if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    // Against the room the PROMPT actually has: whatever this request declares
+    // as max_tokens is billed alongside the input, so it is not history's to use.
+    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    // Selects the media cost tables only; text stays on tokenx, matching the
+    // in-loop hook so the two triggers cannot disagree on the same history.
+    const dialect = resolveRowDialect(models[0])
+    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
+    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
@@ -937,7 +986,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // this summarize call runs BEFORE the model stream, so without an explicit
     // clear a failed fold would leave "compacting…" pinned on a live turn.
     const startedAt = new Date().toISOString()
-    const preTokens = this.estimateContext(effective)
+    const preTokens = this.estimateContext(effective, dialect)
     // One id per fold: a turn can compact several times, and a shared id would
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
@@ -1001,8 +1050,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       }
       messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
-      const served = [summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)]
-      settle({ postTokens: this.estimateContext(served), foldedCount: keepIdx })
+      const served = [
+        summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
+        ...recent.slice(keepIdx)
+      ]
+      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
