@@ -80,4 +80,16 @@ describe('scanStandaloneHtmlArtifact', () => {
   it('still accepts the three spaces CommonMark allows before a block', () => {
     expect(scanStandaloneHtmlArtifact('   ```html\n<div>a</div>\n```')).toMatchObject({ html: '<div>a</div>' })
   })
+
+  it('does not close a fence on a tab-indented marker line', () => {
+    // remark keeps the tab-indented marker inside the code block, so the fence is still open.
+    expect(scanStandaloneHtmlArtifact('```html\n<div>x</div>\n\t```')).toBeUndefined()
+    expect(scanStandaloneHtmlArtifact('```html\n<div>x</div>\n\t```', true)).toMatchObject({
+      html: '<div>x</div>\n\t```'
+    })
+  })
+
+  it('closes a fence on a marker line indented by up to three spaces', () => {
+    expect(scanStandaloneHtmlArtifact('```html\n<div>x</div>\n   ```')).toMatchObject({ html: '<div>x</div>' })
+  })
 })

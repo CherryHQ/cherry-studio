@@ -195,7 +195,7 @@ describe('TopicRightPane', () => {
     )
   })
 
-  it('hides environmental presentation without discarding topic pane intent or its visited instance', () => {
+  it('hides environmental presentation without discarding topic pane intent or its visited instance', async () => {
     const { rerender } = render(
       <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
@@ -203,7 +203,7 @@ describe('TopicRightPane', () => {
     )
 
     act(triggerRightSidebarShortcut)
-    const branchPane = screen.getByTestId('branch-pane')
+    const branchPane = await screen.findByTestId('branch-pane')
 
     rerender(
       <TopicRightPane.Scope topicId="topic-a" present={false}>
@@ -268,7 +268,7 @@ describe('TopicRightPane', () => {
     expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
   })
 
-  it('hides the trace tab when developer mode is off', () => {
+  it('hides the trace tab when developer mode is off', async () => {
     developerModeEnabled.mockReturnValue(false)
 
     render(
@@ -282,7 +282,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('forwards branch-node locate requests without closing the shell', async () => {
@@ -385,7 +385,7 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', () => {
+  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', async () => {
     render(
       <TopicRightPane.Scope
         topicId="topic-a"
@@ -398,7 +398,7 @@ describe('TopicRightPane', () => {
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
-    const branchPane = screen.getByTestId('branch-pane')
+    const branchPane = await screen.findByTestId('branch-pane')
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
 
@@ -446,7 +446,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('reconciles an open resource capability to the next ready capability', () => {
+  it('reconciles an open resource capability to the next ready capability', async () => {
     const { rerender } = render(
       <TopicRightPane.Scope
         topicId="topic-a"
@@ -467,7 +467,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.queryByTestId('resource-list')).toBeNull()
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('opens the resource pane on a locate reveal request', () => {

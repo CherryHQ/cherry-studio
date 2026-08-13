@@ -207,7 +207,7 @@ export interface ComposerSurfaceProps {
 export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
-  insertToken?: { token: ComposerDraftToken; textOffset: number }
+  insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -2120,7 +2120,10 @@ export default function ComposerSurfaceRuntime({
       () => {
         if (editor.isDestroyed) return
         if (pendingToken) {
-          editor.commands.setTextSelection(getComposerPositionAtTextOffset(editor, pendingToken.textOffset))
+          editor.commands.setTextSelection({
+            from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
+            to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
+          })
           insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {

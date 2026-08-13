@@ -22,18 +22,24 @@ function trimEndIndex(value: string): number {
   return index
 }
 
+/** Leading indentation in CommonMark columns, where a tab advances to the next multiple of four. */
+function measureIndent(source: string, lineStart: number, end: number) {
+  let cursor = lineStart
+  let column = 0
+  while (cursor < end && (source[cursor] === ' ' || source[cursor] === '\t')) {
+    column += source[cursor] === '\t' ? 4 - (column % 4) : 1
+    cursor += 1
+  }
+  return { cursor, column }
+}
+
 /**
  * First block start under CommonMark rules: blank lines are skipped and a block may carry at most
  * three columns of indentation — four (or one tab) makes it an indented code block instead.
  */
 function findBlockStart(source: string, end: number): number | undefined {
   for (let lineStart = 0; lineStart < end; ) {
-    let cursor = lineStart
-    let column = 0
-    while (cursor < end && (source[cursor] === ' ' || source[cursor] === '\t')) {
-      column += source[cursor] === '\t' ? 4 - (column % 4) : 1
-      cursor += 1
-    }
+    const { cursor, column } = measureIndent(source, lineStart, end)
     if (cursor < end && source[cursor] !== '\n' && source[cursor] !== '\r') {
       return column > 3 ? undefined : cursor
     }
@@ -58,16 +64,14 @@ function findClosingFence(source: string, from: number, end: number, marker: str
   for (let lineStart = from; lineStart < end; ) {
     const newline = source.indexOf('\n', lineStart)
     const lineEnd = newline === -1 || newline > end ? end : newline
-    let cursor = lineStart
-    while (cursor < lineEnd && cursor - lineStart < 4 && (source[cursor] === ' ' || source[cursor] === '\t'))
-      cursor += 1
-    const indent = cursor - lineStart
+    const { cursor: markerStart, column } = measureIndent(source, lineStart, lineEnd)
+    let cursor = markerStart
     let count = 0
     while (cursor < lineEnd && source[cursor] === marker) {
       cursor += 1
       count += 1
     }
-    if (indent < 4 && count >= minCount && skipWhitespace(source, cursor, lineEnd) === lineEnd) {
+    if (column < 4 && count >= minCount && skipWhitespace(source, cursor, lineEnd) === lineEnd) {
       return { contentEnd: lineStart, lineEnd }
     }
     if (lineEnd === end) break

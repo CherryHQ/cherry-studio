@@ -246,7 +246,40 @@ describe('deferred ComposerSurface', () => {
     // Writing the token straight into draftTokens leaves it without prompt text at that offset,
     // which the reconcilers and the document builder both discard.
     expect(onTokensChange).not.toHaveBeenCalled()
-    expect(mocks.runtimeIntent?.insertToken).toEqual({ token: quote, textOffset: 2 })
+    expect(mocks.runtimeIntent?.insertToken).toEqual({ token: quote, selection: { start: 2, end: 2 } })
+  })
+
+  it('carries the whole selection so a replayed token still replaces the selected text', async () => {
+    let actions: ComposerSurfaceActions | undefined
+    const quote = { id: 'q2', kind: 'quote', promptText: 'Quoted line' } as ComposerDraftToken
+    render(
+      <Harness
+        onActionsChange={(next) => {
+          actions = next
+        }}
+      />
+    )
+
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' }).setSelectionRange(1, 4)
+    act(() => actions!.insertToken(quote))
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.insertToken?.selection).toEqual({ start: 1, end: 4 })
+  })
+
+  it('carries an IME value only committed on compositionend into the runtime', async () => {
+    render(<Harness />)
+
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' })
+    fireEvent.compositionStart(input)
+    fireEvent.keyDown(input, { key: 'Process' })
+    // Some IMEs never fire `change`: the committed characters land on the DOM value at
+    // compositionend, right before the runtime replaces the textarea.
+    input.value = 'draft你好'
+    fireEvent.compositionEnd(input)
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('draft你好')
   })
 
   it('does not swap the toolbar out from under a click when the runtime chunk is already warm', async () => {

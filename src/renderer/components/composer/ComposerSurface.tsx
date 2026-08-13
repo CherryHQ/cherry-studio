@@ -141,11 +141,15 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       toggleExpanded: (expanded) => props.onExpandedChange(expanded ?? !props.isExpanded),
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
       // A token needs its prompt text woven into the document at the caret, which only the rich
-      // editor can do; recording the offset lets the runtime insert it exactly where it was asked.
+      // editor can do; the whole range travels along so the runtime still replaces a selection.
       insertToken: (token) => {
+        const input = textareaRef.current
         intentRef.current.insertToken = {
           token,
-          textOffset: textareaRef.current?.selectionStart ?? props.text.length
+          selection: {
+            start: input?.selectionStart ?? props.text.length,
+            end: input?.selectionEnd ?? props.text.length
+          }
         }
         requestRuntime()
       },
@@ -257,10 +261,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }}
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={(event) => {
-            selectionRef.current = {
-              start: event.currentTarget.selectionStart,
-              end: event.currentTarget.selectionEnd
-            }
+            // Some IMEs only write the committed characters on compositionend, and the textarea is
+            // about to unmount, so read the final value here rather than waiting for `change`.
+            const input = event.currentTarget
+            selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+            if (input.value !== props.text) props.onTextChange(input.value)
             setIsComposing(false)
           }}
           onKeyDown={(event) => {
