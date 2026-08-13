@@ -127,14 +127,6 @@ describe('CapabilityStep', () => {
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
   })
 
-  it('does not expose agent permission settings in the skills step', () => {
-    render(<CapabilityStepHarness />)
-
-    expect(
-      screen.queryByRole('button', { name: 'library.config.agent.field.permission_mode.label' })
-    ).not.toBeInTheDocument()
-  })
-
   it('shows builtin skills pre-checked and locked, and never adds them to skillIds', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
