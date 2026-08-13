@@ -104,6 +104,51 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
   })
 
+  it('prefers Anthropic Messages when a Pi model also supports OpenAI Chat', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions', 'anthropic-messages'] })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('anthropic-messages')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
+  })
+
+  it('does not prefer Anthropic Messages for other endpoint combinations', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://gateway.example.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-responses', 'anthropic-messages'] })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-responses')
+  })
+
+  it('keeps OpenAI Chat when the provider has no Anthropic endpoint configuration', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions', 'anthropic-messages'] })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-completions')
+  })
+
   it('maps an OpenAI-compatible provider (chat-completions)', () => {
     const provider = makeProvider({
       id: 'deepseek',
@@ -441,6 +486,28 @@ describe('modelInjection service resolution', () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
     expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('validates the same preferred Anthropic endpoint used during materialization', async () => {
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: 'p',
+      name: 'P',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'bedrock', baseUrl: 'https://gateway.example.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: 128_000,
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    })
+
+    await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
   })
 
   it('rejects missing credentials and unsupported providers', async () => {

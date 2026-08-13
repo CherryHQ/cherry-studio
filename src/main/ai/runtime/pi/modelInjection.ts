@@ -19,6 +19,7 @@ import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
+  ENDPOINT_TYPE,
   MODALITY,
   type Model,
   MODEL_CAPABILITY,
@@ -120,6 +121,15 @@ export async function materializePiProviderStream(injection: PiProviderInjection
   }
 }
 
+function resolvePiEndpoint(provider: Provider, model: Model) {
+  const preferredEndpoint =
+    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
+    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      : undefined
+  return resolveEffectiveEndpoint(provider, model, preferredEndpoint)
+}
+
 /**
  * Pure mapping: build the pi provider injection from an already-resolved Cherry
  * `Provider`, `Model`, and API key. Kept free of service/IO so it is unit
@@ -135,7 +145,7 @@ export function buildPiProviderInjection(
 ): PiProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolvePiEndpoint(provider, model)
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
@@ -262,7 +272,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting
   // "missing API key" for it would misdiagnose an unsupported provider.
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolvePiEndpoint(provider, model)
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
