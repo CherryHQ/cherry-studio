@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -13,7 +14,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
-import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -85,6 +86,7 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [collapsedGroupIds, setCollapsedGroupIds] = usePersistCache('ui.assistant.entity_rail.expansion')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
   const {
@@ -102,6 +104,7 @@ export function AssistantResourceList({
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const {
     topics: apiTopics,
+    rendererTopics,
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     isRefreshing: isTopicsRefreshing,
@@ -129,13 +132,10 @@ export function AssistantResourceList({
     [assistantGroups]
   )
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
+  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
   const topics = useMemo(
-    () =>
-      apiTopics.map((apiTopic) => ({
-        ...mapApiTopicToRendererTopic(apiTopic),
-        pinned: topicPinnedIdSet.has(apiTopic.id)
-      })),
-    [apiTopics, topicPinnedIdSet]
+    () => rendererTopics.map((topic) => (topicPinnedIdSet.has(topic.id) ? { ...topic, pinned: true } : topic)),
+    [rendererTopics, topicPinnedIdSet]
   )
   const topicsRef = useRef(topics)
   useEffect(() => {
@@ -505,6 +505,7 @@ export function AssistantResourceList({
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
         groupByGroup={isGroupGrouping}
+        collapsedState={collapsedGroupIds}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
@@ -520,6 +521,7 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
+        onCollapsedStateChange={setCollapsedGroupIds}
         onReorder={isGroupGrouping ? undefined : handleReorder}
         onGroupReorder={isGroupGrouping ? handleGroupReorder : undefined}
         reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}

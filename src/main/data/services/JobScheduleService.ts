@@ -45,18 +45,21 @@ export class JobScheduleService {
   // ---------------- Read ----------------
 
   listAll(filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
-    const db = this.getDb()
+    return this.listAllTx(this.getDb(), filter)
+  }
+
+  listAllTx(tx: DbOrTx, filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
     const conditions: SQL[] = []
     if (filter.type) conditions.push(eq(jobScheduleTable.type, filter.type))
     if (filter.enabled !== undefined) conditions.push(eq(jobScheduleTable.enabled, filter.enabled))
 
     const baseQuery = conditions.length
-      ? db
+      ? tx
           .select()
           .from(jobScheduleTable)
           .where(and(...conditions))
           .orderBy(asc(jobScheduleTable.createdAt))
-      : db.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
+      : tx.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
 
     const rows =
       filter.limit !== undefined

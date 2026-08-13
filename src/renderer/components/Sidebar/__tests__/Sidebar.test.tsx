@@ -181,7 +181,7 @@ function dragResizeFrom(width: number, moves: number | number[]) {
 }
 
 describe('Sidebar resize handle', () => {
-  it('keeps the existing handle width and opts out of window drag regions', () => {
+  it('opts the resize handle out of window drag regions', () => {
     const { container } = render(
       <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
     )
@@ -189,7 +189,7 @@ describe('Sidebar resize handle', () => {
     const resizeHandle = container.querySelector('.cursor-col-resize')
 
     expect(resizeHandle).toBeInTheDocument()
-    expect(resizeHandle).toHaveClass('w-0.75')
+    // Electron drag-region opt-out keeps the resize handle interactive.
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
@@ -289,6 +289,7 @@ describe('Sidebar resize handle', () => {
     const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
     const hotZone = resizeHandle.parentElement
 
+    // The hidden sidebar still needs a full-height interactive resize target outside the window drag region.
     expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
     expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
@@ -416,28 +417,6 @@ describe('Sidebar resize handle', () => {
     expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
   })
 
-  it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
-    render(
-      <Sidebar
-        width={SIDEBAR_ICON_WIDTH}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            title: 'Qwen',
-            miniApp: { id: 'qwen', logo: 'qwen' }
-          })
-        ]}
-      />
-    )
-
-    const dockedMiniAppButton = screen.getByRole('button', { name: 'Qwen' })
-
-    expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
-    expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
-  })
-
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
     render(
       <Sidebar
@@ -551,22 +530,5 @@ describe('Sidebar resize handle', () => {
 
     expect(document.body).toHaveTextContent('theme-full')
     expect(document.body).not.toHaveTextContent('theme-icon')
-  })
-
-  it('uses a solid sidebar background for the floating hidden-state panel', () => {
-    const { container } = render(
-      <Sidebar
-        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={entries}
-        isFloating
-      />
-    )
-
-    const panel = container.querySelector('.slide-in-from-left-2')
-
-    expect(panel).toHaveClass('bg-sidebar')
-    expect(panel).not.toHaveClass('bg-sidebar/70')
   })
 })

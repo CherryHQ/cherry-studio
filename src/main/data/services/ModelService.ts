@@ -1059,6 +1059,8 @@ class ModelService {
       })
     }
 
+    if (actuallyDeleted > 0) pinService.notifyPurged()
+
     const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
@@ -1103,6 +1105,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
+    pinService.notifyPurged()
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1168,6 +1171,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
+    pinService.notifyPurged()
 
     logger.info('Bulk deleted models', {
       count: ids.length,

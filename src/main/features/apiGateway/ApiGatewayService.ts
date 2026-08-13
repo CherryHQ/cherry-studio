@@ -9,7 +9,7 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import type { ApiGatewayConfig } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ApiGateway } from './server'
+import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
@@ -71,6 +71,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async onActivate(): Promise<void> {
     try {
       await this.ensureValidApiKey()
+      const { ApiGateway } = await import('./server')
       this.apiGateway = new ApiGateway()
       await this.apiGateway.start()
       this.publishRunningState(true)
@@ -202,10 +203,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
   }
 
+  /** Validated Agent session id from the internal usage headers; undefined for external requests. */
+  getAgentSessionId(headers: Headers): string | undefined {
+    if (!this.isInternalAgentRequest(headers)) return undefined
+    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+  }
+
   /** Validate the process-local proof, then capture the reserved continuation or active turn. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
-    if (!this.isInternalAgentRequest(headers)) return undefined
-    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
   }

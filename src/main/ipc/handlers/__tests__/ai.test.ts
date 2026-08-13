@@ -1,3 +1,5 @@
+import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,21 +10,21 @@ const {
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinAssistantFeedbackSession
+  createBuiltinSupportSession
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinAssistantFeedbackSession: vi.fn()
+  createBuiltinSupportSession: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
-vi.mock('@main/ai/agents/createBuiltinAssistantFeedbackSession', () => ({ createBuiltinAssistantFeedbackSession }))
+vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 
 import { aiHandlers } from '../ai'
 
@@ -57,7 +59,7 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -75,7 +77,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
-  createBuiltinAssistantFeedbackSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-assistant' })
+  createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -112,10 +114,10 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
-  it('delegates feedback-session creation and returns its id', async () => {
-    const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
+  it('delegates Support-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
 
-    expect(createBuiltinAssistantFeedbackSession).toHaveBeenCalledTimes(1)
+    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 
@@ -225,6 +227,23 @@ describe('aiHandlers — streaming', () => {
       'requires a managed window'
     )
     expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
+    aiStreamManager.dispatch.mockRejectedValue(
+      new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+    )
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'regenerate-message', topicId: 't', parentAnchorId: 'u1' } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_STREAM_ADMISSION_REJECTED,
+      data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
+    })
   })
 
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
@@ -394,25 +413,25 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(createAgent).toHaveBeenCalledWith(request, ctx)
   })
 
-  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
+  it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
   // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
   // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
-  it('prewarm_agent_session primes the connection in trace mode too', async () => {
+  it('prewarm_agent_session acquires the lease in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
+  // The actual teardown (warm-query park + primed connection) is owned by the runtime service,
+  // which starts it only once no window holds the session.
+  it('close_agent_session_warm releases only the sender window lease', async () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
-    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
+    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

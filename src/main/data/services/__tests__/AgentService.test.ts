@@ -20,12 +20,16 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -342,6 +346,46 @@ describe('AgentService', () => {
 
       expect(assistant.model).toBeNull()
     })
+
+    it('does not trust a Support role on an ordinary ID and restores the fixed identity in place', async () => {
+      await insertAgent({
+        id: 'ordinary-support',
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { builtin_role: 'support', avatar: 'U' }
+      })
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        deletedAt: Date.UTC(2026, 0, 1),
+        configuration: { avatar: 'S', max_turns: 7 }
+      })
+
+      const support = agentService.ensureBuiltinAgent({ ...defaults, builtinRole: 'support' })
+
+      expect(support).toMatchObject({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        configuration: { avatar: 'S', max_turns: 7, builtin_role: 'support' }
+      })
+      const [restoredRow] = dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID))
+        .all()
+      expect(restoredRow.deletedAt).toBeNull()
+      expect(agentService.getAgent('ordinary-support')).toMatchObject({
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { avatar: 'U' }
+      })
+    })
   })
 
   describe('model updates', () => {
@@ -460,6 +504,12 @@ describe('AgentService', () => {
   })
 
   describe('builtin_role write protection', () => {
+    it('does not expose a legacy Support marker on an ordinary Agent', async () => {
+      await insertAgent({ id: 'legacy-support-read', configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      expect(agentService.getAgent('legacy-support-read')?.configuration).toEqual({ avatar: 'U' })
+    })
+
     it('rejects createAgent when configuration carries a builtin_role', async () => {
       const error = captureError(() =>
         createAgentForTest({
@@ -497,7 +547,9 @@ describe('AgentService', () => {
       const agentId = 'agent_builtin_change'
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' as never } })
+      )
       expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
       expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
     })
@@ -520,6 +572,18 @@ describe('AgentService', () => {
       })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
       expect(updated?.configuration?.avatar).toBe('🍒')
+    })
+
+    it('rejects preserving a legacy Support marker on a non-system ID', async () => {
+      const agentId = 'legacy-forged-support'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'support', avatar: 'changed' } })
+      )
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration).toEqual({ avatar: 'U' })
     })
   })
 
@@ -990,11 +1054,13 @@ describe('AgentService', () => {
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       pinService.pin({ entityType: 'agent', entityId: id })
       const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+      notifyDataApiDataChangeMock.mockClear()
 
       agentService.deleteAgent(id)
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1030,6 +1096,7 @@ describe('AgentService', () => {
           orderKey: 'a1'
         }
       ])
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id, { deleteSessions: true })
 
@@ -1039,6 +1106,19 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-delete-with-agent']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {
@@ -1065,6 +1145,7 @@ describe('AgentService', () => {
         taskScheduleId: task.id,
         orderKey: 'a0'
       })
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
 
@@ -1073,6 +1154,17 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
       expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-default-detach']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {
@@ -1461,6 +1553,23 @@ describe('AgentService', () => {
           id: 'agent_builtin_global_search',
           subtitle:
             'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
+    })
+
+    it('matches and displays Cherry Support through its localized fallback description', async () => {
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Cherry Support',
+        description: '',
+        configuration: { builtin_role: 'support' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: CHERRY_SUPPORT_AGENT_ID,
+          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
         })
       ])
     })

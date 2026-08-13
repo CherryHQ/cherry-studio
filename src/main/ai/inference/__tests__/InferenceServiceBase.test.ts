@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +18,21 @@ class FakeWorker extends EventEmitter {
 
 const fakeWorkers: FakeWorker[] = []
 const getRoutingSnapshot = vi.hoisted(() => vi.fn())
+const resolveLocalInferenceProfile = vi.hoisted(() =>
+  vi.fn((enabled: boolean) =>
+    enabled
+      ? {
+          id: 'directml',
+          transformersDevice: 'dml',
+          sessionOptions: {
+            executionProviders: ['dml', 'cpu'],
+            enableMemPattern: false,
+            executionMode: 'sequential'
+          }
+        }
+      : { id: 'cpu', transformersDevice: 'cpu', sessionOptions: { executionProviders: ['cpu'] } }
+  )
+)
 
 const DIRECT_ROUTING: ProxyRoutingSnapshot = { version: 1, mode: 'direct' }
 
@@ -43,6 +59,15 @@ vi.mock('@application', async () => {
 // machine it runs on (see InferenceServiceBase.darwinX64.test.ts for the gate itself).
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
 
+vi.mock('../inferenceAcceleration', () => ({
+  CPU_LOCAL_INFERENCE_PROFILE: {
+    id: 'cpu',
+    transformersDevice: 'cpu',
+    sessionOptions: { executionProviders: ['cpu'] }
+  },
+  resolveLocalInferenceProfile
+}))
+
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
 const { EmbeddingInferenceService } = await import('../EmbeddingInferenceService')
 const { OcrInferenceService } = await import('../OcrInferenceService')
@@ -55,6 +80,7 @@ const MODEL_DIR = '/models/qwen3-embedding/org/model'
 getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
 
 beforeEach(() => {
+  MockMainPreferenceServiceUtils.resetMocks()
   getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
 })
 
@@ -305,12 +331,14 @@ describe('InferenceService worker init message', () => {
     cacheDir?: string
     appPath?: string
     proxyRouting?: ProxyRoutingSnapshot
+    runtimeProfile?: { id: string }
   } {
     return worker.postMessage.mock.calls[0][0] as {
       type: string
       cacheDir?: string
       appPath?: string
       proxyRouting?: ProxyRoutingSnapshot
+      runtimeProfile?: { id: string }
     }
   }
 
@@ -323,6 +351,7 @@ describe('InferenceService worker init message', () => {
     expect(embedInit.cacheDir).toBeTruthy()
     expect(embedInit.appPath).toBeTruthy()
     expect(embedInit.proxyRouting).toEqual(DIRECT_ROUTING)
+    expect(embedInit.runtimeProfile?.id).toBe('cpu')
     // Settle so the shared queue's concurrency slot is free for the OCR request below.
     embeddingWorker.emit('message', { type: 'result', id: lastRequestId(embeddingWorker), embeddings: [[0.1]] })
     await embedPending
@@ -339,8 +368,28 @@ describe('InferenceService worker init message', () => {
     expect('cacheDir' in ocrInit).toBe(false)
     expect(ocrInit.appPath).toBeTruthy()
     expect(ocrInit.proxyRouting).toEqual(DIRECT_ROUTING)
+    expect(ocrInit.runtimeProfile?.id).toBe('cpu')
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
     await ocrPending
+  })
+
+  it('finishes the active request before applying an updated acceleration profile to the next worker', async () => {
+    const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
+    const second = embeddingInferenceService.embed(['second'], MODEL_DIR, 'q8')
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.local_model.hardware_acceleration.enabled', true)
+    expect(workerA.terminate).not.toHaveBeenCalled()
+
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    await first
+
+    const workerB = await latestWorker(2)
+    expect(workerA.terminate).toHaveBeenCalledTimes(1)
+    expect(initMessage(workerB).runtimeProfile?.id).toBe('directml')
+
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
+    await expect(second).resolves.toEqual([[0.2]])
   })
 
   it('restarts the worker before the next request when ProxyService advances the routing version', async () => {

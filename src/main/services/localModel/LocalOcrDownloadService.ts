@@ -81,17 +81,13 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // parse it so the model dir holds all three files the inference worker needs.
     await this.downloadDictionary(paths.charactersDictionary, signal)
     this.broadcast({ status: 'ready', percent: 100 })
-    // Product decision: downloading the local OCR model promotes it to the
-    // default image-to-text processor. Best-effort — a preference write hiccup
-    // must not undo a successful download.
-    await this.promoteToDefault()
   }
 
   // No cleanupAfterError override: fetchToFile streams into `${dest}.tmp` and renames only
   // once the size check passes, so a failed download leaves no partial weights for the
   // readiness probe (which requires all three files) to trip over. Deleting the model dir
   // on failure would instead wipe weights an earlier download had completed — and, unlike
-  // remove() below, failure cleanup cannot demote the default processor, so it would strand
+  // remove() below, failure cleanup cannot demote an explicitly selected processor, so it would strand
   // `default_image_to_text` on an unavailable local-paddleocr and break every OCR consumer.
 
   async remove(): Promise<{ removed: boolean }> {
@@ -203,20 +199,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     onProgress(1)
   }
 
-  private async promoteToDefault(): Promise<void> {
-    try {
-      const preference = application.get('PreferenceService')
-      const current = preference.get('feature.file_processing.default_image_to_text')
-      // Only step into an empty slot (or re-affirm ourselves on a re-download) —
-      // never clobber an engine the user already explicitly chose.
-      if (current !== null && current !== 'local-paddleocr') return
-      await preference.set('feature.file_processing.default_image_to_text', 'local-paddleocr')
-    } catch (error) {
-      logger.warn('failed to set local OCR as default image-to-text processor', { error: String(error) })
-    }
-  }
-
-  /** Inverse of {@link promoteToDefault}: only resets when we are still the default. */
+  /** Reset an explicit local OCR default before removing the model it needs. */
   private async demoteFromDefault(): Promise<void> {
     try {
       const preference = application.get('PreferenceService')

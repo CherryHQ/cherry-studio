@@ -51,10 +51,36 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837d8961e535a03b2037c58bdcff45cf1916..cae38d61759ba3654a920856c269f5aa057fb3f2 100644
+index 5774837d8961e535a03b2037c58bdcff45cf1916..88b42b959c5520e4ca74f9ac805db11717f329fd 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -9647,7 +9647,8 @@ async function generateImage({
+@@ -8468,6 +8468,16 @@ function createUIMessageStream({
+ }
+ 
+ // src/ui-message-stream/read-ui-message-stream.ts
++// PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — structuredClone here
++// was O(message bytes) per chunk, melting the renderer on long fast streams (vercel/ai#18624).
++function cherrySnapshotUIMessage(message) {
++  const snapshot = { ...message, parts: message.parts.map((part) => ({ ...part })) };
++  if ("metadata" in message) {
++    const metadata = message.metadata;
++    snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++  }
++  return snapshot;
++}
+ function readUIMessageStream({
+   message,
+   stream,
+@@ -8500,7 +8510,7 @@ function readUIMessageStream({
+         return job({
+           state,
+           write: () => {
+-            controller == null ? void 0 : controller.enqueue(structuredClone(state.message));
++            controller == null ? void 0 : controller.enqueue(cherrySnapshotUIMessage(state.message));
+           }
+         });
+       },
+@@ -9647,7 +9657,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -64,7 +90,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..cae38d61759ba3654a920856c269f5aa
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,21 +9697,37 @@ async function generateImage({
+@@ -9696,21 +9707,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -115,10 +141,36 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..cae38d61759ba3654a920856c269f5aa
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01537bf5c2c5d47772fab0174a99180fdf6..c219e51eafa64f29b472a10fefe0b41b3715755e 100644
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..9d7639bbf5fac589564d197e0b791d9e240ba6d7 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -9586,7 +9586,8 @@ async function generateImage({
+@@ -8392,6 +8392,16 @@ function createUIMessageStream({
+ }
+ 
+ // src/ui-message-stream/read-ui-message-stream.ts
++// PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — structuredClone here
++// was O(message bytes) per chunk, melting the renderer on long fast streams (vercel/ai#18624).
++function cherrySnapshotUIMessage(message) {
++  const snapshot = { ...message, parts: message.parts.map((part) => ({ ...part })) };
++  if ("metadata" in message) {
++    const metadata = message.metadata;
++    snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++  }
++  return snapshot;
++}
+ function readUIMessageStream({
+   message,
+   stream,
+@@ -8424,7 +8434,7 @@ function readUIMessageStream({
+         return job({
+           state,
+           write: () => {
+-            controller == null ? void 0 : controller.enqueue(structuredClone(state.message));
++            controller == null ? void 0 : controller.enqueue(cherrySnapshotUIMessage(state.message));
+           }
+         });
+       },
+@@ -9586,7 +9596,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -128,7 +180,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..c219e51eafa64f29b472a10fefe0b41b
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,21 +9636,37 @@ async function generateImage({
+@@ -9635,21 +9646,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };

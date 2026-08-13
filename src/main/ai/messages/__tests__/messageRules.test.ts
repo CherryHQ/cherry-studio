@@ -143,6 +143,54 @@ describe('toModelMessages', () => {
       content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
     })
   })
+
+  const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({
+    type: 'dynamic-tool',
+    toolName,
+    toolCallId,
+    state: 'output-available',
+    input: {},
+    output: { ok: true }
+  })
+
+  const namesOf = (message: ModelMessage) => (message.content as { toolName: string }[]).map((p) => p.toolName)
+
+  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
+    const model = await toModelMessages([ui('assistant', [legacyTool('jina: jina_reader', 'call_00_1')])])
+
+    const wireName = namesOf(model[0])[0]
+    expect(wireName).toMatch(/^jina__jina_reader_[0-9a-f]{8}$/)
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: wireName })]
+    })
+  })
+
+  it('keeps distinct v1 names distinct past the 64-char / leading-letter provider limits', async () => {
+    const server = `1${'长'.repeat(80)}`
+    const model = await toModelMessages([
+      ui('assistant', [legacyTool(`${server}: search`, 'call_00_2'), legacyTool(`${server}: fetch`, 'call_00_3')])
+    ])
+
+    const [search, fetch] = namesOf(model[0])
+    expect(search).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(fetch).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(search).not.toBe(fetch)
+  })
+
+  // The API Gateway shares this path and keys its ToolSet by the client's own function name.
+  it('leaves a declared tool name untouched even when it holds provider-specific characters', async () => {
+    const declared = 'maps.lookup'
+    const model = await toModelMessages([ui('assistant', [legacyTool(declared, 'call_00_4')])], undefined, {
+      [declared]: tool({ inputSchema: z.object({}), toModelOutput: () => ({ type: 'text', value: 'formatted' }) })
+    })
+
+    expect(namesOf(model[0])).toEqual([declared])
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ toolName: declared, output: { type: 'text', value: 'formatted' } })]
+    })
+  })
 })
 
 describe('ensureNonEmptyAssistantContent', () => {
