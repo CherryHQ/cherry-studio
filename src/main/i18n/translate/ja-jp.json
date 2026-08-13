@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。"
+      },
+      "cherry_support": {
+        "description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent"
       }
     },
     "session": {
