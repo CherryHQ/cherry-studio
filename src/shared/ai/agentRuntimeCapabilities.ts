@@ -49,6 +49,7 @@ const ALL_PERMISSION_MODES = [
   'default',
   'plan',
   'acceptEdits',
+  'auto',
   'bypassPermissions'
 ] as const satisfies readonly AgentPermissionMode[]
 
@@ -96,7 +97,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
     labelFallback: 'Quick: Powered by Pi',
-    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
+    // Pi has neither plan mode nor Claude's model-side auto-approval classifier.
+    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan' && mode !== 'auto'),
     modelTiers: false,
     heartbeat: true,
     knowledgeBases: true,

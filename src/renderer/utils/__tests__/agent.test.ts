@@ -32,15 +32,17 @@ describe('agent utilities', () => {
 })
 
 describe('getPermissionModeCards', () => {
-  it('offers the full mode set (including plan) for claude-code and unknown types', () => {
+  it('offers the full mode set (including plan and auto) for claude-code and unknown types', () => {
     const modes = getPermissionModeCards('claude-code').map((card) => card.mode)
     expect(modes).toContain('plan')
+    expect(modes).toContain('auto')
     expect(getPermissionModeCards(undefined).map((c) => c.mode)).toContain('plan')
   })
 
-  it('drops plan mode for pi agents (D8)', () => {
+  it('drops unsupported plan and classifier-driven auto modes for pi agents', () => {
     const modes = getPermissionModeCards('pi').map((card) => card.mode)
     expect(modes).not.toContain('plan')
+    expect(modes).not.toContain('auto')
     expect(modes).toEqual(expect.arrayContaining(['default', 'acceptEdits', 'bypassPermissions']))
   })
 })

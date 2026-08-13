@@ -266,7 +266,9 @@ Allowed in v1:
   workspace and current agent data directory do not prompt repeatedly. Shell,
   third-party MCP, Cherry approval-required mutations, external paths, and
   symlink escapes remain gated. `bypassPermissions` does not override the
-  runtime-neutral Cherry approval-required policy.
+  runtime-neutral Cherry approval-required policy. Pi exposes neither `plan`
+  nor `auto`: the latter depends on Claude's model-side approval classifier,
+  which the Pi approval gate does not implement.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
