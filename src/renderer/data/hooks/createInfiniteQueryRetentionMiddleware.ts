@@ -9,6 +9,10 @@ import {
 
 import { InfiniteQueryCacheManager, type InfiniteQueryRetentionOptions } from '../InfiniteQueryCacheManager'
 
+/**
+ * Creates bounded retention for one infinite-query consumer group. Call at module scope: each call owns a manager and
+ * retention budget, so calling during render silently disables eviction.
+ */
 export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRetentionOptions): Middleware {
   const manager = new InfiniteQueryCacheManager(options)
 
