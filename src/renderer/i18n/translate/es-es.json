@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
         "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
-        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
-        "mentionOnlyLabel": "[to be translated]:@Mention only",
+        "mentionOnlyHint": "Cuando está activado, el bot solo responde a las menciones (@mentions). Desactivarlo permite recibir todos los mensajes del grupo (es preciso tener el permiso “ Receber todos los mensajes” en la Plataforma Abierta de QQ).",
+        "mentionOnlyLabel": "[@Mentionar únicamente]",
         "title": "QQ",
         "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[to be translated]:{{count}} channel",
-          "channels_count_other": "[to be translated]:{{count}} channels",
-          "channels_empty": "[to be translated]:No channels will be changed.",
-          "channels_title": "[to be translated]:Channels changed to no work directory",
+          "channels_count_one": "[to be translated]: {{count}} canales",
+          "channels_count_other": "[to be translated]: {{count}} canales",
+          "channels_empty": "No se cambiará ningún canal.",
+          "channels_title": "[Ción que debe traducirse]: Los canales están configurados para no utilizar ningún directorio de trabajo.",
           "content": "Eliminar esta carpeta de trabajo también eliminará todas las tareas que contiene. Solo se eliminarán los registros de la base de datos; la carpeta real del disco no se eliminará.",
-          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
+          "disk_preserved": "La carpeta en el disco y sus archivos no serán eliminados.",
           "error": {
             "failed": "Error al eliminar la carpeta de trabajo"
           },
-          "more_count_one": "[to be translated]:…and {{count}} more item",
-          "more_count_other": "[to be translated]:…and {{count}} more items",
-          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
-          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
-          "preview_loading": "[to be translated]:Loading deletion impact…",
-          "sessions_count_one": "[to be translated]:{{count}} session",
-          "sessions_count_other": "[to be translated]:{{count}} sessions",
-          "sessions_empty": "[to be translated]:No sessions will be deleted.",
-          "sessions_title": "[to be translated]:Sessions to be deleted",
-          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
-          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
-          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
-          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
+          "more_count_one": "…y {{count}} artículos más.",
+          "more_count_other": "…y {{count}} artículos más.",
+          "preview": "[Borrando a “{{name}}”: Se eliminan sus sesiones, así como los canales relacionados y las tareas programadas. Esta acción no puede deshacerse.]",
+          "preview_failed": "No se pudo cargar la información sobre el impacto de la eliminación; por lo tanto, este directorio de trabajo aún no puede ser eliminado.",
+          "preview_loading": "[Cargando la información sobre el impacto de la eliminación…]",
+          "sessions_count_one": "[Para ser traducido]: {{count}} sesiones",
+          "sessions_count_other": "[[to be translated]] sesiones",
+          "sessions_empty": "No se eliminará ninguna sesión.",
+          "sessions_title": "[Para ser traducido]: Sesiones que deben ser eliminadas",
+          "tasks_count_one": "[Traducir]: {{count}} tarea programada",
+          "tasks_count_other": "[[to be translated]] tareas programadas",
+          "tasks_empty": "No se modificarán las tareas programadas.",
+          "tasks_title": "Las tareas programadas han sido modificadas para no utilizar ningún directorio de trabajo.",
           "title": "Eliminar carpeta de trabajo",
           "trigger": "Eliminar carpeta de trabajo"
         },
@@ -978,7 +978,6 @@
       "executing": "Ejecutando...",
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
-      "pending": "Esperando confirmación",
       "pendingBadge": "Pendiente",
       "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
       "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
@@ -1564,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "files": "Archivos",
+          "resources": "Archivos y carpetas",
           "skills": "Habilidades"
         },
         "description": "Selecciona entre archivos, agentes o habilidades",
+        "load_failed": "No se pudieron cargar los recursos del espacio de trabajo.",
         "loading": "Cargando...",
-        "no_file_found": {
-          "description": "No hay archivos disponibles en las carpetas accesibles",
-          "label": "No se encontró ningún archivo"
-        },
         "no_items_found": {
           "description": "Sin archivos, agentes o habilidades disponibles",
           "label": "No se encontraron elementos"
+        },
+        "no_resources_found": {
+          "description": "No hay archivos ni carpetas que puedan ser buscados en el espacio de trabajo actual.",
+          "label": "“No se encontraron recursos”."
         },
         "title": "Recursos"
       },
@@ -2544,6 +2544,7 @@
       "ocr": "Motor OCR no inicializado, verifica la configuración de OCR",
       "parse": "La IA devolvió una respuesta inválida; por favor, reintenta o cambia de modelo.",
       "payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
+      "permission": "El proveedor rechazó esta solicitud. Consulte los detalles del error, el plan de su cuenta, los permisos del clave API o su acceso a este recurso.",
       "proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
       "quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
       "rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
@@ -2568,7 +2569,7 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
-    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
+    "image_unreadable_for_non_vision_model": "El modelo seleccionado no soporta imágenes, y Cherry Studio no pudo extraer texto legible del archivo adjunto. Elija un modelo con capacidad de análisis visual, o elimine la imagen e intente de nuevo.",
     "lastError": "Último error",
     "maxEmbeddingsPerCall": "máximo de embeddings por llamada",
     "message": "Mensaje de error",
@@ -3232,12 +3233,12 @@
       "default_separator": "Auto (recomendado)",
       "document_count": "Recuento de documentos",
       "download_local_embedding_failed": "Error al descargar el modelo de embeddings local",
-      "download_local_model": "[to be translated]:Download Local Model",
+      "download_local_model": "[Para ser traducido]: Descargar el modelo local.",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Selección de Modelo",
       "file_processing": "Procesamiento de archivos",
       "file_processing_hint": "El procesamiento de archivos se ejecuta automáticamente durante la importación del documento. Elegir el proveedor adecuado puede mejorar la calidad del análisis del documento.",
-      "file_processing_none": "[to be translated]:Don't use",
+      "file_processing_none": "“No utilices”.",
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
         "chunk_separator": "Delimitador en el que se divide el texto, en forma escapada. Con la segmentación inteligente activada, añade un punto de corte; con ella desactivada, el texto solo se divide por este delimitador.",
@@ -3251,8 +3252,8 @@
       },
       "processor": "Proveedor de Procesamiento",
       "processor_not_configured": "No configurado",
-      "processor_not_downloaded": "[to be translated]:Not downloaded",
-      "processor_unreachable": "[to be translated]:Service not running",
+      "processor_not_downloaded": "“No se ha descargado”.",
+      "processor_unreachable": "El servicio no está funcionando.",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de reordenación",
       "reset_action": "Restablecer valores predeterminados",
@@ -4050,6 +4051,14 @@
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
       },
+      "stream_admission": {
+        "execution_changed": "La respuesta cambió antes de que comenzara el intento de reesecuación. Por favor, inténtelo de nuevo.",
+        "execution_not_ready": "[Por traducir]: Esta respuesta todavía está en proceso de generación y no puede ser intentada de nuevo por el momento.",
+        "model_already_in_live_group": "Este modelo ya está generando contenido en el grupo de respuestas activo.",
+        "single_model_required": "[Para ser traducido]: Seleccione un modelo para agregar al grupo de respuestas activo.",
+        "target_not_in_live_group": "La respuesta seleccionada ya no forma parte del grupo de respuestas activas. Por favor, inténtelo de nuevo.",
+        "topic_busy": "[Está por ser traducido]: Esta conversación aún está en proceso de generación. Espere a que finalice y inténtelo de nuevo."
+      },
       "table": {
         "invalid": "No se pueden recuperar datos de tabla válidos"
       },
@@ -4064,7 +4073,8 @@
         "content": "¿Eliminar todas las respuestas del asistente de este grupo? La pregunta del usuario y los mensajes posteriores se conservarán.",
         "title": "Eliminar respuestas agrupadas"
       },
-      "retry_failed": "Reintentar el mensaje con error"
+      "retry_failed": "Reintentar el mensaje con error",
+      "retry_skipped_same_model": "Se omitieron {{count}} respuestas fallidas adicionales porque la opción “Retry All” (Reintentar Todo) permite como máximo un único reintento por modelo."
     },
     "ignore": {
       "knowledge": {
@@ -4496,27 +4506,27 @@
     },
     "pinned": "Fijado",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "[Añadir nivel de precios]",
+      "cache_fallback_help": "Deje los precios de la caché en blanco para utilizar el precio de entrada de este nivel; introduzca “0” si desea que sea gratuito.",
       "cache_read": "Precio de lectura de caché",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "[Precio de escritura en caché]",
       "cost": "Costo",
       "currency": "Moneda",
       "custom": "Personalizado",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": " [[[Campo a traducir]], nivel {{índice}}]]",
       "input": "Precio de entrada",
       "million_tokens": "Millón de tokens",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "Comienza con los tokens de entrada.",
+      "min_input_tokens_help": "[Límite inclusivo; debe ser mayor que el nivel anterior.]",
       "output": "Precio de salida",
       "price": "Precio",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "[Quedará traducido]: Eliminar el nivel de precios {{index}}",
+      "tier": "[[índice]] nivel",
+      "tier_from": "Desde los tokens de entrada de {{boundary}} (incluidos).",
+      "use_input_price": "Usar el precio de entrada.",
+      "validation_min_input_tokens": "Introduzca un número entero positivo.",
+      "validation_min_input_tokens_order": "El nivel debe comenzar después del nivel anterior.",
+      "validation_price": "Ingrese un precio mayor o igual a 0."
     },
     "reasoning": "Razonamiento",
     "rerank_model": "Modelo de reordenación",
@@ -4668,8 +4678,8 @@
         "font_size_medium": "Mediano",
         "font_size_small": "pequeño",
         "font_title": "Configuración de fuente",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "[Modo de salto de línea]",
+        "line_breaks_description": "Renderar un salto de línea como una nueva línea (estilo Obsidian). Cuando esta opción está desactivada, los saltos de línea se convierten en espacios; solo cuando aparece una línea en blanco se separan los párrafos.",
         "serif_font": "fuente serif",
         "show_table_of_contents": "Mostrar esquema de la carpeta",
         "show_table_of_contents_description": "Mostrar la barra lateral del índice para facilitar la navegación dentro del documento",
@@ -5437,7 +5447,7 @@
         "insertRowBefore": "Insertar arriba"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "[Volver arriba]",
     "commands": {
       "blockMath": {
         "description": "insertar fórmula matemática",
@@ -6714,6 +6724,10 @@
       "installingHint": "La primera instalación puede descargar un entorno de ejecución y tardar unos minutos",
       "invalidTool": "Nombre de herramienta o clave inválida",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML o CoreML para acelerar los procesos de incrustación de datos y la inferencia de reconocimiento óptico de caracteres (OCR) en el dispositivo local.",
+          "label": "[Aceleración por hardware]"
+        },
         "cancel": "Cancelar",
         "description": "Modelos que se ejecutan localmente en tu dispositivo: descárgalos una vez y úsalos sin conexión sin necesidad de clave API.",
         "download": "Descargar",
@@ -7021,7 +7035,7 @@
       },
       "command": "Comando",
       "config_description": "Configurar modelo de contexto del protocolo del servidor",
-      "copyLogs": "[to be translated]:Copy logs",
+      "copyLogs": "[Copiar los logs]",
       "customRegistryPlaceholder": "Por favor ingresa la dirección del repositorio privado, por ejemplo: https://npm.company.com",
       "deleteError": "Fallo al eliminar servidor",
       "deleteServer": "Eliminar servidor",
@@ -7075,7 +7089,7 @@
       },
       "logoUrl": "URL del logotipo",
       "logs": "Registros",
-      "logsHint": "[to be translated]:Logs from the MCP server process",
+      "logsHint": "**[Desarrollo futuro]:** Registros del proceso del servidor MCP",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -7677,10 +7691,7 @@
     "prompts": {
       "add": "Añadir Prompt",
       "binding": {
-        "add": "[to be translated]:Add quick phrase",
-        "currentAgent": "[to be translated]:Current agent",
-        "currentAssistant": "[to be translated]:Current assistant",
-        "editDescription": "[to be translated]:Choose which prompts are linked to {{target}}.",
+        "bind": "[to be translated]:Bind prompt",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
@@ -7715,22 +7726,15 @@
       "visibility": {
         "global": {
           "badge": "[to be translated]:Global",
-          "description": "[to be translated]:Available in every current and future context. Switching to global removes existing restricted links.",
           "title": "[to be translated]:Every context"
         },
-        "globalEditWarning": "[to be translated]:Changes apply to every context that uses this global prompt.",
         "label": "[to be translated]:Availability",
-        "linkedCountDescription": "[to be translated]:Currently shared by {{count}} contexts.",
         "makeGlobalConfirmDescription": "[to be translated]:Making this prompt global removes its {{count}} restricted links. Continue?",
         "makeGlobalConfirmTitle": "[to be translated]:Make prompt global?",
-        "makeGlobalConfirmUnknownDescription": "[to be translated]:Making this prompt global removes all of its restricted links. Continue?",
         "restricted": {
           "badge": "[to be translated]:Restricted",
-          "description": "[to be translated]:Available only in explicitly linked contexts. With no links, it remains in the prompt library but does not appear in chat.",
           "title": "[to be translated]:Selected contexts"
-        },
-        "sharedEditWarning": "[to be translated]:Changes apply everywhere this prompt is linked.",
-        "unassignedDescription": "[to be translated]:This prompt is not linked to any context and will not appear in chat."
+        }
       }
     },
     "provider": {
@@ -8225,12 +8229,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
-      "next_tab": "[to be translated]:Next Tab",
+      "next_tab": "Próximo concentrado (Next Tab)",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
-      "prev_tab": "[to be translated]:Previous Tab",
+      "prev_tab": ">[Pasar a la pestaña anterior]</>",
       "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
@@ -8348,8 +8352,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
-            "name": "[to be translated]:Local Document"
+            "description": "[Envía a traducir]: Convierte PDFs a Markdown de forma completa en esta misma máquina. Los documentos que contienen un solo nivel de contenido textual se analizan directamente; en el caso de los documentos escaneados, se utiliza el modelo de OCR local como alternativa.",
+            "name": "[Texto a traducir]: Documento local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) ejecutándose en proceso — completamente offline, sin clave API, con reconocimiento en un hilo en segundo plano para que la interfaz permanezca responsiva. Descarga el modelo (~140MB) en Dependencias del Entorno antes del primer uso.",
