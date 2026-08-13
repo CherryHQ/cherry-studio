@@ -23,13 +23,13 @@
         "count_tokens": "Schätzt, wie viele Eingabe-Tokens eine Reihe von Nachrichten im Anthropic-Format benötigt.",
         "generate_content": "Erzeugt Inhalte über die Methode `generateContent` von Gemini. Anfrage- und Antwortformat entsprechen der Gemini-API; `streamGenerateContent` wird über denselben Pfad bedient.",
         "get_knowledge_base": "Ruft eine einzelne Wissensdatenbank anhand ihrer ID ab.",
-        "get_mcp_server": "Erhalten Sie die Details eines MCP-Servers sowie seine Liste der verfügbaren Tools.",
+        "get_mcp_server": "Details eines MCP-Servers und seine Tool-Liste abrufen.",
         "health": "Dienststatus, aktuelle Zeit und Version. Keine Authentifizierung erforderlich.",
         "info": "Name und Version der API sowie die wichtigsten Endpunkte. Keine Authentifizierung erforderlich.",
         "list_knowledge_bases": "Listet die in dieser Cherry-Studio-Instanz verfügbaren Wissensdatenbanken auf.",
-        "list_mcp_servers": "Listen Sie die in Cherry Studio aktivierten MCP-Server auf – jeweils zusammen mit der URL, über die man sich mit ihnen verbinden kann.",
+        "list_mcp_servers": "Die in Cherry Studio aktivierten MCP-Server mit der jeweiligen Verbindungs-URL auflisten.",
         "list_models": "Listet die über dieses Gateway verfügbaren Modelle im OpenAI-Models-Format auf.",
-        "mcp_proxy": "[zu übersetzen]: Endpunkt des „Model Context Protocol“ für einen MCP-Server (Streamable HTTP). Weisen Sie jeden MCP-Client auf diese URL hin, um den Server über Cherry Studio zu nutzen.",
+        "mcp_proxy": "Model-Context-Protocol-Endpunkt für einen MCP-Server (Streamable HTTP). Verwenden Sie diese URL in einem beliebigen MCP-Client, um den Server über Cherry Studio zu nutzen.",
         "messages": "Erstellt eine Nachricht. Anfrage- und Antwortformat entsprechen Anthropic Messages; mit `stream: true` erfolgt die Ausgabe schrittweise.",
         "responses": "Erstellt eine Response. Anfrage- und Antwortformat entsprechen der OpenAI Responses API.",
         "search_knowledge_bases": "Durchsucht eine oder mehrere Wissensdatenbanken und gibt die passenden Dokumentabschnitte zurück."
@@ -112,8 +112,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "Der aktuelle Dokument parse-Service benötigt Dateien, die kleiner als {{maxSize}} sind. Komprimieren oder teilen Sie die Datei zunächst und fügen Sie sie anschließend erneut hinzu.",
-      "pdf_page_limit_exceeded": "Dieses PDF überschreitet die Seitenanzahlsgrenze von {{maxPages}} für den aktuellen Dokumententzerglichungsdienst. Teilen Sie das PDF manuell auf und fügen Sie es anschließend erneut hinzu."
+      "document_size_limit_exceeded": "Der aktuelle Dienst zur Dokumentverarbeitung erfordert Dateien kleiner als {{maxSize}}. Komprimieren oder teilen Sie diese Datei und fügen Sie sie dann erneut hinzu.",
+      "pdf_page_limit_exceeded": "Diese PDF überschreitet die Begrenzung von {{maxPages}} Seiten für den aktuellen Dienst zur Dokumentverarbeitung. Teilen Sie die PDF manuell und fügen Sie sie dann erneut hinzu."
     }
   },
   "notification": {

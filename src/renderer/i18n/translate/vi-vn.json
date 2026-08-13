@@ -97,8 +97,8 @@
         "clientSecret": "Bí mật khách hàng",
         "clientSecretPlaceholder": "Nhập client secret của QQ Bot của bạn",
         "description": "Nhận và phản hồi tin nhắn qua API chính thức của QQ Bot.",
-        "mentionOnlyHint": "Khi được bật, bot chỉ trả lời các tin nhắn được gửi đến @tên-người-dùng đó. Nếu bạn tắt tính năng này, bot sẽ nhận tất cả các tin nhắn trong nhóm (điều này đòi hỏi quyền “nhận tất cả tin nhắn” trên nền tảng QQ Open Platform).",
-        "mentionOnlyLabel": "@Chỉ cần đề cập đến…",
+        "mentionOnlyHint": "Khi bật, bot chỉ trả lời khi được @nhắc đến. Tắt để nhận tất cả tin nhắn nhóm (yêu cầu quyền \"nhận tất cả tin nhắn\" trên QQ Open Platform).",
+        "mentionOnlyLabel": "Chỉ @nhắc đến",
         "title": "QQ",
         "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID cuộc trò chuyện của bạn ở định dạng chính xác."
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[Có thể dịch thành]: “[[count]] kênh”",
-          "channels_count_other": "[Có tổng cộng] {{count}} kênh.",
+          "channels_count_one": "{{count}} kênh",
+          "channels_count_other": "{{count}} kênh",
           "channels_empty": "Không có kênh nào sẽ bị thay đổi.",
-          "channels_title": "[Cần được dịch]: Các kênh (channels) đã được thay đổi để không sử dụng thư mục làm thư mục làm việc (work directory).",
+          "channels_title": "Kênh được chuyển sang không có thư mục làm việc",
           "content": "Việc xóa thư mục công việc này cũng sẽ xóa toàn bộ các tác vụ bên trong nó. Chỉ các bản ghi trong cơ sở dữ liệu bị xóa; thư mục thực tế trên đĩa sẽ không bị xóa.",
-          "disk_preserved": "Thư mục trên đĩa cùng tất cả các tệp liên quan đến nó sẽ không bị xóa.",
+          "disk_preserved": "Thư mục trên ổ đĩa và các tệp bên trong sẽ không bị xóa.",
           "error": {
             "failed": "Không thể xóa thư mục làm việc"
           },
-          "more_count_one": "…and {{count}} mục khác nữa.",
-          "more_count_other": "…cùng với {{count}} mục khác nữa.",
-          "preview": "Xóa tài khoản “{{name}}” sẽ xóa tất cả các phiên làm việc (sessions) liên quan đến tài khoản đó, đồng thời thay đổi các kênh (channels) và tác vụ đã được lên lịch (scheduled tasks) sao cho chúng không còn được thực hiện nữa. Hành động này không thể được hoàn tác (không thể đảo ngược).",
-          "preview_failed": "**[Đã được dịch]:**  \n“Không thể lấy thông tin về tác động của thao tác xóa; vì vậy thư mục làm việc này vẫn không thể bị xóa được.”",
-          "preview_loading": "Đang tải thông tin về tác động của thao tác xóa…",
+          "more_count_one": "…và {{count}} mục nữa",
+          "more_count_other": "…và {{count}} mục nữa",
+          "preview": "Xóa “{{name}}” sẽ xóa các phiên của thư mục này, đồng thời chuyển các kênh và tác vụ đã lên lịch liên quan sang trạng thái không có thư mục làm việc. Không thể hoàn tác hành động này.",
+          "preview_failed": "Không thể tải tác động của việc xóa, nên hiện chưa thể xóa thư mục làm việc này",
+          "preview_loading": "Đang tải tác động của việc xóa…",
           "sessions_count_one": "{{count}} phiên",
-          "sessions_count_other": "[cần dịch]: {{count}} phiên họp",
+          "sessions_count_other": "{{count}} phiên",
           "sessions_empty": "Không có phiên nào sẽ bị xóa.",
-          "sessions_title": "[Các phiên bản cần được xóa (Sessions to be deleted)]",
-          "tasks_count_one": "[Đang được dịch]: Có {{count}} nhiệm vụ đã được lên lịch thực hiện.",
-          "tasks_count_other": "[Có] {{count}} nhiệm vụ đã được lên lịch thực hiện.",
-          "tasks_empty": "Không có nhiệm vụ nào được lên lịch trình sẽ bị thay đổi.",
-          "tasks_title": "[Những nhiệm vụ đã lên lịch thực hiện] đã được thay đổi sao cho không yêu cầu sử dụng thư mục làm việc (work directory) nào.",
+          "sessions_title": "Phiên sẽ bị xóa",
+          "tasks_count_one": "{{count}} tác vụ đã lên lịch",
+          "tasks_count_other": "{{count}} tác vụ đã lên lịch",
+          "tasks_empty": "Không có tác vụ đã lên lịch nào sẽ bị thay đổi.",
+          "tasks_title": "Tác vụ đã lên lịch được chuyển sang không có thư mục làm việc",
           "title": "Xóa thư mục làm việc",
           "trigger": "Xóa thư mục làm việc"
         },
@@ -1563,19 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agent",
-          "resources": "[Tói đề cập đến]: Tệp tin và Thư mục",
+          "resources": "Tệp & Thư mục",
           "skills": "Kỹ năng"
         },
         "description": "Chọn từ tệp, Agent hoặc kỹ năng",
-        "load_failed": "Không thể tải được các tài nguyên của workspace.",
+        "load_failed": "Không thể tải tài nguyên không gian làm việc",
         "loading": "Đang tải...",
         "no_items_found": {
           "description": "Không có tệp, Agent hoặc kỹ năng nào khả dụng",
           "label": "Không tìm thấy mục nào"
         },
         "no_resources_found": {
-          "description": "Trong không gian làm việc hiện tại, không có tệp hoặc thư mục nào có thể được tìm kiếm được.",
-          "label": "Không tìm thấy tài nguyên nào."
+          "description": "Không có tệp hoặc thư mục có thể tìm kiếm trong không gian làm việc hiện tại",
+          "label": "Không tìm thấy tài nguyên"
         },
         "title": "Tài nguyên"
       },
@@ -2544,7 +2544,7 @@
       "ocr": "Công cụ OCR chưa được khởi tạo, hãy kiểm tra cài đặt OCR",
       "parse": "AI đã trả về phản hồi không hợp lệ, vui lòng thử lại hoặc chuyển sang mô hình khác",
       "payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
-      "permission": "Nhà cung cấp đã từ chối yêu cầu này. Hãy kiểm tra thông tin lỗi, kế hoạch tài khoản của bạn, quyền truy cập API, hoặc quyền truy cập vào tài nguyên này.",
+      "permission": "Nhà cung cấp đã từ chối yêu cầu này. Hãy kiểm tra chi tiết lỗi, gói tài khoản, quyền của khóa API hoặc quyền truy cập vào tài nguyên này",
       "proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
       "quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
       "rate_limit": "Quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi thử lại, hoặc chuyển sang mô hình có giới hạn tốc độ cao hơn",
@@ -2569,7 +2569,7 @@
       "503": "Dịch vụ không khả dụng. Vui lòng thử lại sau.",
       "504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau."
     },
-    "image_unreadable_for_non_vision_model": "[Mô hình được chọn không hỗ trợ xử lý hình ảnh, và Cherry Studio không thể trích xuất được văn bản có thể đọc từ tệp đính kèm. Hãy chọn một mô hình có khả năng xử lý hình ảnh, hoặc loại bỏ hình ảnh và thử lại.]",
+    "image_unreadable_for_non_vision_model": "Mô hình đã chọn không hỗ trợ hình ảnh, và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy chọn mô hình có khả năng xử lý hình ảnh hoặc xóa hình ảnh rồi thử lại.",
     "lastError": "Lỗi Cuối Cùng",
     "maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
     "message": "Thông báo lỗi",
@@ -3233,12 +3233,12 @@
       "default_separator": "Tự động (khuyên dùng)",
       "document_count": "Số lượng tài liệu",
       "download_local_embedding_failed": "Tải xuống mô hình embedding cục bộ thất bại",
-      "download_local_model": "[Tôi sẽ cung cấp đoạn văn bản cần được dịch sau đây:]\n\n**Phiên bản địa phương để tải về:**  \nDownload the local version of the model.",
+      "download_local_model": "Tải xuống mô hình cục bộ",
       "embedding_model": "Mô hình nhúng",
       "embedding_model_select": "Lựa chọn mô hình",
       "file_processing": "Xử lý tệp",
       "file_processing_hint": "Xử lý tệp chạy tự động trong quá trình nhập tài liệu. Việc chọn nhà cung cấp phù hợp có thể cải thiện chất lượng phân tích tài liệu.",
-      "file_processing_none": "Đừng sử dụng.",
+      "file_processing_none": "Không sử dụng",
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
         "chunk_separator": "Dấu phân cách mà văn bản được chia theo, ở dạng đã thoát. Khi bật tính năng chia khối thông minh, nó thêm một điểm ngắt; khi tắt tính năng này, văn bản chỉ được chia bằng dấu phân cách này.",
@@ -3252,8 +3252,8 @@
       },
       "processor": "Nhà cung cấp xử lý",
       "processor_not_configured": "Chưa được cấu hình",
-      "processor_not_downloaded": "Chưa được tải xuống.",
-      "processor_unreachable": "Dịch vụ không đang chạy.",
+      "processor_not_downloaded": "Chưa tải xuống",
+      "processor_unreachable": "Dịch vụ chưa chạy",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -4052,12 +4052,12 @@
         "no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình"
       },
       "stream_admission": {
-        "execution_changed": "Trả lời đã thay đổi trước khi quá trình thử lại bắt đầu. Vui lòng thử lại.",
-        "execution_not_ready": "Câu trả lời này vẫn đang được xử lý và chưa thể được thử lại ngay được.",
-        "model_already_in_live_group": "Mô hình này đang được sử dụng để tạo ra các phản hồi trong nhóm phản hồi hiện hành.",
-        "single_model_required": "[Hãy chọn một mô hình để thêm vào nhóm trả lời hiện hành.]",
-        "target_not_in_live_group": "[Câu trả lời được chọn không còn nằm trong nhóm phản hồi đang được sử dụng (active reply group) nữa. Vui lòng thử lại.]",
-        "topic_busy": "Cuộc trò chuyện này vẫn đang được thực hiện (chưa hoàn tất). Hãy chờ đợi cho đến khi nó kết thúc rồi thử lại."
+        "execution_changed": "Phản hồi đã thay đổi trước khi bắt đầu thử lại. Vui lòng thử lại.",
+        "execution_not_ready": "Phản hồi này vẫn đang được tạo nên chưa thể thử lại.",
+        "model_already_in_live_group": "Mô hình này đang tạo phản hồi trong nhóm trả lời đang hoạt động.",
+        "single_model_required": "Chọn một mô hình để thêm vào nhóm trả lời đang hoạt động.",
+        "target_not_in_live_group": "Phản hồi đã chọn không còn nằm trong nhóm trả lời đang hoạt động. Vui lòng thử lại.",
+        "topic_busy": "Cuộc trò chuyện này vẫn đang tạo phản hồi. Hãy chờ hoàn tất rồi thử lại."
       },
       "table": {
         "invalid": "Không thể truy xuất dữ liệu bảng hợp lệ"
@@ -4074,7 +4074,7 @@
         "title": "Xóa câu trả lời theo nhóm"
       },
       "retry_failed": "Thử lại các tin nhắn không gửi được",
-      "retry_skipped_same_model": "Bỏ qua {{count}} phản hồi thất bại khác; lệnh “Retry All” chỉ cho phép thực hiện tối đa một lần thử lại cho mỗi mô hình."
+      "retry_skipped_same_model": "Đã bỏ qua {{count}} phản hồi lỗi bổ sung vì Thử lại tất cả chỉ bắt đầu tối đa một lần thử lại cho mỗi mô hình."
     },
     "ignore": {
       "knowledge": {
@@ -4506,27 +4506,27 @@
     },
     "pinned": "Đã ghim",
     "price": {
-      "add_tier": "Thêm các mức giá khác nhau (giá cả)",
-      "cache_fallback_help": "[Hãy để trường “Giá trong bộ đệm” trống để sử dụng giá đầu vào tương ứng với cấp độ này; hãy nhập “0” nếu muốn sử dụng dịch vụ miễn phí.]",
+      "add_tier": "Thêm bậc giá",
+      "cache_fallback_help": "Để trống giá bộ nhớ đệm để dùng giá đầu vào của bậc này; nhập 0 nếu miễn phí.",
       "cache_read": "Giá Đọc Cache",
-      "cache_write": "**Giá viết vào bộ đệm (Cache Write Price)**",
+      "cache_write": "Giá ghi bộ nhớ đệm",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
-      "field_for_tier": "[to be translated]: {{field}}, cấp độ {{index}}",
+      "field_for_tier": "{{field}}, bậc {{index}}",
       "input": "Giá đầu vào",
       "million_tokens": "Triệu token",
-      "min_input_tokens": "Bắt đầu từ các “token” đầu vào (Input tokens).",
-      "min_input_tokens_help": "Giới hạn bao gồm tất cả các yếu tố liên quan; phải lớn hơn mức giới hạn của tầng trước.",
+      "min_input_tokens": "Bắt đầu từ số token đầu vào",
+      "min_input_tokens_help": "Ranh giới bao gồm giá trị này; phải lớn hơn bậc trước.",
       "output": "Giá đầu ra",
       "price": "Giá",
-      "remove_tier": "[Xóa cấp độ giá {{index}}]",
-      "tier": "Cấp độ {{index}}",
-      "tier_from": "Từ {{boundary}} các token đầu vào (kể cả giá trị tại {{boundary}})",
-      "use_input_price": "Sử dụng giá đầu vào (Use the input price).",
-      "validation_min_input_tokens": "[Hãy nhập một số nguyên dương.]",
-      "validation_min_input_tokens_order": "Cấp độ này phải bắt đầu sau cấp độ trước đó.",
-      "validation_price": "[Hãy nhập một mức giá lớn hơn hoặc bằng 0.]"
+      "remove_tier": "Xóa bậc giá {{index}}",
+      "tier": "Bậc {{index}}",
+      "tier_from": "Từ {{boundary}} token đầu vào (bao gồm)",
+      "use_input_price": "Dùng giá đầu vào",
+      "validation_min_input_tokens": "Nhập một số nguyên dương.",
+      "validation_min_input_tokens_order": "Bậc này phải bắt đầu sau bậc trước.",
+      "validation_price": "Nhập giá lớn hơn hoặc bằng 0."
     },
     "reasoning": "Lý luận",
     "rerank_model": "Công cụ xếp hạng lại",
@@ -4678,8 +4678,8 @@
         "font_size_medium": "Trung bình",
         "font_size_small": "Nhỏ",
         "font_title": "Cài đặt phông chữ",
-        "line_breaks": "Chế độ đánh dấu mới hàng (Line Break Mode)",
-        "line_breaks_description": "Hiển thị mỗi dấu ngắt dòng như một dòng mới (theo phong cách của Obsidian). Khi tính năng này bị tắt, các dấu ngắt dòng sẽ được gộp lại thành dấu cách cho đến khi một dòng trống xuất hiện để phân tách các đoạn văn bản.",
+        "line_breaks": "Chế độ xuống dòng",
+        "line_breaks_description": "Hiển thị một lần xuống dòng đơn lẻ thành dòng mới (kiểu Obsidian). Khi tắt, các lần xuống dòng sẽ được gộp thành khoảng trắng cho đến khi một dòng trống tách các đoạn văn.",
         "serif_font": "Phông chữ Serif",
         "show_table_of_contents": "Hiển thị mục lục",
         "show_table_of_contents_description": "Hiển thị thanh bên mục lục để dễ dàng điều hướng trong tài liệu",
@@ -5447,7 +5447,7 @@
         "insertRowBefore": "Chèn Phía Trên"
       }
     },
-    "backToTop": "Quay lại trang đầu",
+    "backToTop": "Lên đầu trang",
     "commands": {
       "blockMath": {
         "description": "Chèn công thức toán học",
@@ -6725,8 +6725,8 @@
       "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
       "localModels": {
         "acceleration": {
-          "description": "Sử dụng DirectML hoặc CoreML để tăng tốc quá trình nhúng (embedding) dữ liệu và thực hiện các thao tác nhận dạng ký tự quang học (OCR – Optical Character Recognition) tại chỗ (local).",
-          "label": "Tốc độ xử lý được tăng cường nhờ sử dụng công nghệ tăng tốc phần cứng (Hardware acceleration)."
+          "description": "Dùng DirectML hoặc CoreML để tăng tốc suy luận embedding và OCR cục bộ.",
+          "label": "Tăng tốc phần cứng"
         },
         "cancel": "Hủy",
         "description": "Các mô hình chạy trực tiếp trên thiết bị của bạn — tải xuống một lần, sau đó sử dụng ngoại tuyến không cần khóa API.",
@@ -7035,7 +7035,7 @@
       },
       "command": "Lệnh",
       "config_description": "Định cấu hình máy chủ Giao thức Ngữ cảnh Mô hình",
-      "copyLogs": "[Cần được dịch]: Sao chép nhật ký (Copy logs)",
+      "copyLogs": "Sao chép nhật ký",
       "customRegistryPlaceholder": "Nhập URL của registry riêng, ví dụ: https://npm.company.com",
       "deleteError": "Không xóa được máy chủ",
       "deleteServer": "Xóa Máy chủ",
@@ -7089,7 +7089,7 @@
       },
       "logoUrl": "URL Logo",
       "logs": "Nhật ký",
-      "logsHint": "Các bản ghi từ quá trình xử lý trên máy chủ MCP",
+      "logsHint": "Nhật ký từ tiến trình máy chủ MCP",
       "longRunning": "Chế độ chạy dài",
       "longRunningTooltip": "Khi được bật, máy chủ hỗ trợ các tác vụ chạy lâu. Khi nhận được thông báo tiến độ, thời gian chờ sẽ được đặt lại và thời gian thực thi tối đa sẽ được kéo dài thành 10 phút.",
       "marketplaces": "Thị trường",
@@ -8323,8 +8323,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[Có thể dịch như sau:]: Chương trình có khả năng chuyển đổi định dạng PDF thành định dạng Markdown một cách hoàn toàn trực tiếp trên máy này. Các tài liệu chứa nội dung văn bản sẽ được phân tích một cách tự động; trong trường hợp tài liệu được tạo từ hình ảnh, chương trình sẽ sử dụng công cụ nhận dạng ký tự quang học (OCR) có sẵn trên máy để chuyển đổi hình ảnh thành văn bản.",
-            "name": "[Cần được dịch]: Tài liệu địa phương"
+            "description": "Chuyển đổi PDF sang Markdown hoàn toàn trên máy này. Tài liệu có lớp văn bản sẽ được phân tích trực tiếp; bản quét sẽ dùng mô hình OCR cục bộ.",
+            "name": "Tài liệu cục bộ"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) chạy trong tiến trình — hoàn toàn offline, không cần API key, với nhận dạng trên luồng nền để giao diện người dùng luôn phản hồi. Tải xuống mô hình (~140MB) trong Phụ thuộc Môi trường trước khi sử dụng lần đầu.",

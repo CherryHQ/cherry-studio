@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
         "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
-        "mentionOnlyHint": "Cuando está activado, el bot solo responde a las menciones (@mentions). Desactivarlo permite recibir todos los mensajes del grupo (es preciso tener el permiso “ Receber todos los mensajes” en la Plataforma Abierta de QQ).",
-        "mentionOnlyLabel": "[@Mentionar únicamente]",
+        "mentionOnlyHint": "Cuando está activado, el bot solo responde a las menciones @. Desactívelo para recibir todos los mensajes del grupo (requiere el permiso \"recibir todos los mensajes\" en la Plataforma Abierta de QQ).",
+        "mentionOnlyLabel": "@Mención solo",
         "title": "QQ",
         "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[to be translated]: {{count}} canales",
-          "channels_count_other": "[to be translated]: {{count}} canales",
+          "channels_count_one": "{{count}} canal",
+          "channels_count_other": ":{{count}} canales",
           "channels_empty": "No se cambiará ningún canal.",
-          "channels_title": "[Ción que debe traducirse]: Los canales están configurados para no utilizar ningún directorio de trabajo.",
+          "channels_title": "Canales cambiados sin directorio de trabajo",
           "content": "Eliminar esta carpeta de trabajo también eliminará todas las tareas que contiene. Solo se eliminarán los registros de la base de datos; la carpeta real del disco no se eliminará.",
           "disk_preserved": "La carpeta en el disco y sus archivos no serán eliminados.",
           "error": {
             "failed": "Error al eliminar la carpeta de trabajo"
           },
-          "more_count_one": "…y {{count}} artículos más.",
-          "more_count_other": "…y {{count}} artículos más.",
-          "preview": "[Borrando a “{{name}}”: Se eliminan sus sesiones, así como los canales relacionados y las tareas programadas. Esta acción no puede deshacerse.]",
-          "preview_failed": "No se pudo cargar la información sobre el impacto de la eliminación; por lo tanto, este directorio de trabajo aún no puede ser eliminado.",
-          "preview_loading": "[Cargando la información sobre el impacto de la eliminación…]",
-          "sessions_count_one": "[Para ser traducido]: {{count}} sesiones",
-          "sessions_count_other": "[[to be translated]] sesiones",
-          "sessions_empty": "No se eliminará ninguna sesión.",
-          "sessions_title": "[Para ser traducido]: Sesiones que deben ser eliminadas",
-          "tasks_count_one": "[Traducir]: {{count}} tarea programada",
-          "tasks_count_other": "[[to be translated]] tareas programadas",
-          "tasks_empty": "No se modificarán las tareas programadas.",
-          "tasks_title": "Las tareas programadas han sido modificadas para no utilizar ningún directorio de trabajo.",
+          "more_count_one": "…y {{count}} elemento más",
+          "more_count_other": "...y {{count}} elementos más",
+          "preview": "Eliminar “{{name}}” elimina sus sesiones y cambia los canales relacionados y las tareas programadas a sin directorio de trabajo. Esta acción no se puede deshacer.",
+          "preview_failed": "El impacto de la eliminación no pudo cargarse, por lo que este directorio de trabajo no se puede eliminar todavía.",
+          "preview_loading": "Cargando impacto de eliminación…",
+          "sessions_count_one": "{{count}} sesión",
+          "sessions_count_other": "{{count}} sesiones",
+          "sessions_empty": "No se eliminarán sesiones.",
+          "sessions_title": "Sesiones a eliminar",
+          "tasks_count_one": "{{count}} tarea programada",
+          "tasks_count_other": "{{count}} tareas programadas",
+          "tasks_empty": "No se cambiarán las tareas programadas.",
+          "tasks_title": "Tareas programadas cambiadas a sin directorio de trabajo",
           "title": "Eliminar carpeta de trabajo",
           "trigger": "Eliminar carpeta de trabajo"
         },
@@ -1563,19 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "resources": "Archivos y carpetas",
+          "resources": "Archivos y Carpetas",
           "skills": "Habilidades"
         },
         "description": "Selecciona entre archivos, agentes o habilidades",
-        "load_failed": "No se pudieron cargar los recursos del espacio de trabajo.",
+        "load_failed": "Error al cargar los recursos del espacio de trabajo",
         "loading": "Cargando...",
         "no_items_found": {
           "description": "Sin archivos, agentes o habilidades disponibles",
           "label": "No se encontraron elementos"
         },
         "no_resources_found": {
-          "description": "No hay archivos ni carpetas que puedan ser buscados en el espacio de trabajo actual.",
-          "label": "“No se encontraron recursos”."
+          "description": "No hay archivos ni carpetas buscables en el espacio de trabajo actual.",
+          "label": "No se encontraron recursos"
         },
         "title": "Recursos"
       },
@@ -2544,7 +2544,7 @@
       "ocr": "Motor OCR no inicializado, verifica la configuración de OCR",
       "parse": "La IA devolvió una respuesta inválida; por favor, reintenta o cambia de modelo.",
       "payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
-      "permission": "El proveedor rechazó esta solicitud. Consulte los detalles del error, el plan de su cuenta, los permisos del clave API o su acceso a este recurso.",
+      "permission": "El proveedor rechazó esta solicitud. Revisa los detalles del error, tu plan de cuenta, los permisos de la clave API o el acceso a este recurso.",
       "proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
       "quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
       "rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
@@ -2569,7 +2569,7 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
-    "image_unreadable_for_non_vision_model": "El modelo seleccionado no soporta imágenes, y Cherry Studio no pudo extraer texto legible del archivo adjunto. Elija un modelo con capacidad de análisis visual, o elimine la imagen e intente de nuevo.",
+    "image_unreadable_for_non_vision_model": "El modelo seleccionado no admite imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Elija un modelo con capacidades de visión o elimine la imagen e inténtelo de nuevo.",
     "lastError": "Último error",
     "maxEmbeddingsPerCall": "máximo de embeddings por llamada",
     "message": "Mensaje de error",
@@ -3233,12 +3233,12 @@
       "default_separator": "Auto (recomendado)",
       "document_count": "Recuento de documentos",
       "download_local_embedding_failed": "Error al descargar el modelo de embeddings local",
-      "download_local_model": "[Para ser traducido]: Descargar el modelo local.",
+      "download_local_model": "Descargar modelo local",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Selección de Modelo",
       "file_processing": "Procesamiento de archivos",
       "file_processing_hint": "El procesamiento de archivos se ejecuta automáticamente durante la importación del documento. Elegir el proveedor adecuado puede mejorar la calidad del análisis del documento.",
-      "file_processing_none": "“No utilices”.",
+      "file_processing_none": "No uses",
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
         "chunk_separator": "Delimitador en el que se divide el texto, en forma escapada. Con la segmentación inteligente activada, añade un punto de corte; con ella desactivada, el texto solo se divide por este delimitador.",
@@ -3252,8 +3252,8 @@
       },
       "processor": "Proveedor de Procesamiento",
       "processor_not_configured": "No configurado",
-      "processor_not_downloaded": "“No se ha descargado”.",
-      "processor_unreachable": "El servicio no está funcionando.",
+      "processor_not_downloaded": "No descargado",
+      "processor_unreachable": "El servicio no está en ejecución",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de reordenación",
       "reset_action": "Restablecer valores predeterminados",
@@ -4052,12 +4052,12 @@
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
       },
       "stream_admission": {
-        "execution_changed": "La respuesta cambió antes de que comenzara el intento de reesecuación. Por favor, inténtelo de nuevo.",
-        "execution_not_ready": "[Por traducir]: Esta respuesta todavía está en proceso de generación y no puede ser intentada de nuevo por el momento.",
-        "model_already_in_live_group": "Este modelo ya está generando contenido en el grupo de respuestas activo.",
-        "single_model_required": "[Para ser traducido]: Seleccione un modelo para agregar al grupo de respuestas activo.",
-        "target_not_in_live_group": "La respuesta seleccionada ya no forma parte del grupo de respuestas activas. Por favor, inténtelo de nuevo.",
-        "topic_busy": "[Está por ser traducido]: Esta conversación aún está en proceso de generación. Espere a que finalice y inténtelo de nuevo."
+        "execution_changed": "La respuesta cambió antes de que comenzara el reintento. Por favor, inténtelo de nuevo.",
+        "execution_not_ready": "Esta respuesta aún se está generando y no se puede volver a intentar.",
+        "model_already_in_live_group": "Este modelo ya está generando en el grupo de respuestas activo.",
+        "single_model_required": "Seleccione un modelo para añadir al grupo de respuesta activo.",
+        "target_not_in_live_group": "La respuesta seleccionada ya no está en el grupo de respuesta activo. Por favor, inténtelo de nuevo.",
+        "topic_busy": "Esta conversación aún se está generando. Espera a que termine y vuelve a intentarlo."
       },
       "table": {
         "invalid": "No se pueden recuperar datos de tabla válidos"
@@ -4074,7 +4074,7 @@
         "title": "Eliminar respuestas agrupadas"
       },
       "retry_failed": "Reintentar el mensaje con error",
-      "retry_skipped_same_model": "Se omitieron {{count}} respuestas fallidas adicionales porque la opción “Retry All” (Reintentar Todo) permite como máximo un único reintento por modelo."
+      "retry_skipped_same_model": "Se omitieron {{count}} respuestas fallidas adicionales porque Reintentar todo inicia como máximo un reintento por modelo."
     },
     "ignore": {
       "knowledge": {
@@ -4506,24 +4506,24 @@
     },
     "pinned": "Fijado",
     "price": {
-      "add_tier": "[Añadir nivel de precios]",
-      "cache_fallback_help": "Deje los precios de la caché en blanco para utilizar el precio de entrada de este nivel; introduzca “0” si desea que sea gratuito.",
+      "add_tier": "Agregar nivel de precios",
+      "cache_fallback_help": "Deja en blanco los precios de caché para usar el precio de entrada de este nivel; ingresa 0 para gratis.",
       "cache_read": "Precio de lectura de caché",
-      "cache_write": "[Precio de escritura en caché]",
+      "cache_write": "Precio De Escritura En Caché",
       "cost": "Costo",
       "currency": "Moneda",
       "custom": "Personalizado",
-      "field_for_tier": " [[[Campo a traducir]], nivel {{índice}}]]",
+      "field_for_tier": "{{field}}, nivel {{index}}",
       "input": "Precio de entrada",
       "million_tokens": "Millón de tokens",
-      "min_input_tokens": "Comienza con los tokens de entrada.",
-      "min_input_tokens_help": "[Límite inclusivo; debe ser mayor que el nivel anterior.]",
+      "min_input_tokens": "Comienza en los tokens de entrada",
+      "min_input_tokens_help": "Límite inclusivo; debe ser mayor que el nivel anterior.",
       "output": "Precio de salida",
       "price": "Precio",
-      "remove_tier": "[Quedará traducido]: Eliminar el nivel de precios {{index}}",
-      "tier": "[[índice]] nivel",
-      "tier_from": "Desde los tokens de entrada de {{boundary}} (incluidos).",
-      "use_input_price": "Usar el precio de entrada.",
+      "remove_tier": "Eliminar el nivel de precios {{index}}",
+      "tier": "Nivel {{index}}",
+      "tier_from": "Desde {{boundary}} tokens de entrada (inclusive)",
+      "use_input_price": "Usar el precio de entrada",
       "validation_min_input_tokens": "Introduzca un número entero positivo.",
       "validation_min_input_tokens_order": "El nivel debe comenzar después del nivel anterior.",
       "validation_price": "Ingrese un precio mayor o igual a 0."
@@ -4678,8 +4678,8 @@
         "font_size_medium": "Mediano",
         "font_size_small": "pequeño",
         "font_title": "Configuración de fuente",
-        "line_breaks": "[Modo de salto de línea]",
-        "line_breaks_description": "Renderar un salto de línea como una nueva línea (estilo Obsidian). Cuando esta opción está desactivada, los saltos de línea se convierten en espacios; solo cuando aparece una línea en blanco se separan los párrafos.",
+        "line_breaks": "Modo de salto de línea",
+        "line_breaks_description": "Representar un salto de línea simple como una nueva línea (estilo Obsidian). Cuando está desactivado, los saltos de línea se colapsan en espacios hasta que una línea en blanco separe los párrafos.",
         "serif_font": "fuente serif",
         "show_table_of_contents": "Mostrar esquema de la carpeta",
         "show_table_of_contents_description": "Mostrar la barra lateral del índice para facilitar la navegación dentro del documento",
@@ -5447,7 +5447,7 @@
         "insertRowBefore": "Insertar arriba"
       }
     },
-    "backToTop": "[Volver arriba]",
+    "backToTop": "Volver arriba",
     "commands": {
       "blockMath": {
         "description": "insertar fórmula matemática",
@@ -6725,8 +6725,8 @@
       "invalidTool": "Nombre de herramienta o clave inválida",
       "localModels": {
         "acceleration": {
-          "description": "Use DirectML o CoreML para acelerar los procesos de incrustación de datos y la inferencia de reconocimiento óptico de caracteres (OCR) en el dispositivo local.",
-          "label": "[Aceleración por hardware]"
+          "description": "Utiliza DirectML o CoreML para acelerar la incrustación local y la inferencia de OCR.",
+          "label": "Aceleración por hardware"
         },
         "cancel": "Cancelar",
         "description": "Modelos que se ejecutan localmente en tu dispositivo: descárgalos una vez y úsalos sin conexión sin necesidad de clave API.",
@@ -7035,7 +7035,7 @@
       },
       "command": "Comando",
       "config_description": "Configurar modelo de contexto del protocolo del servidor",
-      "copyLogs": "[Copiar los logs]",
+      "copyLogs": "Copiar logs",
       "customRegistryPlaceholder": "Por favor ingresa la dirección del repositorio privado, por ejemplo: https://npm.company.com",
       "deleteError": "Fallo al eliminar servidor",
       "deleteServer": "Eliminar servidor",
@@ -7089,7 +7089,7 @@
       },
       "logoUrl": "URL del logotipo",
       "logs": "Registros",
-      "logsHint": "**[Desarrollo futuro]:** Registros del proceso del servidor MCP",
+      "logsHint": "Registros del proceso del servidor MCP",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -8200,12 +8200,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
-      "next_tab": "Próximo concentrado (Next Tab)",
+      "next_tab": "Siguiente pestaña",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
-      "prev_tab": ">[Pasar a la pestaña anterior]</>",
+      "prev_tab": "Pestaña anterior",
       "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
@@ -8323,8 +8323,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[Envía a traducir]: Convierte PDFs a Markdown de forma completa en esta misma máquina. Los documentos que contienen un solo nivel de contenido textual se analizan directamente; en el caso de los documentos escaneados, se utiliza el modelo de OCR local como alternativa.",
-            "name": "[Texto a traducir]: Documento local"
+            "description": "Convierte PDFs a Markdown completamente en esta máquina. Los documentos con una capa de texto se analizan directamente; los escaneos recurren al modelo OCR local.",
+            "name": "Documento local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) ejecutándose en proceso — completamente offline, sin clave API, con reconocimiento en un hilo en segundo plano para que la interfaz permanezca responsiva. Descarga el modelo (~140MB) en Dependencias del Entorno antes del primer uso.",

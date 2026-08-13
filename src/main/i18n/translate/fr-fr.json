@@ -23,13 +23,13 @@
         "count_tokens": "Estime le nombre de tokens d'entrée consommés par un ensemble de messages au format Anthropic.",
         "generate_content": "Génère du contenu via la méthode `generateContent` de Gemini. Les corps de requête et de réponse suivent le format de l'API Gemini ; `streamGenerateContent` est servi sur le même chemin.",
         "get_knowledge_base": "Récupère une base de connaissances par son ID.",
-        "get_mcp_server": "Obtenir les détails d'un serveur MCP ainsi que la liste des outils qui y sont disponibles.",
+        "get_mcp_server": "Obtenir les détails d'un serveur MCP et la liste de ses outils.",
         "health": "État du service, heure actuelle et version. Aucune authentification requise.",
         "info": "Nom et version de l'API ainsi que ses principaux endpoints. Aucune authentification requise.",
         "list_knowledge_bases": "Liste les bases de connaissances disponibles dans cette instance de Cherry Studio.",
-        "list_mcp_servers": "Listez les serveurs MCP activés dans Cherry Studio, ainsi que leur URL respectif pour établir une connexion.",
+        "list_mcp_servers": "Lister les serveurs MCP activés dans Cherry Studio, chacun avec l'URL permettant de s'y connecter.",
         "list_models": "Liste les modèles disponibles via cette passerelle, au format models d'OpenAI.",
-        "mcp_proxy": "[À traduire :] Pointez tout client MCP vers cette URL pour utiliser le serveur via Cherry Studio.",
+        "mcp_proxy": "Point de terminaison Model Context Protocol pour un serveur MCP (Streamable HTTP). Utilisez cette URL dans n'importe quel client MCP pour accéder au serveur via Cherry Studio.",
         "messages": "Crée un message. Les corps de requête et de réponse suivent le format Anthropic Messages ; avec `stream: true`, la sortie est incrémentale.",
         "responses": "Crée une réponse. Les corps de requête et de réponse suivent le format OpenAI Responses.",
         "search_knowledge_bases": "Recherche dans une ou plusieurs bases de connaissances et renvoie les fragments de documents correspondants."
@@ -112,8 +112,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "Le service actuel de parsing de documents exige que les fichiers soient de taille inférieure à {{maxSize}}. Comprimez ou divisez ce fichier, puis ajoutez-le à nouveau.",
-      "pdf_page_limit_exceeded": "Ce PDF dépasse la limite de {{maxPages}} pages imposée par le service actuel de traitement de documents. Faites-le suivre manuellement en plusieurs fichiers PDF, puis ajoutez-les à nouveau."
+      "document_size_limit_exceeded": "Le service actuel d’analyse de documents exige des fichiers inférieurs à {{maxSize}}. Compressez ou fractionnez ce fichier, puis ajoutez-le à nouveau.",
+      "pdf_page_limit_exceeded": "Ce PDF dépasse la limite de {{maxPages}} pages du service actuel d’analyse de documents. Fractionnez le PDF manuellement, puis ajoutez-le à nouveau."
     }
   },
   "notification": {

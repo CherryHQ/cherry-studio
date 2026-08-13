@@ -23,13 +23,13 @@
         "count_tokens": "Ước tính số token đầu vào mà một tập tin nhắn theo định dạng Anthropic sử dụng.",
         "generate_content": "Sinh nội dung qua phương thức `generateContent` của Gemini. Định dạng yêu cầu và phản hồi giống Gemini API; `streamGenerateContent` dùng chung đường dẫn này.",
         "get_knowledge_base": "Lấy một cơ sở tri thức theo ID.",
-        "get_mcp_server": "Lấy thông tin chi tiết về máy chủ MCP và danh sách các công cụ được hỗ trợ bởi máy chủ đó.",
+        "get_mcp_server": "Lấy thông tin chi tiết của máy chủ MCP và danh sách công cụ của máy chủ đó.",
         "health": "Trạng thái dịch vụ, thời gian hiện tại và phiên bản. Không cần xác thực.",
         "info": "Tên, phiên bản API và các endpoint chính. Không cần xác thực.",
         "list_knowledge_bases": "Liệt kê các cơ sở tri thức có trong phiên bản Cherry Studio này.",
-        "list_mcp_servers": "[Hãy liệt kê các máy chủ MCP được kích hoạt trong Cherry Studio, kèm theo địa chỉ URL để kết nối tới từng máy chủ đó.]",
+        "list_mcp_servers": "Liệt kê các máy chủ MCP đã bật trong Cherry Studio, kèm URL để kết nối tới từng máy chủ.",
         "list_models": "Liệt kê các mô hình khả dụng qua gateway này, theo định dạng models của OpenAI.",
-        "mcp_proxy": "Điểm cuối của giao thức Model Context Protocol dành cho máy chủ MCP (Streamable HTTP). Hãy chỉ định bất kỳ khách hàng MCP nào đến địa chỉ URL này để sử dụng máy chủ thông qua Cherry Studio.",
+        "mcp_proxy": "Điểm cuối Model Context Protocol cho máy chủ MCP (Streamable HTTP). Trỏ bất kỳ máy khách MCP nào tới URL này để dùng máy chủ thông qua Cherry Studio.",
         "messages": "Tạo một tin nhắn. Định dạng yêu cầu và phản hồi giống Anthropic Messages; đặt `stream: true` để nhận kết quả theo luồng.",
         "responses": "Tạo một response. Định dạng yêu cầu và phản hồi giống OpenAI Responses.",
         "search_knowledge_bases": "Tìm kiếm trong một hoặc nhiều cơ sở tri thức và trả về các đoạn tài liệu phù hợp."
@@ -112,8 +112,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "Dịch vụ phân tích tài liệu hiện tại yêu cầu các tệp có kích thước nhỏ hơn {{maxSize}}. Hãy nén hoặc chia tệp này thành các phần nhỏ hơn, sau đó thêm chúng vào lại.",
-      "pdf_page_limit_exceeded": "PDF này vượt quá giới hạn số trang ({{maxPages}}) được quy định bởi dịch vụ phân tích tài liệu hiện tại. Hãy tách file PDF thành nhiều phần theo cách thủ công, sau đó thêm chúng vào lại."
+      "document_size_limit_exceeded": "Dịch vụ phân tích tài liệu hiện tại yêu cầu tệp nhỏ hơn {{maxSize}}. Hãy nén hoặc chia nhỏ tệp này rồi thêm lại.",
+      "pdf_page_limit_exceeded": "Tệp PDF này vượt quá giới hạn {{maxPages}} trang của dịch vụ phân tích tài liệu hiện tại. Hãy chia nhỏ PDF theo cách thủ công rồi thêm lại."
     }
   },
   "notification": {
