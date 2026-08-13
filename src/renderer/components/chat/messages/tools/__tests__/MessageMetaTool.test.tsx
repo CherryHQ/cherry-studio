@@ -70,34 +70,39 @@ describe('MessageMetaTool', () => {
     })
   })
 
-  it('localizes meta tool section titles in Chinese', async () => {
-    await i18n.changeLanguage('zh-CN')
-    render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
-          arguments: { code: 'return 1' },
-          response: { logs: ['finished'], result: 1 }
-        })}
-      />
-    )
+  describe.each([
+    ['zh-CN', '代码', '日志（1）', '结果', '参数', '未找到匹配的工具。'],
+    ['zh-TW', '程式碼', '記錄（1）', '結果', '參數', '找不到符合的工具。']
+  ])('%s localization', (locale, code, logs, result, args, noToolsMatched) => {
+    it('localizes meta tool section titles in Chinese', async () => {
+      await i18n.changeLanguage(locale)
+      render(
+        <MessageMetaTool
+          toolResponse={createMetaToolResponse({
+            tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
+            arguments: { code: 'return 1' },
+            response: { logs: ['finished'], result: 1 }
+          })}
+        />
+      )
 
-    fireEvent.click(screen.getByRole('button', { name: /tool_exec/ }))
+      fireEvent.click(screen.getByRole('button', { name: /tool_exec/ }))
 
-    expect(await screen.findByText('代码')).toBeInTheDocument()
-    expect(screen.getByText('日志（1）')).toBeInTheDocument()
-    expect(screen.getByText('结果')).toBeInTheDocument()
-    expect(screen.queryByText('Code')).not.toBeInTheDocument()
-  })
+      expect(await screen.findByText(code)).toBeInTheDocument()
+      expect(screen.getByText(logs)).toBeInTheDocument()
+      expect(screen.getByText(result)).toBeInTheDocument()
+      expect(screen.queryByText('Code')).not.toBeInTheDocument()
+    })
 
-  it('localizes the empty tool search result in Chinese', async () => {
-    await i18n.changeLanguage('zh-CN')
-    render(<MessageMetaTool toolResponse={createMetaToolResponse({ response: { matchedNamespaces: [] } })} />)
+    it('localizes the empty tool search result in Chinese', async () => {
+      await i18n.changeLanguage(locale)
+      render(<MessageMetaTool toolResponse={createMetaToolResponse({ response: { matchedNamespaces: [] } })} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /tool_search/ }))
+      fireEvent.click(screen.getByRole('button', { name: /tool_search/ }))
 
-    expect(await screen.findByText('参数')).toBeInTheDocument()
-    expect(await screen.findByText('未找到匹配的工具。')).toBeInTheDocument()
-    expect(screen.queryByText('No tools matched.')).not.toBeInTheDocument()
+      expect(await screen.findByText(args)).toBeInTheDocument()
+      expect(await screen.findByText(noToolsMatched)).toBeInTheDocument()
+      expect(screen.queryByText('No tools matched.')).not.toBeInTheDocument()
+    })
   })
 })
