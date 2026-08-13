@@ -25,7 +25,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -196,15 +196,26 @@ export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): 
     modelService.getByKey(providerId, modelId)
   ])
 
+  return resolvePiProviderInjectionFromSnapshot(provider, model)
+}
+
+/** Select one credential for already-captured provider/model facts without re-reading either row. */
+export function resolvePiProviderInjectionFromSnapshot(
+  provider: Provider,
+  model: Model,
+  enabledApiKeys?: readonly ApiKeyEntry[]
+): PiProviderInjection {
   // Transport-adapter providers hold no app-side key: the real OAuth token is
-  // fetched per stream call by the adapter. Skip the round-robin key rotation
-  // entirely and register with the non-secret placeholder.
-  if (getProviderTransportAdapter(providerId)) {
+  // fetched per stream call by the adapter. Skip the round-robin key rotation.
+  if (getProviderTransportAdapter(provider.id)) {
     return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
   }
 
-  const resolvedApiKey = providerService.resolveApiKey(providerId)
-  if (!resolvedApiKey.value.trim()) throw new PiMissingApiKeyError(providerId)
+  const resolvedApiKey = providerService.resolveApiKey(provider.id)
+  if (!resolvedApiKey.value.trim()) throw new PiMissingApiKeyError(provider.id)
+  if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
+    throw new Error(`Pi provider credentials changed during materialization: ${provider.id}`)
+  }
   return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection)
 }
 

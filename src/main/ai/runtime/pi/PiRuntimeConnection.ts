@@ -3,7 +3,6 @@ import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
@@ -26,7 +25,6 @@ import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
-import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -53,7 +51,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
-import { materializePiProviderStream, resolvePiProviderInjection } from './modelInjection'
+import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
@@ -158,7 +156,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
+    const injection = resolvePiProviderInjectionFromSnapshot(
+      initialSnapshot.provider,
+      initialSnapshot.model,
+      initialSnapshot.enabledApiKeys
+    )
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
@@ -201,7 +203,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
       // from the same store the claude driver reads. These are injected explicitly
       // via `additionalSkillPaths` below; disk auto-discovery stays off (see comment).
-      const additionalSkillPaths = await resolveEnabledSkillPaths(session.agentId)
+      const additionalSkillPaths = [...initialSnapshot.additionalSkillPaths]
 
       const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
       const instructions = agent.instructions?.trim()
@@ -269,15 +271,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const linkedChannel = resolveLinkedChannel(agent.id, session.id)
+      const linkedChannel = initialSnapshot.linkedChannel
       const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
           agent,
           assistantMcpEnabled,
-          undefined,
-          linkedChannel ? { id: linkedChannel.id } : null,
+          initialSnapshot.mcpServerSnapshots,
+          linkedChannel,
           agentDataPath,
           this.input.knowledgeBaseIds
         )
@@ -661,27 +663,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 }
 
 /**
- * Load the pi-ai api-family stream functions a transport-adapter provider needs.
- * Both adapter providers (grok-cli, openai-codex) speak the openai-responses
- * surface, so only that family is loaded (simplification ceiling: map by
- * `providerConfig.api` if a non-responses adapter provider is ever added).
- */
-/**
- * Resolve the agent's ENABLED managed skills to their absolute on-disk directories,
- * reusing the SAME store the claude driver reads (`skillService.list({ agentId })`,
- * `isEnabled` from the `agent_skill` join). Each `folderName` maps to its canonical
- * `{dataPath}/Skills/<folderName>` dir via `getSkillDirectory`.
- *
- * Workspace-local `.claude/skills` are intentionally NOT included (the claude driver
- * merges them, but pi keeps disk auto-discovery off for trust) — only Cherry-managed,
- * explicitly-enabled skills cross the boundary as `additionalSkillPaths`.
- */
-async function resolveEnabledSkillPaths(agentId: string): Promise<string[]> {
-  const installed = await skillService.list({ agentId })
-  return installed.filter((skill) => skill.isEnabled).map((skill) => skillService.getSkillDirectory(skill.folderName))
-}
-
-/**
  * Assemble the same always-on agent persona used by the Claude runtime, with plain agent
  * instructions trailing it.
  */
@@ -697,14 +678,6 @@ async function buildAgentPromptOverrides(
   return {
     ...(parts.base.kind === 'custom' ? { systemPrompt: parts.base.content } : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {})
-  }
-}
-
-function resolveLinkedChannel(agentId: string, sessionId: string): { id: string } | undefined {
-  try {
-    return channelService.listChannels({ agentId }).find((channel) => channel.sessionId === sessionId)
-  } catch {
-    return undefined
   }
 }
 

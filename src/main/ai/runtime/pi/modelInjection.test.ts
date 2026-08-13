@@ -29,7 +29,8 @@ import {
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
-  resolvePiProviderInjection
+  resolvePiProviderInjection,
+  resolvePiProviderInjectionFromSnapshot
 } from './modelInjection'
 
 const REAL_KEY = 'sk-cherry-secret-key'
@@ -399,5 +400,27 @@ describe('modelInjection service resolution', () => {
       id: 'k1',
       masked: 'sk-****'
     })
+  })
+
+  it('rejects a rotated credential outside the captured enabled-key set', () => {
+    serviceMocks.resolveApiKey.mockReturnValue({
+      value: 'sk-new',
+      apiKeySelection: { attribution: 'matched', id: 'k2', masked: 'sk-****' }
+    })
+
+    expect(() =>
+      resolvePiProviderInjectionFromSnapshot(
+        {
+          id: 'p',
+          name: 'P',
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
+          }
+        } as never,
+        { id: 'p::m', providerId: 'p', name: 'M', capabilities: [] } as never,
+        [{ id: 'k1', key: 'sk-old', isEnabled: true }]
+      )
+    ).toThrow('Pi provider credentials changed during materialization: p')
   })
 })

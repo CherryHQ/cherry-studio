@@ -108,7 +108,7 @@ vi.mock('./piMcpToolAdapter', () => ({
   buildPiMcpToolName: (serverName: string, toolName: string) => `mcp__${serverName}__${toolName}`
 }))
 vi.mock('./modelInjection', () => ({
-  resolvePiProviderInjection: mocks.resolveInjection,
+  resolvePiProviderInjectionFromSnapshot: mocks.resolveInjection,
   materializePiProviderStream: async (injection: any) => ({
     providerConfig: injection.providerConfig,
     streamSimple: mocks.providerStreamSimple
@@ -249,9 +249,21 @@ beforeEach(() => {
     async (_sessionId: string, _agentId: string, modelId: string, knowledgeBaseIds?: readonly string[]) => {
       const agent = mocks.getAgent()
       const session = mocks.getById()
+      const skills = await mocks.skillList({ agentId: agent.id })
+      const linkedChannel = mocks
+        .listChannels({ agentId: agent.id })
+        .find((channel: { sessionId: string }) => channel.sessionId === session.id)
       return {
         agent,
         session,
+        provider: { id: 'p' },
+        model: { id: 'p::m' },
+        enabledApiKeys: [{ id: 'key-1', key: 'real-key', isEnabled: true }],
+        additionalSkillPaths: skills
+          .filter((skill: { isEnabled: boolean }) => skill.isEnabled)
+          .map((skill: { folderName: string }) => mocks.getSkillDirectory(skill.folderName)),
+        mcpServerSnapshots: new Map((agent.mcps ?? []).map((id: string) => [id, { id }])),
+        linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
         signature: JSON.stringify({
           agent: {
             ...agent,
@@ -273,7 +285,7 @@ beforeEach(() => {
   })
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
-  mocks.resolveInjection.mockResolvedValue({
+  mocks.resolveInjection.mockReturnValue({
     providerName: 'p',
     api: 'anthropic-messages',
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
@@ -320,6 +332,9 @@ describe('PiRuntimeConnection', () => {
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
+    expect(mocks.resolveInjection).toHaveBeenCalledWith({ id: 'p' }, { id: 'p::m' }, [
+      { id: 'key-1', key: 'real-key', isEnabled: true }
+    ])
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)
     expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith(expect.stringMatching(`^p:${SESSION_ID}:`), 'real-key')
     expect(mocks.registerProvider).toHaveBeenCalledWith(
@@ -367,10 +382,20 @@ describe('PiRuntimeConnection', () => {
   it('rejects a connection whose reconcilable inputs changed during materialization', async () => {
     const agent = mocks.getAgent()
     const session = mocks.getById()
+    const facts = {
+      agent,
+      session,
+      provider: { id: 'p' },
+      model: { id: 'p::m' },
+      enabledApiKeys: [{ id: 'key-1', key: 'real-key', isEnabled: true }],
+      additionalSkillPaths: [],
+      mcpServerSnapshots: new Map(),
+      linkedChannel: null
+    }
     mocks.captureConnectionSnapshot
-      .mockResolvedValueOnce({ agent, session, signature: 'discovery' })
-      .mockResolvedValueOnce({ agent, session, signature: 'before' })
-      .mockResolvedValueOnce({ agent, session, signature: 'after' })
+      .mockResolvedValueOnce({ ...facts, signature: 'discovery' })
+      .mockResolvedValueOnce({ ...facts, signature: 'before' })
+      .mockResolvedValueOnce({ ...facts, signature: 'after' })
 
     await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('materialization changed during startup')
 
@@ -1110,7 +1135,7 @@ describe('PiRuntimeConnection', () => {
         expect.anything(),
         expect.anything(),
         false,
-        undefined,
+        expect.any(Map),
         null,
         AGENT_DATA_PATH,
         ['kb-1']
@@ -1187,7 +1212,7 @@ describe('PiRuntimeConnection', () => {
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
         false,
-        undefined,
+        expect.any(Map),
         null,
         AGENT_DATA_PATH,
         undefined
@@ -1224,7 +1249,7 @@ describe('PiRuntimeConnection', () => {
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
         false,
-        undefined,
+        expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,
         undefined

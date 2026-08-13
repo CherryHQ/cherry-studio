@@ -7,11 +7,14 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -27,6 +30,12 @@ function stableValue(value: unknown): unknown {
 export interface PiConnectionSnapshot {
   agent: AgentEntity
   session: AgentSessionEntity
+  provider: Provider
+  model: Model
+  enabledApiKeys: readonly ApiKeyEntry[]
+  additionalSkillPaths: readonly string[]
+  mcpServerSnapshots: McpServerSnapshotMap
+  linkedChannel: Pick<AgentChannelEntity, 'id'> | null
   signature: string
 }
 
@@ -57,7 +66,12 @@ export async function capturePiConnectionSnapshot(
     skillService.list({ agentId: agent.id })
   ])
   const enabledSkills = skills.filter((skill) => skill.isEnabled)
-  const mcpServers = (agent.mcps ?? []).map((idOrName) => mcpServerService.findByIdOrName(idOrName) ?? { idOrName })
+  const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
+  const mcpServers = (agent.mcps ?? []).map((idOrName) => {
+    const server = mcpServerService.findByIdOrName(idOrName)
+    mcpServerSnapshots.set(idOrName, server)
+    return server ?? { idOrName }
+  })
   const catalog = application.get('McpCatalogService')
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
@@ -88,5 +102,15 @@ export async function capturePiConnectionSnapshot(
     )
     .digest('hex')
 
-  return { agent, session, signature }
+  return {
+    agent,
+    session,
+    provider,
+    model,
+    enabledApiKeys: apiKeys,
+    additionalSkillPaths: enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+    mcpServerSnapshots,
+    linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+    signature
+  }
 }
