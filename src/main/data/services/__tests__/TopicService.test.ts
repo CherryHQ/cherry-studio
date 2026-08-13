@@ -14,7 +14,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -792,7 +792,7 @@ describe('TopicService', () => {
       expect(await getOrderedIds()).toEqual(['t2', 't1', 't3'])
     })
 
-    async function seedMoveTopics(anchorOrderKey = 'a1') {
+    async function seedMoveTopics() {
       await dbh.db.insert(assistantTable).values([
         {
           id: 'asst-a',
@@ -811,7 +811,7 @@ describe('TopicService', () => {
       ])
       await dbh.db.insert(topicTable).values([
         { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0' },
-        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: anchorOrderKey }
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: 'a1' }
       ])
     }
 
@@ -826,10 +826,26 @@ describe('TopicService', () => {
     })
 
     it('rolls back the owner and order when applying the order fails', async () => {
-      await seedMoveTopics('invalid-order-key')
+      await seedMoveTopics()
       notifyDataApiDataChangeMock.mockClear()
+      dbh.db.run(
+        sql.raw(`
+        CREATE TRIGGER fail_topic_order_update
+        BEFORE UPDATE OF order_key ON topic
+        WHEN NEW.id = 'move-a'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced topic order update failure');
+        END;
+      `)
+      )
 
-      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })).toThrow()
+      try {
+        expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })).toThrow(
+          'forced topic order update failure'
+        )
+      } finally {
+        dbh.db.run(sql.raw('DROP TRIGGER IF EXISTS fail_topic_order_update'))
+      }
 
       expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
