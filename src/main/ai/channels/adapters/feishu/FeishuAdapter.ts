@@ -349,6 +349,7 @@ class FeishuAdapter extends ChannelAdapter {
       const parts = text.split(/\s+/)
       this.emit('command', {
         chatId: message.chatId,
+        conversationKind: message.chatType === 'p2p' ? 'direct' : 'group',
         userId: message.senderId,
         userName: message.senderName ?? '',
         messageId: message.messageId,
@@ -362,6 +363,7 @@ class FeishuAdapter extends ChannelAdapter {
     if (!text && images.length === 0 && files.length === 0) return
     this.emit('message', {
       chatId: message.chatId,
+      conversationKind: message.chatType === 'p2p' ? 'direct' : 'group',
       userId: message.senderId,
       userName: message.senderName ?? '',
       messageId: message.messageId,

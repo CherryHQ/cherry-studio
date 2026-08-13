@@ -1,5 +1,8 @@
 import * as z from 'zod'
 
+export const CHANNEL_CONVERSATION_KINDS = ['direct', 'group', 'channel'] as const
+export type ChannelConversationKind = (typeof CHANNEL_CONVERSATION_KINDS)[number]
+
 // ---- Per-channel-type config schemas ----
 
 export const TelegramChannelConfigSchema = z.object({

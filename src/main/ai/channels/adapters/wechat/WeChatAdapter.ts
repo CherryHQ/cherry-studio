@@ -199,6 +199,7 @@ class WeChatAdapter extends ChannelAdapter {
         const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
         this.emit('command', {
           chatId: msg.userId,
+          conversationKind: 'direct',
           userId: msg.userId,
           userName: msg.userId,
           command: cmd
@@ -206,6 +207,7 @@ class WeChatAdapter extends ChannelAdapter {
       } else {
         this.emit('message', {
           chatId: msg.userId,
+          conversationKind: 'direct',
           userId: msg.userId,
           userName: msg.userId,
           text,

@@ -1,5 +1,6 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import type { ChannelConversationKind } from '@shared/data/types/channel'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -399,7 +400,7 @@ class QqAdapter extends ChannelAdapter {
   private async handleC2CMessage(msg: QqMessage): Promise<void> {
     const chatId = `c2c:${msg.author.user_openid}`
     if (!this.isAllowed(chatId, msg.author.user_openid)) return
-    await this.processMessage(msg, chatId, msg.author.user_openid ?? msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, 'direct', msg.author.user_openid ?? msg.author.id, msg.author.username ?? '')
   }
 
   private async handleGroupMessage(msg: QqMessage): Promise<void> {
@@ -441,7 +442,13 @@ class QqAdapter extends ChannelAdapter {
    */
   private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
     try {
-      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+      await this.processMessage(
+        msg,
+        chatId,
+        'group',
+        msg.author.member_openid ?? msg.author.id,
+        msg.author.username ?? ''
+      )
     } catch (err) {
       this.seenMsgIds.delete(msg.id)
       throw err
@@ -476,16 +483,22 @@ class QqAdapter extends ChannelAdapter {
   private async handleGuildMessage(msg: QqMessage): Promise<void> {
     const chatId = `channel:${msg.channel_id}`
     if (!this.isAllowed(chatId, msg.channel_id)) return
-    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, 'channel', msg.author.id, msg.author.username ?? '')
   }
 
   private async handleDirectMessage(msg: QqMessage): Promise<void> {
     const chatId = `dm:${msg.guild_id}`
     if (!this.isAllowed(chatId, msg.guild_id)) return
-    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, 'direct', msg.author.id, msg.author.username ?? '')
   }
 
-  private async processMessage(msg: QqMessage, chatId: string, userId: string, userName: string): Promise<void> {
+  private async processMessage(
+    msg: QqMessage,
+    chatId: string,
+    conversationKind: ChannelConversationKind,
+    userId: string,
+    userName: string
+  ): Promise<void> {
     // Record the inbound id at receive time (for the passive-reply window), keyed so a later
     // reply targets this exact message rather than whatever arrived most recently in the chat.
     // Passive reply is the default path and needs no group-owner opt-in; active group push works
@@ -499,7 +512,7 @@ class QqAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId, msg.id)
         return
       }
-      this.emitCommand(chatId, userId, userName, text, msg.id)
+      this.emitCommand(chatId, conversationKind, userId, userName, text, msg.id)
       return
     }
 
@@ -508,6 +521,7 @@ class QqAdapter extends ChannelAdapter {
 
     this.emit('message', {
       chatId,
+      conversationKind,
       userId,
       userName,
       text,
@@ -603,9 +617,16 @@ class QqAdapter extends ChannelAdapter {
     return this.allowedChatIds.includes(chatId) || (rawId !== undefined && this.allowedChatIds.includes(rawId))
   }
 
-  private emitCommand(chatId: string, userId: string, userName: string, text: string, messageId: string): void {
+  private emitCommand(
+    chatId: string,
+    conversationKind: ChannelConversationKind,
+    userId: string,
+    userName: string,
+    text: string,
+    messageId: string
+  ): void {
     const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
-    this.emit('command', { chatId, userId, userName, command: cmd, messageId })
+    this.emit('command', { chatId, conversationKind, userId, userName, command: cmd, messageId })
   }
 
   private async sendWhoami(chatId: string, messageId: string): Promise<void> {

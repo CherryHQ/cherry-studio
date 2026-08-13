@@ -301,6 +301,7 @@ describe('FeishuAdapter', () => {
 
     expect(onMessage).toHaveBeenCalledWith({
       chatId: 'oc_123',
+      conversationKind: 'direct',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',
@@ -320,6 +321,7 @@ describe('FeishuAdapter', () => {
 
     expect(onCommand).toHaveBeenCalledWith({
       chatId: 'oc_123',
+      conversationKind: 'direct',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',

@@ -213,6 +213,7 @@ export class ChannelMessageHandler {
 
     const merged = this.mergeMessages(batch.messages)
     const { resolvers } = batch
+    const queueKey = `${batch.adapter.agentId}:${batch.adapter.channelId}:${merged.chatId}`
 
     if (batch.messages.length > 1) {
       logger.info('Flushing merged message batch', {
@@ -232,7 +233,7 @@ export class ChannelMessageHandler {
     void admission.then(() => this.pendingAdmissions.delete(admissionId))
 
     // Serialize with any in-flight stream to avoid interleaving
-    const prev = this.chatQueues.get(batchKey) ?? Promise.resolve()
+    const prev = this.chatQueues.get(queueKey) ?? Promise.resolve()
     const current = prev
       .then(() => this.processIncoming(batch.adapter, merged, admit))
       .then(
@@ -241,8 +242,8 @@ export class ChannelMessageHandler {
       )
       .finally(() => {
         // Clean up queue entry when no newer work has been enqueued
-        if (this.chatQueues.get(batchKey) === settled) {
-          this.chatQueues.delete(batchKey)
+        if (this.chatQueues.get(queueKey) === settled) {
+          this.chatQueues.delete(queueKey)
         }
       })
     // Log errors but keep the queue chain intact
@@ -270,7 +271,7 @@ export class ChannelMessageHandler {
         // Do not let error notification break the queue
       }
     })
-    this.chatQueues.set(batchKey, settled)
+    this.chatQueues.set(queueKey, settled)
   }
 
   private mergeMessages(messages: ChannelMessageEvent[]): ChannelMessageEvent {
@@ -289,6 +290,7 @@ export class ChannelMessageHandler {
 
     return {
       chatId: first.chatId,
+      conversationKind: first.conversationKind,
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
@@ -306,7 +308,7 @@ export class ChannelMessageHandler {
     const { agentId } = adapter
 
     try {
-      const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
+      const session = await this.resolveSession(agentId, adapter.channelId, message.chatId, message.conversationKind)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
@@ -482,8 +484,12 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = this.createSessionForChannel(agentId, adapter.channelId)
-          channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
+          const newSession = this.createSessionForConversation(
+            agentId,
+            adapter.channelId,
+            command.chatId,
+            command.conversationKind
+          )
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
@@ -491,7 +497,12 @@ export class ChannelMessageHandler {
           break
         }
         case 'compact': {
-          const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, command.chatId)
+          const session = await this.resolveSession(
+            agentId,
+            adapter.channelId,
+            command.chatId,
+            command.conversationKind
+          )
           if (!session) {
             await adapter.sendMessage(command.chatId, 'No active session.', replyOpts)
             return
@@ -661,7 +672,7 @@ export class ChannelMessageHandler {
   }
 
   /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
-   *  channel row. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
+   *  conversation binding. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
    *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
    *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
   private peekSessionId(agentId: string, channelId: string, chatId: string): string | null {
@@ -679,9 +690,9 @@ export class ChannelMessageHandler {
       if (session?.agentId === agentId) return session.id
     }
 
-    const channelRow = channelService.getChannel(channelId)
-    if (channelRow?.sessionId) {
-      const session = lookup(channelRow.sessionId)
+    const persistedId = channelService.getActiveSessionId(channelId, chatId)
+    if (persistedId) {
+      const session = lookup(persistedId)
       if (session?.agentId === agentId) return session.id
     }
     return null
@@ -690,16 +701,16 @@ export class ChannelMessageHandler {
   private async resolveSession(
     agentId: string,
     channelId: string,
-    channelType: string,
-    chatId: string
+    conversationId: string,
+    conversationKind: ChannelMessageEvent['conversationKind']
   ): Promise<AgentSessionEntity | null> {
-    const trackerKey = `${agentId}:${channelId}:${chatId}`
+    const trackerKey = `${agentId}:${channelId}:${conversationId}`
 
     // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
     const pending = this.pendingResolutions.get(trackerKey)
     if (pending) return pending
 
-    const resolution = this.doResolveSession(agentId, channelId, channelType, chatId, trackerKey)
+    const resolution = this.doResolveSession(agentId, channelId, conversationId, conversationKind, trackerKey)
     this.pendingResolutions.set(trackerKey, resolution)
     try {
       return await resolution
@@ -711,8 +722,8 @@ export class ChannelMessageHandler {
   private async doResolveSession(
     agentId: string,
     channelId: string,
-    _channelType: string,
-    _chatId: string,
+    conversationId: string,
+    conversationKind: ChannelMessageEvent['conversationKind'],
     trackerKey: string
   ): Promise<AgentSessionEntity | null> {
     const channelRow = channelService.getChannel(channelId)
@@ -729,21 +740,14 @@ export class ChannelMessageHandler {
     if (trackedId) {
       const session = lookup(trackedId)
       if (session && session.agentId === agentId) {
-        if (channelRow && channelRow.sessionId !== session.id) {
-          try {
-            channelService.updateChannel(channelId, { sessionId: session.id })
-          } catch (err) {
-            logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
-          }
-        }
         return session
       }
       this.sessionTracker.delete(trackerKey)
     }
 
-    // Look up existing session via channel's session_id
-    if (channelRow?.sessionId) {
-      const existingSession = lookup(channelRow.sessionId)
+    const persistedId = channelService.getActiveSessionId(channelId, conversationId)
+    if (persistedId) {
+      const existingSession = lookup(persistedId)
       if (existingSession && existingSession.agentId === agentId) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
@@ -752,34 +756,53 @@ export class ChannelMessageHandler {
     }
 
     // No existing session found — create a new one
-    logger.info('No existing session for channel, creating new session', {
+    logger.info('No existing session for channel conversation, creating new session', {
       agentId,
       channelId,
-      channelSessionId: channelRow?.sessionId ?? null,
+      conversationId,
+      conversationKind,
       trackerKey
     })
 
-    const newSession = this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
-    channelService.updateChannel(channelId, { sessionId: newSession.id })
+    const newSession = this.createSessionForConversation(
+      agentId,
+      channelId,
+      conversationId,
+      conversationKind,
+      channelRow ?? undefined
+    )
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
   }
 
-  private createSessionForChannel(
+  private createSessionForConversation(
     agentId: string,
     channelId: string,
+    conversationId: string,
+    conversationKind: ChannelMessageEvent['conversationKind'],
     channel?: NonNullable<Awaited<ReturnType<typeof channelService.getChannel>>>
   ): AgentSessionEntity {
     const channelRow = channel ?? channelService.getChannel(channelId)
     if (!channelRow) {
       throw new Error(`Channel not found: ${channelId}`)
     }
-    return agentSessionService.create({
-      agentId,
-      name: 'Channel session',
-      workspace: channelRow.workspace
+    const sessionId = randomUUID()
+    application.get('DbService').withWriteTx((tx) => {
+      agentSessionService.createTx(tx, sessionId, {
+        agentId,
+        name: 'Channel session',
+        workspace: channelRow.workspace
+      })
+      channelService.activateSessionTx(tx, {
+        channelId,
+        conversationId,
+        conversationKind,
+        sessionId
+      })
     })
+    agentSessionService.notifyReadModelChange([sessionId], 'membership')
+    return agentSessionService.getById(sessionId)
   }
 
   private async collectStreamResponse(

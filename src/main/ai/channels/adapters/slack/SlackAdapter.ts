@@ -1,4 +1,5 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import type { ChannelConversationKind } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
@@ -50,9 +51,16 @@ type SlackSocketEnvelope = {
     user_id?: string
     user_name?: string
     channel_id?: string
+    channel_name?: string
   }
   retry_attempt?: number
   retry_reason?: string
+}
+
+function conversationKindForSlack(channelType?: string, channelName?: string): ChannelConversationKind {
+  if (channelType === 'im' || channelName === 'directmessage') return 'direct'
+  if (channelType === 'mpim') return 'group'
+  return 'channel'
 }
 
 // ─── Streaming Controller ─────────────────────────────────────
@@ -371,6 +379,7 @@ class SlackAdapter extends ChannelAdapter {
     if (event.user && this.botUserId && event.user === this.botUserId) return
 
     const chatId = event.channel
+    const conversationKind = conversationKindForSlack(event.channel_type)
     if (!this.isAllowed(chatId)) return
 
     // Add 👀 reaction to acknowledge receipt
@@ -405,7 +414,7 @@ class SlackAdapter extends ChannelAdapter {
         return
       }
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
-      this.emit('command', { chatId, userId, userName, command: cmd })
+      this.emit('command', { chatId, conversationKind, userId, userName, command: cmd })
     } else {
       // Download images (with bot token auth for private files)
       let images: ImageAttachment[] | undefined
@@ -424,13 +433,14 @@ class SlackAdapter extends ChannelAdapter {
         if (downloaded.length > 0) files = downloaded
       }
 
-      this.emit('message', { chatId, userId, userName, text, images, files })
+      this.emit('message', { chatId, conversationKind, userId, userName, text, images, files })
     }
   }
 
   private async handleSlashCommand(payload: NonNullable<SlackSocketEnvelope['payload']>): Promise<void> {
     const command = payload.command?.replace('/', '') ?? ''
     const chatId = payload.channel_id ?? ''
+    const conversationKind = conversationKindForSlack(undefined, payload.channel_name)
     const userId = payload.user_id ?? ''
     const userName = payload.user_name ?? ''
 
@@ -443,7 +453,13 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     if (['new', 'compact', 'help'].includes(command)) {
-      this.emit('command', { chatId, userId, userName, command: command as 'new' | 'compact' | 'help' })
+      this.emit('command', {
+        chatId,
+        conversationKind,
+        userId,
+        userName,
+        command: command as 'new' | 'compact' | 'help'
+      })
     }
   }
 

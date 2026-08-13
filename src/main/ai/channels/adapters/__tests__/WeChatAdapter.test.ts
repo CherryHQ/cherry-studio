@@ -223,12 +223,15 @@ describe('WeChatAdapter', () => {
       _contextToken: 'ctx-1'
     })
 
-    expect(messageSpy).toHaveBeenCalledWith({
-      chatId: 'user-123',
-      userId: 'user-123',
-      userName: 'user-123',
-      text: 'Hello bot'
-    })
+    expect(messageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'user-123',
+        conversationKind: 'direct',
+        userId: 'user-123',
+        userName: 'user-123',
+        text: 'Hello bot'
+      })
+    )
   })
 
   it('message handler emits command events for /new', async () => {
@@ -246,6 +249,7 @@ describe('WeChatAdapter', () => {
 
     expect(commandSpy).toHaveBeenCalledWith({
       chatId: 'user-123',
+      conversationKind: 'direct',
       userId: 'user-123',
       userName: 'user-123',
       command: 'new'
