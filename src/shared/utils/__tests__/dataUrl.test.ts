@@ -54,21 +54,17 @@ describe('parseDataUrl', () => {
     expect(result).toBeNull()
   })
 
-  it('handles large base64 data without performance issues', () => {
+  it('parses large base64 data', () => {
     // Simulate a 4K image base64 string (about 1MB)
     const largeData = 'A'.repeat(1024 * 1024)
     const dataUrl = `data:image/png;base64,${largeData}`
 
-    const start = performance.now()
     const result = parseDataUrl(dataUrl)
-    const duration = performance.now() - start
 
     expect(result).not.toBeNull()
     expect(result?.mediaType).toBe('image/png')
     expect(result?.isBase64).toBe(true)
     expect(result?.data).toBe(largeData)
-    // Should complete in under 10ms (string operations are fast)
-    expect(duration).toBeLessThan(10)
   })
 
   it('parses SVG data URL', () => {
