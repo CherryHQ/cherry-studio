@@ -7,9 +7,10 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from '../../types/assistant'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -40,6 +41,13 @@ export const UpdateTopicSchema = TopicSchema.pick({
     assistantId: z.string().nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
+
+/** Atomically update a topic's assistant and global order. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: AssistantIdSchema,
+  order: OrderRequestSchema
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
 /**
  * Query parameters for `GET /topics` (cursor pagination + search).
@@ -214,6 +222,15 @@ export type TopicSchemas = {
     DELETE: {
       params: { id: string }
       response: void
+    }
+  }
+
+  /** Atomically move a topic to another assistant and order position. */
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
+      response: Topic
     }
   }
 
