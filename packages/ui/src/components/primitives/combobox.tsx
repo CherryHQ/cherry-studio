@@ -78,6 +78,53 @@ export type ComboboxOption<TExtra extends object = Record<never, never>> = {
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
 
+interface ComboboxOptionListProps<TExtra extends object> {
+  emptyText: string
+  manualFilterEnabled: boolean
+  onSelect: (value: string) => void
+  options: ComboboxOption<TExtra>[]
+  renderOptionContent: (option: ComboboxOption<TExtra>) => React.ReactNode
+  visibleOptions: ComboboxOption<TExtra>[]
+}
+
+function ComboboxOptionList<TExtra extends object>({
+  emptyText,
+  manualFilterEnabled,
+  onSelect,
+  options,
+  renderOptionContent,
+  visibleOptions
+}: ComboboxOptionListProps<TExtra>) {
+  const renderOption = (option: ComboboxOption<TExtra>, fallbackToLabel: boolean) => (
+    <CommandItem
+      key={option.value}
+      value={fallbackToLabel ? option.value || option.label : option.value}
+      keywords={[option.label, option.description ?? '']}
+      disabled={option.disabled}
+      onSelect={() => onSelect(option.value)}
+      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+      {renderOptionContent(option)}
+    </CommandItem>
+  )
+
+  return (
+    <CommandList>
+      {manualFilterEnabled ? (
+        visibleOptions.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+        ) : (
+          <CommandGroup>{visibleOptions.map((option) => renderOption(option, true))}</CommandGroup>
+        )
+      ) : (
+        <>
+          <CommandEmpty>{emptyText}</CommandEmpty>
+          <CommandGroup>{options.map((option) => renderOption(option, false))}</CommandGroup>
+        </>
+      )}
+    </CommandList>
+  )
+}
+
 export interface ComboboxProps<TExtra extends object = Record<never, never>>
   extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
   // Data source
@@ -117,6 +164,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
   width?: string | number
+  'aria-label'?: React.AriaAttributes['aria-label']
 
   // Other
   name?: string
@@ -151,6 +199,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   triggerStyle,
   width,
   size,
+  'aria-label': ariaLabel,
   name
 }: ComboboxProps<TExtra>) {
   // ==================== State ====================
@@ -417,6 +466,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               value={triggerInputValue}
               placeholder={triggerInputPlaceholder}
               disabled={disabled}
+              aria-label={ariaLabel}
               aria-expanded={open}
               aria-invalid={error}
               role="combobox"
@@ -457,6 +507,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         <div
           role="combobox"
           tabIndex={disabled ? -1 : 0}
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-invalid={error}
           aria-disabled={disabled}
@@ -521,6 +572,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
+            aria-label={ariaLabel}
             aria-expanded={open}
             aria-invalid={error}>
             {renderTriggerContent()}
@@ -551,42 +603,14 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onValueChange={handleContentSearchChange}
             />
           )}
-          <CommandList>
-            {manualFilterEnabled ? (
-              visibleOptions.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
-              ) : (
-                <CommandGroup>
-                  {visibleOptions.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value || option.label}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )
-            ) : (
-              <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
-                <CommandGroup>
-                  {options.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
+          <ComboboxOptionList
+            emptyText={emptyText}
+            manualFilterEnabled={manualFilterEnabled}
+            onSelect={handleSelect}
+            options={options}
+            renderOptionContent={renderOptionContent}
+            visibleOptions={visibleOptions}
+          />
         </Command>
       </PopoverContent>
       {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : (value as string)} />}

@@ -17,10 +17,9 @@ const prompt: Prompt = {
 }
 const assistantId = '22222222-2222-4222-8222-222222222222'
 const assistant: PromptTargetOption = {
-  type: 'assistant',
-  id: assistantId,
-  name: 'Assistant A',
-  avatar: '🌟'
+  value: `assistant:${assistantId}`,
+  label: 'Assistant A',
+  target: { type: 'assistant', id: assistantId }
 }
 const binding: PromptBindingRelation = {
   promptId: prompt.id,
@@ -53,10 +52,13 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
-  const Passthrough = ({ children }: { children: ReactNode }) => <>{children}</>
+  type MockComboboxOption = {
+    value: string
+    label: string
+    icon?: ReactNode
+  }
 
   return {
-    Badge: Passthrough,
     Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
       void size
       void variant
@@ -66,36 +68,46 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
-    Checkbox: ({ checked, ...props }: ComponentProps<'input'> & { checked?: boolean }) => (
-      <input type="checkbox" checked={checked} readOnly {...props} />
-    ),
-    Command: Passthrough,
-    CommandEmpty: Passthrough,
-    CommandGroup: Passthrough,
-    CommandInput: (props: ComponentProps<'input'>) => <input {...props} />,
-    CommandItem: ({
-      children,
-      keywords,
-      onSelect,
+    Combobox: ({
+      'aria-label': ariaLabel,
+      onChange,
+      options,
+      renderValue,
       value,
       ...props
-    }: Omit<ComponentProps<'button'>, 'onSelect' | 'value'> & {
-      keywords?: string[]
-      onSelect?: () => void
-      value?: string
+    }: {
+      'aria-label'?: string
+      onChange?: (value: string | string[]) => void
+      options: MockComboboxOption[]
+      renderValue?: (value: string | string[], options: MockComboboxOption[]) => ReactNode
+      value?: string | string[]
+      [key: string]: unknown
     }) => {
-      void keywords
-      void value
+      const selectedValues = Array.isArray(value) ? value : []
+      void props
+
       return (
-        <button type="button" onClick={onSelect} {...props}>
-          {children}
-        </button>
+        <>
+          <button type="button" aria-label={ariaLabel}>
+            {renderValue?.(value ?? [], options)}
+          </button>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() =>
+                onChange?.(
+                  selectedValues.includes(option.value)
+                    ? selectedValues.filter((selectedValue) => selectedValue !== option.value)
+                    : [...selectedValues, option.value]
+                )
+              }>
+              {option.label}
+            </button>
+          ))}
+        </>
       )
     },
-    CommandList: Passthrough,
-    Popover: Passthrough,
-    PopoverContent: Passthrough,
-    PopoverTrigger: Passthrough,
     Skeleton: (props: ComponentProps<'div'>) => <div {...props} />
   }
 })

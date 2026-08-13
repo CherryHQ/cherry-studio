@@ -155,6 +155,24 @@ describe('Combobox', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
   })
 
+  it('searches option labels when values are opaque identifiers', async () => {
+    render(
+      <Combobox
+        options={[
+          { value: 'assistant:1', label: 'Research helper' },
+          { value: 'agent:2', label: 'Code reviewer' }
+        ]}
+        searchPlaceholder="Search targets"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.change(screen.getByPlaceholderText('Search targets'), { target: { value: 'research' } })
+
+    await waitFor(() => expect(screen.getByText('Research helper')).toBeInTheDocument())
+    expect(screen.queryByText('Code reviewer')).not.toBeInTheDocument()
+  })
+
   it('exposes selected multi-value removal as accessible controls', () => {
     const onChange = vi.fn()
 
@@ -196,6 +214,27 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('button', { name: 'Clear Alpha' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+  })
+
+  it('defers rendering multi-select options until the labeled popover opens', async () => {
+    const renderOption = vi.fn((option: ComboboxOption) => option.label)
+
+    render(
+      <Combobox
+        multiple
+        aria-label="Choose targets"
+        options={options}
+        placeholder="Pick values"
+        renderOption={renderOption}
+      />
+    )
+
+    const trigger = screen.getByRole('combobox', { name: 'Choose targets' })
+    expect(renderOption).not.toHaveBeenCalled()
+
+    fireEvent.click(trigger)
+
+    await waitFor(() => expect(renderOption).toHaveBeenCalledTimes(options.length))
   })
 
   it('matches the popover width to a percentage-width trigger', async () => {

@@ -1,4 +1,4 @@
-import { Alert, Button, ReorderableList } from '@cherrystudio/ui'
+import { Alert, Button, EmptyState, ReorderableList } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
@@ -138,11 +138,10 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               disabled={!enabled || isBinding}
-              onClick={() => setIsCreatePromptOpen(true)}
-              className="h-7 min-h-0 w-fit gap-1 rounded-md border border-border bg-transparent px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground disabled:opacity-30">
+              onClick={() => setIsCreatePromptOpen(true)}>
               <Plus size={12} className="shrink-0" />
               {t('settings.prompts.add')}
             </Button>
@@ -156,7 +155,8 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
               disabled={!enabled || Boolean(error) || isLoading || isBinding}
               align="end"
               triggerPosition="start"
-              triggerClassName="shrink-0 border border-border bg-transparent"
+              triggerVariant="outline"
+              triggerClassName="shrink-0"
               portalContainer={portalContainer}
             />
           </div>
@@ -181,10 +181,12 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
         ) : isLoading ? (
           <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
         ) : (boundPromptsData ?? []).length === 0 ? (
-          <div className="flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
-            <Zap size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
-            <p className="text-foreground-tertiary text-xs">{t('settings.prompts.binding.noLinked')}</p>
-          </div>
+          <EmptyState
+            compact
+            icon={Zap}
+            title={t('settings.prompts.binding.noLinked')}
+            className="rounded-md border border-border-subtle border-dashed py-6"
+          />
         ) : (
           <ReorderableList
             items={boundPromptsData ?? []}
@@ -198,15 +200,17 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
             restrictions={{ scrollableAncestor: true }}
             renderItem={(prompt, _index, state) => (
               <div className="group flex min-w-0 items-center gap-2 px-3 py-2">
-                <button
+                <Button
                   ref={state.dragHandleProps?.ref}
                   type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   {...state.dragHandleProps?.attributes}
                   {...state.dragHandleProps?.listeners}
                   aria-label={t('settings.prompts.reorder', { title: prompt.title })}
-                  className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-md text-foreground-tertiary hover:bg-accent/50 hover:text-foreground active:cursor-grabbing">
+                  className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">
                   <GripVertical size={12} />
-                </button>
+                </Button>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm" title={prompt.title}>
                     {prompt.title}

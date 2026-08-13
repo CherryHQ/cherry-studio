@@ -195,6 +195,7 @@ vi.mock('@cherrystudio/ui', () => ({
     )
   },
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  EmojiIcon: ({ emoji }: { emoji: string }) => <span>{emoji}</span>,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   ReorderableList: ({

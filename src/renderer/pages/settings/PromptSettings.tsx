@@ -8,6 +8,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  EmojiIcon,
   EmptyState,
   Input,
   ReorderableList,
@@ -87,19 +88,27 @@ export function PromptSettings() {
   const targetOptions = useMemo<PromptTargetOption[]>(
     () => [
       ...assistantData.map((assistant) => ({
-        type: 'assistant' as const,
-        id: assistant.id,
-        name: assistant.name,
-        avatar: assistant.emoji || '💬'
+        value: `assistant:${assistant.id}`,
+        label: assistant.name,
+        target: { type: 'assistant' as const, id: assistant.id },
+        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} fontSize={14} className="mr-0" />
       })),
       ...agentData.map((agent) => ({
-        type: 'agent' as const,
-        id: agent.id,
-        name: agent.name,
-        avatar: getAgentAvatarFromConfiguration(agent.configuration)
+        value: `agent:${agent.id}`,
+        label: agent.name,
+        description: t('common.agent'),
+        target: { type: 'agent' as const, id: agent.id },
+        icon: (
+          <EmojiIcon
+            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+            size={24}
+            fontSize={14}
+            className="mr-0"
+          />
+        )
       }))
     ],
-    [agentData, assistantData]
+    [agentData, assistantData, t]
   )
   const normalizedSearch = search.trim().toLowerCase()
   const visiblePrompts = useMemo(() => {
@@ -265,7 +274,6 @@ export function PromptSettings() {
         ) : visiblePrompts.length === 0 ? (
           <EmptyState
             compact
-            preset={normalizedSearch ? 'no-result' : 'no-resource'}
             title={normalizedSearch ? t('library.empty_state.no_match_title') : t('settings.prompts.noPrompts')}
             description={normalizedSearch ? t('library.empty_state.no_match_description') : undefined}
             className="py-14"
@@ -403,16 +411,18 @@ function PromptRow({
 
   return (
     <div className="group flex items-center gap-3 bg-card px-3 py-2 transition-colors hover:bg-accent/30">
-      <button
+      <Button
         ref={dragHandleProps?.ref}
         type="button"
+        variant="ghost"
+        size="icon-sm"
         {...dragHandleProps?.attributes}
         {...dragHandleProps?.listeners}
         aria-label={t('settings.prompts.reorder', { title: prompt.title })}
         onClick={(event) => event.stopPropagation()}
-        className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-foreground-tertiary hover:bg-accent/50 hover:text-foreground active:cursor-grabbing">
+        className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">
         <GripVertical size={14} />
-      </button>
+      </Button>
       <Button
         variant="ghost"
         aria-label={`${t('common.edit')} ${prompt.title}`}
