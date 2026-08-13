@@ -36,11 +36,10 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated } from '@renderer/utils/resourceEntity'
+import { findLatestActive, findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -105,19 +104,21 @@ function findReusableEmptyTopic<
   return findLatestUpdated(topics.filter((topic) => matchesTarget(topic) && isReusableEmptyTopic(topic)))
 }
 
-function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
-  const byId = new Map<string, Topic>()
-
-  for (const topic of apiTopics) {
-    byId.set(topic.id, mapApiTopicToRendererTopic(topic))
-  }
-  // The in-memory active topic may be a just-created placeholder not yet in the persisted source;
-  // include it (only while still empty) so it is reusable before the topic list refetches.
-  if (visibleTopic?.id && isReusableEmptyTopic(visibleTopic)) {
-    byId.set(visibleTopic.id, visibleTopic)
+// The in-memory active topic may be a just-created placeholder not yet in the persisted source;
+// include it (only while still empty) so it is reusable before the topic list refetches. The
+// shared window-level list is returned as-is otherwise — no per-tab copy.
+function mergeReusableTopicCandidates(topics: readonly Topic[], visibleTopic?: Topic): readonly Topic[] {
+  if (!visibleTopic?.id || !isReusableEmptyTopic(visibleTopic)) {
+    return topics
   }
 
-  return Array.from(byId.values())
+  const index = topics.findIndex((topic) => topic.id === visibleTopic.id)
+  if (index === -1) {
+    return [...topics, visibleTopic]
+  }
+  const merged = [...topics]
+  merged[index] = visibleTopic
+  return merged
 }
 
 const HomePage: FC = () => {
@@ -169,7 +170,7 @@ const HomePage: FC = () => {
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { topics: allTopics } = assistantTopicsSource
+  const { topics: allTopics, rendererTopics } = assistantTopicsSource
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -278,8 +279,8 @@ const HomePage: FC = () => {
     ? routeTopic
     : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const topicReuseCandidates = useMemo(
-    () => mergeReusableTopicCandidates(allTopics, visibleTopic),
-    [allTopics, visibleTopic]
+    () => mergeReusableTopicCandidates(rendererTopics, visibleTopic),
+    [rendererTopics, visibleTopic]
   )
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
@@ -572,7 +573,7 @@ const HomePage: FC = () => {
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
     async (deletedAssistantId: string) => {
-      const nextTopic = findLatestUpdated(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
+      const nextTopic = findLatestActive(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
       if (lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
       }

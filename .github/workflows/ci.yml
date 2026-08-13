@@ -193,8 +193,8 @@ jobs:
           fi
 
   main-test-shard:
-    name: main-test (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    name: main-test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    runs-on: ${{ matrix.os }}
     needs: changes
     if: >-
       needs.changes.outputs.main == 'true' ||
@@ -207,7 +207,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         shard: [1, 2, 3]
+        include:
+          - os: ubuntu-latest
+            shards: 3
+          # macOS/Windows run only the platform-gated files (see the test step) —
+          # a small enough set that sharding it would just add runner overhead.
+          - os: macos-latest
+            shard: 1
+            shards: 1
+          - os: windows-2022
+            shard: 1
+            shards: 1
     env:
       CI: true
 
@@ -219,6 +231,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: brew install python-setuptools
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5
@@ -249,6 +265,21 @@ jobs:
           SCRIPTS_CHANGED: ${{ needs.changes.outputs.scripts }}
           TEST_INFRA_CHANGED: ${{ needs.changes.outputs.test-infra }}
         run: |
+          # Non-Linux runners exist to execute the `process.platform` branches that Linux
+          # skips (symlinks, path casing, Windows command resolution). The rest of the
+          # suite hardcodes POSIX paths in its fixtures and carries no per-OS signal, so
+          # only the gated files run there.
+          if [[ "$RUNNER_OS" != "Linux" ]]; then
+            gated=$(grep -rl 'process\.platform' src/main src/shared --include='*.test.ts')
+            if [[ -z "$gated" ]]; then
+              echo "::error::No platform-gated test files found — refusing to run the whole suite."
+              exit 1
+            fi
+            pnpm rebuild:node
+            pnpm exec vitest run --project main --project shared $gated
+            exit 0
+          fi
+
           projects=(--project main)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
@@ -268,7 +299,7 @@ jobs:
           fi
 
           pnpm rebuild:node
-          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/3
+          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/${{ matrix.shards }}
 
   general-test:
     runs-on: ubuntu-latest

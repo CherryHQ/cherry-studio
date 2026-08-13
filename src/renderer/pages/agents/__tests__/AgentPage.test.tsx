@@ -45,6 +45,7 @@ const agentPageMocks = vi.hoisted(() => ({
       updatedAt: '2026-01-01T00:00:00.000Z'
     },
     orderKey: 'p0',
+    lastActivityAt: '2026-01-03T00:00:00.000Z',
     createdAt: '2026-01-03T00:00:00.000Z',
     updatedAt: '2026-01-03T00:00:00.000Z'
   },
@@ -93,6 +94,7 @@ const agentPageMocks = vi.hoisted(() => ({
     agentId?: string
     name: string
     isNameManuallyEdited?: boolean
+    lastActivityAt?: string
     createdAt?: string
     updatedAt: string
     workspaceId?: string
@@ -743,12 +745,12 @@ describe('AgentPage', () => {
   })
 
   it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {
-    // Opening must not depend on Cherry Assistant already being present in the renderer's stale Agent list.
+    // Opening must not depend on Cherry Support already being present in the renderer's stale Agent list.
     agentPageMocks.agents = []
     const previousSession = {
       ...agentPageMocks.persistedSession,
       id: 'session-previous',
-      agentId: 'cherry-assistant',
+      agentId: 'cherry-support',
       name: '',
       workspaceId: undefined,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
@@ -756,7 +758,7 @@ describe('AgentPage', () => {
     const feedbackSession = {
       ...agentPageMocks.persistedSession,
       id: 'session-feedback',
-      agentId: 'cherry-assistant',
+      agentId: 'cherry-support',
       workspaceId: undefined,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
     }
@@ -778,8 +780,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
       initialDraft: {
-        text: 'Use the issue-reporter skill.',
-        tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
+        text: 'Use the cherry-studio-feedback skill.',
+        tokens: [expect.objectContaining({ id: 'skill:cherry-studio-feedback', kind: 'skill' })]
       }
     })
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({
@@ -1281,19 +1283,19 @@ describe('AgentPage', () => {
         ...agentPageMocks.persistedSession,
         id: 'session-a',
         agentId: 'agent-a',
-        updatedAt: '2026-01-02T00:00:00.000Z'
+        lastActivityAt: '2026-01-02T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-old',
         agentId: 'agent-b',
-        updatedAt: '2026-01-01T00:00:00.000Z'
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-new',
         agentId: 'agent-b',
-        updatedAt: '2026-01-03T00:00:00.000Z'
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
       }
     ]
 
