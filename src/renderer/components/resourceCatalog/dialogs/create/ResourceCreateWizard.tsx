@@ -338,6 +338,7 @@ export function ResourceCreateWizard({
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                    showPermissionMode={kind === 'agent'}
                     modelFilter={modelFilter}
                     onSettingsNavigate={closeBeforeAction}
                   />
