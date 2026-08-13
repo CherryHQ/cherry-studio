@@ -46,12 +46,6 @@ const MAX_FOLDER_NAME_LENGTH = 80
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
-const RUNTIME_SKILL_NAME_PATTERN = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)?$/
-const BASH_EXECUTABLE_PATTERN = /^Bash\(\s*([a-zA-Z0-9_][a-zA-Z0-9_-]{0,127})(?=[:\s)])/u
-const SDK_BUILTIN_SUBAGENTS = new Set(['claude', 'Explore', 'general-purpose', 'Plan', 'statusline-setup'])
-const SHELL_BUILTINS = new Set(
-  'cd command echo eval exec export false printf pwd read set source test true type unset'.split(' ')
-)
 
 function isOutsidePath(relativePath: string): boolean {
   return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
@@ -283,120 +277,6 @@ export class SkillService {
       if (await findSkillMdPath(skill.path)) names.push(skill.name)
     }
     return names
-  }
-
-  /** Return a user-facing error when a skill declares unavailable runtime dependencies. */
-  async validateRuntimeDependencies(
-    skillName: string,
-    cwd: string,
-    pluginDirectories: readonly string[]
-  ): Promise<string | undefined> {
-    const skillDirectory = await this.resolveRuntimeSkillDirectory(skillName, cwd, pluginDirectories)
-    if (!skillDirectory) return undefined
-
-    let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
-    try {
-      metadata = await parseSkillMetadata(skillDirectory, skillName, 'skills', { calculateSize: false })
-    } catch {
-      return undefined
-    }
-
-    const missing: string[] = []
-    if (
-      metadata.context === 'fork' &&
-      metadata.agent &&
-      !(await this.isRuntimeAgentAvailable(metadata.agent, cwd, pluginDirectories))
-    ) {
-      missing.push(`missing subagent "${metadata.agent}"`)
-    }
-
-    const executables = Array.from(
-      new Set(
-        (metadata.allowed_tools ?? [])
-          .map((tool) => tool.match(BASH_EXECUTABLE_PATTERN)?.[1])
-          .filter((name): name is string => typeof name === 'string' && !SHELL_BUILTINS.has(name))
-      )
-    )
-    const missingExecutables = (
-      await Promise.all(executables.map(async (name) => ((await findExecutableInEnv(name)) ? undefined : name)))
-    ).filter((name): name is string => name !== undefined)
-    if (missingExecutables.length > 0) {
-      missing.push(
-        `missing executable${missingExecutables.length === 1 ? '' : 's'} ${missingExecutables
-          .map((name) => `"${name}"`)
-          .join(', ')}`
-      )
-    }
-
-    return missing.length > 0 ? `Skill "${skillName}" cannot run: ${missing.join('; ')}.` : undefined
-  }
-
-  private async resolveRuntimeSkillDirectory(
-    skillName: string,
-    cwd: string,
-    pluginDirectories: readonly string[]
-  ): Promise<string | null> {
-    if (!RUNTIME_SKILL_NAME_PATTERN.test(skillName)) return null
-
-    const separator = skillName.indexOf(':')
-    if (separator >= 0) {
-      const pluginDirectory = await this.findPluginDirectory(skillName.slice(0, separator), pluginDirectories)
-      return pluginDirectory ? path.join(pluginDirectory, 'skills', skillName.slice(separator + 1)) : null
-    }
-
-    const installed = agentGlobalSkillService.getByFolderName(skillName)
-    if (installed) return this.getInstalledSkillDirectory(installed)
-
-    const localDirectory = path.join(cwd, '.claude', 'skills', skillName)
-    return (await findSkillMdPath(localDirectory)) ? localDirectory : null
-  }
-
-  private async isRuntimeAgentAvailable(
-    agentName: string,
-    cwd: string,
-    pluginDirectories: readonly string[]
-  ): Promise<boolean> {
-    if (!RUNTIME_SKILL_NAME_PATTERN.test(agentName)) return false
-    if (SDK_BUILTIN_SUBAGENTS.has(agentName)) return true
-
-    const separator = agentName.indexOf(':')
-    if (separator >= 0) {
-      const pluginDirectory = await this.findPluginDirectory(agentName.slice(0, separator), pluginDirectories)
-      return Boolean(
-        pluginDirectory &&
-          (await this.isReadableFile(path.join(pluginDirectory, 'agents', `${agentName.slice(separator + 1)}.md`)))
-      )
-    }
-
-    const roots = [path.join(cwd, '.claude'), this.getSkillPluginDirectory(), ...pluginDirectories]
-    for (const root of roots) {
-      if (await this.isReadableFile(path.join(root, 'agents', `${agentName}.md`))) return true
-    }
-    return false
-  }
-
-  private async findPluginDirectory(name: string, pluginDirectories: readonly string[]): Promise<string | null> {
-    for (const directory of pluginDirectories) {
-      try {
-        const manifest = JSON.parse(
-          await fs.promises.readFile(path.join(directory, '.claude-plugin', 'plugin.json'), 'utf-8')
-        ) as { name?: unknown }
-        if (manifest.name === name) return directory
-      } catch {
-        // The SDK owns reporting malformed plugin manifests.
-      }
-    }
-    return null
-  }
-
-  private async isReadableFile(filePath: string): Promise<boolean> {
-    try {
-      const stats = await fs.promises.stat(filePath)
-      await fs.promises.access(filePath, fs.constants.R_OK)
-      return stats.isFile()
-    } catch {
-      return false
-    }
   }
 
   private async listLocalSkillDirectories(workdir: string): Promise<Array<{ name: string; path: string }>> {

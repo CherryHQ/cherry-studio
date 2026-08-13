@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
-  validateSkillRuntimeDependencies: vi.fn(),
+  checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
@@ -104,9 +104,13 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
-    getSkillPluginDirectory: mocks.getSkillPluginDirectory,
-    validateRuntimeDependencies: mocks.validateSkillRuntimeDependencies
+    getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }
+}))
+
+vi.mock('../skillDependencies', () => ({
+  buildPluginDirectoryIndex: vi.fn(async () => new Map()),
+  checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -308,7 +312,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
-    mocks.validateSkillRuntimeDependencies.mockResolvedValue(undefined)
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
@@ -371,10 +375,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
-  it('denies a skill before forked execution when its declared runtime dependencies are missing', async () => {
-    mocks.validateSkillRuntimeDependencies.mockResolvedValue(
-      'Skill "parallel-web-search" cannot run: missing subagent "parallel:parallel-subagent"; missing executable "parallel-cli".'
-    )
+  async function runSkillDependencyHook() {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -387,7 +388,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find(
       (candidate) => candidate.name === 'skillRuntimeDependencyHook'
     )
-    const output = await hook?.(
+    return hook?.(
       {
         hook_event_name: 'PreToolUse',
         tool_name: 'Skill',
@@ -396,13 +397,32 @@ describe('buildClaudeCodeSessionSettings', () => {
       'tool-use-1',
       {} as never
     )
+  }
 
-    expect(output).toEqual({
+  it('denies a skill before forked execution when a declared dependency is provably absent', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      deny: 'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+    })
+
+    expect(await runSkillDependencyHook()).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          'Skill "parallel-web-search" cannot run: missing subagent "parallel:parallel-subagent"; missing executable "parallel-cli".'
+          'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+      }
+    })
+  })
+
+  it('lets an unresolved dependency through as context instead of a permission decision', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      warning: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+    })
+
+    expect(await runSkillDependencyHook()).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: 'Skill "parallel-web-search" may be missing runtime dependencies.'
       }
     })
   })

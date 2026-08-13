@@ -104,6 +104,7 @@ import {
   isLarkFormSubmissionCommand,
   isPermanentDeletionToolName
 } from './assistantCommandSafety'
+import { buildPluginDirectoryIndex, checkSkillRuntimeDependencies } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -490,7 +491,7 @@ export async function buildClaudeCodeSessionSettings(
     assistantMcpEnabled,
     agentDataPath,
     agentsMdLoader,
-    plugins?.map((plugin) => plugin.path) ?? []
+    await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? [])
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -899,7 +900,7 @@ async function buildToolPermissions(
   assistantMcpEnabled: boolean,
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader,
-  pluginDirectories: readonly string[]
+  pluginDirectories: ReadonlyMap<string, string>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -1154,16 +1155,18 @@ async function buildToolPermissions(
     const skillName = toolInput?.skill
     if (typeof skillName !== 'string' || !skillName) return {}
 
-    const reason = await skillService.validateRuntimeDependencies(skillName, cwd, pluginDirectories)
-    if (!reason) return {}
-    logger.info('Blocked skill with missing runtime dependencies', { sessionId: session.id, skillName, reason })
-    return {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: reason
+    const { deny, warning } = await checkSkillRuntimeDependencies(skillName, cwd, pluginDirectories)
+    if (deny) {
+      logger.info('Blocked skill with an absent runtime dependency', { sessionId: session.id, skillName, deny })
+      return {
+        hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: deny }
       }
     }
+    if (warning) {
+      logger.debug('Skill declares unresolved runtime dependencies', { sessionId: session.id, skillName, warning })
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: warning } }
+    }
+    return {}
   }
 
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
