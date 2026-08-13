@@ -167,10 +167,28 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   }
 
   useEffect(() => {
-    if (server?.isActive) {
+    if (server?.isActive && activeTab === 'tools') {
       void fetchTools()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server?.id, server?.isActive, activeTab])
+
+  useEffect(() => {
+    if (server?.isActive && activeTab === 'prompts') {
       void fetchPrompts()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server?.id, server?.isActive, activeTab])
+
+  useEffect(() => {
+    if (server?.isActive && activeTab === 'resources') {
       void fetchResources()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server?.id, server?.isActive, activeTab])
+
+  useEffect(() => {
+    if (server?.isActive) {
       void fetchServerVersion()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
