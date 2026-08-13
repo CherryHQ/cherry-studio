@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -141,16 +143,25 @@ const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema
   '../McpRuntimeService'
 )
 
-/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+/** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        baseUrl: undefined,
+        command: undefined,
+        args: [],
+        registryUrl: undefined,
+        env: undefined,
+        headers: undefined
+      })
+    )
+    .digest('hex')
+
   return JSON.stringify({
-    baseUrl: undefined,
-    command: undefined,
-    args: [],
-    registryUrl: undefined,
-    env: undefined,
-    headers: undefined,
-    id
+    id,
+    fingerprint
   })
 }
 
@@ -244,6 +255,7 @@ describe('McpRuntimeService QVeris hosted transport', () => {
         })
       })
     )
+    expect(transport?.opts).not.toHaveProperty('authProvider')
   })
 
   it('rejects activation without an API key', async () => {
@@ -260,6 +272,26 @@ describe('McpRuntimeService QVeris hosted transport', () => {
     await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
       'QVeris MCP requires the QVERIS_API_KEY environment variable'
     )
+  })
+
+  it('uses a distinct secret-free key when the API key changes', () => {
+    const service = new McpRuntimeService()
+    const first = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'first-key' },
+      isActive: true
+    } as McpServer)
+    const second = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'second-key' },
+      isActive: true
+    } as McpServer)
+
+    expect(first).not.toContain('first-key')
+    expect(second).not.toContain('second-key')
+    expect(first).not.toBe(second)
   })
 })
 
