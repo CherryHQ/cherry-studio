@@ -13,6 +13,7 @@ import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { ApiGatewayRequiredDialog } from '../layout/ApiGatewayRequiredDialog'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
@@ -270,6 +271,7 @@ export const AppShell = () => {
         </div>
       )}
       {contentColumn}
+      <ApiGatewayRequiredDialog />
     </div>
   )
 }
