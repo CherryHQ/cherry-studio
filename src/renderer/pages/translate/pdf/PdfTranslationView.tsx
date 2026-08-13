@@ -409,7 +409,12 @@ const PdfTranslationResult = ({
       )
     }
     case 'preparing':
-      return <CenteredLoading label={getProgressLabel(t, 'preparing')} />
+      return (
+        <CenteredLoading
+          label={getProgressLabel(t, 'preparing')}
+          description={t('translate.pdf.progress.preparing_hint')}
+        />
+      )
     case 'ocr_required':
     case 'persist_failed':
     case 'error':
@@ -463,9 +468,12 @@ const PdfTranslationResult = ({
   }
 }
 
-const CenteredLoading = ({ label }: { label: string }) => (
-  <div className="flex h-full items-center justify-center">
-    <LoadingState label={label} />
+const CenteredLoading = ({ label, description }: { label: string; description?: string }) => (
+  <div className="flex h-full items-center justify-center px-4">
+    <div className="flex max-w-full flex-col items-center gap-1 text-center">
+      <LoadingState label={label} />
+      {description ? <p className="max-w-sm text-muted-foreground text-xs">{description}</p> : null}
+    </div>
   </div>
 )
 

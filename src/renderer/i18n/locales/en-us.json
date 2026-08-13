@@ -7306,6 +7306,7 @@
         "parsing": "Parsing PDF document",
         "percent": "{{progress}}%",
         "preparing": "Initializing PDF translation",
+        "preparing_hint": "The first initialization may take about 2 minutes; later runs are usually faster",
         "rendering": "Rendering translated PDF",
         "translating": "Translating content",
         "typesetting": "Typesetting translated PDF",

@@ -124,6 +124,7 @@ describe('PdfTranslationView', () => {
     act(() => handle!.start('zh-cn'))
     await waitFor(() => expect(mocks.progressHandler).not.toBeNull())
     expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument()
+    expect(screen.getByText('translate.pdf.progress.preparing_hint')).toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({
@@ -147,6 +148,7 @@ describe('PdfTranslationView', () => {
       'aria-valuenow',
       '1'
     )
+    expect(screen.queryByText('translate.pdf.progress.preparing_hint')).not.toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({

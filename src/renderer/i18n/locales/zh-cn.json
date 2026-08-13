@@ -7306,6 +7306,7 @@
         "parsing": "正在解析 PDF 文档",
         "percent": "{{progress}}%",
         "preparing": "正在初始化 PDF 翻译",
+        "preparing_hint": "首次初始化可能需要约 2 分钟，后续通常会更快",
         "rendering": "正在渲染译文 PDF",
         "translating": "正在翻译内容",
         "typesetting": "正在排版译文 PDF",
