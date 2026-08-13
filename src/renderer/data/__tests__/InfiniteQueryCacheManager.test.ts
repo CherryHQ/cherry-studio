@@ -20,8 +20,8 @@ function seedGroup(manager: InfiniteQueryCacheManager, cache: TestCache, id: str
 
   for (const pageKey of pageKeys) {
     cache.set(pageKey, { data: { items: [] } })
-    manager.registerPage(cache, groupKey, pageKey)
   }
+  manager.syncPages(cache, groupKey, pageKeys)
 
   return { groupKey, pageKeys, release }
 }
@@ -70,6 +70,64 @@ describe('InfiniteQueryCacheManager', () => {
 
     expect(cache.has(group.groupKey)).toBe(true)
     expect(group.pageKeys.every((pageKey) => cache.has(pageKey))).toBe(true)
+  })
+
+  it('removes cursor pages replaced by the current page chain', async () => {
+    const manager = new InfiniteQueryCacheManager()
+    const cache = createCache()
+    const group = seedGroup(manager, cache, 'conversation', 2)
+    const firstPageKey = group.pageKeys[0]
+    let previousCursorPageKey = group.pageKeys[1]
+
+    for (let index = 0; index < 12; index += 1) {
+      const nextCursorPageKey = `conversation:cursor:${index}`
+      cache.set(nextCursorPageKey, { data: { items: [] } })
+      manager.syncPages(cache, group.groupKey, [firstPageKey, nextCursorPageKey])
+
+      expect(cache.has(previousCursorPageKey)).toBe(false)
+      previousCursorPageKey = nextCursorPageKey
+    }
+
+    group.release()
+    await enterInactive()
+
+    expect(cache.has(group.groupKey)).toBe(true)
+    expect(cache.has(firstPageKey)).toBe(true)
+    expect(cache.has(previousCursorPageKey)).toBe(true)
+  })
+
+  it('waits for a replaced page request and the next page-chain sync before deleting it', () => {
+    const manager = new InfiniteQueryCacheManager()
+    const cache = createCache()
+    const group = seedGroup(manager, cache, 'conversation', 2)
+    const [firstPageKey, oldCursorPageKey] = group.pageKeys
+    const finishRequest = manager.beginRequest(cache, group.groupKey, oldCursorPageKey)
+    const nextCursorPageKey = 'conversation:cursor:next'
+    cache.set(nextCursorPageKey, { data: { items: [] } })
+
+    manager.syncPages(cache, group.groupKey, [firstPageKey, nextCursorPageKey])
+    expect(cache.has(oldCursorPageKey)).toBe(true)
+
+    finishRequest()
+    expect(cache.has(oldCursorPageKey)).toBe(true)
+
+    manager.syncPages(cache, group.groupKey, [firstPageKey, nextCursorPageKey])
+    expect(cache.has(oldCursorPageKey)).toBe(false)
+    expect(cache.has(nextCursorPageKey)).toBe(true)
+  })
+
+  it('removes a failed request key that never joined the page chain', () => {
+    const manager = new InfiniteQueryCacheManager()
+    const cache = createCache()
+    const group = seedGroup(manager, cache, 'conversation', 1)
+    const failedPageKey = 'conversation:cursor:failed'
+    cache.set(failedPageKey, { data: { items: [] } })
+
+    const finishRequest = manager.beginRequest(cache, group.groupKey, failedPageKey)
+    finishRequest(false)
+
+    expect(cache.has(failedPageKey)).toBe(false)
+    expect(cache.has(group.pageKeys[0])).toBe(true)
   })
 
   it('keeps a group active until its final subscriber releases it', async () => {

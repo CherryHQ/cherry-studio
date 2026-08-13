@@ -1,9 +1,10 @@
 import { Button } from '@cherrystudio/ui'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
+import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
@@ -197,12 +198,11 @@ export function GlobalSearchMessagePreviewPanel({
     error: topicError,
     hasNext: hasNextTopicPage,
     loadNext: loadNextTopicPage
-  } = useInfiniteQuery('/topics/:topicId/messages', {
+  } = useConversationHistoryQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: false, nodeId: target.sourceType === 'topic' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,
-    enabled: target.sourceType === 'topic',
-    retentionPolicy: 'conversation-history'
+    enabled: target.sourceType === 'topic'
   })
   const {
     pages: sessionPages,
@@ -211,15 +211,14 @@ export function GlobalSearchMessagePreviewPanel({
     error: sessionError,
     hasNext: hasNextSessionPage,
     loadNext: loadNextSessionPage
-  } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
+  } = useConversationHistoryQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     query: {
       messageId: target.sourceType === 'session' ? target.messageId : undefined,
       deferToolOutputs: true
     },
     limit: PREVIEW_PAGE_SIZE,
-    enabled: target.sourceType === 'session',
-    retentionPolicy: 'conversation-history'
+    enabled: target.sourceType === 'session'
   })
 
   const topicBranchItems = useInfiniteFlatItems(topicPages, { reversePages: true })

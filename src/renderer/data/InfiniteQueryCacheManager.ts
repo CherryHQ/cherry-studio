@@ -9,11 +9,13 @@ const CONVERSATION_HISTORY_RETENTION = {
 } as const
 
 interface CacheGroup {
+  currentPageKeys: Set<string>
   evictionGeneration?: number
   evictionTimer?: ReturnType<typeof setTimeout>
   generation: number
   groupKey: string
   inFlight: number
+  inFlightPageKeys: Map<string, { count: number; succeeded: boolean }>
   pageKeys: Set<string>
   releaseTimer?: ReturnType<typeof setTimeout>
   subscribers: number
@@ -47,20 +49,32 @@ export class InfiniteQueryCacheManager {
     }
   }
 
-  registerPage(cache: Cache, groupKey: string, pageKey: string): void {
+  syncPages(cache: Cache, groupKey: string, pageKeys: readonly string[]): void {
     const provider = this.getProvider(cache)
     const group = this.getGroup(provider, groupKey)
-    if (group.pageKeys.has(pageKey)) return
+    const nextPageKeys = new Set(pageKeys)
 
-    group.pageKeys.add(pageKey)
+    for (const pageKey of group.pageKeys) {
+      if (!nextPageKeys.has(pageKey) && !group.inFlightPageKeys.has(pageKey)) {
+        this.deletePage(provider, group, pageKey)
+      }
+    }
+
+    group.currentPageKeys = nextPageKeys
+    for (const pageKey of nextPageKeys) {
+      group.pageKeys.add(pageKey)
+    }
     this.refreshInactiveGroup(provider, group)
   }
 
-  beginRequest(cache: Cache, groupKey: string, pageKey: string): () => void {
+  beginRequest(cache: Cache, groupKey: string, pageKey: string): (succeeded?: boolean) => void {
     const provider = this.getProvider(cache)
     const group = this.getGroup(provider, groupKey)
 
     group.inFlight += 1
+    const pageRequest = group.inFlightPageKeys.get(pageKey) ?? { count: 0, succeeded: false }
+    pageRequest.count += 1
+    group.inFlightPageKeys.set(pageKey, pageRequest)
     this.clearTimer(group, 'evictionTimer')
     if (!group.pageKeys.has(pageKey)) {
       group.pageKeys.add(pageKey)
@@ -68,10 +82,21 @@ export class InfiniteQueryCacheManager {
     }
 
     let isFinished = false
-    return () => {
+    return (succeeded = true) => {
       if (isFinished) return
       isFinished = true
       group.inFlight -= 1
+
+      pageRequest.count -= 1
+      pageRequest.succeeded ||= succeeded
+      if (pageRequest.count === 0) {
+        group.inFlightPageKeys.delete(pageKey)
+        if (!pageRequest.succeeded && !group.currentPageKeys.has(pageKey)) {
+          this.deletePage(provider, group, pageKey)
+          this.refreshInactiveGroup(provider, group)
+        }
+      }
+
       if (group.inFlight === 0 && group.evictionGeneration !== undefined) {
         this.scheduleEviction(provider, group, group.evictionGeneration)
       }
@@ -105,9 +130,11 @@ export class InfiniteQueryCacheManager {
     if (existing) return existing
 
     const group: CacheGroup = {
+      currentPageKeys: new Set(),
       generation: 0,
       groupKey,
       inFlight: 0,
+      inFlightPageKeys: new Map(),
       pageKeys: new Set(),
       subscribers: 0
     }
@@ -177,6 +204,11 @@ export class InfiniteQueryCacheManager {
   private cancelEviction(group: CacheGroup): void {
     group.evictionGeneration = undefined
     this.clearTimer(group, 'evictionTimer')
+  }
+
+  private deletePage(provider: ProviderState, group: CacheGroup, pageKey: string): void {
+    provider.cache.delete(pageKey)
+    group.pageKeys.delete(pageKey)
   }
 
   private clearTimer(group: CacheGroup, timer: 'releaseTimer' | 'evictionTimer'): void {

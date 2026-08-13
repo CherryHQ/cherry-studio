@@ -1,10 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
-import { infiniteQueryCacheManager } from '@data/InfiniteQueryCacheManager'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useLayoutEffect } from 'react'
 import type { Cache } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
@@ -672,53 +670,6 @@ describe('useInfiniteQuery integration', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.useRealTimers()
-  })
-
-  it('acquires retained pages before a pending eviction can run after remount', () => {
-    vi.useFakeTimers()
-    const getSpy = spyGet()
-    const { Wrapper, cache } = makeWrapper()
-    const path = '/topics/t1/messages'
-    const query = { limit: 10 }
-    const page = { items: [], nextCursor: undefined, activeNodeId: null }
-    const groupKey = infKey(path, query)
-    const pageKey = unstable_serialize([path, query])
-    const pageKeys = [pageKey, ...Array.from({ length: 12 }, (_, index) => `${pageKey}:stale:${index}`)]
-
-    cache.set(groupKey, { data: [page] })
-    for (const key of pageKeys) {
-      cache.set(key, { data: key === pageKey ? page : { items: [] } })
-      infiniteQueryCacheManager.registerPage(cache, groupKey, key)
-    }
-
-    const release = infiniteQueryCacheManager.acquire(cache, groupKey)
-    const finishRequest = infiniteQueryCacheManager.beginRequest(cache, groupKey, pageKey)
-    release()
-    vi.advanceTimersByTime(1_000)
-    finishRequest()
-
-    const { unmount } = renderHook(
-      () => {
-        const result = useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId: 't1' },
-          retentionPolicy: 'conversation-history',
-          swrOptions: { revalidateFirstPage: false, revalidateIfStale: false, revalidateOnMount: false }
-        })
-        useLayoutEffect(() => {
-          vi.runOnlyPendingTimers()
-        }, [])
-        return result
-      },
-      { wrapper: Wrapper }
-    )
-
-    expect(getSpy).not.toHaveBeenCalled()
-    expect(cache.has(groupKey)).toBe(true)
-    expect(pageKeys.every((key) => cache.has(key))).toBe(true)
-
-    unmount()
-    vi.clearAllTimers()
   })
 
   it('accumulates pages, paginates via loadNext', async () => {

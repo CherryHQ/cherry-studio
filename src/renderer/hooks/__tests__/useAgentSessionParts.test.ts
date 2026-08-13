@@ -17,6 +17,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInfiniteQuery: dataApiMocks.useInfiniteQuery,
   useMutation: dataApiMocks.useMutation
 }))
+vi.mock('../useConversationHistoryQuery', () => ({
+  useConversationHistoryQuery: dataApiMocks.useInfiniteQuery
+}))
 
 const { toAgentSessionUIMessage, useAgentSessionParts } = await import('../useAgentSessionParts')
 
