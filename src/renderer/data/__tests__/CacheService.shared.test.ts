@@ -24,7 +24,6 @@ const BASE = 1_000_000
 
 // JobManager's live progress key — the standing consumer of TTL'd entries.
 const KEY = 'jobs.progress.job-1' as const
-const STREAM_KEY = 'topic.stream.statuses.topic-1' as const
 
 let now: number
 
@@ -108,7 +107,7 @@ describe('getSharedSnapshot (pure physical read)', () => {
 })
 
 describe('inbound sync gating (fix A3)', () => {
-  it('keeps a live stream status update that arrives while the initial snapshot is in flight', async () => {
+  it('keeps a live update that arrives while the initial snapshot is in flight', async () => {
     let resolveInitialSync!: (entries: Record<string, CacheEntry>) => void
     getAllShared.mockImplementationOnce(
       () =>
@@ -118,20 +117,11 @@ describe('inbound sync gating (fix A3)', () => {
     )
     const { service, inbound } = await createService()
 
-    const streamingStatus = {
-      status: 'streaming',
-      activeExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
-      awaitingApprovalAnchors: []
-    }
-    inbound({ type: 'shared', key: STREAM_KEY, value: streamingStatus })
-    resolveInitialSync({
-      [STREAM_KEY]: {
-        value: { status: 'pending', activeExecutions: [], awaitingApprovalAnchors: [] }
-      }
-    })
+    inbound({ type: 'shared', key: KEY, value: { progress: 50 } })
+    resolveInitialSync({ [KEY]: { value: { progress: 0 } } })
     await vi.waitFor(() => expect(service.isSharedCacheReady()).toBe(true))
 
-    expect(service.getSharedSnapshot(STREAM_KEY)).toEqual(streamingStatus)
+    expect(service.getSharedSnapshot(KEY)).toEqual({ progress: 50 })
   })
 
   it('deletion tombstone physically deletes and always notifies', async () => {
