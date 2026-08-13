@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 
 // Lazy so the edit dialog (and its heavy form deps) stay out of the composer bundle until requested.
 const ResourceEditDialogHost = React.lazy(() =>
-  import('./ResourceEditDialogHost').then((module) => ({ default: module.ResourceEditDialogHost }))
+  import('./edit').then((module) => ({ default: module.ResourceEditDialogHost }))
 )
 
 /**
