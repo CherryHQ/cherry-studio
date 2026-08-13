@@ -280,6 +280,7 @@ const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'w
 
 const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
+  deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
@@ -485,7 +486,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
                 ? dataApiMocks.deleteWorkspace
                 : method === 'DELETE' && path === '/agents/:agentId'
                   ? dataApiMocks.deleteAgent
-                  : dataApiMocks.findOrCreateWorkspace,
+                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                    ? dataApiMocks.deleteAgentSessions
+                    : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -820,6 +823,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
+    dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
@@ -3116,7 +3120,10 @@ describe('Sessions', () => {
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
-  it('deletes only tasks from the built-in Cherry Assistant group', async () => {
+  it.each([
+    { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
+    { builtinRole: 'support' as const, name: 'Cherry Support' }
+  ])('deletes only tasks from the protected built-in $name group', async ({ builtinRole, name }) => {
     const onActiveAgentDeleted = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
@@ -3124,8 +3131,8 @@ describe('Sessions', () => {
         {
           id: 'agent-a',
           model: 'model-a',
-          name: 'Cherry Assistant',
-          configuration: { builtin_role: 'assistant' }
+          name,
+          configuration: { builtin_role: builtinRole }
         }
       ],
       isLoading: false,
@@ -3135,11 +3142,11 @@ describe('Sessions', () => {
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
-    sessionDataMocks.deleteSessions.mockResolvedValueOnce({ deletedIds: ['session-a'] })
+    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a', 'session-not-loaded'] })
 
     render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
 
-    const agentGroup = screen.getByRole('button', { name: 'Cherry Assistant' }).closest('div')
+    const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteTasksMenuItem = screen
@@ -3150,8 +3157,11 @@ describe('Sessions', () => {
 
     fireEvent.click(deleteTasksMenuItem as HTMLElement)
 
-    await vi.waitFor(() => expect(sessionDataMocks.deleteSessions).toHaveBeenCalledWith(['session-a']))
+    await vi.waitFor(() =>
+      expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    )
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
     expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Delete all tasks for this agent. The agent itself will not be deleted.',
