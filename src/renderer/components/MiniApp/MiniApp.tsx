@@ -23,11 +23,22 @@ interface Props {
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
+  /** Renders the tile as unavailable: not activatable, not in the tab order. */
+  disabled?: boolean
 }
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isLast, variant = 'default' }) => {
+const MiniApp: FC<Props> = ({
+  app,
+  onClick,
+  onOpen,
+  onEditCustom,
+  size = 60,
+  isLast,
+  variant = 'default',
+  disabled = false
+}) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -55,6 +66,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
+    if (disabled) return
     if (onOpen) {
       onOpen(app, displayName)
     } else {
@@ -76,8 +88,11 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     variant === 'launchpad'
       ? ({
           onKeyDown: handleKeyDown,
-          tabIndex: 0,
+          // Keyboard users must not be able to reach or activate a disabled
+          // tile — `pointer-events-none` alone only stops the mouse.
+          tabIndex: disabled ? -1 : 0,
           role: 'button',
+          'aria-disabled': disabled || undefined,
           'aria-label': displayName
         } as const)
       : {}
@@ -180,7 +195,8 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
+            'flex flex-col items-center justify-center overflow-hidden outline-none',
+            disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
               ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]'

@@ -14,11 +14,18 @@ interface WebviewSearchProps {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
   appId: string
+  /**
+   * Whether this instance answers the host window's Find shortcut. In split
+   * view every pane mounts one of these, and the host `keydown` listener is
+   * global — without a gate, one Ctrl/Cmd+F opens every pane's search at once.
+   * The webview-scoped IPC path stays active either way.
+   */
+  hostShortcutEnabled?: boolean
 }
 
 const logger = loggerService.withContext('WebviewSearch')
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId }) => {
+const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId, hostShortcutEnabled = true }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
@@ -229,11 +236,16 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        // Only the pane that owns the shortcut opens; the others must not, or
+        // one keypress opens every mounted pane's search overlay.
+        if (!hostShortcutEnabled) return
         event.preventDefault()
         openSearch()
         return
       }
 
+      // Escape/Enter stay live regardless: this pane's overlay can have been
+      // opened from inside its webview, and it still has to be operable.
       if (!isVisible) return
 
       if (event.key === 'Escape') {
@@ -256,7 +268,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       window.removeEventListener('keydown', handleKeydown, true)
     }
-  }, [closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [closeSearch, goToNext, goToPrevious, hostShortcutEnabled, isVisible, openSearch])
 
   useEffect(() => {
     if (!isWebviewReady) {

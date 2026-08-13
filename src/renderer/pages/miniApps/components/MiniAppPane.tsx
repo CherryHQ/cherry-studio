@@ -17,6 +17,10 @@ interface Props {
   /** Whether this pane's toolbar offers to open the split or to close it. */
   splitMode: SplitMode
   onSplit: () => void
+  /** Whether this pane answers the host window's Find shortcut. */
+  hostShortcutEnabled?: boolean
+  /** Fired when the user interacts with this pane, so the page can track focus. */
+  onActivate?: () => void
   className?: string
 }
 
@@ -25,8 +29,12 @@ interface Props {
  * `<webview>` that {@link MiniAppTabsPool} renders underneath. The pane itself
  * is transparent so the pooled webview shows through.
  */
-const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, className }) => {
+const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, hostShortcutEnabled, onActivate, className }) => {
   const webviewRef = useRef<WebviewTag | null>(null)
+  // Read through a ref so attaching the webview listener does not depend on a
+  // callback identity that changes every render.
+  const onActivateRef = useRef(onActivate)
+  onActivateRef.current = onActivate
   // Seed isReady from the pool's own state rather than waiting for a load
   // event: a pane re-mounting over an already-loaded webview must not flash
   // the loading mask, which reads as a reload.
@@ -51,9 +59,14 @@ const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, className }) => {
     detachWebview()
     webviewRef.current = el
     const handleInPageNav = (e: any) => setCurrentUrl(e.url)
+    // Clicking into the page focuses the webview element itself; that is the
+    // only signal the host gets, since events inside the guest never bubble out.
+    const handleFocus = () => onActivateRef.current?.()
     el.addEventListener('did-navigate-in-page', handleInPageNav)
+    el.addEventListener('focus', handleFocus)
     webviewCleanupRef.current = () => {
       el.removeEventListener('did-navigate-in-page', handleInPageNav)
+      el.removeEventListener('focus', handleFocus)
     }
     return true
   }, [app.appId, detachWebview])
@@ -103,7 +116,9 @@ const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, className }) => {
   }, [])
 
   return (
-    <div className={cn('pointer-events-none relative flex h-full min-h-0 flex-col *:pointer-events-auto', className)}>
+    <div
+      className={cn('pointer-events-none relative flex h-full min-h-0 flex-col *:pointer-events-auto', className)}
+      onMouseDownCapture={onActivate}>
       <div className="shrink-0">
         <MinimalToolbar
           app={app}
@@ -116,7 +131,12 @@ const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, className }) => {
           onSplit={onSplit}
         />
       </div>
-      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
+      <WebviewSearch
+        webviewRef={webviewRef}
+        isWebviewReady={isReady}
+        appId={app.appId}
+        hostShortcutEnabled={hostShortcutEnabled}
+      />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />

@@ -15,7 +15,9 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const GRID_CLASS = 'grid grid-cols-4 justify-items-center gap-2 px-2'
+// Column count follows the pane width: a detached mini app window can be
+// resized down to ~400px, leaving each half far narrower than a fixed grid.
+const GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] justify-items-center gap-2 px-2'
 const SECTION_TITLE_CLASS = 'm-0 px-4 py-0 font-semibold text-[14px] text-foreground opacity-80'
 
 interface Props {
@@ -68,10 +70,10 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
         key={app.appId}
         className={cn(
           'mx-auto flex w-[92px] justify-center rounded-[8px] py-2 transition-transform duration-200',
-          isOccupied ? 'pointer-events-none opacity-40' : 'hover:scale-105 active:scale-95'
+          isOccupied ? 'opacity-40' : 'hover:scale-105 active:scale-95'
         )}
         title={isOccupied ? t('miniApp.split.already_open') : undefined}>
-        <MiniApp app={app} size={56} variant="launchpad" onOpen={openMiniAppInSplit} />
+        <MiniApp app={app} size={56} variant="launchpad" onOpen={openMiniAppInSplit} disabled={isOccupied} />
       </div>
     )
   }

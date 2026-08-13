@@ -59,11 +59,26 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
 // which would navigate the whole tab away instead of filling the split pane.
 // This stub exposes both paths so the wiring is observable.
 vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
-  default: ({ app, onOpen }: { app: MiniAppType; onOpen?: (app: MiniAppType, name: string) => void }) => (
+  default: ({
+    app,
+    onOpen,
+    disabled
+  }: {
+    app: MiniAppType
+    onOpen?: (app: MiniAppType, name: string) => void
+    disabled?: boolean
+  }) => (
+    // Mirrors the real tile: `disabled` drops it from the tab order and blocks
+    // activation, rather than relying on a pointer-events style.
     <button
       type="button"
       data-testid={`tile-${app.appId}`}
-      onClick={() => (onOpen ? onOpen(app, app.name) : mocks.openTab())}>
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
+      onClick={() => {
+        if (disabled) return
+        onOpen ? onOpen(app, app.name) : mocks.openTab()
+      }}>
       {app.name}
     </button>
   )
@@ -76,35 +91,42 @@ describe('SplitPanePicker', () => {
     mocks.openMiniAppInSplit.mockClear()
     mocks.openTab.mockClear()
     mocks.onClose.mockClear()
-    mocks.miniApps = [stubApp('claude'), stubApp('grok')]
+    mocks.miniApps = [stubApp('deepseek'), stubApp('kimi')]
   })
 
   afterEach(cleanup)
 
   it('fills the split pane with the picked app instead of navigating the tab', () => {
-    render(<SplitPanePicker occupiedAppId="claude" onClose={mocks.onClose} />)
+    render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
 
-    fireEvent.click(screen.getByTestId('tile-grok'))
+    fireEvent.click(screen.getByTestId('tile-kimi'))
 
     // Routing to the mini app (the launchpad's behaviour) would replace the
     // whole tab, tearing down the very split the user just opened.
     expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.openMiniAppInSplit).toHaveBeenCalledWith(expect.objectContaining({ appId: 'grok' }), 'grok')
+    expect(mocks.openMiniAppInSplit).toHaveBeenCalledWith(expect.objectContaining({ appId: 'kimi' }), 'kimi')
   })
 
-  it('disables the app already shown in the other pane', () => {
-    render(<SplitPanePicker occupiedAppId="claude" onClose={mocks.onClose} />)
+  it('disables the app already shown in the other pane for pointer and keyboard alike', () => {
+    render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
 
     // One <webview> renders in one place; picking it again would blank a pane.
-    const occupied = screen.getByTestId('tile-claude').parentElement as HTMLElement
-    expect(occupied.className).toContain('pointer-events-none')
+    // A pointer-events style alone would still leave the tile focusable and
+    // activatable with Enter/Space.
+    const occupied = screen.getByTestId('tile-deepseek')
+    expect(occupied).toHaveAttribute('aria-disabled', 'true')
+    expect(occupied).toHaveAttribute('tabindex', '-1')
 
-    const selectable = screen.getByTestId('tile-grok').parentElement as HTMLElement
-    expect(selectable.className).not.toContain('pointer-events-none')
+    fireEvent.click(occupied)
+    expect(mocks.openMiniAppInSplit).not.toHaveBeenCalled()
+
+    const selectable = screen.getByTestId('tile-kimi')
+    expect(selectable).not.toHaveAttribute('aria-disabled')
+    expect(selectable).toHaveAttribute('tabindex', '0')
   })
 
   it('renders built-in apps as non-interactive until they are supported', () => {
-    const { container } = render(<SplitPanePicker occupiedAppId="claude" onClose={mocks.onClose} />)
+    const { container } = render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
 
     // Built-in apps are routed pages — they need a second router to live in a
     // pane, so they are shown but must not be clickable.

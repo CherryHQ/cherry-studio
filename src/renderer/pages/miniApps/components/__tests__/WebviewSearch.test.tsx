@@ -374,6 +374,49 @@ describe('WebviewSearch', () => {
     expect(stopFindInPageMock).toHaveBeenCalledWith('clearSelection')
   })
 
+  it('ignores the host Find shortcut when another pane owns it', async () => {
+    const { webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" hostShortcutEnabled={false} />)
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    })
+
+    // In split view both panes mount a search overlay and the host listener is
+    // global; without this gate one keypress opens every pane's overlay.
+    expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
+  })
+
+  it('still answers its own webview shortcut and Escape while another pane owns the host key', async () => {
+    const { webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" hostShortcutEnabled={false} />)
+
+    await waitFor(() => {
+      expect(useIpcOnMock).toHaveBeenCalled()
+    })
+
+    // The webview-scoped IPC path is addressed by webviewId, so it must keep
+    // working for the pane that does not own the host shortcut.
+    invokeLatestShortcut({ webviewId: 1, key: 'f', control: true, meta: false, shift: false, alt: false })
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
+    })
+
+    // ...and the overlay it opened must remain closable from the keyboard.
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
+    })
+  })
+
   it('ignores keyboard shortcut when webview is not ready', async () => {
     const { findInPageMock, webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>

@@ -9,7 +9,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -113,6 +113,16 @@ const MiniAppPage: FC = () => {
     )
   }, [allApps, appId, openedKeepAliveMiniApps, splitMiniAppId, splitOpen])
 
+  // Which pane owns the host window's Find shortcut. Both panes mount a search
+  // overlay, and the host `keydown` listener is global, so exactly one of them
+  // may answer it — otherwise one Ctrl/Cmd+F opens both.
+  const [activePane, setActivePane] = useState<'primary' | 'split'>('primary')
+  const activatePrimaryPane = useCallback(() => setActivePane('primary'), [])
+  const activateSplitPane = useCallback(() => setActivePane('split'), [])
+  useEffect(() => {
+    if (!splitOpen) setActivePane('primary')
+  }, [splitOpen])
+
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
     return (
@@ -157,10 +167,24 @@ const MiniAppPage: FC = () => {
 
   return (
     <div className="pointer-events-none relative z-3 flex h-full w-full flex-row">
-      <MiniAppPane app={app} splitMode="open" onSplit={openSplit} className={splitOpen ? 'w-1/2' : 'w-full'} />
+      <MiniAppPane
+        app={app}
+        splitMode="open"
+        onSplit={openSplit}
+        hostShortcutEnabled={!splitOpen || activePane === 'primary'}
+        onActivate={activatePrimaryPane}
+        className={splitOpen ? 'w-1/2' : 'w-full'}
+      />
       {splitOpen &&
         (splitApp ? (
-          <MiniAppPane app={splitApp} splitMode="close" onSplit={closeSplit} className="w-1/2" />
+          <MiniAppPane
+            app={splitApp}
+            splitMode="close"
+            onSplit={closeSplit}
+            hostShortcutEnabled={activePane === 'split'}
+            onActivate={activateSplitPane}
+            className="w-1/2"
+          />
         ) : (
           <SplitPanePicker occupiedAppId={app.appId} onClose={closeSplit} className="w-1/2" />
         ))}
