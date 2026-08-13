@@ -7,12 +7,12 @@
  * variable, a component tag or a `$t()` reference is dropped and its placeholder kept, and the
  * run exits non-zero.
  *
- * Two engines share that core. `direct` (the default) sends one batch per locale to an
- * OpenAI-compatible endpoint with the key path, the zh-cn reference and the glossary as context.
- * `research` first spends one tool-enabled Claude Agent SDK pass per run reading the codebase to
- * learn which UI element renders each key, then translates from that brief.
+ * Translation itself is one batched request per locale carrying the full key path, the zh-cn
+ * reference, the glossary and style examples from the same namespaces. `--translator` picks who
+ * answers it, and `--research` optionally prepends a tool-enabled Claude Agent SDK pass that reads
+ * the codebase for what renders each key. The two are independent so their effects stay separable.
  *
- * Usage: pnpm i18n:translate [--locale <code>] [--engine direct|research] [--dry-run]
+ * Usage: pnpm i18n:translate [--locale <code>] [--translator endpoint|claude] [--research] [--dry-run]
  */
 import { type Options, query } from '@anthropic-ai/claude-agent-sdk'
 import { OpenAI } from '@cherrystudio/openai'
@@ -43,14 +43,20 @@ const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const DIRECT_MODEL = process.env.TRANSLATION_MODEL ?? 'deepseek/deepseek-v4-flash'
 const DIRECT_BASE_URL = process.env.TRANSLATION_BASE_URL ?? 'https://api.ppinfra.com/openai/v1'
 const RESEARCH_MODEL = process.env.I18N_RESEARCH_MODEL ?? 'claude-sonnet-5'
-const RESEARCH_TRANSLATE_MODEL = process.env.I18N_TRANSLATE_MODEL ?? 'claude-sonnet-5'
+const CLAUDE_TRANSLATE_MODEL = process.env.I18N_TRANSLATE_MODEL ?? 'claude-sonnet-5'
 const BATCH_SIZE = 50
 const CONCURRENCY = 3
 
-const engineArg = process.argv.indexOf('--engine')
-const ENGINE = engineArg === -1 ? (process.env.I18N_ENGINE ?? 'direct') : process.argv[engineArg + 1]
-if (ENGINE !== 'direct' && ENGINE !== 'research') {
-  throw new Error(`unknown engine "${ENGINE}", expected "direct" or "research"`)
+const flagValue = (name: string, fallback: string) => {
+  const index = process.argv.indexOf(name)
+  return index === -1 ? fallback : process.argv[index + 1]
+}
+
+// Two independent switches, so "does research help?" can be measured without also changing model.
+const RESEARCH = process.argv.includes('--research') || process.env.I18N_RESEARCH === 'true'
+const TRANSLATOR = flagValue('--translator', process.env.I18N_TRANSLATOR ?? 'endpoint')
+if (TRANSLATOR !== 'endpoint' && TRANSLATOR !== 'claude') {
+  throw new Error(`unknown translator "${TRANSLATOR}", expected "endpoint" or "claude"`)
 }
 
 /** Wall-clock and spend, reported per run so the two engines stay comparable. */
@@ -314,10 +320,11 @@ const toTranslationMap = (translations: { key: string; text: string }[] | undefi
   new Map((translations ?? []).map(({ key, text }) => [key, text]))
 
 const translateViaAgent = async (locale: string, glossary: Glossary, items: unknown[], style: StyleExample[]) => {
+  const briefed = RESEARCH
   const result = await runQuery<{ translations: { key: string; text: string }[] }>(
-    translatePrompt(locale, glossary, items, true, style),
+    translatePrompt(locale, glossary, items, briefed, style),
     {
-      model: RESEARCH_TRANSLATE_MODEL,
+      model: CLAUDE_TRANSLATE_MODEL,
       cwd: ROOT,
       settingSources: [],
       allowedTools: [],
@@ -340,7 +347,7 @@ const translateViaEndpoint = async (locale: string, glossary: Glossary, items: u
       { role: 'system', content: 'You are a software localisation expert. Reply with JSON only.' },
       {
         role: 'user',
-        content: `${translatePrompt(locale, glossary, items, false, style)}
+        content: `${translatePrompt(locale, glossary, items, RESEARCH, style)}
 Reply with a JSON object of the form {"translations":[{"key":"<the key exactly as given>","text":"<the translation>"}]}, one entry per string above.`
       }
     ]
@@ -456,7 +463,7 @@ const translateTarget = async (target: Target, briefs: Map<string, Brief>, gloss
 
     let translations: Map<string, string>
     try {
-      translations = await (ENGINE === 'research'
+      translations = await (TRANSLATOR === 'claude'
         ? translateViaAgent(target.locale, glossary, items, target.style)
         : translateViaEndpoint(target.locale, glossary, items, target.style))
     } catch (error) {
@@ -509,13 +516,12 @@ const main = async () => {
 
   const startedAt = Date.now()
   let briefs = new Map<string, Brief>()
-  if (ENGINE === 'research') {
+  if (RESEARCH) {
     console.log(`🔍 Researching UI context with ${RESEARCH_MODEL}...`)
     briefs = await research([...uniqueKeys.values()])
-    console.log(`📝 Got ${briefs.size}/${uniqueKeys.size} briefs. Translating with ${RESEARCH_TRANSLATE_MODEL}...`)
-  } else {
-    console.log(`📝 Translating with ${DIRECT_MODEL}...`)
+    console.log(`📝 Got ${briefs.size}/${uniqueKeys.size} briefs.`)
   }
+  console.log(`📝 Translating with ${TRANSLATOR === 'claude' ? CLAUDE_TRANSLATE_MODEL : DIRECT_MODEL}...`)
 
   const results = await mapPool(targets, CONCURRENCY, (target) => translateTarget(target, briefs, glossary))
 
@@ -545,7 +551,7 @@ const main = async () => {
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
   const cost = stats.costUsd > 0 ? `, $${stats.costUsd.toFixed(4)}` : ''
   console.log(
-    `\n⏱️  ${ENGINE} engine: ${elapsed}s, ${stats.requests} requests, ${stats.inputTokens} in / ${stats.outputTokens} out tokens${cost}`
+    `\n⏱️  research=${RESEARCH} translator=${TRANSLATOR}: ${elapsed}s, ${stats.requests} requests, ${stats.inputTokens} in / ${stats.outputTokens} out tokens${cost}`
   )
 
   if (rejectedTotal > 0) {
