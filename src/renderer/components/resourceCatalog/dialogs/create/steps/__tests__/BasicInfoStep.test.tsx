@@ -5,7 +5,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { BasicInfoStep } from '../BasicInfoStep'
@@ -74,6 +74,12 @@ function Harness({
 
 afterEach(cleanup)
 
+beforeAll(() => {
+  HTMLElement.prototype.hasPointerCapture = () => false
+  HTMLElement.prototype.setPointerCapture = () => {}
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
+
 beforeEach(() => {
   mockUseModelById.mockReset()
   mockUseModelById.mockReturnValue({ model: undefined })
@@ -88,13 +94,16 @@ describe('BasicInfoStep', () => {
     )
   })
 
-  it('shows both immutable runtime choices directly without a pi-only hint', () => {
+  it('uses the shared select control for immutable runtime choices without a pi-only hint', async () => {
+    const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
-    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    const runtimeSelect = screen.getByLabelText('library.config.agent.field.runtime.label')
+    expect(runtimeSelect).toHaveAttribute('role', 'combobox')
     expect(screen.getByText('library.config.agent.field.runtime.option.claude_code')).toBeInTheDocument()
-    expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeInTheDocument()
+    await user.click(runtimeSelect)
+    expect(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' })).toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.default.title'
@@ -105,7 +114,8 @@ describe('BasicInfoStep', () => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
-    await user.click(screen.getByText('library.config.agent.field.runtime.option.pi'))
+    await user.click(screen.getByLabelText('library.config.agent.field.runtime.label'))
+    await user.click(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' }))
 
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.acceptEdits.title'
