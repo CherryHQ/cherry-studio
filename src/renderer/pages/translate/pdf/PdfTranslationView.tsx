@@ -1,7 +1,7 @@
 import { Button, CircularProgress, EmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import PdfPreviewPanel from '@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel'
 import { LoadingState } from '@renderer/components/chat/primitives'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -61,7 +61,7 @@ interface PdfTranslationViewProps {
 
 interface PdfTranslationOutput {
   jobId: string
-  outputPath: string
+  outputPath: AbsoluteFilePath
   fileName: string
 }
 
@@ -355,7 +355,7 @@ const PdfTranslationView = ({
               </Tooltip>
             </>
           }>
-          <PdfPreviewPanel filePath={file.path} fileName={file.name} refreshKey={0} />
+          <FilePreview filePath={file.path} refreshKey={0} />
         </PdfPane>
         <PdfPane
           header={
@@ -398,7 +398,7 @@ const PdfTranslationResult = ({
 
   switch (state.type) {
     case 'output':
-      return <PdfPreviewPanel filePath={state.outputPath} fileName={state.fileName} refreshKey={0} />
+      return <FilePreview filePath={state.outputPath} refreshKey={0} />
     case 'downloading_assets':
       return <CenteredLoading label={t('translate.pdf.progress.downloading_assets')} />
     case 'progress': {

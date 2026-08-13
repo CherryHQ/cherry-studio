@@ -28,8 +28,8 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 vi.mock('@renderer/utils/uuid', () => ({ uuid: mocks.uuid }))
-vi.mock('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel', () => ({
-  default: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
+vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
 }))
 
 describe('PdfTranslationView', () => {

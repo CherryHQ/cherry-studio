@@ -606,8 +606,7 @@ const TranslatePage: FC = () => {
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>
-      !isNonChatModel(model) &&
-      (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
+      !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
 
