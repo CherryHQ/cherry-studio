@@ -7675,7 +7675,6 @@
       "topic_naming": {
         "auto": "トピックの自動命名",
         "label": "トピック名",
-        "model": "命名モデル",
         "prompt": "トピック命名プロンプト"
       },
       "translate_model": "翻訳モデル",

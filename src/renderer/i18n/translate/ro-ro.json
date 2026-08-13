@@ -7675,7 +7675,6 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
-        "model": "Model de denumire",
         "prompt": "Prompt numire subiect"
       },
       "translate_model": "Model traducere",
