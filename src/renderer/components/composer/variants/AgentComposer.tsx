@@ -30,7 +30,10 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
-import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import {
+  openResourceEditDialog,
+  ResourceEditDialogEventHost
+} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -1674,6 +1677,7 @@ const AgentComposerInner = ({
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
+          sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
@@ -1822,6 +1826,7 @@ const MissingAgentHomeComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={() => undefined}
         placeholder={placeholderText}
+        sendMessageShortcut={sendMessageShortcut}
         sendDisabled
         sendBlockedReason={selectAgentMessage}
         isLoading={false}

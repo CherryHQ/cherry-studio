@@ -3549,7 +3549,7 @@
             "hint": "Antwortlänge von Caps, wenn aktiviert"
           },
           "max_tool_calls": {
-            "hint": "Begrenzt Tool-Call-Schleifen, wenn aktiviert"
+            "hint": "Begrenzt bei Aktivierung die Anzahl der Tool-Aufruf-Runden; andernfalls gilt das Standardlimit von {{count}} Runden"
           },
           "model": {
             "hint": "Überschreibt das globale Standardmodell für diesen Assistenten"
@@ -4815,7 +4815,7 @@
     },
     "installed_at": "OpenClaw installiert unter",
     "migration": {
-      "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
+      "description": "In PATH wurde eine externe OpenClaw-Installation erkannt, aber Cherry Studio verwendet seine verwaltete OpenClaw-Binärdatei. Installieren Sie die verwaltete Version, um fortzufahren.",
       "install_button": "OpenClaw neu installieren",
       "title": "OpenClaw benötigt ein Update"
     },
@@ -6766,7 +6766,7 @@
       "removeDefinitionOnlyDependents": "Installierte Tools hängen davon ab: {{dependents}}.",
       "removeError": "Fehler beim Entfernen des Tools",
       "removeErrorHint": "Der Bereinigungsbefehl ist fehlgeschlagen. Kopieren Sie das untenstehende Protokoll zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
-      "removeRuntimeConfirmMessage": "Sind Sie sicher, dass Sie „{{name}}“ entfernen möchten? Die Deinstallation dieser Laufzeitumgebung könnte davon abhängige npm- oder pip-Werkzeuge beschädigen.",
+      "removeRuntimeConfirmMessage": "\"{{name}}\" aus Cherry Studio entfernen? Cherry entfernt dabei nur die exakte, von mise verwaltete Kopie. System- und in der App integrierte Laufzeitumgebungen werden niemals verändert. Installierte npm- oder pip-Tools können die Entfernung blockieren, wenn sie von dieser Laufzeitumgebung abhängen.",
       "runtimeDependency": "Laufzeitumgebung",
       "runtimeDependencyHint": "Laufzeitumgebung für npm-/pip-Werkzeuge",
       "searchFailed": "Suche fehlgeschlagen; prüfen Sie die Protokolle",
@@ -8820,7 +8820,7 @@
       "aborted": "Übersetzung abgebrochen"
     },
     "input": {
-      "placeholder": "Text, Textdatei, Bild (OCR unterstützt) können eingefügt oder gezogen werden"
+      "placeholder": "Text eingeben..."
     },
     "language": {
       "not_pair": "Quellsprache unterscheidet sich von eingestellter Sprache",

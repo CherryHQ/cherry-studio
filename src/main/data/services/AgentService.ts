@@ -271,7 +271,7 @@ export class AgentService {
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    // orderKey is omitted — `insertWithOrderKey` computes the next fractional key.
+    // orderKey is omitted — `insertWithOrderKey` computes the fractional key for the requested position.
     const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
@@ -304,7 +304,7 @@ export class AgentService {
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
-          const result = this.createAgentTx(tx, id, insertData)
+          const result = this.createAgentTx(tx, id, insertData, 'first')
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
@@ -339,7 +339,8 @@ export class AgentService {
   createAgentTx(
     tx: DbOrTx,
     id: string,
-    insertData: Omit<InsertAgentRow, 'orderKey'>
+    insertData: Omit<InsertAgentRow, 'orderKey'>,
+    position: 'first' | 'last' = 'last'
   ): { agent: AgentRow; modelName: string | null } | null {
     if (getBuiltinRole(insertData.configuration) === BUILTIN_AGENT_ROLE.SUPPORT && id !== CHERRY_SUPPORT_AGENT_ID) {
       throw DataApiErrorFactory.invalidOperation(
@@ -347,7 +348,7 @@ export class AgentService {
         'Cherry Support must use its reserved system identity'
       )
     }
-    insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
+    insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position })
     const [agent] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
     if (!agent) return null
     const modelName = agent.model
