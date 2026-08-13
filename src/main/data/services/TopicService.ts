@@ -19,6 +19,7 @@ import type {
   DeleteTopicsResult,
   DuplicateTopicDto,
   ListTopicsQuery,
+  MoveTopicDto,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -342,6 +343,53 @@ export class TopicService {
     return topic
   }
 
+  /** Atomically update a topic's assistant and global order. */
+  move(id: string, dto: MoveTopicDto): Topic {
+    const topic = application.get('DbService').withWriteTx((tx) => {
+      const [target] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
+      assertActiveAssistantTx(tx, dto.assistantId)
+
+      if ('before' in dto.order || 'after' in dto.order) {
+        const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+        if (anchorId === id) {
+          const message = 'move: anchor topic must differ from the moved topic'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+
+        const [anchor] = tx
+          .select({ assistantId: topicTable.assistantId })
+          .from(topicTable)
+          .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+        if (anchor.assistantId !== dto.assistantId) {
+          const message = 'move: anchor topic must belong to the target assistant'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+      }
+
+      tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+      applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+        pkColumn: topicTable.id,
+        scope: isNull(topicTable.deletedAt)
+      })
+
+      const [row] = tx.select().from(topicTable).where(eq(topicTable.id, id)).limit(1).all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(row)
+    })
+    this.notifyReadModelChange([id], 'projection')
+    return topic
+  }
+
   /**
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
    * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
@@ -351,6 +399,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    pinService.notifyPurged()
 
     logger.info('Deleted topic', { id })
   }
@@ -359,6 +408,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -619,6 +669,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 

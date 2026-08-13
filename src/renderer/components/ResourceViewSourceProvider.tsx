@@ -3,6 +3,8 @@ import {
   AgentSessionsSourceContext,
   type AssistantTopicsSource,
   AssistantTopicsSourceContext,
+  type AssistantTopicsView,
+  deriveAssistantTopicsView,
   useRawAgentSessionsSource,
   useRawAssistantTopicsSource
 } from '@renderer/hooks/resourceViewSources'
@@ -18,6 +20,8 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
+const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = []
+const EMPTY_ASSISTANT_TOPICS_VIEW: AssistantTopicsView = { rendererTopics: [], orderSignature: '' }
 
 type AssistantTopicsSnapshot = Pick<ReturnType<typeof useRawAssistantTopicsSource>, 'pages' | 'topics'>
 type AgentSessionsSnapshot = Pick<ReturnType<typeof useRawAgentSessionsSource>, 'pinIdBySessionId' | 'sessions'>
@@ -39,7 +43,7 @@ export function shouldLoadResourceViewSource(
   )
 }
 
-function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSource {
+function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: boolean): AssistantTopicsSource {
   const rawSource = useRawAssistantTopicsSource({ enabled })
   const [snapshot, setSnapshot] = useState<AssistantTopicsSnapshot | null>(null)
   const rawSourceReady = enabled && rawSource.isFullyLoaded && !rawSource.isRefreshing && !rawSource.error
@@ -70,9 +74,18 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
     (rawSource.isRefreshing ||
       (!rawSource.error && (!rawSource.isFullyLoaded || (rawSourceReady && !snapshotIsCurrent))))
 
+  const topics = snapshot?.topics ?? (enabled ? rawSource.topics : EMPTY_TOPICS)
+  // Derived once per window here — kept-alive tabs consume this shared view
+  // instead of each remapping the full list (see AssistantTopicsView).
+  const topicsView = useMemo(
+    () => (retainDerivedView ? deriveAssistantTopicsView(topics) : EMPTY_ASSISTANT_TOPICS_VIEW),
+    [retainDerivedView, topics]
+  )
+
   return useMemo(
     () => ({
-      topics: snapshot?.topics ?? (enabled ? rawSource.topics : []),
+      topics,
+      ...topicsView,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isFullyLoaded: snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
@@ -86,8 +99,8 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
       rawSource.error,
       rawSource.isLoadingAll,
       rawSource.refetch,
-      rawSource.topics,
-      enabled,
+      topics,
+      topicsView,
       snapshot
     ]
   )
@@ -183,11 +196,22 @@ export function ResourceViewSourceProvider({ children }: { children: ReactNode }
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'assistants'),
     [activeTabId, tabs]
   )
+  const retainAssistantTopicsView = useMemo(() => {
+    const app = getSidebarApp('assistants')
+    if (!app) return false
+    return tabs.some(
+      (tab) =>
+        tab.type === 'route' &&
+        !tab.isDormant &&
+        tabBelongsToApp(app, tab.url) &&
+        !isMessageOnlyConversationUrl(tab.url)
+    )
+  }, [tabs])
   const agentSessionsEnabled = useMemo(
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'agents'),
     [activeTabId, tabs]
   )
-  const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled)
+  const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled, retainAssistantTopicsView)
   const agentSessionsSource = useCommittedAgentSessionsSource(agentSessionsEnabled)
 
   return (

@@ -388,6 +388,7 @@ export function useTopicMutations() {
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
+  const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
     // trigger a fetch that 404s and caches an error in SWR.
@@ -454,18 +455,14 @@ export function useTopicMutations() {
    * given) and anchor its position. The cache orchestration lives here so
    * pages don't track a second active-topic state:
    *
-   * - The assistant PATCH response is written straight into `/topics/:id`
-   *   before ordering, so an open conversation on the moved topic re-resolves
-   *   its assistant (composer/model/capabilities) immediately. If the topic is
-   *   no longer active this only updates the moved topic's own cache — it
-   *   cannot snap the selection back.
-   * - Revalidation of `/topics` (+ `/topics/:id` on an assistant change) is a
-   *   single combined pass deferred until after both writes, so an optimistic
-   *   reorder overlay clears once at the final position instead of flashing
-   *   the row back to its old order mid-flight.
+   * - Cross-assistant ownership and ordering commit through one atomic endpoint.
+   * - The moved topic's by-id cache follows its new assistant immediately so an
+   *   open conversation re-resolves its composer/model/capabilities.
+   * - Revalidation of `/topics` (+ `/topics/:id` on an assistant change) runs
+   *   after the write so the optimistic reorder overlay clears at the final position.
    *
    * Rethrows on failure after reconciling caches with server truth when the
-   * assistant PATCH may have committed.
+   * server write may have committed.
    */
   const moveTopic = useCallback(
     async (
@@ -476,24 +473,31 @@ export function useTopicMutations() {
       const refreshKeys = assistantChanged ? ['/topics', `/topics/${topicId}`] : '/topics'
 
       try {
-        if (assistantChanged) {
-          const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
+        if (assistantChanged && assistantId) {
+          const topic = await moveTrigger({ params: { id: topicId }, body: { assistantId, order: anchor } })
           await writeCache(`/topics/${topicId}`, topic)
+        } else {
+          // Ownership-only unlinking keeps the ordinary PATCH contract.
+          // The drag UI currently only moves into concrete Assistant groups.
+          if (assistantChanged) {
+            const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
+            await writeCache(`/topics/${topicId}`, topic)
+          }
+          await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
         }
-        await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
         await invalidate(refreshKeys)
       } catch (err) {
         if (assistantChanged) {
           try {
             await invalidate(refreshKeys)
           } catch (refreshErr) {
-            logger.error('Failed to refresh topics after partial topic move', { refreshErr, topicId })
+            logger.error('Failed to refresh topics after topic move error', { refreshErr, topicId })
           }
         }
         throw err
       }
     },
-    [invalidate, writeCache]
+    [invalidate, moveTrigger, writeCache]
   )
 
   const batchUpdateTopics = useCallback(
