@@ -559,7 +559,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         parent.id,
         req.topicId,
         [model],
-        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
