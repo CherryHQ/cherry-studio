@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyHint": "When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
@@ -976,7 +978,6 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for confirmation",
       "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
@@ -1562,20 +1563,21 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Files",
+          "resources": "Files & Folders",
           "skills": "Skills"
         },
         "description": "Select from files, agents, or skills",
+        "load_failed": "Failed to load workspace resources",
         "loading": "Loading...",
-        "no_file_found": {
-          "description": "No searchable files in the current workspace",
-          "label": "No File Found"
-        },
         "no_items_found": {
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Files & Sessions"
+        "no_resources_found": {
+          "description": "No searchable files or folders in the current workspace",
+          "label": "No Resources Found"
+        },
+        "title": "Resources & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2542,6 +2544,7 @@
       "ocr": "OCR engine not initialized, check OCR settings",
       "parse": "AI returned an invalid response, please retry or switch model",
       "payload": "Request content too large, please reduce file or text size",
+      "permission": "The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
       "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
@@ -3499,9 +3502,15 @@
       "basic": {
         "context_compress_enabled": "Auto-compress",
         "context_compress_model": "Compression model",
-        "context_compress_model_follow": "Default",
-        "context_count": "Context count",
-        "context_management": "Context management",
+        "context_compress_model_follow": "Follow current model",
+        "context_count": "Recent messages kept",
+        "context_count_follow_global": "Follow global ({{count}})",
+        "context_count_unlimited": "Unlimited",
+        "context_globally_disabled": "Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "auto-compress off",
+        "context_inherited_compress_on": "auto-compress on",
+        "context_management": "Customize context management",
         "context_truncate_threshold": "Tool-output truncation threshold (chars)",
         "creative": "Creative",
         "custom_params": "Custom parameters",
@@ -3518,10 +3527,10 @@
             "hint": "Summarize older turns automatically when nearing the context window"
           },
           "context_count": {
-            "hint": "Number of recent messages kept as context"
+            "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting"
           },
           "context_management": {
-            "hint": "Override global context-management settings for this assistant; off inherits the global settings"
+            "hint": "Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Tool outputs beyond this many characters are offloaded and truncated"
@@ -4042,6 +4051,14 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
+      "stream_admission": {
+        "execution_changed": "The response changed before the retry started. Please try again.",
+        "execution_not_ready": "This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "This model is already generating in the active reply group.",
+        "single_model_required": "Select one model to add to the active reply group.",
+        "target_not_in_live_group": "The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "Unable to retrieve valid table data"
       },
@@ -4056,7 +4073,8 @@
         "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
         "title": "Delete Group Replies"
       },
-      "retry_failed": "Retry failed messages"
+      "retry_failed": "Retry one failed message per model",
+      "retry_skipped_same_model": "Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -4488,14 +4506,27 @@
     },
     "pinned": "Pinned",
     "price": {
+      "add_tier": "Add pricing tier",
+      "cache_fallback_help": "Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "Cache Read Price",
+      "cache_write": "Cache Write Price",
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
+      "field_for_tier": "{{field}}, tier {{index}}",
       "input": "Input Price",
       "million_tokens": "M Tokens",
+      "min_input_tokens": "Starts at input tokens",
+      "min_input_tokens_help": "Inclusive boundary; must be greater than the previous tier.",
       "output": "Output Price",
-      "price": "Price"
+      "price": "Price",
+      "remove_tier": "Remove pricing tier {{index}}",
+      "tier": "Tier {{index}}",
+      "tier_from": "From {{boundary}} input tokens (inclusive)",
+      "use_input_price": "Use input price",
+      "validation_min_input_tokens": "Enter a positive whole number.",
+      "validation_min_input_tokens_order": "The tier must start after the previous tier.",
+      "validation_price": "Enter a price greater than or equal to 0."
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranker",
@@ -6693,6 +6724,10 @@
       "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "Hardware acceleration"
+        },
         "cancel": "Cancel",
         "description": "Models that run locally on your device — download once, then use offline with no API key.",
         "download": "Download",
@@ -7441,6 +7476,20 @@
         "use_all_keys": "Key(s)"
       },
       "collapse_all": "Collapse all",
+      "context_management": {
+        "compress_enabled": "Auto compress",
+        "compress_enabled_description": "Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "Compression model",
+        "compress_model_follow": "Follow current model",
+        "enabled": "Enable context management",
+        "enabled_description": "Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "Recent messages kept",
+        "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
+        "max_messages_unlimited": "Unlimited",
+        "title": "Context Management",
+        "truncate_threshold": "Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
@@ -8391,7 +8440,7 @@
           "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
           "firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "Search service for AI apps with web retrieval results.",
+          "querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
           "tavily": "Search engine optimized for LLMs.",
           "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."

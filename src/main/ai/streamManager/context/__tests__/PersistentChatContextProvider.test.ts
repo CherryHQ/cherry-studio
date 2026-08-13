@@ -5,13 +5,14 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
+import { AiStreamAdmissionError } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -21,6 +22,20 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 // (`createUserMessageWithPlaceholders` → `getPathToNode`) without provider/model
 // resolution machinery. The history is what we assert on.
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
+const aiStreamManager = vi.hoisted(() => ({
+  admitLiveExecutionChange: vi.fn(),
+  awaitExecutionRetry: vi.fn(),
+  broadcastTopicError: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')
+  const base = mockApplicationFactory()
+  const originalGet = base.application.get
+  base.application.get = vi.fn((name: string) => (name === 'AiStreamManager' ? aiStreamManager : originalGet(name)))
+  return base
+})
+
 vi.mock('../modelResolution', () => ({
   resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
   resolveModels: vi.fn(() => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
@@ -126,6 +141,26 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('rejects duplicate mentioned models before reserving any rows', async () => {
+    const childrenBefore = messageService.getChildrenByParentId('a1')
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'a1',
+          userMessageParts: [{ type: 'text', text: 'compare twice' }],
+          mentionedModelIds: [MODEL_ID, MODEL_ID]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('mentionedModelIds must not contain duplicate model ids')
+
+    expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
+  })
+
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
@@ -141,7 +176,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { hasLiveStream: false }
     )
 
-    expect(prepared.userMessageId).toBe(reservedBranch.id)
+    expect(prepared.reservedMessages?.find((message) => message.role === 'user')?.id).toBe(reservedBranch.id)
     expect(messageService.getById(reservedBranch.id)).toMatchObject({
       data: { parts: [{ type: 'text', text: 'continue on reserved branch' }] },
       modelId: MODEL_ID
@@ -322,7 +357,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       },
       { hasLiveStream: false }
     )
-    const userMessageId = submitted.userMessageId!
+    const userMessageId = submitted.reservedMessages?.find((message) => message.role === 'user')?.id as string
 
     expect(getKnowledgeBaseIdsFromParts(messageService.getById(userMessageId).data.parts ?? [])).toEqual(
       knowledgeBaseIds
@@ -457,8 +492,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([selectedModelId], selectedModelId)
     expect(prepared.models[0].modelId).toBe(selectedModelId)
-    expect(messageService.getById(prepared.userMessageId!).modelId).toBe(selectedModelId)
-    expect(messageService.getChildrenByParentId(prepared.userMessageId!)[0].modelId).toBe(selectedModelId)
+    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id as string
+    expect(messageService.getById(userMessageId).modelId).toBe(selectedModelId)
+    expect(messageService.getChildrenByParentId(userMessageId)[0].modelId).toBe(selectedModelId)
   })
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
@@ -506,9 +542,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { hasLiveStream: false }
     )
 
-    // Shared sibling group + multi-model flag.
+    // Shared sibling group.
     expect(prepared.siblingsGroupId).toBe(42)
-    expect(prepared.isMultiModel).toBe(true)
 
     // One execution per model, in mention order, each carrying its own root span.
     expect(prepared.models.map((m) => m.modelId)).toEqual([MODEL_A, MODEL_B])
@@ -517,7 +552,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     // One persisted placeholder per model, both in the shared group, each routed to its
     // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
-    const placeholders = messageService.getChildrenByParentId(prepared.userMessageId!)
+    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id as string
+    const placeholders = messageService.getChildrenByParentId(userMessageId)
     expect(placeholders).toHaveLength(2)
     const byModel = new Map(placeholders.map((p) => [p.modelId, p]))
     const phA = byModel.get(MODEL_A)
@@ -546,6 +582,170 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
     expect(callA[3]).toBe(containerTraceId)
     expect(callB[3]).toBe(containerTraceId)
+  })
+
+  it('appends an @-selected model through another sibling in the live reply group', async () => {
+    const appendedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
+    const settledSiblingModelId = createUniqueModelId('openai', 'gpt-4.1')
+    const [providerKey, modelKey, settledSiblingModelKey] = generateOrderKeySequence(3)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: appendedModelId,
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        presetModelId: 'claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: modelKey
+      },
+      {
+        id: settledSiblingModelId,
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        presetModelId: 'gpt-4.1',
+        name: 'GPT-4.1',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: settledSiblingModelKey
+      }
+    ])
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      {
+        id: appendedModelId,
+        name: 'Claude Sonnet 4.5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-4-5'
+      }
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'u1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'settled sibling' }] },
+      status: 'success',
+      siblingsGroupId: 1,
+      modelId: settledSiblingModelId,
+      createdAt: 250,
+      updatedAt: 250
+    })
+    const userSelectedBranch = messageService.reserveBranch('a2', true)
+    aiStreamManager.admitLiveExecutionChange.mockReturnValueOnce({
+      mode: 'append-live',
+      groupAnchorMessageId: 'a1'
+    })
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a2',
+        mentionedModelIds: [appendedModelId]
+      },
+      { hasLiveStream: true }
+    )
+
+    const children = messageService.getChildrenByParentId('u1')
+    const appended = children.find((message) => message.modelId === appendedModelId)
+    expect(appended).toMatchObject({ parentId: 'u1', status: 'pending', siblingsGroupId: 1 })
+    expect(prepared).toMatchObject({
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'a1',
+        parentAnchorId: 'u1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
+      preserveActiveNode: true,
+      siblingsGroupId: 1
+    })
+    expect(prepared.models[0].request.messageId).toBe(appended?.id)
+    expect(messageService.getById(userSelectedBranch.id).parentId).toBe('a2')
+    expect(topicService.getById('topic-1')?.activeNodeId).toBe(userSelectedBranch.id)
+  })
+
+  it('rejects an @-selected model when only another reply group is live', async () => {
+    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'u1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'different group' }] },
+      status: 'success',
+      siblingsGroupId: 2,
+      modelId: MODEL_ID,
+      createdAt: 250,
+      updatedAt: 250
+    })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1',
+          appendToLiveGroupMessageId: 'a2',
+          mentionedModelIds: [MODEL_ID]
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
+
+    expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
+  })
+
+  it('rejects a live anchor with the same sibling id under another parent', async () => {
+    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
+    await dbh.db.insert(messageTable).values([
+      {
+        id: 'u2',
+        parentId: 'a1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'another turn' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: 'a3',
+        parentId: 'u2',
+        topicId: 'topic-1',
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'pending',
+        siblingsGroupId: 1,
+        modelId: MODEL_ID,
+        createdAt: 400,
+        updatedAt: 400
+      }
+    ])
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1',
+          appendToLiveGroupMessageId: 'a1',
+          mentionedModelIds: [createUniqueModelId('anthropic', 'claude-sonnet-4-5')]
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
   })
 })
 
@@ -725,7 +925,6 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(resolveModels).toHaveBeenCalledWith([ANCHOR_MODEL_ID], ANCHOR_MODEL_ID)
 
     // Single model, no sibling group, anchored back on the assistant row.
-    expect(prepared.isMultiModel).toBe(false)
     expect(prepared.siblingsGroupId).toBeUndefined()
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)

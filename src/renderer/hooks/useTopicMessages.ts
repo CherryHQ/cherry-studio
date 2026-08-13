@@ -14,7 +14,7 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
@@ -37,6 +37,11 @@ const ANCHOR_RAIL_PAGE_SIZE = 150
 interface DisplayBranchMessage {
   message: SharedMessage
   isActiveBranch: boolean
+}
+
+interface BranchProjection {
+  displayMessages: DisplayBranchMessage[]
+  siblingsMap: Record<string, SharedMessage[]>
 }
 
 /**
@@ -72,86 +77,45 @@ function compareMessageOrder(a: SharedMessage, b: SharedMessage): number {
   return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
 }
 
-function getBucketFirstMessage(bucket: SharedMessage[]): SharedMessage {
-  let first = bucket[0]
-  for (let i = 1; i < bucket.length; i++) {
-    if (compareMessageOrder(bucket[i], first) < 0) first = bucket[i]
-  }
-  return first
-}
-
 function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): SharedMessage {
   return bucket.find((m) => m.id === activeMessageId) ?? pickLatest(bucket)
 }
 
-/**
- * Flatten a branch response into a renderer-friendly message list.
- *
- * Visibility rules:
- * - User siblings: alternate branches — only the active one is on the path;
- *   off-path branches go through the sibling navigator.
- * - Assistant siblings: bucket by `modelId`. One bubble per distinct model.
- *   - Buckets are sorted by their first-created member, so switching active
- *     branch does not reshuffle the multi-model tab order.
- *   - The active bucket displays the active member. Off-path buckets display
- *     their most-recent sibling.
- *
- * This handles the three shapes uniformly: pure regenerate (1 bucket of N →
- * 1 bubble), pure multi-model (N buckets of 1 → N bubbles), mixed (N buckets
- * where at least one has >1 → N bubbles, per-model navigator on the larger
- * buckets).
- */
-function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
-  const result: DisplayBranchMessage[] = []
+/** Project display rows and sibling navigation from one shared group classification. */
+function projectBranchMessages(items: BranchMessage[]): BranchProjection {
+  const displayMessages: DisplayBranchMessage[] = []
+  const siblingsMap: Record<string, SharedMessage[]> = {}
   for (const item of items) {
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0 || item.message.role === 'user') {
-      result.push({ message: item.message, isActiveBranch: true })
+    if (!item.siblingsGroup || item.siblingsGroup.length === 0) {
+      displayMessages.push({ message: item.message, isActiveBranch: true })
       continue
     }
 
-    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    const sortedBuckets = Array.from(buckets.values()).sort((a, b) =>
-      compareMessageOrder(getBucketFirstMessage(a), getBucketFirstMessage(b))
-    )
-    for (const bucket of sortedBuckets) {
-      const message = pickDisplayMember(bucket, item.message.id)
-      result.push({ message, isActiveBranch: message.id === item.message.id })
-    }
-  }
-  return result
-}
-
-/**
- * Build a map keyed by each sibling member's id, where the value is the
- * complete ordered group (including the member itself). Members are sorted
- * by `createdAt` so navigator position (`< 2/3 >`) is stable and matches
- * the order in which branches were created.
- *
- * - User siblings → one group per `siblings_group_id` (all members).
- * - Assistant siblings → one group per **(siblings_group_id, modelId)**.
- *   Only buckets with ≥2 members are emitted; singletons don't need a
- *   navigator. Means the mixed case surfaces a per-model navigator only
- *   on the models that were actually regenerated.
- */
-function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[]> {
-  const map: Record<string, SharedMessage[]> = {}
-  for (const item of items) {
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
-
+    const members = [item.message, ...item.siblingsGroup]
     if (item.message.role === 'user') {
-      const group = [item.message, ...item.siblingsGroup].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      for (const member of group) map[member.id] = group
+      displayMessages.push({ message: item.message, isActiveBranch: true })
+      const group = members.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      for (const member of group) siblingsMap[member.id] = group
       continue
     }
 
-    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    for (const bucket of buckets.values()) {
-      if (bucket.length < 2) continue
-      bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      for (const member of bucket) map[member.id] = bucket
+    const buckets = bucketAssistantSiblingsByModel(members)
+    const isMultiModelGroup = buckets.size > 1
+    if (isMultiModelGroup) {
+      for (const message of members.sort(compareMessageOrder)) {
+        displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
+      }
+      continue
     }
+
+    const bucket = buckets.values().next().value!
+    const message = pickDisplayMember(bucket, item.message.id)
+    displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
+    if (bucket.length < 2) continue
+    bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    for (const member of bucket) siblingsMap[member.id] = bucket
   }
-  return map
+  return { displayMessages, siblingsMap }
 }
 
 // ── Hook ──
@@ -204,7 +168,6 @@ export function useTopicMessages(
       })
     }
   })
-
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
@@ -241,12 +204,39 @@ export function useTopicMessages(
   }, [enabled, isLoading, isRefreshing, pagesBelongToTopic, topicId])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
+  const branchProjection = useMemo(() => projectBranchMessages(branchItems), [branchItems])
   const uiMessages = useMemo<CherryUIMessage[]>(
-    () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
-    [branchItems]
+    () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
+    [branchProjection.displayMessages]
   )
+  const loadedMessageIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const item of branchItems) {
+      ids.add(item.message.id)
+      for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
+    }
+    return ids
+  }, [branchItems])
 
-  const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
+  useDataChange(
+    '/topics/:topicId/messages',
+    (effects) => {
+      // Membership effects carry the NEW row ids — never in loadedMessageIds yet.
+      // Route scoping already limits them to this topic, so they must always refetch.
+      if (
+        enabled &&
+        effects.some(
+          (effect) =>
+            !effect.entityIds ||
+            effect.kind === 'membership' ||
+            effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
+        )
+      ) {
+        void mutate()
+      }
+    },
+    { routeParams: { topicId } }
+  )
 
   // `refresh` revalidates every loaded page and returns the flattened
   // uiMessages so `useChatWithHistory`'s on-done handler can push DB truth
@@ -267,7 +257,7 @@ export function useTopicMessages(
 
   return {
     uiMessages,
-    siblingsMap,
+    siblingsMap: branchProjection.siblingsMap,
     isLoading: enabled && (isLoading || isStale),
     isStale,
     refresh,
@@ -287,7 +277,14 @@ export function projectBranchMessagesToUI(
   branchItems: BranchMessage[],
   cache: WeakMap<SharedMessage, CherryUIMessage> = new WeakMap()
 ): CherryUIMessage[] {
-  return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
+  return projectDisplayMessagesToUI(projectBranchMessages(branchItems).displayMessages, cache)
+}
+
+function projectDisplayMessagesToUI(
+  displayMessages: DisplayBranchMessage[],
+  cache: WeakMap<SharedMessage, CherryUIMessage>
+): CherryUIMessage[] {
+  return displayMessages.map(({ message, isActiveBranch }) => {
     const cached = cache.get(message)
     if (cached && cached.metadata?.isActiveBranch === isActiveBranch) return cached
     const projected = sharedMessageToUIMessage(message)

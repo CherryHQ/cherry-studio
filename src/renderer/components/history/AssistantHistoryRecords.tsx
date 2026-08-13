@@ -355,7 +355,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.lastActivityAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {
