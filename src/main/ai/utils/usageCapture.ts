@@ -35,14 +35,23 @@ function cloneAndFreeze<T>(value: T): Readonly<T> {
 }
 
 function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['currency'] | undefined {
-  const currencies = [
-    pricing.input?.currency,
-    pricing.output?.currency,
-    pricing.cacheRead?.currency,
-    pricing.cacheWrite?.currency
-  ].filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
+  const tokenRates = [
+    pricing.input,
+    pricing.output,
+    pricing.cacheRead,
+    pricing.cacheWrite,
+    ...(pricing.inputTokenTiers ?? []).flatMap((tier) => [tier.input, tier.output, tier.cacheRead, tier.cacheWrite])
+  ].filter((rate) => rate !== undefined)
+  const explicitCurrencies = tokenRates
+    .map((rate) => rate.currency)
+    .filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
+  if (explicitCurrencies.length === 0) return undefined
 
-  if (currencies.length === 0 || currencies.some((currency) => currency !== currencies[0])) return undefined
+  const currencies = pricing.inputTokenTiers?.length
+    ? tokenRates.map((rate) => rate.currency ?? 'USD')
+    : explicitCurrencies
+
+  if (currencies.some((currency) => currency !== currencies[0])) return undefined
   return currencies[0]
 }
 
@@ -63,6 +72,21 @@ export function createAiUsagePricingSnapshot(
       : {}),
     ...(pricing.cacheWrite?.perMillionTokens != null
       ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
+      : {}),
+    ...(pricing.inputTokenTiers?.length
+      ? {
+          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
+            minInputTokens: tier.minInputTokens,
+            ...(tier.input.perMillionTokens != null ? { inputPerMillionTokens: tier.input.perMillionTokens } : {}),
+            ...(tier.output.perMillionTokens != null ? { outputPerMillionTokens: tier.output.perMillionTokens } : {}),
+            ...(tier.cacheRead?.perMillionTokens != null
+              ? { cacheReadPerMillionTokens: tier.cacheRead.perMillionTokens }
+              : {}),
+            ...(tier.cacheWrite?.perMillionTokens != null
+              ? { cacheWritePerMillionTokens: tier.cacheWrite.perMillionTokens }
+              : {})
+          }))
+        }
       : {}),
     ...(pricing.perImage
       ? {
