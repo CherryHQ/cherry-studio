@@ -322,6 +322,10 @@ function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> =
     pages: [],
     refetch: vi.fn(),
     topics: assistantDataMocks.topics,
+    // The mocked mapApiTopicToRendererTopic is the identity, so the shared
+    // renderer view is the same list.
+    rendererTopics: assistantDataMocks.topics,
+    orderSignature: '',
     ...overrides
   } as unknown as AssistantTopicsSource
 }

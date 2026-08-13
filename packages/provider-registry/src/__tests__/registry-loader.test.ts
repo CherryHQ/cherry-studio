@@ -94,6 +94,29 @@ describe('RegistryLoader override index — exact apiModelId vs normalized colli
   })
 })
 
+describe('RegistryLoader override index — prefixed id resolves to its own size, not a same-family sibling', () => {
+  // `gpt-oss-20b` and `gpt-oss-120b` collapse to the SAME size-agnostic key (`gpt-oss`), and 120b is listed
+  // FIRST, so the first-wins size-agnostic index returns the 120b row for any id that misses the exact keys.
+  // A gateway that re-namespaces a model (`nvidia/gpt-oss-20b`) misses the exact override keys, so without
+  // a size-preserving fallback it lands on the 120b override — the wrong size's metadata and display name.
+  const rows = [
+    { providerId: 'nvidia', modelId: 'gpt-oss-120b', apiModelId: 'openai/gpt-oss-120b' },
+    { providerId: 'nvidia', modelId: 'gpt-oss-20b', apiModelId: 'openai/gpt-oss-20b' }
+  ]
+
+  it('a size-colliding prefixed id resolves to its own-size row', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss-20b')?.modelId).toBe('gpt-oss-20b')
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss-120b')?.modelId).toBe('gpt-oss-120b')
+  })
+
+  it('exact canonical and apiModelId forms still resolve directly', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('nvidia', 'gpt-oss-20b')?.apiModelId).toBe('openai/gpt-oss-20b')
+    expect(loader.findOverride('nvidia', 'openai/gpt-oss-120b')?.modelId).toBe('gpt-oss-120b')
+  })
+})
+
 describe('RegistryLoader.findModel — registry-tag (colon) size/quant ids', () => {
   // `gpt-oss-20b` and `gpt-oss-120b` collapse to the SAME size-agnostic key (`gpt-oss`). `120b` is listed
   // FIRST, so the first-wins size-agnostic index would return `gpt-oss-120b` for a bare `gpt-oss` lookup —
