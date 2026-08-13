@@ -883,11 +883,11 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
  * relativePath yet, so it keys off the source basename and detection still fires;
  * an existing item keys off its deduped relativePath, so `replace` targets only
  * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). Both sides run through
- * `sanitizeFilename` so the key is the slot the item occupies under `raw/` rather than
- * the name it was imported under — an add-input's raw `CON.txt` has to match the `_.txt`
- * the storage layer will actually give it, the same way a note's raw title is slugged
- * below. note keys off the same
+ * source basename (`test.md`, `test_2.md`, `test_3.md`).
+ *
+ * file/directory keys are NOT used for add-conflict detection — `addConflicts.ts` derives
+ * those itself, because matching an add-input against the slot it will be stored under needs
+ * the host's reading of `\` and this module cannot have `node:path`. note keys off the same
  * {@link getKnowledgeNoteName} the display title uses, normalized through
  * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
  * already-indexed note is stored under. url stays separate from its display title: it keys off the
@@ -899,7 +899,7 @@ export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): str
   switch (item.type) {
     case 'file':
     case 'directory':
-      return sanitizeFilename(getKnowledgePathBasename(data.relativePath || data.source || ''))
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'note': {
       const name = getKnowledgeNoteName(data)
       // An unnamed note has no real name to collide on — keep the empty key so detection skips it.

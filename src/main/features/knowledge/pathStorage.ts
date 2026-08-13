@@ -122,7 +122,13 @@ export async function probeKnowledgeSourcePath(absolutePath: string): Promise<Pa
  * URL/note snapshot paths already run, so all four producers now agree.
  */
 export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativeFilePath {
-  const fileName = sanitizeFilename(path.basename(sourcePath))
+  const original = path.basename(sourcePath)
+  const fileName = sanitizeFilename(original)
+  // The stored name is also the displayed one, so a rename here is why the list shows
+  // something the user did not pick. Nothing else records it.
+  if (fileName !== original) {
+    logger.info('Renamed knowledge material to a portable name', { original, stored: fileName })
+  }
   assertSafeKnowledgeRelativePath(fileName)
   return fileName
 }
@@ -155,7 +161,6 @@ export function reserveImportedFileRelativePath(
 ): PosixRelativeFilePath {
   // `reservedPaths` stays literal — `deleteKnowledgeItemFiles` reads the same collector's
   // output as real paths to unlink — so occupancy is tested against a folded copy instead.
-  // Rebuilt per reservation, which each caller follows with a file copy; the I/O dominates.
   const occupied = new Set([...reservedPaths].map(foldKnowledgeRelativePath))
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
     if (occupied.has(foldKnowledgeRelativePath(candidate))) {

@@ -241,6 +241,81 @@ describe('expandDirectoryOwnerToTree', () => {
     expect(new Set(stored)).toEqual(new Set(['notes/a_b.md', 'notes/a_b_1.md']))
   })
 
+  it('keeps a folder and a file apart when sanitizing gives them the same name', async () => {
+    // They share one namespace on disk: whichever lands second would either write a file
+    // over a directory or mkdir over a file, aborting the whole import.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(path.join(rootDir, 'a<b.md'), { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a<b.md', 'inner.md'), '# inner')
+    realFs.writeFileSync(path.join(rootDir, 'a>b.md'), '# leaf')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = JSON.stringify(children)
+    expect(stored).toContain('notes/a_b.md/inner.md')
+    expect(stored).toContain('notes/a_b_1.md')
+  })
+
+  it('keeps a filename that contains a backslash as one segment on POSIX', async () => {
+    // The scan reports the entry name verbatim instead of a precomputed relative path, so
+    // there is no `\` → `/` fold left to invent a directory level here (#17429).
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a\\b.md'), '# one file')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    expect(children).toEqual([
+      expect.objectContaining({ type: 'file', data: expect.objectContaining({ relativePath: 'notes/a_b.md' }) })
+    ])
+  })
+
+  it('treats two spellings of the same Unicode name as one slot', async () => {
+    // ext4 keeps NFC and NFD apart; macOS `readdir` hands back NFD for what Linux wrote as
+    // NFC. Either way they are one file once the base is restored, so both must be stored.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, `${'café'.normalize('NFC')}.md`), '# nfc')
+    const nfdName = `${'café'.normalize('NFD')}.md`
+    if (!realFs.existsSync(path.join(rootDir, nfdName))) {
+      realFs.writeFileSync(path.join(rootDir, nfdName), '# nfd')
+    }
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = children.map((child) => (child.type === 'file' ? child.data.relativePath : null))
+    // One file on a normalization-insensitive volume, two on ext4 — and where there are two,
+    // the second must not have claimed the first one's slot.
+    expect(new Set(stored).size).toBe(stored.length)
+    if (stored.length === 2) {
+      expect(stored.some((value) => value?.endsWith('_1.md'))).toBe(true)
+    }
+  })
+
   it('skips empty nested directories while preserving non-empty directory hierarchy', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'workspace')

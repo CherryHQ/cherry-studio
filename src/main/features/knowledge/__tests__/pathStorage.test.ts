@@ -121,8 +121,14 @@ describe('pathStorage relative-path safety', () => {
       expect(getKnowledgeSourceRelativePath(`/some/dir/${fileName}`)).toBe(expected)
     })
 
-    it('truncates a name past the filesystem limit', () => {
-      expect(getKnowledgeSourceRelativePath(`/some/dir/${'x'.repeat(300)}.txt`)).toHaveLength(255)
+    it('shortens a name past the filesystem limit without dropping its extension', () => {
+      // Length alone is not the contract. Every downstream decision — whether the file
+      // processor runs, which reader is picked, whether an `.md` slot is reserved — reads
+      // the extension off this stored path, so a truncation that ate `.pdf` would index a
+      // PDF as plain text and still report the item completed.
+      const stored = getKnowledgeSourceRelativePath(`/some/dir/${'x'.repeat(300)}.pdf`)
+      expect(stored.length).toBeLessThanOrEqual(255)
+      expect(stored.endsWith('.pdf')).toBe(true)
     })
   })
 

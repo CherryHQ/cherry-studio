@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { foldKnowledgeRelativePath, nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts, sanitizeFilename } from '@shared/utils/file'
 
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
+const logger = loggerService.withContext('Knowledge:DirectorySource')
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
@@ -14,8 +16,11 @@ interface DirectoryEntryNode {
   type: 'file' | 'folder'
   /** Absolute path of the entry on disk. */
   externalPath: string
-  /** POSIX path of the entry relative to the scanned root, prefixed with `/`. */
-  treePath: string
+  /**
+   * The entry's own name as `readdir` reported it — one segment, never a path, so the stored
+   * path can be assembled segment by segment while descending (sanitize + claim each level).
+   */
+  name: string
   children?: DirectoryEntryNode[]
 }
 
@@ -30,11 +35,7 @@ export type ExpandedDirectoryNode =
       data: Pick<FileItemData, 'source' | 'relativePath'>
     }
 
-async function readDirectoryTree(
-  dirPath: string,
-  signal: AbortSignal,
-  rootPath: string = dirPath
-): Promise<DirectoryEntryNode[]> {
+async function readDirectoryTree(dirPath: string, signal: AbortSignal): Promise<DirectoryEntryNode[]> {
   signal.throwIfAborted()
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   signal.throwIfAborted()
@@ -48,15 +49,13 @@ async function readDirectoryTree(
     }
 
     const entryPath = path.join(dirPath, entry.name)
-    const relativePath = path.relative(rootPath, entryPath)
-    const treePath = `/${relativePath.replace(/\\/g, '/')}`
 
     if (entry.isDirectory()) {
       nodes.push({
         type: 'folder',
-        treePath,
+        name: entry.name,
         externalPath: entryPath,
-        children: await readDirectoryTree(entryPath, signal, rootPath)
+        children: await readDirectoryTree(entryPath, signal)
       })
       continue
     }
@@ -64,13 +63,47 @@ async function readDirectoryTree(
     if (entry.isFile()) {
       nodes.push({
         type: 'file',
-        treePath,
+        name: entry.name,
         externalPath: entryPath
       })
     }
   }
 
   return nodes
+}
+
+/**
+ * `name` made portable, recording the rename — it is also the name the item will be listed
+ * under, so this log is the only place that explains why it is not what the user picked.
+ */
+function sanitizeSegment(name: string): string {
+  const sanitized = sanitizeFilename(name)
+  if (sanitized !== name) {
+    logger.info('Renamed knowledge material to a portable name', { original: name, stored: sanitized })
+  }
+  return sanitized
+}
+
+/**
+ * The first variant of `desiredPath` no sibling has taken, folded so a slot that only a
+ * case-sensitive filesystem keeps apart counts as taken.
+ *
+ * Files and directories share one namespace here because they share one on disk: whichever
+ * of a folder `a<b.md` and a file `a>b.md` lands second would abort the whole import.
+ */
+function freeSlot(desiredPath: string, isFile: boolean, claimedPaths: Set<string>): string {
+  // A folder named `report.v2` dedupes to `report.v2_1`, not `report_1.v2`.
+  return nextFreeKnowledgeRelativePath(
+    desiredPath,
+    (candidate) => !claimedPaths.has(foldKnowledgeRelativePath(candidate)),
+    isFile
+  )
+}
+
+function claimSlot(desiredPath: string, isFile: boolean, claimedPaths: Set<string>): string {
+  const claimed = freeSlot(desiredPath, isFile, claimedPaths)
+  claimedPaths.add(foldKnowledgeRelativePath(claimed))
+  return claimed
 }
 
 async function expandDirectoryNode(
@@ -86,31 +119,11 @@ async function expandDirectoryNode(
       return null
     }
 
-    // Namespace each file under the owner directory's (deduped) basename and keep
-    // its subtree path (from `treePath`, already POSIX) so siblings sharing a
-    // basename across subdirectories don't collide and the hierarchy survives.
-    // The whole tree resolves under the base material root (raw/) via the helper.
-    // Sanitized per segment, not over the whole path: the separators are structure the
-    // scan produced, while each segment is a real on-disk name that may have no Windows
-    // spelling (see getKnowledgeSourceRelativePath for what that costs a backup).
-    const subtreePath = node.treePath
-      .replace(/^\/+/, '')
-      .split('/')
-      .map((segment) => sanitizeFilename(segment))
-      .join('/')
-    // Two scanned files can want one slot even though the scan found them under distinct
-    // names: sanitizing maps `a<b.md` and `a>b.md` onto `a_b.md`, and a case-sensitive
-    // source directory can hold both `a.md` and `A.md`, which are one file wherever the
-    // backup is restored. The copy below overwrites, so an unclaimed collision loses a
-    // file silently.
-    const materialPath = nextFreeKnowledgeRelativePath(
-      `${pathPrefix}/${subtreePath}`,
-      (candidate) => !claimedPaths.has(foldKnowledgeRelativePath(candidate))
-    )
-    claimedPaths.add(foldKnowledgeRelativePath(materialPath))
-    // Both halves were guarded on their own (`pathPrefix` in expandDirectory,
-    // `treePath` by the tree layer), but the join is a new path — assert it here,
-    // which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
+    // Sanitized per segment (here, one segment per recursion level) rather than over the
+    // assembled path, which would turn every `/` into `_`.
+    const materialPath = claimSlot(`${pathPrefix}/${sanitizeSegment(node.name)}`, true, claimedPaths)
+    // The join is a new path even though both halves were guarded on their own — assert it
+    // here, which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
     assertSafeKnowledgeRelativePath(materialPath)
     // Thread the abort signal so a hung single-file copy can be interrupted, and allow
     // overwrite so a retry after a mid-scan abort re-copies over its own leftover files
@@ -131,10 +144,13 @@ async function expandDirectoryNode(
     }
   }
 
+  // Claimed only after descending, so a folder holding nothing indexable does not consume a
+  // name a later sibling could have had. Named first because children build on it.
+  const dirPath = freeSlot(`${pathPrefix}/${sanitizeSegment(node.name)}`, false, claimedPaths)
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied, claimedPaths)
+    const expandedChild = await expandDirectoryNode(baseId, dirPath, child, signal, onFileCopied, claimedPaths)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -143,6 +159,7 @@ async function expandDirectoryNode(
   if (children.length === 0) {
     return null
   }
+  claimedPaths.add(foldKnowledgeRelativePath(dirPath))
 
   return {
     type: 'directory',
@@ -173,7 +190,7 @@ export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevel
   const rootName = path.parse(resolvedPath).root.replace(/[:\\/]+/g, '')
   // Sanitized for the same reason the leaves are — the prefix is the first segment of
   // every child's stored path, so one unportable folder name taints the whole subtree.
-  const sourceName = sanitizeFilename(path.basename(resolvedPath)) || rootName || 'root'
+  const sourceName = sanitizeSegment(path.basename(resolvedPath)) || rootName || 'root'
   const pathPrefix = nextFreeKnowledgeRelativePath(
     sourceName,
     // `reservedTopLevelNames` holds folded keys — `docs` and `Docs` are one namespace on a
@@ -217,9 +234,8 @@ export async function expandDirectoryOwnerToTree(
     copiedFiles += 1
     onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
   }
-  // Scoped to this expansion: everything it writes lives under `pathPrefix`, which the
-  // caller already claimed against the rest of the base, and a retry reclaims the whole
-  // prefix before rescanning — so there is nothing outside to collide with.
+  // Scoped to this expansion: everything it writes lives under the caller-claimed
+  // `pathPrefix`, and a retry reclaims that whole prefix before rescanning.
   const claimedPaths = new Set<string>()
 
   for (const child of children) {

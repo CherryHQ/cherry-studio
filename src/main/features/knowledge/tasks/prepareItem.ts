@@ -83,8 +83,8 @@ async function prepareDirectoryForRuntime(
  * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
  *
  * Holds folded keys, not literal names — `docs` and `Docs` are one namespace once the base
- * is restored onto a case-insensitive filesystem. Matches what the migrator's
- * `reservedTopLevelNames` has always held.
+ * is restored onto a case-insensitive filesystem. Same key the migrator's
+ * `reservedTopLevelNames` uses.
  */
 function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Set<string> {
   const items = knowledgeItemService.getItemsByBaseId(baseId)

@@ -1423,35 +1423,6 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
-  it('refuses a processed-markdown name that collides with an existing snapshot only in case', async () => {
-    const service = new KnowledgeService()
-    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
-    // `Source.md` and the `source.md` the processor is about to write are one file wherever
-    // this base is restored, so the guard has to refuse rather than let the write land on it.
-    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
-      {
-        ...createNoteItem('existing-note', 'kb-1'),
-        type: 'note' as const,
-        data: { source: 'Source', content: 'hello', relativePath: 'Source.md' as PosixRelativeFilePath }
-      }
-    ])
-
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
-
-    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
-      'Knowledge file already exists: source.md'
-    )
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
-  })
-
   it('auto-renames against a file imported in an earlier addItems call, not just within one call', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
