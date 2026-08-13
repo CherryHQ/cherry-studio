@@ -930,6 +930,42 @@ describe('PiRuntimeConnection', () => {
     expect(done).toBe(true)
   })
 
+  it('does not emit provider usage after close starts', async () => {
+    let resolveProviderResult!: (value: typeof mocks.providerResult) => void
+    mocks.providerStreamSimple.mockImplementationOnce(() => ({
+      result: () => new Promise((resolve) => (resolveProviderResult = resolve))
+    }))
+    let resolveAbort!: () => void
+    mocks.abort.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveAbort = resolve)))
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {})
+
+    const closing = conn.close()
+    resolveProviderResult(mocks.providerResult)
+    await Promise.resolve()
+    resolveAbort()
+    await closing
+
+    expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
+  })
+
+  it('does not complete a manual compact turn after close starts', async () => {
+    let resolveCompact!: (value: object) => void
+    mocks.compact.mockImplementationOnce(() => new Promise((resolve) => (resolveCompact = resolve)))
+    let resolveAbort!: () => void
+    mocks.abort.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveAbort = resolve)))
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact'))
+
+    const closing = conn.close()
+    resolveCompact({})
+    await Promise.resolve()
+    resolveAbort()
+    await closing
+
+    expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'turn-complete')).toBe(false)
+  })
+
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
     expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])

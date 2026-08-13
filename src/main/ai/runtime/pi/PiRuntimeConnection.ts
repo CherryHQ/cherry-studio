@@ -565,6 +565,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
   private recordProviderInvocation(message: AssistantMessage): void {
+    if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
 
@@ -621,6 +622,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private maybeCompleteManualCompactTurn(): void {
+    if (this.closed) return
     if (!this.manualCompactInFlight) return
     this.manualCompactInFlight = false
     this.eventQueue.push({ type: 'turn-complete' })
