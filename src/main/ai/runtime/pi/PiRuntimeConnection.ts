@@ -13,6 +13,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { TRACER_NAME } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -27,6 +28,7 @@ import {
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { ROOT_CONTEXT, type Span, SpanKind, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -46,6 +48,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
+  AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
@@ -89,6 +92,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly generation = randomUUID()
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly committedInvocationIds = new Set<string>()
+  private readonly providerSpans = new Set<Span>()
+  private readonly toolSpans = new Map<string, Span>()
   private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
   private session?: AgentSession
   private mcpBridge?: PiMcpToolBridge
@@ -107,6 +112,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  private traceContext?: AgentRuntimeTraceContext
   private _usageCapture?: AgentSessionUsageCapture
   private apiProviderSourceId?: string
   private promptRunActive = false
@@ -125,6 +131,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+    this.traceContext = input.trace
   }
 
   async start(): Promise<this> {
@@ -170,7 +177,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message) => this.recordProviderInvocation(message)
+      (message) => this.recordProviderInvocation(message),
+      (model) => this.startProviderSpan(model)
     )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
@@ -408,6 +416,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
+  refreshTraceContext(context: AgentRuntimeTraceContext): void {
+    this.traceContext = context
+  }
+
   /**
    * Reconcile Pi against the current agent snapshot. Disabled tools tighten immediately;
    * permission-mode changes wait for an idle boundary. Any spawn-frozen difference is
@@ -493,6 +505,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.session?.dispose()
     this.session = undefined
+    this.endOpenTraceSpans('pi connection closed')
     await this.unregisterApiProvider()
     await this.mcpBridge?.close()
     this.mcpBridge = undefined
@@ -502,12 +515,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private handlePiEvent(event: AgentSessionEvent): void {
     if (this.closed) return
 
+    if (event.type === 'tool_execution_start') this.startToolSpan(event)
+
     if (isUserMessageStart(event) && this.pendingSteers.length > 0) {
       const delivered = this.takeDeliveredSteers()
       if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
     }
 
     this.adapter.handleEvent(event)
+
+    if (event.type === 'tool_execution_end') this.endToolSpan(event)
 
     if (event.type === 'turn_end') {
       const stopReason = (event.message as { stopReason?: string }).stopReason
@@ -535,6 +552,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       this.lastAgentError = lastErrorMessage(event.messages)
+      this.endOpenToolSpans(this.lastAgentError ?? 'pi agent run ended before tool completion')
       // Defensive compatibility for SDK-originated runs not started through send(). Normal Cherry
       // turns settle from session.prompt(), after retry/compaction continuation has fully drained.
       if (!this.promptRunActive) this.finishPromptRun()
@@ -608,6 +626,117 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
+  private startProviderSpan(model: { provider?: string; id?: string }): PiProviderSpanObserver | undefined {
+    const span = this.startSpan('pi.generate_content', SpanKind.CLIENT, {
+      'gen_ai.operation.name': 'chat',
+      ...(model.provider ? { 'gen_ai.provider.name': model.provider } : {}),
+      ...(model.id ? { 'gen_ai.request.model': model.id } : {})
+    })
+    if (!span) return undefined
+    this.providerSpans.add(span)
+    return {
+      complete: (message) => {
+        if (!this.providerSpans.delete(span)) return
+        try {
+          const inputTokens =
+            finiteTokenCount(message.usage.input) +
+            finiteTokenCount(message.usage.cacheRead) +
+            finiteTokenCount(message.usage.cacheWrite)
+          span.setAttribute('gen_ai.response.model', message.responseModel?.trim() || message.model || this.modelId)
+          if (message.responseId?.trim()) span.setAttribute('gen_ai.response.id', message.responseId.trim())
+          span.setAttribute('gen_ai.response.finish_reasons', [message.stopReason])
+          span.setAttribute('gen_ai.usage.input_tokens', inputTokens)
+          span.setAttribute('gen_ai.usage.output_tokens', finiteTokenCount(message.usage.output))
+          span.setAttribute('gen_ai.usage.cache_read_tokens', finiteTokenCount(message.usage.cacheRead))
+          span.setAttribute('gen_ai.usage.cache_write_tokens', finiteTokenCount(message.usage.cacheWrite))
+          if (message.usage.reasoning !== undefined) {
+            span.setAttribute('gen_ai.usage.reasoning_tokens', finiteTokenCount(message.usage.reasoning))
+          }
+        } catch (error) {
+          logger.warn('Failed to annotate Pi provider span', { error })
+        }
+        const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
+        finishPiSpan(
+          span,
+          failed
+            ? { code: SpanStatusCode.ERROR, message: message.errorMessage ?? message.stopReason }
+            : { code: SpanStatusCode.OK }
+        )
+      },
+      error: (error) => {
+        if (!this.providerSpans.delete(span)) return
+        const failure = error instanceof Error ? error : new Error(String(error))
+        finishPiSpan(span, { code: SpanStatusCode.ERROR, message: failure.message }, failure)
+      }
+    }
+  }
+
+  private startToolSpan(event: Extract<AgentSessionEvent, { type: 'tool_execution_start' }>): void {
+    const previous = this.toolSpans.get(event.toolCallId)
+    if (previous) this.endSpanWithError(previous, 'duplicate pi tool execution start')
+    const span = this.startSpan('pi.execute_tool', SpanKind.INTERNAL, {
+      'gen_ai.operation.name': 'execute_tool',
+      'gen_ai.tool.name': event.toolName,
+      'gen_ai.tool.call.id': event.toolCallId
+    })
+    if (span) this.toolSpans.set(event.toolCallId, span)
+  }
+
+  private endToolSpan(event: Extract<AgentSessionEvent, { type: 'tool_execution_end' }>): void {
+    const span = this.toolSpans.get(event.toolCallId)
+    if (!span) return
+    this.toolSpans.delete(event.toolCallId)
+    finishPiSpan(
+      span,
+      event.isError ? { code: SpanStatusCode.ERROR, message: `${event.toolName} failed` } : { code: SpanStatusCode.OK }
+    )
+  }
+
+  private startSpan(name: string, kind: SpanKind, attributes: Record<string, string>): Span | undefined {
+    const context = this.traceContext
+    if (!context) return undefined
+    try {
+      const parent = trace.setSpanContext(ROOT_CONTEXT, {
+        traceId: context.traceId,
+        spanId: context.rootSpanId,
+        traceFlags: TraceFlags.SAMPLED,
+        isRemote: true
+      })
+      return trace.getTracer(TRACER_NAME).startSpan(
+        name,
+        {
+          kind,
+          attributes: {
+            ...attributes,
+            'trace.topicId': context.topicId,
+            ...(context.modelName ? { 'trace.modelName': context.modelName } : {}),
+            'cs.agent_session_id': context.sessionId,
+            'cs.agent_turn_id': context.turnId
+          }
+        },
+        parent
+      )
+    } catch (error) {
+      logger.warn(`Failed to start Pi span ${name}`, { error })
+      return undefined
+    }
+  }
+
+  private endOpenToolSpans(message: string): void {
+    for (const span of this.toolSpans.values()) this.endSpanWithError(span, message)
+    this.toolSpans.clear()
+  }
+
+  private endOpenTraceSpans(message: string): void {
+    this.endOpenToolSpans(message)
+    for (const span of this.providerSpans) this.endSpanWithError(span, message)
+    this.providerSpans.clear()
+  }
+
+  private endSpanWithError(span: Span, message: string): void {
+    finishPiSpan(span, { code: SpanStatusCode.ERROR, message })
+  }
+
   private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
     if (event.errorMessage || event.aborted) {
       // A failed manual /compact is a host turn: settle it with EXACTLY ONE terminal error (never
@@ -675,14 +804,48 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage) => void
+  onComplete: (message: AssistantMessage) => void,
+  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
 ): ProviderConfig {
   return {
     ...config,
     streamSimple: (model, context, options) => {
-      const stream = streamSimple(model, context, options)
-      void stream.result().then(onComplete, () => undefined)
+      const traceObserver = startTrace(model)
+      let stream: ReturnType<typeof streamSimple>
+      try {
+        stream = streamSimple(model, context, options)
+      } catch (error) {
+        traceObserver?.error(error)
+        throw error
+      }
+      void stream.result().then(
+        (message) => {
+          traceObserver?.complete(message)
+          onComplete(message)
+        },
+        (error) => traceObserver?.error(error)
+      )
       return stream
+    }
+  }
+}
+
+interface PiProviderSpanObserver {
+  complete(message: AssistantMessage): void
+  error(error: unknown): void
+}
+
+function finishPiSpan(span: Span, status: { code: SpanStatusCode; message?: string }, error?: Error): void {
+  try {
+    span.setStatus(status)
+    if (error) span.recordException(error)
+  } catch (traceError) {
+    logger.warn('Failed to finalize Pi span metadata', { error: traceError })
+  } finally {
+    try {
+      span.end()
+    } catch (traceError) {
+      logger.warn('Failed to end Pi span', { error: traceError })
     }
   }
 }

@@ -1,6 +1,7 @@
 import type * as NodeFs from 'node:fs'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
@@ -19,6 +20,16 @@ const AUTONOMY_TOOL_NAMES = [
   'mcp__agent-memory__memory'
 ]
 
+interface FakeSpan {
+  name: string
+  options: Record<string, any>
+  parent: unknown
+  setAttribute: ReturnType<typeof vi.fn>
+  setStatus: ReturnType<typeof vi.fn>
+  recordException: ReturnType<typeof vi.fn>
+  end: ReturnType<typeof vi.fn>
+}
+
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
   getAgent: vi.fn(),
@@ -33,6 +44,8 @@ const mocks = vi.hoisted(() => ({
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
+  startSpan: vi.fn(),
+  spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
   // agent MCP collaborators
   listChannels: vi.fn(),
@@ -134,6 +147,8 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
+
+vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
@@ -341,6 +356,20 @@ beforeEach(() => {
     timestamp: 1,
     usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 }
   }
+  mocks.spans.length = 0
+  mocks.startSpan.mockImplementation((name: string, options: Record<string, any>, parent: unknown) => {
+    const span: FakeSpan = {
+      name,
+      options,
+      parent,
+      setAttribute: vi.fn(),
+      setStatus: vi.fn(),
+      recordException: vi.fn(),
+      end: vi.fn()
+    }
+    mocks.spans.push(span)
+    return span
+  })
   mocks.providerStreamSimple.mockImplementation(() => ({ result: () => Promise.resolve(mocks.providerResult) }))
   mocks.reload.mockResolvedValue(undefined)
   mocks.sessionCreate.mockReturnValue({})
@@ -408,6 +437,82 @@ describe('PiRuntimeConnection', () => {
 
     providerConfig.streamSimple({}, [], {})
     await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
+  it('records provider and parallel tool spans in the active agent-session trace', async () => {
+    const traceContext = {
+      topicId: 'agent-session:sess-1',
+      traceId: 'a'.repeat(32),
+      rootSpanId: 'b'.repeat(16),
+      sessionId: SESSION_ID,
+      turnId: 'turn-1',
+      modelName: 'm'
+    }
+    const connection = await new PiRuntimeConnection({ ...input, trace: traceContext }).start()
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+
+    providerConfig.streamSimple({ provider: 'p', id: 'm' }, {}, {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const providerSpan = mocks.spans.find((span) => span.name === 'pi.generate_content')!
+    expect(trace.getSpanContext(providerSpan.parent as never)).toMatchObject({
+      traceId: traceContext.traceId,
+      spanId: traceContext.rootSpanId
+    })
+    expect(providerSpan.options.attributes).toMatchObject({
+      'gen_ai.provider.name': 'p',
+      'gen_ai.request.model': 'm',
+      'cs.agent_session_id': SESSION_ID,
+      'cs.agent_turn_id': 'turn-1'
+    })
+    expect(providerSpan.setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.OK })
+    expect(providerSpan.end).toHaveBeenCalledOnce()
+
+    const cb = mocks.subscribeCb!
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} } as AgentSessionEvent)
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} } as AgentSessionEvent)
+    cb({ type: 'tool_execution_end', toolCallId: 'tool-b', toolName: 'bash', result: {}, isError: true })
+    cb({ type: 'tool_execution_end', toolCallId: 'tool-a', toolName: 'read', result: {}, isError: false })
+
+    const toolSpans = mocks.spans.filter((span) => span.name === 'pi.execute_tool')
+    expect(toolSpans).toHaveLength(2)
+    expect(toolSpans[0].options.attributes['gen_ai.tool.call.id']).toBe('tool-a')
+    expect(toolSpans[0].setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.OK })
+    expect(toolSpans[1].options.attributes['gen_ai.tool.call.id']).toBe('tool-b')
+    expect(toolSpans[1].setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.ERROR, message: 'bash failed' })
+    expect(toolSpans.every((span) => span.end.mock.calls.length === 1)).toBe(true)
+
+    await connection.close()
+  })
+
+  it('ends unfinished Pi trace spans when the connection closes', async () => {
+    const connection = await new PiRuntimeConnection({
+      ...input,
+      trace: {
+        topicId: 'agent-session:sess-1',
+        traceId: 'a'.repeat(32),
+        rootSpanId: 'b'.repeat(16),
+        sessionId: SESSION_ID,
+        turnId: 'turn-1'
+      }
+    }).start()
+    const providerResult = createDeferred<any>()
+    mocks.providerStreamSimple.mockReturnValueOnce({ result: () => providerResult.promise })
+    mocks.registerProvider.mock.calls[0][1].streamSimple({ provider: 'p', id: 'm' }, {}, {})
+    mocks.subscribeCb!({
+      type: 'tool_execution_start',
+      toolCallId: 'tool-open',
+      toolName: 'bash',
+      args: {}
+    } as AgentSessionEvent)
+
+    await connection.close()
+
+    expect(mocks.spans).toHaveLength(2)
+    for (const span of mocks.spans) {
+      expect(span.setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.ERROR, message: 'pi connection closed' })
+      expect(span.end).toHaveBeenCalledOnce()
+    }
   })
 
   it('unregisters its provider when materialization fails after registration', async () => {
