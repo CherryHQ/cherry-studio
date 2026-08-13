@@ -8,6 +8,11 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
+const persistedSessionMocks = vi.hoisted(() => ({
+  bindings: new Map<string, string>(),
+  sessions: new Map<string, Record<string, unknown>>()
+}))
+
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
   class MockAgentSessionWorkspaceError extends Error {}
   return {
@@ -49,10 +54,18 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: vi.fn(),
-    create: vi.fn()
-  }
+  agentSessionService: (() => {
+    const create = vi.fn()
+    return {
+      getById: vi.fn((id: string) => persistedSessionMocks.sessions.get(id)),
+      create,
+      createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
+        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        persistedSessionMocks.sessions.set(id, { ...template, id })
+      }),
+      notifyReadModelChange: vi.fn()
+    }
+  })()
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
@@ -74,7 +87,22 @@ vi.mock('@data/services/AgentChannelService', () => ({
       .fn()
       .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
     updateChannel: vi.fn().mockResolvedValue(null),
-    findBySessionId: vi.fn().mockResolvedValue(null)
+    findBySessionId: vi.fn().mockResolvedValue(null),
+    getConversationSessionId: vi.fn((channelId: string, conversationKey: string) =>
+      persistedSessionMocks.bindings.get(`${channelId}:${conversationKey}`)
+    ),
+    getConversationSessionIdTx: vi.fn((_tx: unknown, channelId: string, conversationKey: string) =>
+      persistedSessionMocks.bindings.get(`${channelId}:${conversationKey}`)
+    ),
+    hasConversationSessions: vi.fn((channelId: string) =>
+      [...persistedSessionMocks.bindings.keys()].some((key) => key.startsWith(`${channelId}:`))
+    ),
+    hasConversationSessionsTx: vi.fn((_tx: unknown, channelId: string) =>
+      [...persistedSessionMocks.bindings.keys()].some((key) => key.startsWith(`${channelId}:`))
+    ),
+    linkConversationSessionTx: vi.fn((_tx: unknown, channelId: string, conversationKey: string, sessionId: string) => {
+      persistedSessionMocks.bindings.set(`${channelId}:${conversationKey}`, sessionId)
+    })
   }
 }))
 
@@ -154,6 +182,9 @@ describe('ChannelMessageHandler write quiesce', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
+    persistedSessionMocks.bindings.clear()
+    persistedSessionMocks.sessions.clear()
+    vi.mocked(agentSessionService.getById).mockImplementation((id) => persistedSessionMocks.sessions.get(id) as any)
     handler = new ChannelMessageHandler()
   })
 

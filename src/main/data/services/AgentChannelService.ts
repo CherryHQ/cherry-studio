@@ -1,5 +1,6 @@
 import { application } from '@application'
 import {
+  agentChannelConversationTable as channelConversationsTable,
   type AgentChannelRow as ChannelRow,
   agentChannelTable as channelsTable,
   agentChannelTaskTable as channelTaskSubscriptionsTable,
@@ -89,8 +90,64 @@ export class AgentChannelService {
 
   findBySessionId(sessionId: string): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
-    const result = database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1).all()
-    return result[0] ? this.rowToEntity(result[0]) : null
+    const direct = database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1).all()
+    if (direct[0]) return this.rowToEntity(direct[0])
+
+    const mapped = database
+      .select({ channel: channelsTable })
+      .from(channelConversationsTable)
+      .innerJoin(channelsTable, eq(channelConversationsTable.channelId, channelsTable.id))
+      .where(eq(channelConversationsTable.sessionId, sessionId))
+      .limit(1)
+      .all()
+    return mapped[0] ? this.rowToEntity(mapped[0].channel) : null
+  }
+
+  getConversationSessionId(channelId: string, conversationKey: string): string | null {
+    return this.getConversationSessionIdTx(application.get('DbService').getDb(), channelId, conversationKey)
+  }
+
+  getConversationSessionIdTx(tx: DbOrTx, channelId: string, conversationKey: string): string | null {
+    const [row] = tx
+      .select({ sessionId: channelConversationsTable.sessionId })
+      .from(channelConversationsTable)
+      .where(
+        and(
+          eq(channelConversationsTable.channelId, channelId),
+          eq(channelConversationsTable.conversationKey, conversationKey)
+        )
+      )
+      .limit(1)
+      .all()
+    return row?.sessionId ?? null
+  }
+
+  hasConversationSessions(channelId: string): boolean {
+    return this.hasConversationSessionsTx(application.get('DbService').getDb(), channelId)
+  }
+
+  hasConversationSessionsTx(tx: DbOrTx, channelId: string): boolean {
+    return (
+      tx
+        .select({ sessionId: channelConversationsTable.sessionId })
+        .from(channelConversationsTable)
+        .where(eq(channelConversationsTable.channelId, channelId))
+        .limit(1)
+        .all().length > 0
+    )
+  }
+
+  linkConversationSessionTx(tx: DbOrTx, channelId: string, conversationKey: string, sessionId: string): void {
+    tx.insert(channelConversationsTable)
+      .values({ channelId, conversationKey, sessionId })
+      .onConflictDoUpdate({
+        target: [channelConversationsTable.channelId, channelConversationsTable.conversationKey],
+        set: { sessionId }
+      })
+      .run()
+
+    // Keep the legacy single-session field as the last-active projection for existing consumers.
+    tx.update(channelsTable).set({ sessionId }).where(eq(channelsTable.id, channelId)).run()
   }
 
   listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {

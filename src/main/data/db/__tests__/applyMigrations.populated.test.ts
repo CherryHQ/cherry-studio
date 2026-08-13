@@ -324,7 +324,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite
       .prepare(

@@ -77,7 +77,9 @@ describe('ChannelAdapterListener', () => {
 
     listener.onChunk(delta('Array [city'))
 
-    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city')
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', {
+      replyToMessageId: undefined
+    })
   })
 
   it('preserves an incomplete citation-like suffix in the final delivery', async () => {
@@ -88,6 +90,20 @@ describe('ChannelAdapterListener', () => {
     await listener.onDone({ status: 'success' } as StreamDoneResult)
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished')
+  })
+
+  it('carries the inbound reply target through live and final delivery', async () => {
+    const adapter = makeAdapter()
+    const listener = new ChannelAdapterListener(adapter, 'chat-1', false, 'message-1')
+
+    listener.onChunk(delta('Reply'))
+    await listener.onDone({ status: 'success' } as StreamDoneResult)
+
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Reply', { replyToMessageId: 'message-1' })
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Reply', {
+      replyToMessageId: 'message-1'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Reply', { replyToMessageId: 'message-1' })
   })
 
   it('does not deliver when the accumulated text is empty', async () => {

@@ -44,7 +44,9 @@ export class ChannelAdapterListener implements StreamListener {
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
       void this.adapter
-        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''), {
+          replyToMessageId: this.replyToMessageId
+        })
         .catch(() => {})
     }
   }
@@ -62,7 +64,9 @@ export class ChannelAdapterListener implements StreamListener {
 
     try {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, {
+        replyToMessageId: this.replyToMessageId
+      })
       if (!handled) {
         await this.deliver(text)
       }
@@ -81,7 +85,9 @@ export class ChannelAdapterListener implements StreamListener {
     if (!text) return
 
     try {
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, {
+        replyToMessageId: this.replyToMessageId
+      })
       if (!handled) {
         await this.deliver(text + '\n\n_(stopped)_')
       }
@@ -108,6 +114,6 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   isAlive(): boolean {
-    return this.adapter.connected
+    return this.adapter.connected || this.adapter.connectionState === 'reconnecting'
   }
 }

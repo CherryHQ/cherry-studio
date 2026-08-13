@@ -8,8 +8,11 @@ export type ChannelLogEntry = {
   channelId: string
 }
 
+export type ChannelConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+
 export type ChannelStatusEvent = {
   channelId: string
   connected: boolean
+  state?: ChannelConnectionState
   error?: string
 }

@@ -56,6 +56,13 @@
       "when": 1786425204352,
       "tag": "0007_flimsy_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786623691312,
+      "tag": "0008_easy_roulette",
+      "breakpoints": true
     }
   ],
   "version": "7"
