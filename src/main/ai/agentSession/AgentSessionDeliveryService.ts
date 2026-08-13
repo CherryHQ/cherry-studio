@@ -59,7 +59,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pauseHolds = new Set<symbol>()
   private readonly kicks = new Map<string, Promise<void>>()
   private readonly pendingKicks = new Set<string>()
-  private readonly inFlight = new Map<string, Promise<void>>()
+  private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
   private isShuttingDown = false
 
@@ -161,11 +161,11 @@ export class AgentSessionDeliveryService extends BaseService {
       .catch((error) => logger.error('Agent Session delivery kick failed', { sessionId, error }))
       .finally(() => {
         this.kicks.delete(sessionId)
-        this.inFlight.delete(`kick:${sessionId}`)
+        this.inFlight.delete(work)
         if (this.pendingKicks.delete(sessionId)) this.kick(sessionId)
       })
     this.kicks.set(sessionId, work)
-    this.inFlight.set(`kick:${sessionId}`, work)
+    this.inFlight.set(work, `kick:${sessionId}`)
   }
 
   get isWriteQuiesced(): boolean {
@@ -195,32 +195,30 @@ export class AgentSessionDeliveryService extends BaseService {
   async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const deadline = Date.now() + opts.timeoutMs
     while (this.inFlight.size > 0 && Date.now() < deadline) {
-      const snapshot = [...this.inFlight.values()]
+      const snapshot = [...this.inFlight.keys()]
       const remaining = deadline - Date.now()
       await Promise.race([
         Promise.allSettled(snapshot),
         new Promise<void>((resolve) => setTimeout(resolve, Math.max(remaining, 0)))
       ])
     }
-    return { stragglerIds: [...this.inFlight.keys()] }
+    return { stragglerIds: [...this.inFlight.values()] }
   }
 
   listActiveWork(): Array<{ id: string; summary: string }> {
-    return [...this.inFlight.keys()].map((id) => ({ id, summary: 'Agent Session delivery handoff' }))
+    return [...this.inFlight.values()].map((id) => ({ id, summary: 'Agent Session delivery handoff' }))
   }
 
   private track(id: string, work: Promise<void>): void {
-    this.inFlight.set(id, work)
+    this.inFlight.set(work, id)
     void work
       .catch((error) => logger.error('Tracked Agent Session delivery work failed', { id, error }))
-      .finally(() => {
-        if (this.inFlight.get(id) === work) this.inFlight.delete(id)
-      })
+      .finally(() => this.inFlight.delete(work))
   }
 
   private async waitForInFlight(): Promise<void> {
     while (this.inFlight.size > 0) {
-      await Promise.allSettled([...this.inFlight.values()])
+      await Promise.allSettled([...this.inFlight.keys()])
     }
   }
 

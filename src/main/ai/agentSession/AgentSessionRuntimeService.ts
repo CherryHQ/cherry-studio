@@ -317,6 +317,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly pauseHolds = new Set<symbol>()
   /** In-flight launches registered synchronously by the state-machine schedule effect. */
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
+  private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -1059,6 +1061,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
     }
@@ -1140,9 +1143,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
-   * bounded by timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream
-   * writes are AiStreamManager's drain — this only covers the window this service writes in.
+   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff) and
+   * detached-flow finalizers, bounded by timeoutMs. Never rejects; stragglers are NOT aborted.
+   * The resulting stream writes are AiStreamManager's drain — this only covers the windows this
+   * service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
    * before the pause gate suppresses it), so the drain is a fixed point over promise
    * identities rather than one snapshot.
@@ -1164,6 +1168,13 @@ export class AgentSessionRuntimeService extends BaseService {
         pending.set(launch, sessionId)
         const remove = () => pending.delete(launch)
         launch.then(remove, remove)
+      }
+      for (const [flush, sessionId] of this.inFlightBackgroundFlowFlushes) {
+        if (seen.has(flush)) continue
+        seen.add(flush)
+        pending.set(flush, sessionId)
+        const remove = () => pending.delete(flush)
+        flush.then(remove, remove)
       }
     }
 
@@ -2116,6 +2127,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
       })
     entry.backgroundFlowFlush = flush
+    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
+    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
     return flush
   }
 
@@ -3004,7 +3017,7 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
-    void this.finishBackgroundFlows(entry)
+    const backgroundFlowFlush = this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
@@ -3025,7 +3038,9 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return this.closeRuntimeConnection(connection, entry.sessionId)
+    return Promise.all([backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
+      () => undefined
+    )
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {

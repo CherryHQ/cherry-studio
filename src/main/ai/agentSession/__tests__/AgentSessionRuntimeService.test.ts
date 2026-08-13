@@ -2171,6 +2171,40 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
     })
 
+    it('does not finish closing while detached flow parts can still write', async () => {
+      let releaseFlow!: () => void
+      const flowDone = new Promise<void>((resolve) => {
+        releaseFlow = resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Late flow' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: flowDone,
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      let closed = false
+      const closing = service.closeSession('session-1').then(() => {
+        closed = true
+      })
+      await Promise.resolve()
+
+      expect(closed).toBe(false)
+      releaseFlow()
+      await closing
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts)
+    })
+
     it('persists an out-of-turn interaction as an independent assistant message', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -3055,17 +3089,20 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      runtimeResumeToken: 'resume-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [{ type: 'text', text: 'hi' }] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        runtimeResumeToken: 'resume-1',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'hi' }] },
+          modelId: 'claude-code::claude-sonnet-4-5'
+        }
+      },
+      { publishDataChange: true }
+    )
     expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
       id: 'assistant-1',
       role: 'assistant',
@@ -3097,17 +3134,20 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: undefined
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      runtimeResumeToken: 'resume-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'paused',
-        data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        runtimeResumeToken: 'resume-1',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          status: 'paused',
+          data: { parts: [] },
+          modelId: 'claude-code::claude-sonnet-4-5'
+        }
+      },
+      { publishDataChange: true }
+    )
   })
 
   it('routes runtime events from the selected driver into the active turn', async () => {
@@ -4683,17 +4723,20 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      runtimeResumeToken: 'resume-init',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'error',
-        data: { parts: [{ type: 'data-error', data: { name: 'Error', message: 'boom' } }] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        runtimeResumeToken: 'resume-init',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          status: 'error',
+          data: { parts: [{ type: 'data-error', data: { name: 'Error', message: 'boom' } }] },
+          modelId: 'claude-code::claude-sonnet-4-5'
+        }
+      },
+      { publishDataChange: true }
+    )
   })
 
   it('persists an active turn with the model captured when that turn began', async () => {
@@ -4712,16 +4755,19 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'claude-code::claude-sonnet-4-5'
+        }
+      },
+      { publishDataChange: true }
+    )
   })
 
   it('starts queued turns with runtime request metadata and assistant seed', async () => {

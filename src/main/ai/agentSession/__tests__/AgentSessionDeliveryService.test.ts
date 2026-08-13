@@ -589,6 +589,35 @@ describe('AgentSessionDeliveryService', () => {
     expect(order).toEqual(['commit', 'close', 'kick-result'])
   })
 
+  it('keeps overlapping same-key deletions drain-visible until both settle', async () => {
+    let releaseFirstClose!: () => void
+    const firstClose = new Promise<void>((resolve) => {
+      releaseFirstClose = resolve
+    })
+    mocks.deleteByIds
+      .mockReturnValueOnce({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
+      .mockReturnValueOnce({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.closeSession.mockReturnValueOnce(firstClose)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    const first = service.deleteSessions(['target'])
+    await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))
+    await service.deleteSessions(['target'])
+
+    let drained = false
+    const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
+      drained = true
+      return result
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(drained).toBe(false)
+
+    releaseFirstClose()
+    await first
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
+  })
+
   it('closes every affected runtime when deleting an Agent', async () => {
     mocks.deleteAgent.mockReturnValue({
       deleted: true,
