@@ -72,11 +72,26 @@ Manual “run now” already invalidates task reads immediately after the pendin
 
 Each overview card separates three concepts by position:
 
-1. The task name remains the primary content.
-2. The schedule state (`active`, `paused`, or `completed`) moves from the card's right edge to a compact badge beside the task name.
-3. Current/latest execution state and the next valid run time occupy a right-aligned, lightweight two-line group where the schedule-state badge previously appeared.
+1. The left icon block uses a subtle semantic surface to communicate schedule state at a glance.
+2. The task name remains the primary content.
+3. The schedule state (`active`, `paused`, or `completed`) remains in a compact neutral badge beside the task name.
+4. Current/latest execution state and the next valid run time occupy a right-aligned, lightweight two-line group where the schedule-state badge previously appeared.
 
 The schedule-state badge uses one neutral treatment for all three values. It identifies lifecycle state without competing with the execution result. The title truncates before the badge; the badge does not shrink or wrap.
+
+### Schedule-state treatment
+
+The left icon block is the card's only chromatic status surface. It uses the paired subtle background and foreground roles from the existing semantic token families:
+
+| Schedule state | Icon-block treatment |
+| --- | --- |
+| `active` | Info/blue subtle background and matching foreground icon |
+| `paused` | Warning/amber subtle background and matching foreground icon |
+| `completed` | Success/green subtle background and matching foreground icon |
+
+The icon block and the adjacent neutral badge always represent the same schedule state. The badge keeps the state understandable without relying on color alone. The icon retains an explicit matching foreground class because repository-wide SVG styling must not override the intended semantic color.
+
+Schedule color never changes in response to execution results. For example, an active schedule whose latest run failed keeps the active blue icon block; its neutral right-side copy says `Last run failed`. This prevents schedule state and execution result from introducing competing blue, green, or red signals on one card.
 
 ### Execution and next-run display
 
@@ -93,14 +108,7 @@ The right-side group follows this matrix:
 
 A next-run time is valid only when the schedule is `active` and `nextRun` is non-null. Running tasks continue to show their next run so current work and future scheduling remain independently visible. A task with neither a run summary nor a valid next run leaves the right-side group empty.
 
-The execution icon and its text use the same semantic foreground color:
-
-- Running: info/blue
-- Completed: success/green
-- Failed: error/red
-- Cancelled: muted neutral
-
-The next-run line uses muted foreground text. Execution results do not use a pill, tinted panel, or colored background; this keeps the list calm and prevents the execution state from competing with the task name or schedule-state badge. The compact card does not show raw error details. Complete errors and results remain in run history.
+The execution icon and its text use the same neutral foreground treatment for running, completed, failed, and cancelled states. The result line uses the stronger neutral text role, while the next-run line uses muted foreground text to preserve the two-line hierarchy. Execution state does not introduce semantic blue, green, red, or amber color, a pill, a tinted panel, or a colored background. The compact card does not show raw error details. Complete errors and results remain in run history.
 
 The execution-result line remains independently clickable and opens its run-history entry. The next-run line is informational and does not introduce a separate action. Card content outside the execution-result line continues to open the task's default detail view. At constrained widths, the right-side group may move below the primary task copy, preserving title, badge, and status readability without overlapping content.
 
@@ -142,7 +150,11 @@ Rejected. The separation is clear and adapts well to narrow widths, but it incre
 
 ### Use colored pills for execution results
 
-Rejected. Repeating colored pills across the task list creates more visual noise and competes with the schedule-state badge. Semantic icon and text color provides sufficient status recognition without another shape.
+Rejected. Repeating colored pills across the task list creates more visual noise and competes with the left schedule-state surface. The existing result icon and explicit result copy provide sufficient recognition without another shape.
+
+### Color the execution icon and text by result
+
+Rejected after visual review. It makes an active schedule with a failed last run display blue on the left and red on the right, giving equal emphasis to two independent state systems. Keeping execution information neutral makes the schedule-state color stable and lets the result wording carry the secondary detail.
 
 ## Error Handling and Edge Cases
 
@@ -160,7 +172,7 @@ At the user's explicit request, implementation proceeds before the regression te
 
 1. Data-service tests using the real test database protect the projection rules: active-over-terminal precedence, newest-active selection, newest-terminal selection, state collapsing, and the no-run case.
 2. Agent-task handler tests protect read-model invalidation at execution start and settlement without testing generic JobManager internals.
-3. Renderer component tests protect the display matrix, semantic icon/text treatment, schedule-state placement, next-run validity rule, and distinct history link.
+3. Renderer component tests protect the display matrix, schedule-state icon-block mapping, neutral execution treatment, schedule-state placement, next-run validity rule, and distinct history link.
 4. Route/component tests protect `tab=history`, target-row reveal, and preservation of the default detail route for the rest of the card.
 5. Targeted tests run after each implementation area. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
 
@@ -168,7 +180,8 @@ At the user's explicit request, implementation proceeds before the regression te
 
 - A user viewing scheduled tasks can distinguish schedule state, current/latest execution result, and the next valid run time without opening task details.
 - A never-run task shows only its next valid run time; a running task shows both `Running` and its next valid run time.
-- Schedule state appears beside the task name in a neutral compact badge, while the right side is reserved for execution and scheduling information.
+- Schedule state appears as a semantic subtle left icon block and as a neutral compact badge beside the task name, while the right side is reserved for neutral execution and scheduling information.
+- An active schedule retains its active blue icon block even when its latest execution failed; execution results never recolor the schedule-state surface.
 - The displayed state updates after automatic execution starts and settles without reopening the page.
 - Schedule state remains visible and is never replaced by execution state.
 - Clicking the execution summary opens and locates the corresponding run-history entry.
