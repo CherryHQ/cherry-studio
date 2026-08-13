@@ -1,5 +1,6 @@
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Category names are free-form English strings produced by the Claude Code CLI
@@ -57,6 +58,21 @@ export function AgentContextUsageSummary({
     ? (usage?.categories.filter((category) => category.tokens > 0 && !HIDDEN_CATEGORY_NAMES.has(category.name)) ?? [])
     : []
 
+  // Normalize shares so they sum to exactly 100%. Each visible category gets
+  // Math.floor(x) and the last one absorbs the remainder; avoids the
+  // independent-rounding pitfall (e.g. 12.2 + 1.6 + 88.1 → 12 + 2 + 88 = 102).
+  const visibleCategoryDetails = useMemo(() => {
+    if (!usage || usage.totalTokens <= 0 || visibleCategories.length === 0) return []
+    const totalVisibleTokens = visibleCategories.reduce((s, c) => s + c.tokens, 0)
+    if (totalVisibleTokens === 0) return []
+    const raw = visibleCategories.map((c) => Math.floor((c.tokens / totalVisibleTokens) * 100))
+    const remainder = 100 - raw.slice(0, -1).reduce((s, x) => s + x, 0)
+    return visibleCategories.map((c, i) => ({
+      ...c,
+      share: i === visibleCategories.length - 1 ? Math.max(0, remainder) : raw[i]
+    }))
+  }, [usage, visibleCategories])
+
   return (
     <ContextUsageSummary
       title={t('agent.right_pane.info.context_usage')}
@@ -64,23 +80,18 @@ export function AgentContextUsageSummary({
       data={data}
       className={className}
       isBusy={isCompacting}>
-      {visibleCategories.length > 0 ? (
+      {visibleCategoryDetails.length > 0 ? (
         <div className="space-y-1 border-border-subtle border-t pt-2">
-          {visibleCategories.map((category) => {
-            // Share of used context (totalTokens), so proportions stay meaningful
-            // even when the window (maxTokens) is huge and barely filled.
-            const share = usage && usage.totalTokens > 0 ? Math.round((category.tokens / usage.totalTokens) * 100) : 0
-            return (
-              <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
-                <span className="min-w-0 truncate">
-                  {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {category.tokens.toLocaleString()} ({share}%)
-                </span>
-              </div>
-            )
-          })}
+          {visibleCategoryDetails.map((category) => (
+            <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
+              <span className="min-w-0 truncate">
+                {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {category.tokens.toLocaleString()} ({category.share}%)
+              </span>
+            </div>
+          ))}
         </div>
       ) : null}
     </ContextUsageSummary>
