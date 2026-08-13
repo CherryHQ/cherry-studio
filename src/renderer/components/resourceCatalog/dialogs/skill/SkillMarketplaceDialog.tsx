@@ -6,7 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
-  SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
@@ -14,8 +18,9 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
+import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
 import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
@@ -25,7 +30,13 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
-const SEARCH_SOURCES: SkillSearchSource[] = ['skills.sh', 'claude-plugins.dev', 'clawhub.ai']
+const SOURCE_LABELS: Record<SkillSearchSource, string> = {
+  'skills.sh': 'skills.sh',
+  'claude-plugins.dev': 'claude-plugins.dev',
+  'clawhub.ai': 'clawhub.ai',
+  github: 'GitHub'
+}
+const SEARCH_SOURCES = Object.keys(SOURCE_LABELS) as SkillSearchSource[]
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SEARCH_DEBOUNCE_MS = 300
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
@@ -35,11 +46,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const { results, searching, error, search, clear } = useSkillSearch()
   const { install, isInstalling } = useSkillInstall()
   const [query, setQuery] = useState('')
+  const [submittedUrl, setSubmittedUrl] = useState('')
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const [searchDebouncing, setSearchDebouncing] = useState(false)
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const urlErrorId = useId()
+  const isGithubSource = activeSource === 'github'
 
   const clearPendingSearch = useCallback(() => {
     if (!searchDebounceRef.current) return
@@ -51,6 +65,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     if (open) return
     clearPendingSearch()
     setQuery('')
+    setSubmittedUrl('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
     setSearchDebouncing(false)
@@ -60,22 +75,30 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
   useEffect(() => clearPendingSearch, [clearPendingSearch])
 
-  const tabCounts = useMemo(() => {
+  // GitHub installs one skill from the URL itself — the registries have nothing to search.
+  const githubResult = useMemo(
+    () => (isGithubSource && submittedUrl.trim() ? buildGithubSkillResult(submittedUrl) : null),
+    [isGithubSource, submittedUrl]
+  )
+
+  const sourceCounts = useMemo(() => {
     const counts = new Map<SkillSearchSource, number>()
-    for (const result of results) {
+    for (const result of githubResult ? [...results, githubResult] : results) {
       counts.set(result.sourceRegistry, (counts.get(result.sourceRegistry) ?? 0) + 1)
     }
     return counts
-  }, [results])
+  }, [githubResult, results])
+  const githubUrlInvalid = isGithubSource && submittedUrl.trim().length > 0 && !githubResult
 
-  const visibleResults = useMemo(
-    () => results.filter((result) => result.sourceRegistry === activeSource),
-    [activeSource, results]
-  )
+  const visibleResults = useMemo(() => {
+    if (isGithubSource) return githubResult ? [githubResult] : []
+    return results.filter((result) => result.sourceRegistry === activeSource)
+  }, [activeSource, githubResult, isGithubSource, results])
 
   const handleSearchChange = useCallback(
     (value: string) => {
       setQuery(value)
+      setSubmittedUrl('')
       clearPendingSearch()
       clear()
       if (value.trim()) {
@@ -83,13 +106,30 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         searchDebounceRef.current = setTimeout(() => {
           searchDebounceRef.current = null
           setSearchDebouncing(false)
-          void search(value)
+          if (isGithubSource) setSubmittedUrl(value)
+          else void search(value)
         }, SEARCH_DEBOUNCE_MS)
       } else {
         setSearchDebouncing(false)
       }
     },
-    [clear, clearPendingSearch, search]
+    [clear, clearPendingSearch, isGithubSource, search]
+  )
+
+  const handleSourceChange = useCallback(
+    (value: string) => {
+      const nextSource = value as SkillSearchSource
+      setActiveSource(nextSource)
+      // The registries share one search, so switching among them only refilters. GitHub takes a URL
+      // instead of keywords, so whatever was typed no longer applies in either direction.
+      if ((nextSource === 'github') === isGithubSource) return
+      clearPendingSearch()
+      clear()
+      setQuery('')
+      setSubmittedUrl('')
+      setSearchDebouncing(false)
+    },
+    [clear, clearPendingSearch, isGithubSource]
   )
 
   const handleInstall = useCallback(
@@ -140,41 +180,67 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
             <DialogTitle>{t('library.skill_marketplace.title')}</DialogTitle>
           </DialogHeader>
 
-          <div className="mt-3 flex items-center gap-3">
-            <SegmentedControl<SkillSearchSource>
-              size="sm"
-              value={activeSource}
-              onValueChange={setActiveSource}
-              className="shrink-0"
-              options={SEARCH_SOURCES.map((source) => {
-                const count = tabCounts.get(source) ?? 0
-                return {
-                  value: source,
-                  label: (
-                    <>
-                      {source}
+          <div className="mt-3 flex items-start gap-3">
+            <Select value={activeSource} onValueChange={handleSourceChange}>
+              <SelectTrigger
+                size="sm"
+                aria-label={t('library.skill_marketplace.source_label')}
+                className="w-[184px] shrink-0">
+                <SelectValue>{SOURCE_LABELS[activeSource]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SEARCH_SOURCES.map((source) => {
+                  const count = sourceCounts.get(source) ?? 0
+                  return (
+                    <SelectItem key={source} value={source}>
+                      {SOURCE_LABELS[source]}
                       {count > 0 ? (
                         <span className="text-foreground-tertiary text-xs tabular-nums">{count}</span>
                       ) : null}
-                    </>
+                    </SelectItem>
                   )
-                }
-              })}
-            />
-            <ResourceCatalogSearchInput
-              value={query}
-              onValueChange={handleSearchChange}
-              placeholder={t('library.skill_marketplace.search_placeholder')}
-              className="ml-auto min-w-0 max-w-[560px] flex-1"
-            />
+                })}
+              </SelectContent>
+            </Select>
+            <div className="ml-auto flex min-w-0 max-w-[560px] flex-1 flex-col gap-1">
+              <ResourceCatalogSearchInput
+                value={query}
+                onValueChange={handleSearchChange}
+                placeholder={t(
+                  isGithubSource
+                    ? 'library.skill_marketplace.github_url_placeholder'
+                    : 'library.skill_marketplace.search_placeholder'
+                )}
+                aria-label={t(
+                  isGithubSource
+                    ? 'library.skill_marketplace.github_url_label'
+                    : 'library.skill_marketplace.search_label'
+                )}
+                aria-invalid={githubUrlInvalid || undefined}
+                aria-describedby={githubUrlInvalid ? urlErrorId : undefined}
+              />
+              {githubUrlInvalid ? (
+                <p id={urlErrorId} role="alert" className="text-error text-xs leading-4">
+                  {t('library.skill_marketplace.github_url_invalid')}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <SkillSearchBody
-            query={query}
-            error={error}
-            searching={searching || searchDebouncing}
+            query={isGithubSource ? (githubResult ? submittedUrl : '') : query}
+            emptyTitle={t(
+              isGithubSource ? 'library.skill_marketplace.github_empty_title' : 'library.skill_marketplace.empty_title'
+            )}
+            emptyDescription={t(
+              isGithubSource
+                ? 'library.skill_marketplace.github_empty_description'
+                : 'library.skill_marketplace.empty_description'
+            )}
+            error={isGithubSource ? null : error}
+            searching={!isGithubSource && (searching || searchDebouncing)}
             results={visibleResults}
             installedSources={installedSources}
             isInstalling={isInstalling}
@@ -188,6 +254,8 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
 function SkillSearchBody({
   query,
+  emptyTitle,
+  emptyDescription,
   error,
   searching,
   results,
@@ -196,6 +264,8 @@ function SkillSearchBody({
   onInstall
 }: {
   query: string
+  emptyTitle: string
+  emptyDescription: string
   error: string | null
   searching: boolean
   results: SkillSearchResult[]
@@ -214,12 +284,7 @@ function SkillSearchBody({
 
   if (!query.trim()) {
     return (
-      <EmptyState
-        preset="no-resource"
-        title={t('library.skill_marketplace.empty_title')}
-        description={t('library.skill_marketplace.empty_description')}
-        className="min-h-0 flex-1"
-      />
+      <EmptyState preset="no-resource" title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
     )
   }
 
