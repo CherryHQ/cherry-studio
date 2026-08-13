@@ -151,8 +151,9 @@ function toFileEntry(
   // physical file for the FS orphan sweep to reclaim.
   const internalPrefix = path.join(userData, 'Data', 'Files')
   const candidatePaths = legacyStorageNames(row).map((storageName) => path.join(internalPrefix, storageName))
+  const canonicalPath = candidatePaths[0]
   const existingPath = candidatePaths.find((candidate) => fs.existsSync(candidate))
-  const physicalPath = existingPath ?? candidatePaths[0]
+  const physicalPath = existingPath ?? canonicalPath
   const isInternal = row.path.startsWith(internalPrefix) || existingPath !== undefined
 
   if (!isInternal) {
@@ -188,6 +189,20 @@ function toFileEntry(
         `Invalid size for file id=${row.id} and physical file is unreadable; skipping row. raw=${JSON.stringify(row.size)}`
       )
       return null
+    }
+  }
+
+  // The blob may sit under the raw name (`{id}.exe ` — POSIX keeps the trailing space) while `ext`
+  // migrates normalized; copy, not rename, so an aborted migration leaves v1's own lookup intact.
+  if (existingPath !== undefined && existingPath !== canonicalPath) {
+    try {
+      fs.copyFileSync(existingPath, canonicalPath, fs.constants.COPYFILE_EXCL)
+    } catch (error) {
+      onWarning(
+        `Failed to copy file id=${row.id} to its v2 storage name (${existingPath} -> ${canonicalPath}): ` +
+          `${error instanceof Error ? error.message : String(error)}. The row still migrates and the original ` +
+          `file is intact, but the file cannot be opened until it is copied to the new name.`
+      )
     }
   }
 
