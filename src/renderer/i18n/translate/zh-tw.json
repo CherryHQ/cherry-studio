@@ -7622,7 +7622,6 @@
       "topic_naming": {
         "auto": "對話自動重新命名",
         "label": "對話命名",
-        "model": "命名模型",
         "prompt": "對話命名提示詞"
       },
       "translate_model": "翻譯模型",

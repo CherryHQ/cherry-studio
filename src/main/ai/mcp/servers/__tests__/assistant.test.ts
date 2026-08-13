@@ -484,6 +484,25 @@ describe('diagnose mcp_status', () => {
 })
 
 describe('diagnose config', () => {
+  it('reports the quick model used by topic naming', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::gpt-4o-mini')
+
+    const server = new AssistantServer()
+    const result = await (
+      server as unknown as {
+        diagnoseConfig: () => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).diagnoseConfig()
+    const config = JSON.parse(result.content[0].text) as Record<string, unknown>
+
+    expect(config.quickModel).toEqual({
+      id: 'openai::gpt-4o-mini',
+      provider: 'openai',
+      modelId: 'gpt-4o-mini'
+    })
+    expect(config).not.toHaveProperty('topicNamingModel')
+  })
+
   it('redacts assistant-visible proxy values to origin only', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue(
       'app.proxy.url',
