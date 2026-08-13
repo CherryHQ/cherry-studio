@@ -320,6 +320,7 @@ export function Topics({
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
     topics: apiTopics,
+    orderSignature,
     isLoadingAll,
     isFullyLoaded,
     isRefreshing,
@@ -394,11 +395,8 @@ export function Topics({
     targetAssistantId: string | null
   } | null>(null)
   const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
+    () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
+    [orderSignature, topicPinnedIds]
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
@@ -1312,9 +1310,8 @@ export function Topics({
       const assistantChanged = targetAssistantId !== currentAssistantId
 
       try {
-        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
-        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
-        // until after both writes so the optimistic overlay clears once, at the final position.
+        // `moveTopic` owns the atomic write and cache orchestration so the open conversation
+        // follows the new assistant and the optimistic overlay settles at the final position.
         await moveTopic(payload.activeId, {
           assistantId: assistantChanged ? targetAssistantId : undefined,
           anchor
