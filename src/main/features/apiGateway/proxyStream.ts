@@ -22,6 +22,7 @@ import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -38,6 +39,7 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+const SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
@@ -54,6 +56,28 @@ const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set(
 
 function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
+
+function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: CherryUIMessage[]; system?: string } {
+  const systemSections: string[] = []
+  const conversation = messages.filter((message) => {
+    if (message.role !== 'system') return true
+    const text = message.parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+    if (text) systemSections.push(text)
+    return false
+  })
+  return { conversation, system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined }
+}
+
+function isolateSupportSystemPrompt(params: MessageCreateParams): MessageCreateParams {
+  if (!Array.isArray(params.system)) return params
+  const supportBlockIndex = params.system.findIndex(
+    (block) => block.type === 'text' && SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
+  )
+  return supportBlockIndex > 0 ? { ...params, system: params.system.slice(supportBlockIndex) } : params
 }
 
 /**
@@ -166,7 +190,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
+    const anthropicParams = isolateSupportSystemPrompt(params as MessageCreateParams)
+    effectiveParams = anthropicParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
 
     if (normalization.status === 'conflict') {
@@ -199,9 +224,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
-  const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(convertedMessages)
-    : convertedMessages
+  const { conversation, system } = extractSystemPrompt(convertedMessages)
+  const messages = isInternalAnthropicAgentRequest ? appendInternalAgentContinuation(conversation) : conversation
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
@@ -371,6 +395,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             streamId,
             uniqueModelId,
             messages,
+            system,
             listener,
             callOverrides,
             contextOwner: 'caller',
@@ -454,6 +479,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       streamId,
       uniqueModelId,
       messages,
+      system,
       listener,
       callOverrides,
       contextOwner: 'caller',

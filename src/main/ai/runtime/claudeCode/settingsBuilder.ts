@@ -1505,6 +1505,7 @@ export async function buildSystemPrompt(
 
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT
+  const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
 
   // Builtin contract: empty DB instructions means the bundle owns the definition,
   // so app upgrades and language changes apply at session build time. A non-empty
@@ -1540,7 +1541,9 @@ export async function buildSystemPrompt(
   })
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
-  const langInstruction = getLanguageInstruction()
+  const langInstruction = isSupport
+    ? "IMPORTANT: Respond in the language of the user's latest message."
+    : getLanguageInstruction()
 
   const resolvedInstructions = instructions?.trim()
     ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
@@ -1558,18 +1561,22 @@ export async function buildSystemPrompt(
   // The Claude Code preset owns its dynamic cwd/git context. A custom base replaces that
   // preset only, so Cherry restores the workspace contract in its always-appended context.
   const workspaceContextBlock =
-    promptParts.base.kind === 'custom'
+    promptParts.base.kind === 'custom' || isSupport
       ? `\n\n${[
           '## Current Workspace',
           `Current working directory: ${JSON.stringify(cwd)}`,
           'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
         ].join('\n')}`
       : ''
-  const cherryContext = `${precedenceBlock}${promptParts.context}${agentsMdBlock}${agentInstructionsBlock}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}\n\n${langInstruction}`
+  const roleContextBlock = isSupport
+    ? `${agentInstructionsBlock}\n\n${precedenceBlock}${promptParts.context}${agentsMdBlock}`
+    : `${precedenceBlock}${promptParts.context}${agentsMdBlock}${agentInstructionsBlock}`
+  const cherryContext = `${roleContextBlock}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}\n\n${langInstruction}`
 
   // The workspace chooses only the base. Cherry-owned context survives either path.
+  // Cherry Support has its own official identity, so do not inherit the preset's Claude identity.
   if (promptParts.base.kind === 'claude_code') {
-    return { type: 'preset', preset: 'claude_code', append: cherryContext }
+    return isSupport ? cherryContext : { type: 'preset', preset: 'claude_code', append: cherryContext }
   }
   return promptParts.base.content ? `${promptParts.base.content}\n\n${cherryContext}` : cherryContext
 }

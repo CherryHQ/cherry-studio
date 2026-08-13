@@ -326,6 +326,19 @@ describe('buildAgentParams standard model parameters', () => {
     return { provider, model }
   }
 
+  it('uses caller-owned standing instructions as the Agent system prompt', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    const result = await buildAgentParams({
+      request: { contextOwner: 'caller', system: 'You are Cherry Studio official product support.' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.system).toBe('You are Cherry Studio official product support.')
+  })
+
   it('passes enabled assistant sampling settings directly to ToolLoopAgent options', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     const assistant = makeAssistant({

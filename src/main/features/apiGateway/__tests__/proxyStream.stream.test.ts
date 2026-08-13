@@ -100,6 +100,10 @@ import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
 function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMessage[] {
   const messages: CherryUIMessage[] = []
 
+  if (typeof params.system === 'string') {
+    messages.push({ id: 'converted-system', role: 'system', parts: [{ type: 'text', text: params.system }] })
+  }
+
   params.messages.forEach((message, index) => {
     const parts: CherryUIMessage['parts'] = []
     if (typeof message.content === 'string') {
@@ -236,6 +240,39 @@ async function processAndCaptureStreamMessages(
 }
 
 describe('processMessage (internal Agent continuation normalization)', () => {
+  it('uses only the Cherry-owned system prompt for an internal Cherry Support request', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'Runtime context' },
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: 'You are Cherry Studio official built-in product support.' }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    const effectiveParams = mockToUIMessages.mock.calls[0][0]
+    expect(effectiveParams.system).toEqual([
+      { type: 'text', text: 'You are Cherry Studio official built-in product support.' }
+    ])
+    expect(params.system).toHaveLength(3)
+  })
+
+  it('keeps SDK identity blocks for internal requests without the Cherry Support identity', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: 'Follow the user instructions.' }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0]).toBe(params)
+  })
+
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -675,6 +712,26 @@ describe('processMessage (streaming)', () => {
     await response
 
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
+  })
+
+  it('passes caller instructions as the Agent system prompt instead of conversation history', async () => {
+    useGatewayModel('claude-opus-5')
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = 'You are Cherry Studio official product support.'
+
+    const response = processMessage({ params, inputFormat: 'anthropic', outputFormat: 'anthropic' })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are Cherry Studio official product support.',
+        messages: [expect.objectContaining({ role: 'user' })]
+      })
+    )
+    expect(mockStreamPrompt.mock.calls[0][0].messages).not.toContainEqual(expect.objectContaining({ role: 'system' }))
+
+    await captured.listener!.onDone({} as any)
+    await response
   })
 
   it('returns JSON (not a stream) for non-streaming requests', async () => {
