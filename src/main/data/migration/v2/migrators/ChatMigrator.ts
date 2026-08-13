@@ -1102,6 +1102,7 @@ export class ChatMigrator extends BaseMigrator {
 
     // === Second pass: transform messages that have blocks ===
     const newMessages: NewMessage[] = []
+    let lastActivityAt = Number.NEGATIVE_INFINITY
     for (const oldMsg of oldMessages) {
       // Skip messages marked for skipping
       if (skippedMessageIds.has(oldMsg.id)) {
@@ -1133,6 +1134,15 @@ export class ChatMigrator extends BaseMigrator {
         )
 
         newMessages.push(newMsg)
+        if (oldMsg.role === 'user') {
+          lastActivityAt = Math.max(lastActivityAt, newMsg.createdAt)
+        } else if (oldMsg.role === 'assistant') {
+          const activityAt =
+            oldMsg.status === 'success' || oldMsg.status === 'error' || oldMsg.status === 'paused'
+              ? Math.max(newMsg.createdAt, newMsg.updatedAt)
+              : newMsg.createdAt
+          lastActivityAt = Math.max(lastActivityAt, activityAt)
+        }
       } catch (error) {
         logger.warn(`Failed to transform message ${oldMsg.id}`, { error })
         this.skippedMessages++
@@ -1188,7 +1198,11 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Transform topic with correct activeNodeId
-    const newTopic = transformTopic(oldTopic, activeNodeId)
+    const newTopic = transformTopic(
+      oldTopic,
+      activeNodeId,
+      Number.isFinite(lastActivityAt) ? lastActivityAt : undefined
+    )
 
     return {
       topic: newTopic,

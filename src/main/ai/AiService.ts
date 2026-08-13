@@ -46,8 +46,9 @@ import {
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
+import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
-import { resolveMediaCapabilities } from './messages/messageCapabilities'
+import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { hasImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -58,6 +59,7 @@ import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtim
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
@@ -550,12 +552,29 @@ export class AiService extends BaseService {
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
 
+    const mediaCapabilities = resolveMediaCapabilities(model)
+
     // Route attachments: native files stay inline, non-native become capped text
-    // (always visible — never gated on the model calling read_file).
+    // (always visible — never gated on the model calling read_file). The cap is
+    // one shared pool, priced against what the rest of the request already spends.
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
+      // A caller that owns its context (the gateway) manages its own window;
+      // reshaping its attachments against ours would be guesswork.
+      budget:
+        fileAttachments.length && request.contextOwner !== 'caller'
+          ? ((await resolveAttachmentBudget({
+              provider,
+              model,
+              system,
+              tools,
+              maxOutputTokens: options.maxOutputTokens,
+              messages: request.messages ?? [],
+              mediaCapabilities
+            })) ?? undefined)
+          : undefined,
       signal
     })
 
@@ -608,7 +627,11 @@ export class AiService extends BaseService {
           : []),
         ...hookParts
       ],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
     agentRef.current = agent
 
@@ -673,6 +696,10 @@ export class AiService extends BaseService {
       })
     }
 
+    // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
+    // SDK as-is, so without these the structured tool-result media the converter produces would
+    // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
+    const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -682,7 +709,12 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options: wrapModel ? { ...options, maxRetries: 0 } : options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.

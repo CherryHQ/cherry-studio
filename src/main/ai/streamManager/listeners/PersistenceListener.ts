@@ -25,6 +25,9 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('PersistenceListener')
 
+/** Internal control signal: the persistence failure was already surfaced as an error event. */
+export class TerminalPersistenceError extends Error {}
+
 export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
   topicId: string
@@ -33,14 +36,15 @@ export interface PersistenceListenerOptions {
   backend: PersistenceBackend
   /**
    * Called when persistence fails after a terminal event. The DB row is already driven to
-   * `error`; this lets the caller also correct the LIVE renderer (which was told the turn
-   * succeeded) so the bubble doesn't stay a frozen success until reload.
+   * `error`; this lets the caller surface that error while the manager suppresses the original
+   * terminal notification.
    */
-  onPersistFailed?: (error: SerializedError) => void
+  onPersistFailed: (error: SerializedError) => void
 }
 
 export class PersistenceListener implements StreamListener {
   readonly id: string
+  readonly terminalPhase = 'persistence' as const
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
@@ -57,19 +61,19 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    await this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
+    return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
   }
 
   isAlive(): boolean {
@@ -144,9 +148,18 @@ export class PersistenceListener implements StreamListener {
           err: markErr
         })
       }
-      // Correct the live renderer: it was already told this turn succeeded.
-      this.opts.onPersistFailed?.(serializeError(err))
-      return
+      // Surface the persistence error now; the manager suppresses the original terminal notification.
+      try {
+        this.opts.onPersistFailed(serializeError(err))
+      } catch (notifyErr) {
+        logger.error('Failed to surface terminal persistence error', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status,
+          err: notifyErr
+        })
+      }
+      throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
