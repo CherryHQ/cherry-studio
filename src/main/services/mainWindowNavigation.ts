@@ -46,6 +46,66 @@ function resolveLiveMainWindowId(): string | undefined {
 }
 
 /**
+ * Tabs awaiting delivery to a main renderer that has not yet mounted its
+ * `tab.attached` listener (cold boot, reload, or crash recovery). A directed
+ * IpcApi send to a listener-less webContents is dropped silently — Electron
+ * does not buffer it — so tabs are queued here and flushed once the renderer
+ * reports ready via `navigation.protocol_dispatch_ready`.
+ */
+const pendingTabAttachQueue: Tab[] = []
+let isMainRendererReadyForTabAttach = false
+
+/**
+ * Mark the main renderer ready and deliver any tabs queued while it was not.
+ * Called from the `navigation.protocol_dispatch_ready` handler, alongside
+ * ProtocolService.onMainRendererReady. The renderer only sends that IPC after
+ * its mount effects flush, so `useIpcOn('tab.attached')` is registered by the
+ * time this delivers — keep the ready signal in a mount-time effect.
+ */
+export function markMainRendererReadyForTabAttach(senderId: string): void {
+  if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
+  isMainRendererReadyForTabAttach = true
+  flushPendingTabAttaches()
+}
+
+/**
+ * Invalidate renderer readiness (window destroyed, webContents reloading, or
+ * renderer crashed). Queued tabs are kept — they flush into the next ready
+ * renderer, with the target window resolved at flush time, not enqueue time.
+ */
+export function resetMainRendererTabAttachDelivery(): void {
+  isMainRendererReadyForTabAttach = false
+}
+
+function flushPendingTabAttaches(): void {
+  if (!isMainRendererReadyForTabAttach || pendingTabAttachQueue.length === 0) return
+  const mainWindowId = resolveLiveMainWindowId()
+  if (!mainWindowId) return
+  // splice clears in place, so a duplicate ready signal cannot replay the queue.
+  const queued = pendingTabAttachQueue.splice(0)
+  for (const tab of queued) {
+    application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
+  }
+}
+
+/**
+ * A live window id only proves the BrowserWindow exists — the renderer may still
+ * be booting, reloading, or crashed, with no `tab.attached` listener mounted.
+ * The ready flag plus a synchronous webContents check covers the reload() →
+ * did-start-loading gap that event-driven resets cannot see.
+ */
+function isTabDeliveryReady(windowId: string): boolean {
+  if (!isMainRendererReadyForTabAttach) return false
+  const win = application.get('WindowManager').getWindow(windowId)
+  if (!win || win.isDestroyed()) return false
+  if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
+    isMainRendererReadyForTabAttach = false
+    return false
+  }
+  return true
+}
+
+/**
  * Clear the stored init data for a cold-start payload after the renderer consumed it, so a
  * hot reload does not replay it. Fed by the `navigation.ack_open_route` ack — the channel
  * name predates the `tab-attach` kind, but it acks any `MainWindowInitData` by requestId.
@@ -72,7 +132,10 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  *
  * - Window alive → the navigation is a one-shot COMMAND: deliver it as the
  *   directed `navigation.open_route_requested` IpcApi event (ephemeral, no
- *   store write, no replay on reload), then raise the window.
+ *   store write, no replay on reload), then raise the window. Unlike tab
+ *   attach this does not gate on renderer readiness: a dropped navigation is
+ *   re-triggerable and harmless, while a dropped tab attach is not (the
+ *   source sub-window closes).
  * - Window missing/destroyed → the window is being created FOR this route, so
  *   the route is genuine init data; `showMainWindow(initData)` stores it before
  *   creation and the renderer picks it up on cold start.
@@ -115,7 +178,13 @@ export function openTabInMainWindow(tab: Tab): void {
   const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
-    application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
+    if (isTabDeliveryReady(mainWindowId)) {
+      application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
+    } else if (!pendingTabAttachQueue.some((queued) => queued.id === tab.id)) {
+      // Renderer not ready (fresh boot/reload/crash): queue the tab instead of
+      // dropping the event; flush happens when it reports ready.
+      pendingTabAttachQueue.push(tab)
+    }
     mainWindowService.showMainWindow()
     return
   }
