@@ -9,7 +9,6 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentSessionUsageCapture } from '../types'
-import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -157,6 +156,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
+      const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
       await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))

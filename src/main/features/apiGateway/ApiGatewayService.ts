@@ -9,7 +9,7 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import type { ApiGatewayConfig } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ApiGateway } from './server'
+import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
@@ -71,6 +71,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async onActivate(): Promise<void> {
     try {
       await this.ensureValidApiKey()
+      const { ApiGateway } = await import('./server')
       this.apiGateway = new ApiGateway()
       await this.apiGateway.start()
       this.publishRunningState(true)
