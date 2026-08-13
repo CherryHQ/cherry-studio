@@ -175,9 +175,10 @@ async function expandDirectoryNode(
  * its own name (e.g. `raw/docs/...`) instead of the opaque owner UUID, so the on-disk
  * layout mirrors what the user picked. When that name is already taken under raw/,
  * dedupe it with a `_N` suffix (the same strategy file imports use, see
- * reserveImportedFileRelativePath). Pure — no I/O — so the caller can pin it onto the
- * container's `relativePath` BEFORE any byte is copied, making a mid-expansion crash
- * recoverable (the retry reclaims `raw/<pathPrefix>` from the pinned row).
+ * reserveImportedFileRelativePath). No filesystem access (it only reads the owner row, and
+ * logs if the name had to change), so the caller can pin it onto the container's
+ * `relativePath` BEFORE any byte is copied, making a mid-expansion crash recoverable (the
+ * retry reclaims `raw/<pathPrefix>` from the pinned row).
  */
 export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevelNames: Set<string>): string {
   if (owner.type !== 'directory') {
