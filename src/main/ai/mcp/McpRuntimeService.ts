@@ -590,10 +590,11 @@ export class McpRuntimeService extends BaseService {
             // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
             const connectEnv: Record<string, string> = { ...server.env }
 
-            // Get login shell environment first - needed for command detection and server execution
-            // Cheap: served from a TTL cache that re-resolves in the background, so a
-            // PATH changed after launch reaches the server without an app restart.
-            const loginShellEnv = await getShellEnv()
+            // Get login shell environment first - needed for command detection and server execution.
+            // Fresh: only reached when actually establishing a connection (cached and pending
+            // clients return earlier), and that is exactly when the user expects a tool they
+            // just installed to be found — a cached PATH would fail the connect until restart.
+            const loginShellEnv = await getShellEnv({ fresh: true })
 
             // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {

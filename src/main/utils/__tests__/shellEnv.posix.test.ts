@@ -77,6 +77,9 @@ function mockFailingLoginShell(): void {
 /** Let queued promise callbacks run without advancing wall-clock time. */
 const flush = () => vi.advanceTimersByTimeAsync(0)
 
+/** Mirrors SHELL_ENV_TTL_MS — the backstop for passive reads. */
+const TTL_MS = 5 * 60_000
+
 describe('shellEnv – POSIX capture cache', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -104,17 +107,24 @@ describe('shellEnv – POSIX capture cache', () => {
     expect(spawn).toHaveBeenCalledTimes(1)
   })
 
+  it('serves a tool installed after launch to a fresh read, on the first read', async () => {
+    mockLoginShell('/usr/bin')
+    await getShellEnv()
+
+    // User installs ffmpeg in a terminal, switches back and activates a server.
+    mockLoginShell('/usr/bin:/opt/ffmpeg/bin')
+    expect((await getShellEnv({ fresh: true })).PATH).toContain('/opt/ffmpeg/bin')
+  })
+
   it('serves the last good capture while re-resolving in the background once it expires', async () => {
     mockLoginShell('/usr/bin')
     await getShellEnv()
 
-    // User installs a tool; the capture expires while the login shell is slow.
-    vi.advanceTimersByTime(60_001)
+    vi.advanceTimersByTime(TTL_MS + 1)
     const slowShell = mockPendingLoginShell('/usr/bin:/opt/ffmpeg/bin')
 
-    // The expired read must not wait on the pending shell.
-    const served = await getShellEnv()
-    expect(served.PATH).toContain('/usr/bin')
+    // The expired passive read must not wait on the pending shell.
+    expect((await getShellEnv()).PATH).toContain('/usr/bin')
     expect(spawn).toHaveBeenCalledTimes(2)
 
     slowShell.settle()
@@ -122,25 +132,30 @@ describe('shellEnv – POSIX capture cache', () => {
     expect((await getShellEnv()).PATH).toContain('/opt/ffmpeg/bin')
   })
 
-  it('keeps the last good capture when a re-capture fails', async () => {
+  it('keeps the last good capture when a re-capture fails, and backs off for one TTL', async () => {
     mockLoginShell('/usr/bin')
     await getShellEnv()
 
-    vi.advanceTimersByTime(60_001)
+    vi.advanceTimersByTime(TTL_MS + 1)
     mockFailingLoginShell()
     await getShellEnv()
     await flush()
 
-    // A failed capture must not downgrade a working env to bare process.env.
-    const env = await getShellEnv()
-    expect(env.PATH).toContain('/usr/bin')
-    expect(env.PATH).not.toContain('/degraded/fallback')
+    for (let i = 0; i < 5; i++) {
+      const env = await getShellEnv()
+      // A failed capture must not downgrade a working env to bare process.env.
+      expect(env.PATH).toContain('/usr/bin')
+      expect(env.PATH).not.toContain('/degraded/fallback')
+    }
+    // A broken profile must not be re-spawned once per read.
+    expect(spawn).toHaveBeenCalledTimes(2)
   })
 
-  it('does not adopt an in-flight capture that started before an explicit refresh', async () => {
+  it('does not adopt an in-flight capture that started before a fresh read', async () => {
     // A read starts a capture, then the user installs a tool while it is running.
     const preInstall = mockPendingLoginShell('/usr/bin')
     const reader = getShellEnv()
+    vi.advanceTimersByTime(1_000)
 
     // BinaryManager refreshes after the install; it must observe the new PATH.
     const refresh = refreshShellEnv()
@@ -149,26 +164,24 @@ describe('shellEnv – POSIX capture cache', () => {
 
     expect((await reader).PATH).not.toContain('/opt/ffmpeg/bin')
     expect((await refresh).PATH).toContain('/opt/ffmpeg/bin')
-
-    // The superseded capture must not publish over the refreshed one.
-    expect((await getShellEnv()).PATH).toContain('/opt/ffmpeg/bin')
     expect(spawn).toHaveBeenCalledTimes(2)
   })
 
-  it('never publishes a capture that an explicit refresh superseded', async () => {
-    const preInstall = mockPendingLoginShell('/usr/bin')
+  it('shares one queued capture across a burst of fresh reads', async () => {
+    const running = mockPendingLoginShell('/usr/bin')
     const reader = getShellEnv()
+    vi.advanceTimersByTime(1_000)
 
-    const refresh = refreshShellEnv()
-    // The replacement capture stays pending, so nothing can publish after the
-    // superseded one — any cached value would have to be its stale result.
-    mockPendingLoginShell('/usr/bin:/opt/ffmpeg/bin')
-    preInstall.settle()
+    // Three activations land while the first capture is still running. The
+    // queued capture starts after all of them, so one re-capture serves them all.
+    mockLoginShell('/usr/bin:/opt/ffmpeg/bin')
+    const bursts = [getShellEnv({ fresh: true }), getShellEnv({ fresh: true }), getShellEnv({ fresh: true })]
+    running.settle()
+
     await reader
-    await flush()
-
-    expect(MockMainCacheServiceUtils.getCacheValue('system.shell_env')).toBeUndefined()
-    expect(MockMainCacheServiceUtils.getCacheValue('system.shell_env.last_good')).toBeUndefined()
-    void refresh.catch(() => {})
+    for (const env of await Promise.all(bursts)) {
+      expect(env.PATH).toContain('/opt/ffmpeg/bin')
+    }
+    expect(spawn).toHaveBeenCalledTimes(2)
   })
 })

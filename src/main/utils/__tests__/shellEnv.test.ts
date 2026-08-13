@@ -264,33 +264,29 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
   })
 
-  it('should resolve the env again for every explicit refresh', async () => {
+  it('should resolve the env again for an explicit refresh', async () => {
     mockRegistryPaths({ system: 'C:\\Windows' })
+    await getShellEnv()
 
     // Callers refresh to observe a tool they just installed, so a refresh may
-    // never adopt a capture that started before it → one resolution each.
-    await Promise.all([refreshShellEnv(), refreshShellEnv()])
+    // never be served from the cache → a second resolution, i.e. 4 calls.
+    await refreshShellEnv()
 
     expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(4)
   })
 
   // -- staleness ------------------------------------------------------------
 
-  it('picks up a PATH installed after launch without an explicit refresh', async () => {
-    vi.useFakeTimers()
-    try {
-      mockRegistryPaths({ system: 'C:\\Windows' })
-      await getShellEnv()
+  it('serves a tool installed after launch to a fresh read', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows' })
+    await getShellEnv()
 
-      // User installs a tool (e.g. ffmpeg) and it lands in the system PATH.
-      mockRegistryPaths({ system: 'C:\\Windows;C:\\ffmpeg\\bin' })
-      vi.advanceTimersByTime(1_001)
+    // User installs a tool (e.g. ffmpeg) and it lands in the system PATH, then
+    // activates an MCP server that needs it — no app restart in between.
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\ffmpeg\\bin' })
 
-      const env = await getShellEnv()
-      expect(env.Path).toContain('C:\\ffmpeg\\bin')
-    } finally {
-      vi.useRealTimers()
-    }
+    const env = await getShellEnv({ fresh: true })
+    expect(env.Path).toContain('C:\\ffmpeg\\bin')
   })
 
   // -- cache isolation ------------------------------------------------------
