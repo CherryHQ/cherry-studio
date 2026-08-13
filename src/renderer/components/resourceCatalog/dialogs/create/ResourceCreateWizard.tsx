@@ -46,6 +46,7 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     name: initialName,
     description: '',
     agentType: 'claude-code',
+    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -263,6 +264,7 @@ export function ResourceCreateWizard({
       await onSubmit({
         avatar: values.avatar,
         agentType: values.agentType,
+        permissionMode: values.permissionMode,
         name: values.name.trim(),
         modelId: values.modelId,
         description: values.description.trim(),

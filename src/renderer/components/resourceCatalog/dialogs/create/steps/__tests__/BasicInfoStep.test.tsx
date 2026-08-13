@@ -3,6 +3,7 @@ import { Form } from '@cherrystudio/ui'
 import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,6 +56,7 @@ function Harness({
       name: '',
       description: '',
       agentType: 'claude-code',
+      permissionMode: 'default',
       modelId,
       prompt: '',
       knowledgeBaseIds: [],
@@ -65,6 +67,7 @@ function Harness({
   return (
     <Form {...form}>
       <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )
 }
@@ -93,6 +96,21 @@ describe('BasicInfoStep', () => {
     expect(screen.getByText('library.config.agent.field.runtime.option.claude_code')).toBeInTheDocument()
     expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.default.title'
+    )
+  })
+
+  it('switches to the selected runtime permission default', async () => {
+    const user = userEvent.setup()
+    render(<Harness runtimeSelectable />)
+
+    await user.click(screen.getByText('library.config.agent.field.runtime.option.pi'))
+
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.acceptEdits.title'
+    )
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('acceptEdits')
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {

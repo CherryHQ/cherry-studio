@@ -8,17 +8,19 @@ import {
   RadioGroup,
   RadioGroupItem
 } from '@cherrystudio/ui'
+import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import {
   AvatarField,
   CompactModelField,
   type ModelLabels,
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { useEffect, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -68,9 +70,14 @@ function AgentRuntimeModelFields({
   onSettingsNavigate
 }: ModelFieldProps) {
   const { t } = useTranslation()
+  const agentType = useWatch({ control: form.control, name: 'agentType' })
+  const permissionModeCards = getPermissionModeCards(agentType)
 
   const handleRuntimeChange = (next: AgentType) => {
     form.setValue('agentType', next, { shouldDirty: true })
+    form.setValue('permissionMode', AGENT_RUNTIME_CAPABILITIES[next].createDefaults.permissionMode, {
+      shouldDirty: true
+    })
     // A model compatible with one runtime may be unsupported by another, so
     // clear the current pick to force a re-select against the new filter.
     form.setValue('modelId', null, { shouldDirty: true })
@@ -109,6 +116,24 @@ function AgentRuntimeModelFields({
                 </div>
               </FormControl>
             </RadioGroup>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="permissionMode"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <PermissionModeSelect
+              cards={permissionModeCards}
+              value={field.value}
+              onValueChange={field.onChange}
+              portalContainer={portalContainer}
+              ariaLabel={t('library.config.agent.field.permission_mode.label')}
+              t={t}
+            />
             <FormMessage />
           </FormItem>
         )}

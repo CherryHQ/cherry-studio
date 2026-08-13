@@ -6,17 +6,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Switch,
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -649,37 +644,19 @@ function PermissionModeField({
     <FormField
       control={form.control}
       name="permissionMode"
-      render={({ field }) => (
+      render={() => (
         <FormItem className={editDialogFormRowClassName}>
           <FormLabel className={editDialogFormRowLabelClassName}>
             {t('library.config.agent.field.permission_mode.label')}
           </FormLabel>
-          <Select value={field.value || 'default'} onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
-            <FormControl>
-              <SelectTrigger
-                className="h-9 w-full rounded-md"
-                aria-label={t('library.config.agent.field.permission_mode.label')}>
-                {/* Own children so the trigger stays one line: the items below are two. */}
-                <SelectValue>
-                  {selectedPermissionModeCard && (
-                    <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
-                      {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent portalContainer={portalContainer}>
-              {permissionModeCards.map((card) => (
-                <SelectItem key={card.mode} value={card.mode}>
-                  <div className="flex items-center gap-2">
-                    <PermissionModeIcon mode={card.mode} size={16} />
-                    <PermissionModeOptionLabel card={card} t={t} />
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PermissionModeSelect
+            cards={permissionModeCards}
+            value={selectedPermissionModeCard?.mode ?? 'default'}
+            onValueChange={(value) => patchAgentForm({ permissionMode: value })}
+            portalContainer={portalContainer}
+            ariaLabel={t('library.config.agent.field.permission_mode.label')}
+            t={t}
+          />
           <FormMessage className="col-start-2" />
         </FormItem>
       )}

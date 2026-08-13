@@ -18,6 +18,9 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
 /** Map the shared create-wizard values to the Agent DataApi contract. */
 export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
   const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+  const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
+    ? values.permissionMode
+    : caps.createDefaults.permissionMode
   return {
     type: values.agentType,
     name: values.name,
@@ -29,7 +32,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
     configuration: {
       avatar: values.avatar,
-      permission_mode: caps.createDefaults.permissionMode
+      permission_mode: permissionMode
     }
   }
 }
