@@ -1,8 +1,10 @@
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
+import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { WindowId } from '@shared/ipc/types'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
+import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 import { openRouteInMainWindow } from './mainWindowNavigation'
 
@@ -32,12 +34,6 @@ interface PendingNavigationCommand {
 
 function conversationTargetKey(target: ConversationNavigationTarget): string {
   return `${target.conversationType}:${target.conversationId}`
-}
-
-function conversationRoute(target: ConversationNavigationTarget): string {
-  return target.conversationType === 'agent'
-    ? `/app/agents?sessionId=${encodeURIComponent(target.conversationId)}`
-    : `/app/chat?topicId=${encodeURIComponent(target.conversationId)}`
 }
 
 function compareWindowPriority(left: WindowInfo, right: WindowInfo): number {
@@ -122,10 +118,10 @@ export class ConversationNavigationService extends BaseService {
     let coldRouteOpened = false
 
     while (!this.isStopping) {
-      const windows = this.getFullChromeWindows()
+      const windows = getFullChromeWindowInfos()
       if (windows.length === 0) {
         if (!coldRouteOpened) {
-          openRouteInMainWindow(conversationRoute(target))
+          openRouteInMainWindow(conversationRouteUrl(target))
           coldRouteOpened = true
         }
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
@@ -135,7 +131,7 @@ export class ConversationNavigationService extends BaseService {
       const query = await this.queryOwners(windows, target)
       if (!query || this.isStopping) return
 
-      const liveWindows = this.getFullChromeWindows()
+      const liveWindows = getFullChromeWindowInfos()
       const windowById = new Map(liveWindows.map((window) => [window.id, window]))
       const respondingWindowIds = new Set(query.respondingWindowIds)
 
@@ -176,7 +172,7 @@ export class ConversationNavigationService extends BaseService {
       const destination = owner ?? requester ?? respondingMainWindow
 
       if (!destination) {
-        openRouteInMainWindow(conversationRoute(target))
+        openRouteInMainWindow(conversationRouteUrl(target))
         coldRouteOpened = true
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
@@ -223,16 +219,6 @@ export class ConversationNavigationService extends BaseService {
       const timer = setTimeout(resolve, Math.min(OWNERSHIP_RETRY_DELAY_MS, remainingMs))
       timer.unref()
     })
-  }
-
-  private getFullChromeWindows(): WindowInfo[] {
-    const windowManager = application.get('WindowManager')
-    return [
-      ...windowManager.getWindowInfosByType(WindowType.Main),
-      ...windowManager
-        .getWindowInfosByType(WindowType.SubWindow)
-        .filter((window) => window.isVisible || window.isFocused)
-    ]
   }
 
   private queryOwners(

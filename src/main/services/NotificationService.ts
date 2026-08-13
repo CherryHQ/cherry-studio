@@ -8,6 +8,7 @@ import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -104,7 +105,7 @@ export class NotificationService extends BaseService {
   }
 
   private deliverConversationNotification(notification: ConversationNotification): void {
-    const focusedWindow = this.getFocusedFullChromeWindow()
+    const focusedWindow = getFullChromeWindowInfos().find((window) => window.isFocused)
     if (focusedWindow) {
       application.get('IpcApiService').send(focusedWindow.id, 'notification.conversation', notification)
       return
@@ -112,15 +113,6 @@ export class NotificationService extends BaseService {
 
     if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     void this.sendNotification(notification)
-  }
-
-  private getFocusedFullChromeWindow() {
-    const windowManager = application.get('WindowManager')
-    const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
-    const subWindows = windowManager
-      .getWindowInfosByType(WindowType.SubWindow)
-      .filter((window) => window.isVisible || window.isFocused)
-    return [...mainWindows, ...subWindows].find((window) => window.isFocused)
   }
 
   private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
