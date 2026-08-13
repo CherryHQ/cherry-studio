@@ -16,6 +16,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -35,6 +36,7 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -44,6 +46,33 @@ const logger = loggerService.withContext('useTopic')
 const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
 const LOAD_ALL_TOPIC_PAGE_SIZE = 200
+
+/**
+ * Preserve entity identity across list refreshes when DataApi returns an
+ * equivalent object. Order changes still publish a new array, while unchanged
+ * rows retain their references for memoized consumers.
+ */
+function useStructurallySharedTopics(topics: Topic[]): Topic[] {
+  const previousTopicsRef = useRef<Topic[]>([])
+
+  return useMemo(() => {
+    const previousTopics = previousTopicsRef.current
+    const previousById = new Map(previousTopics.map((topic) => [topic.id, topic] as const))
+    let arrayChanged = previousTopics.length !== topics.length
+
+    const nextTopics = topics.map((topic, index) => {
+      const previous = previousById.get(topic.id)
+      const next = previous && isEqual(previous, topic) ? previous : topic
+      if (next !== previousTopics[index]) {
+        arrayChanged = true
+      }
+      return next
+    })
+    const sharedTopics = arrayChanged ? nextTopics : previousTopics
+    previousTopicsRef.current = sharedTopics
+    return sharedTopics
+  }, [topics])
+}
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -62,6 +91,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     id: t.id,
     assistantId: t.assistantId,
     name: t.name ?? '',
+    lastActivityAt: t.lastActivityAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     activeNodeId: t.activeNodeId,
@@ -253,7 +283,8 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
     enabled: opts?.enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
-  const topics = useInfiniteFlatItems(pages)
+  const flatTopics = useInfiniteFlatItems(pages)
+  const topics = useStructurallySharedTopics(flatTopics)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
 
@@ -269,6 +300,10 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
       loadNext()
     }
   }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
+
+  useDataChange('/topics', () => {
+    if (opts?.enabled !== false) void mutate()
+  })
 
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
@@ -292,6 +327,15 @@ export function useTopicById(topicId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
+  useDataChange(
+    '/topics/:id',
+    (effects) => {
+      if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
+        void mutate()
+      }
+    },
+    { routeParams: topicId ? { id: topicId } : undefined }
+  )
 
   return {
     topic: data,
@@ -303,21 +347,24 @@ export function useTopicById(topicId: string | undefined) {
 }
 
 /**
- * The globally most-recently-updated topic, for first-entry restore.
+ * The globally most-recently-active topic, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
  * last-touched conversation without waiting for the full topic history to
  * paginate in and without depending on the pinned-first `/topics` list order.
  *
- * `/topics/latest` is a global MAX(updatedAt) aggregate, so keeping its cache
- * coherent would mean every updatedAt-bumping write invalidating it (an
- * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
- * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
- * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * Activity-bearing writes publish a scalar data-change signal so a mounted
+ * first-entry surface cannot keep a stale winner from another window. Folding
+ * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
+ * revalidation rather than trust a stale cache.
  * `latestTopic` is `undefined` while loading and when the library is empty.
  */
 export function useLatestTopic(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
+
+  useDataChange('/topics/latest', () => {
+    void refetch()
+  })
 
   return {
     latestTopic: data?.topic ?? undefined,

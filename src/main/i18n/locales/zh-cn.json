@@ -104,6 +104,12 @@
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
   },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "当前文档解析服务要求文件小于 {{maxSize}}，请压缩或拆分后重新添加。",
+      "pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。"
+    }
+  },
   "openclaw": {
     "errors": {
       "binary_incompatible": "Cherry Studio 当前使用的 OpenClaw 与生成的配置不兼容，请升级 OpenClaw。{{details}}",

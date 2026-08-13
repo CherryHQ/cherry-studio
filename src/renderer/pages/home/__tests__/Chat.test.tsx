@@ -21,6 +21,7 @@ const topic: Topic = {
   id: 'topic-1',
   assistantId: 'assistant-1',
   name: 'Topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: [],

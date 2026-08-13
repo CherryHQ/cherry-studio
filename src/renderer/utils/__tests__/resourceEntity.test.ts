@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { findLatestUpdated, isUntouchedSinceCreation, pickNeighbourAfterRemoval } from '../resourceEntity'
+import {
+  findLatestActive,
+  findLatestUpdated,
+  isUntouchedSinceCreation,
+  pickNeighbourAfterRemoval
+} from '../resourceEntity'
 
 describe('resourceEntity', () => {
   describe('isUntouchedSinceCreation', () => {
@@ -64,6 +69,23 @@ describe('resourceEntity', () => {
       const first = { id: 'first', updatedAt: '2024-01-01T00:00:00.000Z' }
       const second = { id: 'second', updatedAt: '2024-01-01T00:00:00.000Z' }
       expect(findLatestUpdated([first, second])).toBe(first)
+    })
+  })
+
+  describe('findLatestActive', () => {
+    it('uses conversation activity even when metadata updatedAt disagrees', () => {
+      const metadataLatest = {
+        id: 'metadata-latest',
+        lastActivityAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-03-01T00:00:00.000Z'
+      }
+      const activityLatest = {
+        id: 'activity-latest',
+        lastActivityAt: '2024-02-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+
+      expect(findLatestActive([metadataLatest, activityLatest])).toBe(activityLatest)
     })
   })
 

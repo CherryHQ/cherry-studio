@@ -2545,6 +2545,7 @@
       "ocr": "OCR 识别引擎未初始化，请检查 OCR 设置",
       "parse": "AI 返回的格式异常，请重试或更换模型",
       "payload": "请求内容过大，请减少发送的文件或文本量",
+      "permission": "服务商拒绝了此请求。请查看错误详情，并确认账户套餐、API 密钥权限或该资源的访问权限",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
       "quota": "账户额度已用完，请充值或更换服务商",
       "rate_limit": "请求过于频繁，请稍等片刻再试，或更换为更高速率的模型",
@@ -3502,9 +3503,15 @@
       "basic": {
         "context_compress_enabled": "自动压缩",
         "context_compress_model": "压缩模型",
-        "context_compress_model_follow": "默认",
-        "context_count": "上下文数",
-        "context_management": "上下文管理",
+        "context_compress_model_follow": "跟随当前模型",
+        "context_count": "保留最近消息数",
+        "context_count_follow_global": "跟随全局（{{count}} 条）",
+        "context_count_unlimited": "不限制",
+        "context_globally_disabled": "全局已关闭上下文管理，此处的转存与压缩设置暂不生效",
+        "context_inherited": "当前跟随全局设置：{{compress}}，工具输出超过 {{threshold}} 字符时转存",
+        "context_inherited_compress_off": "自动压缩已关闭",
+        "context_inherited_compress_on": "自动压缩已开启",
+        "context_management": "自定义上下文管理",
         "context_truncate_threshold": "工具输出截断阈值(字符)",
         "creative": "创意",
         "custom_params": "自定义参数",
@@ -3521,10 +3528,10 @@
             "hint": "接近上下文窗口上限时自动摘要较早的对话"
           },
           "context_count": {
-            "hint": "保留为上下文的最近消息数量"
+            "hint": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示跟随全局设置"
           },
           "context_management": {
-            "hint": "开启后此助手使用自定义的上下文管理设置,关闭时跟随全局设置"
+            "hint": "此助手使用独立的上下文管理设置，关闭时跟随全局设置"
           },
           "context_truncate_threshold": {
             "hint": "超过该字符数的工具输出会被转存并截断"
@@ -4045,6 +4052,14 @@
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
       },
+      "stream_admission": {
+        "execution_changed": "回复在重试开始前发生了变化，请重试。",
+        "execution_not_ready": "该回复仍在生成，暂时无法重试。",
+        "model_already_in_live_group": "该模型已在当前回复组中生成。",
+        "single_model_required": "请选择一个模型添加到当前回复组。",
+        "target_not_in_live_group": "所选回复已不在当前活动回复组中，请重试。",
+        "topic_busy": "该对话仍在生成，请等待完成后重试。"
+      },
       "table": {
         "invalid": "无法获取有效的表格数据"
       },
@@ -4059,7 +4074,8 @@
         "content": "是否删除该分组中的所有助手回答？用户提问和后续消息将保留。",
         "title": "删除分组回答"
       },
-      "retry_failed": "重试出错的消息"
+      "retry_failed": "每个模型重试一条出错消息",
+      "retry_skipped_same_model": "已跳过同一模型的另外 {{count}} 条失败回复；全部重试对每个模型最多启动一次重试。"
     },
     "ignore": {
       "knowledge": {
@@ -7461,6 +7477,20 @@
         "use_all_keys": "使用密钥"
       },
       "collapse_all": "全部折叠",
+      "context_management": {
+        "compress_enabled": "自动压缩",
+        "compress_enabled_description": "接近上下文窗口上限时自动摘要较早的对话。助手可单独覆盖",
+        "compress_model": "压缩模型",
+        "compress_model_follow": "跟随当前模型",
+        "enabled": "启用上下文管理",
+        "enabled_description": "自动管理对话上下文：转存超长工具输出，并在接近窗口上限时压缩历史。关闭后不做处理，超出模型窗口的请求将失败",
+        "max_messages": "保留最近消息数",
+        "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。助手可单独覆盖",
+        "max_messages_unlimited": "不限制",
+        "title": "上下文管理",
+        "truncate_threshold": "工具输出截断阈值(字符)",
+        "truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖"
+      },
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
@@ -8411,7 +8441,7 @@
           "fetch": "内置 URL 获取服务商，用于从指定 URL 获取网页内容，适合补全搜索结果正文。",
           "firecrawl": "Firecrawl 网页抓取与搜索服务，支持将网页转换为 Markdown 格式。",
           "jina": "Jina Reader 搜索与阅读接口，用于检索并提取网页正文。",
-          "querit": "面向 AI 应用的搜索服务，提供可接入的网页检索结果。",
+          "querit": "Querit 搜索与内容接口，用于关键词检索与网页正文提取。",
           "searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
           "tavily": "专为 LLM 优化的搜索引擎。",
           "zhipu": "智谱 GLM Web Search，提供联网搜索与实时信息检索。"
