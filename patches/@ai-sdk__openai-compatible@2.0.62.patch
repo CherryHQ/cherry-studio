@@ -90,7 +90,7 @@ index 919a33d..2718298 100644
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1578,13 +1620,23 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1578,13 +1620,25 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -107,7 +107,9 @@ index 919a33d..2718298 100644
 +  "gpt-image-1-mini",
 +  "gpt-image-1.5",
 +  "gpt-image-1",
-+  "gpt-image-2"
++  "gpt-image-2",
++  "agnes-image-",
++  "agnes-t2i-"
 +];
 +function hasDefaultResponseFormat(modelId) {
 +  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
@@ -260,7 +262,7 @@ index a619ccf..f5ba2a0 100644
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1598,6 +1640,16 @@ import {
+@@ -1598,6 +1640,18 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -269,7 +271,9 @@ index a619ccf..f5ba2a0 100644
 +  "gpt-image-1-mini",
 +  "gpt-image-1.5",
 +  "gpt-image-1",
-+  "gpt-image-2"
++  "gpt-image-2",
++  "agnes-image-",
++  "agnes-t2i-"
 +];
 +function hasDefaultResponseFormat(modelId) {
 +  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));

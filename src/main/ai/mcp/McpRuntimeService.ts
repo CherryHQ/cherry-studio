@@ -9,7 +9,7 @@ import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
+import { findCommandInShellEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -31,7 +31,6 @@ import {
   CancelledNotificationSchema,
   type GetPromptResult,
   LoggingMessageNotificationSchema,
-  type Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -96,12 +95,6 @@ type CallToolArgs = {
   /** Caller-isolation key (e.g. topicId) — abort-by-id only matches within the same scope. */
   scope?: string
   signal?: AbortSignal
-  /**
-   * Receives the upstream server's progress notifications. The renderer gets them
-   * unconditionally over IPC, so this is for callers outside it — currently the MCP bridge,
-   * relaying to a client that supplied a `progressToken`.
-   */
-  onProgress?: ProgressCallback
 }
 type RuntimeCallToolArgs = {
   server: McpServer
@@ -110,7 +103,6 @@ type RuntimeCallToolArgs = {
   callId?: string
   scope?: string
   signal?: AbortSignal
-  onProgress?: ProgressCallback
 }
 
 /**
@@ -123,7 +115,6 @@ function toolCallKey(callId: string, scope?: string): string {
   return scope ? `${scope}\u0000${callId}` : callId
 }
 
-type ProgressCallback = (progress: Progress) => void
 type McpRuntimeState = McpRuntimeStatus['state']
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
@@ -572,7 +563,7 @@ export class McpRuntimeService extends BaseService {
 
             if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
-              const npxPath = await findExecutableInEnv('npx')
+              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
 
               if (npxPath) {
                 // Use system npx
@@ -622,7 +613,7 @@ export class McpRuntimeService extends BaseService {
               }
             } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findExecutableInEnv(effectiveCommand)
+              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
 
               if (uvPath) {
                 // Use system uvx/uv
@@ -1175,17 +1166,9 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({
-    serverId,
-    name,
-    args,
-    callId,
-    scope,
-    signal,
-    onProgress
-  }: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool({ serverId, name, args, callId, scope, signal }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId, scope, signal, onProgress })
+    return this.callToolByServer({ server, name, args, callId, scope, signal })
   }
 
   public async callToolByServer({
@@ -1194,8 +1177,7 @@ export class McpRuntimeService extends BaseService {
     args,
     callId,
     scope,
-    signal,
-    onProgress
+    signal
   }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const registrationKey = toolCallKey(toolCallId, scope)
@@ -1258,15 +1240,6 @@ export class McpRuntimeService extends BaseService {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
             })
-            // Additional consumer outside the renderer; must not break the call or the
-            // broadcast above if it throws.
-            try {
-              onProgress?.(process)
-            } catch (error) {
-              getServerLogger(server, { tool: name, callId: toolCallId }).warn('Progress listener threw', {
-                error
-              })
-            }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts

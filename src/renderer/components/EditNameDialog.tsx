@@ -79,10 +79,6 @@ const EditNameDialog = ({
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // IME candidate confirmation still emits keydown; submitting there would save the raw pinyin
-    // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
-    // oxlint-disable-next-line no-deprecated
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key !== 'Enter') return
 
     event.preventDefault()

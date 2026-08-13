@@ -51,7 +51,6 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
@@ -150,8 +149,6 @@ interface AgentRightPaneMeta {
   workspaceId?: string
   workspacePath?: string
   workspaceType?: AgentWorkspaceType
-  /** Active model — supplies the context-usage denominator and guards against stale readings. */
-  model?: Model
 }
 
 interface AgentRightPaneRuntime {
@@ -363,7 +360,6 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
-  model,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -543,15 +539,13 @@ function AgentRightPaneStateProvider({
       conversationState,
       workspaceId,
       workspacePath,
-      workspaceType,
-      model
+      workspaceType
     }),
     [
       agentAvatar,
       agentId,
       agentName,
       conversationState,
-      model,
       sessionId,
       sessionName,
       traceId,
@@ -697,7 +691,6 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
-      lastActivityAt: FALLBACK_TIMESTAMP,
       createdAt: FALLBACK_TIMESTAMP,
       updatedAt: FALLBACK_TIMESTAMP,
       messages: []
@@ -1008,7 +1001,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1052,7 +1045,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
-        maxTokens={maxTokens}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
@@ -1276,18 +1268,13 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <AgentContextUsageSummary
-        usage={usage}
-        percentage={percentage}
-        maxTokens={maxTokens}
-        isCompacting={isCompacting}
-      />
+      <AgentContextUsageSummary usage={usage} percentage={percentage} isCompacting={isCompacting} />
       <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>
   )

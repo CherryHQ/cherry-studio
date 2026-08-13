@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -23,6 +24,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
@@ -43,7 +45,6 @@ import {
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
-import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -276,6 +277,16 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
+}
+
+function createFolderComposerToken(path: string): ComposerDraftToken {
+  return {
+    id: createComposerSecureRandomId('folder-token'),
+    kind: 'folder',
+    label: getPathBasename(path),
+    description: path,
+    promptText: path
+  }
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -713,7 +724,7 @@ export default function ComposerSurface({
     onFolderPathDropped: (path) => {
       const editor = editorRef.current
       if (!editor || editor.isDestroyed) return
-      insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
+      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
     },
     onTextDropped: (droppedText) => {
       const editor = editorRef.current

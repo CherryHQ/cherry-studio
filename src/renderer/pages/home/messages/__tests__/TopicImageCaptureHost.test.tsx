@@ -87,7 +87,6 @@ describe('TopicImageCaptureHost', () => {
       id: 'topic-a',
       assistantId: 'assistant-a',
       name: 'Topic A',
-      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -126,11 +125,10 @@ describe('TopicImageCaptureHost', () => {
 
     expect(messages.map((message) => message.id)).toEqual([
       'user-active',
-      'assistant-model-a-old',
       'assistant-model-a-active',
       'assistant-model-b'
     ])
-    expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, false, true, false])
+    expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, true, false])
   })
 
   it('omits persisted empty user messages from the captured conversation', async () => {

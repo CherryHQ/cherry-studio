@@ -227,7 +227,6 @@ function createTopic(partial: Partial<Topic> = {}): Topic {
     name: 'Test Topic',
     assistantId: 'asst_default',
     messages: [],
-    lastActivityAt: '',
     createdAt: '',
     updatedAt: '',
     type: TopicType.Chat,

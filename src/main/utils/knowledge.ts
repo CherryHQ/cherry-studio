@@ -1,7 +1,5 @@
 import path from 'node:path'
 
-import { FILE_NAME_MAX_LENGTH } from '@shared/utils/file'
-
 export const DEFAULT_DOCUMENT_COUNT = 6
 export const DEFAULT_RELEVANT_SCORE = 0
 
@@ -25,17 +23,9 @@ export function nextFreeKnowledgeRelativePath(
   // `report.v2_1`, not `report_1.v2`. Callers pass splitExtension=false for those.
   const ext = splitExtension ? path.extname(relativePath) : ''
   const stem = relativePath.slice(0, relativePath.length - ext.length)
-  const fileStemStart = stem.lastIndexOf('/') + 1
-  const directory = stem.slice(0, fileStemStart)
-  const fileStem = stem.slice(fileStemStart)
 
   for (let suffix = 0; ; suffix += 1) {
-    const suffixText = suffix === 0 ? '' : `_${suffix}`
-    const candidateStem = fileStem.slice(0, Math.max(0, FILE_NAME_MAX_LENGTH - ext.length - suffixText.length))
-    const candidateExt = ext
-      .slice(0, FILE_NAME_MAX_LENGTH - candidateStem.length - suffixText.length)
-      .replace(/[\s.]+$/, '')
-    const candidate = `${directory}${candidateStem}${suffixText}${candidateExt}`
+    const candidate = suffix === 0 ? relativePath : `${stem}_${suffix}${ext}`
     if (isFree(candidate)) {
       return candidate
     }

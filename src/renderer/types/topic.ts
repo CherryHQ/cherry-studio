@@ -16,7 +16,6 @@ export type Topic = {
    */
   assistantId: string | undefined
   name: string
-  lastActivityAt: string
   createdAt: string
   updatedAt: string
   /**

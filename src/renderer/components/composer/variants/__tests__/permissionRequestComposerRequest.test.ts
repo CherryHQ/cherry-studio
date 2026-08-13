@@ -1,7 +1,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { findNextPendingPermissionRequest } from '../PermissionRequestComposer'
+import { findLatestPendingPermissionRequest } from '../PermissionRequestComposer'
 
 function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
   return {
@@ -22,18 +22,14 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
   } as unknown as CherryMessagePart
 }
 
-describe('findNextPendingPermissionRequest', () => {
-  it('returns pending permissions in FIFO order', () => {
-    const partsByMessageId = {
+describe('findLatestPendingPermissionRequest', () => {
+  it('finds the latest pending builtin/provider permission request', () => {
+    const result = findLatestPendingPermissionRequest({
       'message-1': [makePart()],
-      'message-2': [
-        makePart({ toolCallId: 'call-2', approval: { id: 'approval-2' } }),
-        makePart({ toolCallId: 'call-3', approval: { id: 'approval-3' } })
-      ]
-    }
-    const first = findNextPendingPermissionRequest(partsByMessageId)
+      'message-2': [makePart({ toolCallId: 'call-2', approval: { id: 'approval-2' } })]
+    })
 
-    expect(first).toMatchObject({
+    expect(result).toMatchObject({
       messageId: 'message-2',
       toolCallId: 'call-2',
       approvalId: 'approval-2',
@@ -44,30 +40,16 @@ describe('findNextPendingPermissionRequest', () => {
         arguments: { file_path: '/tmp/file.ts' }
       }
     })
-    expect(first?.match).toMatchObject({
+    expect(result?.match).toMatchObject({
       messageId: 'message-2',
       toolCallId: 'call-2',
       approvalId: 'approval-2',
       state: 'approval-requested'
     })
-
-    expect(
-      findNextPendingPermissionRequest({
-        ...partsByMessageId,
-        'message-2': [
-          makePart({ toolCallId: 'call-2', approval: { id: 'approval-2' }, state: 'approval-responded' }),
-          makePart({ toolCallId: 'call-3', approval: { id: 'approval-3' } })
-        ]
-      })
-    ).toMatchObject({
-      messageId: 'message-2',
-      toolCallId: 'call-3',
-      approvalId: 'approval-3'
-    })
   })
 
   it('extracts a request title from descriptive tool input fields', () => {
-    const result = findNextPendingPermissionRequest({
+    const result = findLatestPendingPermissionRequest({
       'message-1': [
         makePart({
           input: {
@@ -82,7 +64,7 @@ describe('findNextPendingPermissionRequest', () => {
   })
 
   it('uses Claude Code MCP metadata for the tool preview', () => {
-    const result = findNextPendingPermissionRequest({
+    const result = findLatestPendingPermissionRequest({
       'message-1': [
         makePart({
           type: 'dynamic-tool',
@@ -129,7 +111,7 @@ describe('findNextPendingPermissionRequest', () => {
   })
 
   it('ignores AskUserQuestion, invalid, and already responded tool parts', () => {
-    const result = findNextPendingPermissionRequest({
+    const result = findLatestPendingPermissionRequest({
       'message-1': [
         makePart({ toolName: 'AskUserQuestion', type: 'tool-AskUserQuestion' }),
         makePart({ state: 'approval-responded' }),

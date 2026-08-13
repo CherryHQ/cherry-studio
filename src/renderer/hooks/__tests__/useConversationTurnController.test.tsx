@@ -1,5 +1,4 @@
 import type { AiStreamOpenResponse } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +39,6 @@ function createDeferred<T>() {
 }
 
 function renderController(initialScopeKey = 'topic-a') {
-  const refreshMetadata = vi.fn()
   const historyAdapter: ConversationHistoryAdapter = {
     seedReservedMessages: vi.fn(),
     refresh: vi.fn(),
@@ -56,13 +54,12 @@ function renderController(initialScopeKey = 'topic-a') {
           trigger: 'submit-message',
           topicId: conversation.topicId,
           userMessageParts: []
-        }),
-        refreshMetadata
+        })
       }),
     { initialProps: { scopeKey: initialScopeKey } }
   )
 
-  return { ...view, historyAdapter, refreshMetadata }
+  return { ...view, historyAdapter }
 }
 
 describe('useConversationTurnController', () => {
@@ -73,7 +70,7 @@ describe('useConversationTurnController', () => {
   it('ignores a stream-open acknowledgement from a previous scope', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
-    const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent-session:a')
+    const { result, rerender } = renderController('agent-session:a')
 
     let sendFromA!: Promise<AiStreamOpenResponse | null>
     act(() => {
@@ -83,19 +80,11 @@ describe('useConversationTurnController', () => {
 
     rerender({ scopeKey: 'agent-session:b' })
     await act(async () => {
-      pendingAck.resolve({
-        mode: 'started',
-        reservedMessages: [{ id: 'assistant-a', role: 'assistant', parts: [] } as CherryUIMessage]
-      })
+      pendingAck.resolve({ mode: 'started', reservedMessages: [] })
       await sendFromA
     })
 
     expect(result.current.phase).toBe('draft')
-    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
-    expect(refreshMetadata).toHaveBeenCalledWith(
-      { topicId: 'agent-session:a' },
-      expect.objectContaining({ mode: 'started' })
-    )
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     await act(async () => {

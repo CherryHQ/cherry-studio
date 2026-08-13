@@ -32,16 +32,9 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
-  // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
-  it('classifies 403 as permission, not auth', () => {
-    const result = classifyError(makeError({ statusCode: 403 }), 'openai')
-    expect(result.category).toBe('permission')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
-  })
-
-  it('classifies a 403 with billing signals as quota, not permission', () => {
-    const result = classifyError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }))
-    expect(result.category).toBe('quota')
+  it('classifies 403 as auth', () => {
+    const result = classifyError(makeError({ statusCode: 403 }))
+    expect(result.category).toBe('auth')
   })
 
   it('classifies a 403 unsupported-country response as region', () => {
@@ -72,9 +65,9 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
-  it('classifies forbidden message as permission', () => {
+  it('classifies forbidden message as auth', () => {
     const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
-    expect(result.category).toBe('permission')
+    expect(result.category).toBe('auth')
   })
 
   // Model

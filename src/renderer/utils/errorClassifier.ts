@@ -3,7 +3,6 @@ import type { SerializedError } from '@renderer/types/error'
 export interface ErrorClassification {
   category:
     | 'auth'
-    | 'permission'
     | 'region'
     | 'model'
     | 'quota'
@@ -103,13 +102,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
   }
 
-  // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
-  // validity, so claiming the key is invalid sends users off regenerating working keys.
+  // Auth errors (401/403)
   if (
     numStatus === 401 ||
+    numStatus === 403 ||
     msg.includes('invalid_api_key') ||
     msg.includes('authentication') ||
-    msg.includes('unauthorized')
+    msg.includes('unauthorized') ||
+    msg.includes('forbidden')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
   }
@@ -128,16 +128,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Explicit billing signals win over the HTTP 429 rate-limit default.
   if (numStatus === 402 || isQuotaErrorMessage(msg)) {
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
-  }
-
-  // 403 = the request was refused, cause unspecified. Kept below region/model/quota because
-  // those more specific causes also ship as 403.
-  if (numStatus === 403 || msg.includes('forbidden')) {
-    return {
-      category: 'permission',
-      i18nKey: 'error.diagnosis.permission',
-      navTarget: `/settings/provider${providerSuffix}`
-    }
   }
 
   // Rate limit (429 / "too many requests")

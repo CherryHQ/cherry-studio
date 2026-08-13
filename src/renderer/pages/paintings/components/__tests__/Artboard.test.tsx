@@ -19,14 +19,10 @@ vi.mock('@renderer/components/ImageViewer', async () => {
 
   return {
     default: function MockImageViewer({
-      contextMenuTransform,
       preview: _preview,
       onContextMenu,
       ...props
-    }: ImgHTMLAttributes<HTMLImageElement> & {
-      contextMenuTransform?: { rotation?: number }
-      preview?: unknown
-    }) {
+    }: ImgHTMLAttributes<HTMLImageElement> & { preview?: unknown }) {
       const [showContextActions, setShowContextActions] = React.useState(false)
       void _preview
 
@@ -34,7 +30,6 @@ vi.mock('@renderer/components/ImageViewer', async () => {
         <>
           <img
             {...props}
-            data-context-menu-rotation={contextMenuTransform?.rotation}
             onContextMenu={(event) => {
               onContextMenu?.(event)
               setShowContextActions(true)
@@ -620,7 +615,6 @@ describe('Artboard', () => {
     firePointer(image, 'pointermove', { clientX: 35, clientY: 45, pointerId: 1 })
 
     expect(transformTarget.style.transform).toBe('translate(25px, 35px) scale(1) rotate(-90deg)')
-    expect(image).toHaveAttribute('data-context-menu-rotation', '-90')
     expect(promptBar.style.transform).toBe('')
     expect(image).not.toHaveClass('bg-secondary')
     expect(document.querySelector('.truncate')).toHaveTextContent('a long prompt that must stay above the image')
@@ -629,7 +623,6 @@ describe('Artboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'preview.rotate_right' }))
 
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(90deg)')
-    expect(image).toHaveAttribute('data-context-menu-rotation', '90')
     expect(promptBar.style.transform).toBe('')
   })
 

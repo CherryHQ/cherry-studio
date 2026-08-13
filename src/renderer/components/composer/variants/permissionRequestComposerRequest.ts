@@ -53,14 +53,12 @@ function getPermissionTitle(part: PermissionToolPart, fallback: string): string 
   return getStringField(part.input, ['question', 'message', 'prompt', 'title', 'description']) ?? fallback
 }
 
-/** Return the FIFO head from the newest reply that has pending tool permissions. */
-export function findNextPendingPermissionRequest(
+export function findLatestPendingPermissionRequest(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): PermissionRequestComposerRequest | null {
-  const messages = Object.entries(partsByMessageId)
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
-    const [messageId, parts] = messages[messageIndex]
+  let latest: PermissionRequestComposerRequest | null = null
 
+  for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
 
@@ -74,7 +72,7 @@ export function findNextPendingPermissionRequest(
       const toolResponse = buildToolResponseFromPart(part)
       if (!toolResponse) continue
 
-      return {
+      latest = {
         messageId,
         toolCallId: toolPart.toolCallId,
         approvalId,
@@ -92,5 +90,5 @@ export function findNextPendingPermissionRequest(
     }
   }
 
-  return null
+  return latest
 }

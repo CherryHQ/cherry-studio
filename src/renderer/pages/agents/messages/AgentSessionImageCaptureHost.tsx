@@ -50,7 +50,6 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
       type: TopicType.Session as TopicTypeEnum,
       assistantId: captureTarget.session.agentId ?? undefined,
       name: sessionExportTitle,
-      lastActivityAt: captureTarget.session.lastActivityAt,
       createdAt: captureTarget.session.createdAt,
       updatedAt: captureTarget.session.updatedAt,
       messages: []

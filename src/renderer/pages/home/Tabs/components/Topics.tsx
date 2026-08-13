@@ -48,7 +48,13 @@ import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
+import {
+  finishTopicRenaming,
+  getTopicMessages,
+  mapApiTopicToRendererTopic,
+  startTopicRenaming,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -97,7 +103,6 @@ import {
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
-import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from './topicListItemSharing'
 
 const logger = loggerService.withContext('Topics')
 const ResourceEditDialogHost = lazy(() =>
@@ -383,12 +388,14 @@ export function Topics({
     [queueImageCaptureTarget, showTopicImageExportToast, t]
   )
 
-  const topicItemsReconciliationRef = useRef(EMPTY_TOPIC_LIST_ITEM_RECONCILIATION)
-  const apiBackedTopics = useMemo(() => {
-    const reconciliation = reconcileTopicListItems(apiTopics, isTopicPinned, topicItemsReconciliationRef.current)
-    topicItemsReconciliationRef.current = reconciliation
-    return reconciliation.items
-  }, [apiTopics, isTopicPinned])
+  const apiBackedTopics = useMemo(
+    () =>
+      apiTopics.map((apiTopic) => {
+        const topic = mapApiTopicToRendererTopic(apiTopic)
+        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
+      }),
+    [apiTopics, isTopicPinned]
+  )
   const [optimisticMove, setOptimisticMove] = useState<{
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null

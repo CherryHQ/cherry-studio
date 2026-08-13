@@ -55,7 +55,6 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
       id: target.topicId,
       assistantId: target.assistantId ?? '',
       name: target.title,
-      lastActivityAt: target.updatedAt ?? target.createdAt ?? '',
       createdAt: target.createdAt ?? '',
       updatedAt: target.updatedAt ?? target.createdAt ?? '',
       messages: []
@@ -67,7 +66,6 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
     type: TopicType.Session,
     assistantId: target.agentId ?? '',
     name: target.title,
-    lastActivityAt: target.createdAt ?? '',
     createdAt: target.createdAt ?? '',
     updatedAt: target.createdAt ?? '',
     messages: []

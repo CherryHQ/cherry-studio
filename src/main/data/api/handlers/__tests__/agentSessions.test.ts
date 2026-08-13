@@ -4,7 +4,7 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
-  getLatestActiveMock,
+  getLatestUpdatedMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
@@ -16,7 +16,7 @@ const {
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestActiveMock: vi.fn(),
+  getLatestUpdatedMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
-    getLatestActive: getLatestActiveMock,
+    getLatestUpdated: getLatestUpdatedMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
@@ -74,13 +74,13 @@ describe('agentSessionHandlers', () => {
   describe('/agent-sessions/latest', () => {
     it('wraps the latest session from AgentSessionService', async () => {
       const session = { id: 'session-latest' }
-      getLatestActiveMock.mockReturnValueOnce(session)
+      getLatestUpdatedMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
     })
 
     it('returns { session: null } when there are no sessions', async () => {
-      getLatestActiveMock.mockReturnValueOnce(null)
+      getLatestUpdatedMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
     })

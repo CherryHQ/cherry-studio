@@ -9,7 +9,6 @@ import {
   autoDiscoverGitBash,
   findCommandInShellEnv,
   findExecutable,
-  findExecutableInEnv,
   findGitBash,
   findViaMise,
   validateGitBashPath
@@ -19,7 +18,6 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
-vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
 vi.mock('which')
 
 // These tests only run on Windows since the functions have platform guards
@@ -1061,15 +1059,6 @@ describe('findCommandInShellEnv', () => {
 
       const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
       expect(result).toBeNull()
-    })
-
-    it('findExecutableInEnv should resolve npx.cmd through the shell PATH', async () => {
-      const { getShellEnv } = await import('../shellEnv')
-      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\\nodejs' })
-      vi.mocked(which).mockResolvedValue(['C:\\Program Files\\nodejs\\npx.cmd'] as never)
-
-      const result = await findExecutableInEnv('npx')
-      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
   })
 })

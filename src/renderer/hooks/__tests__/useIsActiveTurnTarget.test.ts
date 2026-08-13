@@ -29,10 +29,6 @@ function msg(overrides: Partial<MessageListItem> = {}): MessageListItem {
   } as MessageListItem
 }
 
-function execution(anchorMessageId: string): ActiveExecution {
-  return { executionId: 'p::m', attemptId: 1, anchorMessageId }
-}
-
 describe('useIsActiveTurnTarget', () => {
   beforeEach(() => {
     activeExecutionsMock.mockReset().mockReturnValue([])
@@ -44,12 +40,12 @@ describe('useIsActiveTurnTarget', () => {
   })
 
   it('true when this message id is in `activeExecutions` (live streaming target)', () => {
-    activeExecutionsMock.mockReturnValue([execution('m1')])
+    activeExecutionsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'm1' }])
     expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1' }))).result.current).toBe(true)
   })
 
   it('true when this message id is in `awaitingApprovalAnchors` (Main-broadcast approval anchor)', () => {
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('m1')])
+    awaitingApprovalAnchorsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'm1' }])
     // Crucially the message's DB status is 'success' here — the MCP
     // `needsApproval` flow ends cleanly via `done`. The old proxy
     // (`status === 'paused' && isAwaitingApproval`) failed exactly this case
@@ -59,15 +55,15 @@ describe('useIsActiveTurnTarget', () => {
   })
 
   it('false for a user message even when the topic has awaiting anchors', () => {
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('OTHER')])
+    awaitingApprovalAnchorsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'OTHER' }])
     expect(
       renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' as never }))).result.current
     ).toBe(false)
   })
 
   it('false for an old completed assistant (no signal matches)', () => {
-    activeExecutionsMock.mockReturnValue([execution('OTHER')])
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('OTHER')])
+    activeExecutionsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'OTHER' }])
+    awaitingApprovalAnchorsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'OTHER' }])
     expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1' }))).result.current).toBe(false)
   })
 })

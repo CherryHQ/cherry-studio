@@ -89,8 +89,6 @@ export interface MessageRef {
   id: string
 }
 
-type MessageReadModelTarget = MessageRef & { containerId: string }
-
 export interface AiUsageCaptureContext {
   providerId: string
   providerName: string | null
@@ -194,18 +192,6 @@ function computeLanguageCost(
   usage: LanguageCostUsage,
   pricing: AiUsagePricingSnapshot
 ): LanguageCostResult | undefined {
-  let rates: Pick<
-    AiUsagePricingSnapshot,
-    'inputPerMillionTokens' | 'outputPerMillionTokens' | 'cacheReadPerMillionTokens' | 'cacheWritePerMillionTokens'
-  > = pricing
-  if (pricing.inputTokenTiers?.length) {
-    if (usage.inputTokens === undefined) return undefined
-    for (const tier of pricing.inputTokenTiers) {
-      if (usage.inputTokens < tier.minInputTokens) break
-      rates = tier
-    }
-  }
-
   const details = usage.inputTokenDetails
   const cacheReadTokens = details?.cacheReadTokens
   const cacheWriteTokens = details?.cacheWriteTokens
@@ -219,10 +205,10 @@ function computeLanguageCost(
       : undefined)
 
   const buckets = [
-    ['input', nonCacheInput, rates.inputPerMillionTokens],
-    ['cacheRead', cacheReadTokens, rates.cacheReadPerMillionTokens ?? rates.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, rates.cacheWritePerMillionTokens ?? rates.inputPerMillionTokens],
-    ['output', usage.outputTokens, rates.outputPerMillionTokens]
+    ['input', nonCacheInput, pricing.inputPerMillionTokens],
+    ['cacheRead', cacheReadTokens, pricing.cacheReadPerMillionTokens ?? pricing.inputPerMillionTokens],
+    ['cacheWrite', cacheWriteTokens, pricing.cacheWritePerMillionTokens ?? pricing.inputPerMillionTokens],
+    ['output', usage.outputTokens, pricing.outputPerMillionTokens]
   ] as const
 
   if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
@@ -1139,36 +1125,26 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
   }
 }
 
-function rebuildMessageUsageProjectionTx(
-  db: DbOrTx,
-  ref: MessageRef
-): { changed: boolean; target: MessageReadModelTarget } | null {
+function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): boolean {
   const projection = getMessageUsageProjectionTx(db, ref)
   if (ref.kind === 'chat') {
-    const row = db
-      .select({ stats: messageTable.stats, topicId: messageTable.topicId })
-      .from(messageTable)
-      .where(eq(messageTable.id, ref.id))
-      .get()
-    if (!row) return null
+    const row = db.select({ stats: messageTable.stats }).from(messageTable).where(eq(messageTable.id, ref.id)).get()
+    if (!row) return false
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    const changed = !isDeepStrictEqual(row.stats, nextStats)
-    if (changed) db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
-    return { changed, target: { ...ref, containerId: row.topicId } }
+    if (isDeepStrictEqual(row.stats, nextStats)) return false
+    db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
   } else {
     const row = db
-      .select({ stats: agentSessionMessageTable.stats, sessionId: agentSessionMessageTable.sessionId })
+      .select({ stats: agentSessionMessageTable.stats })
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
-    if (!row) return null
+    if (!row) return false
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    const changed = !isDeepStrictEqual(row.stats, nextStats)
-    if (changed) {
-      db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
-    }
-    return { changed, target: { ...ref, containerId: row.sessionId } }
+    if (isDeepStrictEqual(row.stats, nextStats)) return false
+    db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
   }
+  return true
 }
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
@@ -1375,7 +1351,7 @@ function insertRowsTx(
   db: DbOrTx,
   rows: readonly InsertAiUsageRecordRow[],
   warnOnConflict: boolean
-): { inserted: number; affectedMessages: MessageReadModelTarget[] } {
+): { inserted: number; affectedMessages: MessageRef[] } {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
   for (const row of rows) {
@@ -1400,46 +1376,25 @@ function insertRowsTx(
     inserted += 1
   }
 
-  const affectedReadModels = [...affectedMessages.values()].flatMap((ref) => {
-    const rebuilt = rebuildMessageUsageProjectionTx(db, ref)
-    return rebuilt ? [rebuilt.target] : []
-  })
-  return { inserted, affectedMessages: affectedReadModels }
+  for (const ref of affectedMessages.values()) rebuildMessageUsageProjectionTx(db, ref)
+  return { inserted, affectedMessages: [...affectedMessages.values()] }
 }
 
-function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
+function messageReadModelEffects(refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
   const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
   const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
-  const chatIdsByTopic = new Map<string, string[]>()
-  const agentIdsBySession = new Map<string, string[]>()
-  for (const ref of refs) {
-    const idsByContainer = ref.kind === 'chat' ? chatIdsByTopic : agentIdsBySession
-    const ids = idsByContainer.get(ref.containerId) ?? []
-    ids.push(ref.id)
-    idsByContainer.set(ref.containerId, ids)
-  }
   return [
-    ...[...chatIdsByTopic].map(
-      ([topicId, entityIds]) =>
-        ({
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          routeParams: { topicId },
-          entityIds
-        }) as const
-    ),
-    ...(chatIds.length > 0 ? [{ endpoint: '/messages/:id', entityIds: chatIds } as const] : []),
-    ...[...agentIdsBySession].map(
-      ([sessionId, entityIds]) =>
-        ({
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId },
-          entityIds
-        }) as const
-    ),
+    ...(chatIds.length > 0
+      ? [
+          { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: chatIds } as const,
+          { endpoint: '/messages/:id', entityIds: chatIds } as const
+        ]
+      : []),
     ...(agentIds.length > 0
-      ? [{ endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const]
+      ? [
+          { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: agentIds } as const,
+          { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const
+        ]
       : [])
   ]
 }
@@ -1471,8 +1426,8 @@ export class AiUsageRecordService {
 
   refreshMessageProjection(ref: MessageRef): void {
     try {
-      const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+      if (changed) notifyDataApiDataChange(messageReadModelEffects([ref]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

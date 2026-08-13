@@ -2,7 +2,6 @@ import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/com
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
@@ -374,14 +373,8 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.find((action) => action.id === 'assistant-regenerate')?.confirm).toBeUndefined()
   })
 
-  it('does not bubble mention-model picker trigger or portal clicks to the message card', () => {
-    const renderRegenerateModelPicker = vi.fn(({ trigger }) => (
-      <div data-testid="model-picker">
-        {trigger}
-        {createPortal(<button type="button">model-a</button>, document.body)}
-      </div>
-    ))
-    const onCardClick = vi.fn()
+  it('renders mention-model picker with a direct button trigger', () => {
+    const renderRegenerateModelPicker = vi.fn(({ trigger }) => <div data-testid="model-picker">{trigger}</div>)
     const context = createActionContext({
       actions: { renderRegenerateModelPicker } as unknown as MessageListActions
     })
@@ -390,16 +383,14 @@ describe('messageMenuBarActions', () => {
     expect(action).toBeTruthy()
 
     render(
-      <div onClick={onCardClick}>
-        {renderModelPickerToolbarAction({
-          action: action!,
-          actionContext: context,
-          executeAction: vi.fn(),
-          menuActions: [],
-          softHoverBg: false,
-          translationItems: []
-        })}
-      </div>
+      renderModelPickerToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems: []
+      })
     )
 
     expect(renderRegenerateModelPicker).toHaveBeenCalledWith(
@@ -409,13 +400,7 @@ describe('messageMenuBarActions', () => {
       })
     )
     expect(screen.getByTestId('model-picker')).toBeInTheDocument()
-    const trigger = screen.getByRole('button', { name: 'message.mention.title' })
-    expect(trigger).toHaveClass('message-action-button')
-
-    fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('button', { name: 'model-a' }))
-
-    expect(onCardClick).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'message.mention.title' })).toHaveClass('message-action-button')
   })
 
   it('keeps the more menu tooltip controlled while opening the menu with one click', () => {

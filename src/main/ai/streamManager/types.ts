@@ -42,8 +42,6 @@ export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
   status: 'success'
   modelId?: UniqueModelId
-  attemptId?: number
-  topicAttemptWatermark?: number
   anchorMessageId?: string
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
@@ -55,8 +53,6 @@ export interface StreamPausedResult {
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
-  attemptId?: number
-  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
@@ -69,8 +65,6 @@ export interface StreamErrorResult {
   finalMessage?: CherryUIMessage
   status: 'error'
   modelId?: UniqueModelId
-  attemptId?: number
-  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
@@ -82,10 +76,8 @@ export interface StreamErrorResult {
 export interface StreamListener {
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
-  /** Orders terminal persistence before notifications and cleanup work after them. */
-  readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -103,16 +95,12 @@ export interface StreamListener {
 export interface StreamExecution {
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
-  /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
-  attemptId: number
   /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
   anchorMessageId?: string
-  /** Renderer readers must start from an empty anchor instead of cached persisted parts. */
-  seedFromEmpty?: boolean
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
+  /** Per-execution chunk ring (cap = `maxBufferChunks`); overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
@@ -178,12 +166,6 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
-  /**
-   * Maximum UTF-8 bytes in one buffered or replayed delta entry. Oversized
-   * incoming deltas are split before ingestion, and attach-time compaction
-   * observes the same ceiling.
-   */
-  readonly maxDeltaBytes: number
   /** Cap on retained oversized tool outputs. Small because each entry is large. */
   readonly maxDeferredOutputs: number
   /**

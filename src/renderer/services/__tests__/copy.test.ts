@@ -32,7 +32,6 @@ function createTestTopic(partial: Partial<Topic> = {}): Topic {
     id: 'test-topic-id',
     assistantId: 'test-assistant-id',
     name: 'Test Topic',
-    lastActivityAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     messages: [],

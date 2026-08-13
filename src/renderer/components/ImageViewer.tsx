@@ -1,22 +1,14 @@
 import {
   type ImagePreviewAction,
-  type ImagePreviewActionContext,
   ImagePreviewDialog,
   type ImagePreviewItem,
-  type ImagePreviewLabels,
-  type ImagePreviewTransform
+  type ImagePreviewLabels
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import {
-  blobToDataUrl,
-  convertImageToPng,
-  copyImageToClipboard,
-  getImageBlobFromSource,
-  transformImageToPng
-} from '@renderer/utils/image'
+import { blobToDataUrl, convertImageToPng, copyImageToClipboard, getImageBlobFromSource } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { CopyIcon, SaveIcon } from 'lucide-react'
 import React from 'react'
@@ -33,7 +25,6 @@ export interface ImageViewerPreviewConfig {
 }
 
 export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
-  contextMenuTransform?: Partial<ImagePreviewTransform>
   preview?: boolean | ImageViewerPreviewConfig
   src: string
 }
@@ -62,7 +53,6 @@ const getImageSaveName = (item: ImagePreviewItem) => {
 const ImageViewer: React.FC<ImageViewerProps> = ({
   alt,
   className,
-  contextMenuTransform,
   onClick,
   onContextMenu,
   preview,
@@ -138,14 +128,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   )
 
   const handleSaveImage = React.useCallback(
-    async (item: ImagePreviewItem, context: ImagePreviewActionContext) => {
+    async (item: ImagePreviewItem) => {
       try {
         const blob = await getImageBlobFromSource(item.src)
-        const { flipX, flipY, rotation } = context.transform
-        const pngBlob =
-          rotation % 360 !== 0 || flipX || flipY
-            ? await transformImageToPng(blob, { flipX, flipY, rotation })
-            : await convertImageToPng(blob)
+        const pngBlob = await convertImageToPng(blob)
         const saved = await window.api.file.saveImage(getImageSaveName(item), await blobToDataUrl(pngBlob))
         if (saved) {
           toast.success(t('common.saved'))
@@ -205,16 +191,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     0,
     items.findIndex((item) => item.id === displayItem.id)
   )
-  const resolvedContextMenuTransform = React.useMemo<ImagePreviewTransform>(
-    () => ({
-      flipX: contextMenuTransform?.flipX ?? false,
-      flipY: contextMenuTransform?.flipY ?? false,
-      offsetX: contextMenuTransform?.offsetX ?? 0,
-      offsetY: contextMenuTransform?.offsetY ?? 0,
-      rotation: contextMenuTransform?.rotation ?? 0,
-      zoom: contextMenuTransform?.zoom ?? 1
-    }),
-    [contextMenuTransform]
+  const contextMenuTransform = React.useMemo(
+    () => ({ flipX: false, flipY: false, offsetX: 0, offsetY: 0, rotation: 0, zoom: 1 }),
+    []
   )
   const contextMenuActionContext = React.useMemo(
     () => ({
@@ -222,9 +201,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       index: displayIndex,
       items,
       resetTransform: () => {},
-      transform: resolvedContextMenuTransform
+      transform: contextMenuTransform
     }),
-    [displayIndex, items, resolvedContextMenuTransform, setOpen]
+    [contextMenuTransform, displayIndex, items, setOpen]
   )
   const onActionError = React.useCallback((error: unknown, action: ImagePreviewAction, item: ImagePreviewItem) => {
     logger.error(`Image preview action failed: ${action.id}`, {

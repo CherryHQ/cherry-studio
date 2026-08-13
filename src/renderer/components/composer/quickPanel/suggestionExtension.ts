@@ -7,7 +7,6 @@ import { t } from 'i18next'
 import type { ReactNode } from 'react'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
-const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()
 
 export const COMPOSER_SUPPRESS_SUGGESTION_META = 'composerSuppressSuggestion'
 
@@ -50,13 +49,6 @@ export interface ComposerSuggestionActiveChangeOptions {
   items: ComposerSuggestionItem[]
 }
 
-interface ComposerSuggestionPluginState {
-  active: boolean
-  range: Range
-  query: string | null
-  text: string | null
-}
-
 function createActiveChangeOptions(
   props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>
 ): ComposerSuggestionActiveChangeOptions {
@@ -69,34 +61,8 @@ function createActiveChangeOptions(
   }
 }
 
-function isCurrentActiveSuggestion(
-  props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>,
-  pluginKey: PluginKey<ComposerSuggestionPluginState>
-) {
-  const current = pluginKey.getState(props.editor.state)
-
-  return (
-    current?.active === true &&
-    current.query === props.query &&
-    current.text === props.text &&
-    current.range.from === props.range.from &&
-    current.range.to === props.range.to
-  )
-}
-
-function createSuggestionRender(
-  source: ComposerSuggestionSource,
-  pluginKey: PluginKey<ComposerSuggestionPluginState>,
-  getLatestItemsGeneration: () => number
-) {
-  let lastNotifiedItemsGeneration = 0
-
+function createSuggestionRender(source: ComposerSuggestionSource) {
   const notifyActiveChange = (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
-    if (props.editor.isDestroyed) return
-    const itemsGeneration = suggestionItemsGeneration.get(props.items)
-    if (itemsGeneration !== getLatestItemsGeneration() || itemsGeneration === lastNotifiedItemsGeneration) return
-    if (!isCurrentActiveSuggestion(props, pluginKey)) return
-    lastNotifiedItemsGeneration = itemsGeneration
     source.onActiveChange?.(createActiveChangeOptions(props))
   }
 
@@ -104,8 +70,6 @@ function createSuggestionRender(
     onStart: notifyActiveChange,
     onUpdate: notifyActiveChange,
     onExit: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
-      const current = pluginKey.getState(props.editor.state)
-      if (current?.active && !isCurrentActiveSuggestion(props, pluginKey)) return
       source.onExit?.(createActiveChangeOptions(props))
     },
     onKeyDown: (props: SuggestionKeyDownProps) => source.onKeyDown?.(props) ?? false
@@ -125,17 +89,9 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
 
     addProseMirrorPlugins() {
       return sources.map((source) => {
-        const pluginKey = new PluginKey<ComposerSuggestionPluginState>(source.pluginKey)
-        let latestItemsGeneration = 0
-
-        const recordItemsGeneration = (items: ComposerSuggestionItem[], generation: number) => {
-          suggestionItemsGeneration.set(items, generation)
-          return items
-        }
-
         return Suggestion<ComposerSuggestionItem, ComposerSuggestionItem>({
           editor: this.editor,
-          pluginKey,
+          pluginKey: new PluginKey(source.pluginKey),
           char: source.char,
           allowSpaces: source.allowSpaces,
           allowedPrefixes: source.allowedPrefixes,
@@ -143,28 +99,20 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
           allow: ({ editor, range }) => hasTriggerBoundary(editor, range),
           shouldShow: ({ transaction }) => !transaction.getMeta(COMPOSER_SUPPRESS_SUGGESTION_META),
           items: async ({ editor, query }) => {
-            const itemsGeneration = ++latestItemsGeneration
-
             try {
               const items = await source.items({ editor, query })
-              return recordItemsGeneration(
-                items.map((item) => ({ ...item, query })),
-                itemsGeneration
-              )
+              return items.map((item) => ({ ...item, query }))
             } catch (error) {
               logger.warn('Failed to load composer suggestion items', { error, pluginKey: source.pluginKey })
-              return recordItemsGeneration(
-                [
-                  {
-                    id: `${source.pluginKey}:error`,
-                    label: t('common.error'),
-                    description: error instanceof Error ? error.message : String(error),
-                    disabled: true,
-                    command: () => undefined
-                  }
-                ],
-                itemsGeneration
-              )
+              return [
+                {
+                  id: `${source.pluginKey}:error`,
+                  label: t('common.error'),
+                  description: error instanceof Error ? error.message : String(error),
+                  disabled: true,
+                  command: () => undefined
+                }
+              ]
             }
           },
           command: ({ editor, range, props }) => {
@@ -172,7 +120,7 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
             editor.chain().focus().deleteRange(range).run()
             props.command({ editor, range, item: props, query: props.query ?? '' })
           },
-          render: () => createSuggestionRender(source, pluginKey, () => latestItemsGeneration)
+          render: () => createSuggestionRender(source)
         })
       })
     }

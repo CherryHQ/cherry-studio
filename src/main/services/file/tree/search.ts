@@ -1,8 +1,7 @@
 /**
  * Directory search — ripgrep + fuzzy matching.
  *
- * `listDirectory` and `listDirectoryEntries` are public. All ripgrep /
- * scoring internals are private.
+ * Only `listDirectory` is public. All ripgrep / scoring internals are private.
  *
  * Two modes share one entry point, distinguished by `options.searchPattern`:
  *   - List mode (`searchPattern === '.'`, the default): enumerate the
@@ -10,8 +9,8 @@
  *     truncation is desired (e.g. autocomplete dropdowns).
  *   - Search mode (`searchPattern` is a user query): ripgrep glob pre-filter
  *     plus JS-side fuzzy scoring. Caller controls `maxEntries` for the
- *     dropdown size; the fuzzy branch can scan all files before JS-side
- *     fuzzy matching when the glob misses everything.
+ *     dropdown size; the fuzzy branch can fall back to greedy substring
+ *     matching when the glob misses everything.
  */
 
 import { spawn } from 'node:child_process'
@@ -208,14 +207,13 @@ async function searchDirectories(
         directories.push(fullPath)
       }
 
-      if (options.recursive && (options.maxDepth <= 0 || currentDepth < options.maxDepth)) {
+      if (options.recursive && currentDepth < options.maxDepth) {
         const subDirs = await searchDirectories(fullPath, options, currentDepth + 1)
         directories.push(...subDirs)
       }
     }
   } catch (error) {
     logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
-    if (currentDepth === 0) throw error
   }
 
   return directories
@@ -270,7 +268,7 @@ async function searchByFilename(resolvedPath: string, options: ResolvedOptions):
   return [...sortedDirectories, ...sortedFiles].slice(0, options.maxEntries)
 }
 
-// ─── Fuzzy scoring ─────────────────────────────────────────────────────────
+// ─── Fuzzy + greedy scoring ────────────────────────────────────────────────
 
 /**
  * Fuzzy match: every char in `query` appears in `text` in order (case-insensitive).
@@ -352,73 +350,141 @@ function queryToGlobPattern(query: string): string {
   return '*' + escaped.split('').join('*') + '*'
 }
 
-interface ScoredSearchEntry {
-  path: string
-  isDirectory: boolean
-  score: number
+/**
+ * Greedy substring match: query is matchable by stitching consecutive
+ * substrings of `text` together (each substring as long as possible).
+ * Example: "updatercontroller" matches "updateController" via
+ * "update" + "r" (from Controller) + "controller".
+ */
+function isGreedySubstringMatch(text: string, query: string): boolean {
+  const textLower = text.toLowerCase()
+  const queryLower = query.toLowerCase()
+
+  let queryIndex = 0
+  let searchStart = 0
+
+  while (queryIndex < queryLower.length) {
+    let bestMatchLen = 0
+    let bestMatchPos = -1
+
+    for (let len = queryLower.length - queryIndex; len >= 1; len--) {
+      const substr = queryLower.slice(queryIndex, queryIndex + len)
+      const foundAt = textLower.indexOf(substr, searchStart)
+      if (foundAt !== -1) {
+        bestMatchLen = len
+        bestMatchPos = foundAt
+        break
+      }
+    }
+
+    if (bestMatchLen === 0) return false
+
+    queryIndex += bestMatchLen
+    searchStart = bestMatchPos + bestMatchLen
+  }
+
+  return true
 }
 
-function parseRipgrepPaths(output: string): string[] {
-  return output
-    .split('\n')
-    .filter((line) => line.trim())
-    .map((line) => line.replace(/\\/g, '/'))
-}
+/**
+ * Greedy match score (higher = better). Rewards fewer fragments, tighter
+ * span, filename hits; penalizes long paths.
+ */
+function getGreedyMatchScore(filePath: string, query: string): number {
+  const textLower = filePath.toLowerCase()
+  const queryLower = query.toLowerCase()
+  const fileName = filePath.split('/').pop() ?? ''
+  const fileNameLower = fileName.toLowerCase()
 
-function scoreFuzzyPaths(
-  paths: readonly string[],
-  resolvedPath: string,
-  query: string,
-  isDirectory: boolean
-): ScoredSearchEntry[] {
-  return paths
-    .map((entryPath) => ({ entryPath, relativePath: path.relative(resolvedPath, entryPath).replace(/\\/g, '/') }))
-    .filter(({ relativePath }) => isFuzzyMatch(relativePath, query))
-    .map(({ entryPath, relativePath }) => ({
-      path: entryPath,
-      isDirectory,
-      score: getFuzzyMatchScore(relativePath, query)
-    }))
-}
+  let queryIndex = 0
+  let searchStart = 0
+  let fragmentCount = 0
+  let firstMatchPos = -1
+  let lastMatchEnd = 0
 
-function compareScoredSearchEntries(a: ScoredSearchEntry, b: ScoredSearchEntry): number {
-  if (a.score !== b.score) return b.score - a.score
-  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-  return a.path.localeCompare(b.path)
-}
+  while (queryIndex < queryLower.length) {
+    let bestMatchLen = 0
+    let bestMatchPos = -1
 
-async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {
-  if (!options.includeFiles) return []
-  const args = buildRipgrepBaseArgs(options, resolvedPath)
-  const globPattern = queryToGlobPattern(options.searchPattern)
-  args.splice(args.length - 1, 0, '--iglob', globPattern)
-  const firstOutput = getUsableRipgrepOutput(await executeRipgrep(args))
-  const firstCandidates = scoreFuzzyPaths(parseRipgrepPaths(firstOutput), resolvedPath, options.searchPattern, false)
-  if (firstCandidates.length > 0) return firstCandidates
-  logger.debug('Fuzzy glob returned no results, scanning all files before JS fuzzy matching')
-  const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options, resolvedPath)))
-  return scoreFuzzyPaths(parseRipgrepPaths(fallbackOutput), resolvedPath, options.searchPattern, false)
-}
+    for (let len = queryLower.length - queryIndex; len >= 1; len--) {
+      const substr = queryLower.slice(queryIndex, queryIndex + len)
+      const foundAt = textLower.indexOf(substr, searchStart)
+      if (foundAt !== -1) {
+        bestMatchLen = len
+        bestMatchPos = foundAt
+        break
+      }
+    }
 
-async function searchFuzzyDirectories(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {
-  if (!options.includeDirectories) return []
-  const directories = await searchDirectories(resolvedPath, { ...options, searchPattern: '.' })
-  return scoreFuzzyPaths(directories, resolvedPath, options.searchPattern, true)
+    if (bestMatchLen === 0) return -Infinity
+
+    fragmentCount++
+    if (firstMatchPos === -1) firstMatchPos = bestMatchPos
+    lastMatchEnd = bestMatchPos + bestMatchLen
+    queryIndex += bestMatchLen
+    searchStart = lastMatchEnd
+  }
+
+  const matchSpan = lastMatchEnd - firstMatchPos
+  let score = 0
+
+  score += Math.max(0, 100 - (fragmentCount - 1) * 30)
+
+  const spanRatio = queryLower.length / matchSpan
+  score += spanRatio * 50
+
+  if (isGreedySubstringMatch(fileNameLower, queryLower)) {
+    score += 80
+  }
+
+  score -= Math.log(filePath.length + 1) * PATH_LENGTH_PENALTY_FACTOR
+
+  return score
 }
 
 // ─── Main dispatch ─────────────────────────────────────────────────────────
 
 async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedOptions): Promise<string[]> {
-  // Search mode w/ fuzzy: collect files and directories, then score globally.
+  // Search mode w/ fuzzy: ripgrep glob pre-filter + JS-side scoring.
   if (options.fuzzy && options.searchPattern && options.searchPattern !== '.') {
-    const [files, directories] = await Promise.all([
-      searchFuzzyFiles(resolvedPath, options),
-      searchFuzzyDirectories(resolvedPath, options)
-    ])
-    return [...files, ...directories]
-      .sort(compareScoredSearchEntries)
+    const args = buildRipgrepBaseArgs(options, resolvedPath)
+
+    // Insert the glob pattern just before the path (last positional arg).
+    const globPattern = queryToGlobPattern(options.searchPattern)
+    args.splice(args.length - 1, 0, '--iglob', globPattern)
+
+    const output = getUsableRipgrepOutput(await executeRipgrep(args))
+
+    const filteredFiles = output
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => line.replace(/\\/g, '/'))
+
+    if (filteredFiles.length > 0) {
+      return filteredFiles
+        .filter((file) => isFuzzyMatch(file, options.searchPattern))
+        .map((file) => ({ file, score: getFuzzyMatchScore(file, options.searchPattern) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, options.maxEntries)
+        .map((item) => item.file)
+    }
+
+    // Fallback: no glob hits → greedy substring match across all files.
+    logger.debug('Fuzzy glob returned no results, falling back to greedy substring match')
+    const fallbackArgs = buildRipgrepBaseArgs(options, resolvedPath)
+    const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(fallbackArgs))
+
+    const allFiles = fallbackOutput
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => line.replace(/\\/g, '/'))
+
+    return allFiles
+      .filter((file) => isGreedySubstringMatch(file, options.searchPattern))
+      .map((file) => ({ file, score: getGreedyMatchScore(file, options.searchPattern) }))
+      .sort((a, b) => b.score - a.score)
       .slice(0, options.maxEntries)
-      .map((entry) => entry.path)
+      .map((item) => item.file)
   }
 
   // List mode (searchPattern === '.') or non-fuzzy search: filename glob path.
@@ -455,7 +521,7 @@ export async function listDirectory(
     throw new Error(`Path is not a directory: ${resolvedPath}`)
   }
 
-  if (mergedOptions.includeFiles && !(await resolveRipgrepBinary())) {
+  if (!(await resolveRipgrepBinary())) {
     throw new Error('Ripgrep binary not available')
   }
 

@@ -411,7 +411,6 @@ export interface NewTopic {
   assistantId: string | null
   activeNodeId: string | null
   orderKey: string
-  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -465,8 +464,7 @@ export interface NewMessage {
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
-  const createdAt = parseTimestamp(oldTopic.createdAt)
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
   return {
     id: oldTopic.id,
     name: oldTopic.name || '',
@@ -474,8 +472,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, 
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
-    createdAt,
+    createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
 }

@@ -45,7 +45,6 @@ const agentPageMocks = vi.hoisted(() => ({
       updatedAt: '2026-01-01T00:00:00.000Z'
     },
     orderKey: 'p0',
-    lastActivityAt: '2026-01-03T00:00:00.000Z',
     createdAt: '2026-01-03T00:00:00.000Z',
     updatedAt: '2026-01-03T00:00:00.000Z'
   },
@@ -94,7 +93,6 @@ const agentPageMocks = vi.hoisted(() => ({
     agentId?: string
     name: string
     isNameManuallyEdited?: boolean
-    lastActivityAt?: string
     createdAt?: string
     updatedAt: string
     workspaceId?: string
@@ -1283,19 +1281,19 @@ describe('AgentPage', () => {
         ...agentPageMocks.persistedSession,
         id: 'session-a',
         agentId: 'agent-a',
-        lastActivityAt: '2026-01-02T00:00:00.000Z'
+        updatedAt: '2026-01-02T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-old',
         agentId: 'agent-b',
-        lastActivityAt: '2026-01-01T00:00:00.000Z'
+        updatedAt: '2026-01-01T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-b-new',
         agentId: 'agent-b',
-        lastActivityAt: '2026-01-03T00:00:00.000Z'
+        updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
 

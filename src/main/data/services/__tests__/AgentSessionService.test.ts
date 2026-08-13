@@ -102,7 +102,7 @@ describe('AgentSessionService', () => {
     })
   }
 
-  it('orders matching sessions and exposes timestamps by conversation activity', async () => {
+  it('searches sessions as lean navigation items with agent names resolved inline', async () => {
     const workspace = await createWorkspace('search')
     await dbh.db.insert(agentSessionTable).values([
       {
@@ -111,8 +111,7 @@ describe('AgentSessionService', () => {
         name: 'Needle Old Session',
         workspaceId: workspace.id,
         orderKey: 'a0',
-        lastActivityAt: 100,
-        updatedAt: 300
+        updatedAt: 100
       },
       {
         id: 'session-search-new',
@@ -120,8 +119,7 @@ describe('AgentSessionService', () => {
         name: 'Needle New Session',
         workspaceId: workspace.id,
         orderKey: 'a1',
-        lastActivityAt: 200,
-        updatedAt: 100
+        updatedAt: 200
       },
       {
         id: 'session-search-miss',
@@ -129,7 +127,6 @@ describe('AgentSessionService', () => {
         name: 'Other Session',
         workspaceId: workspace.id,
         orderKey: 'a2',
-        lastActivityAt: 300,
         updatedAt: 300
       }
     ])
@@ -142,7 +139,7 @@ describe('AgentSessionService', () => {
         id: 'session-search-new',
         title: 'Needle New Session',
         subtitle: 'Session Test Agent',
-        lastActivityAt: '1970-01-01T00:00:00.200Z',
+        updatedAt: '1970-01-01T00:00:00.200Z',
         target: { sessionId: 'session-search-new', agentId: 'agent-session-test' }
       },
       {
@@ -150,18 +147,18 @@ describe('AgentSessionService', () => {
         id: 'session-search-old',
         title: 'Needle Old Session',
         subtitle: 'Session Test Agent',
-        lastActivityAt: '1970-01-01T00:00:00.100Z',
+        updatedAt: '1970-01-01T00:00:00.100Z',
         target: { sessionId: 'session-search-old', agentId: 'agent-session-test' }
       }
     ])
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
-  describe('getLatestActive', () => {
-    it('returns the globally most-recently-active session, independent of orderKey and updatedAt', async () => {
+  describe('getLatestUpdated', () => {
+    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')
       // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
-      // the highest lastActivityAt despite an older updatedAt, proving activity drives this query.
+      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
       await dbh.db.insert(agentSessionTable).values([
         {
           id: 'created-newest',
@@ -169,8 +166,7 @@ describe('AgentSessionService', () => {
           name: 'A',
           workspaceId: workspace.id,
           orderKey: 'a0',
-          lastActivityAt: 100,
-          updatedAt: 300
+          updatedAt: 100
         },
         {
           id: 'mid',
@@ -178,7 +174,6 @@ describe('AgentSessionService', () => {
           name: 'B',
           workspaceId: workspace.id,
           orderKey: 'a1',
-          lastActivityAt: 200,
           updatedAt: 200
         },
         {
@@ -187,12 +182,11 @@ describe('AgentSessionService', () => {
           name: 'C',
           workspaceId: workspace.id,
           orderKey: 'a2',
-          lastActivityAt: 300,
-          updatedAt: 100
+          updatedAt: 300
         }
       ])
 
-      const latest = agentSessionService.getLatestActive()
+      const latest = agentSessionService.getLatestUpdated()
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
@@ -208,7 +202,6 @@ describe('AgentSessionService', () => {
           name: 'Bound older',
           workspaceId: workspace.id,
           orderKey: 'a0',
-          lastActivityAt: 100,
           updatedAt: 100
         },
         {
@@ -217,7 +210,6 @@ describe('AgentSessionService', () => {
           name: 'Actually latest',
           workspaceId: workspace.id,
           orderKey: 'a1',
-          lastActivityAt: 200,
           updatedAt: 200
         }
       ])
@@ -225,16 +217,16 @@ describe('AgentSessionService', () => {
       bindTaskSession('bound-older', task.id)
 
       expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
-      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
+      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
 
       dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
 
       expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
-      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
+      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
     })
 
     it('returns null when there are no sessions', () => {
-      expect(agentSessionService.getLatestActive()).toBeNull()
+      expect(agentSessionService.getLatestUpdated()).toBeNull()
     })
   })
 
@@ -269,31 +261,8 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('keeps audit and activity timestamps unchanged for an older activity signal', async () => {
-    const workspace = await createWorkspace('stale-activity')
-    await dbh.db.insert(agentSessionTable).values({
-      id: 'session-stale-activity',
-      agentId: 'agent-session-test',
-      name: 'Stale activity',
-      workspaceId: workspace.id,
-      orderKey: 'a0',
-      lastActivityAt: 500,
-      createdAt: 100,
-      updatedAt: 700
-    })
-
-    dbh.db.transaction((tx) => agentSessionService.advanceLastActivityAtTx(tx, 'session-stale-activity', 400))
-
-    const [row] = await dbh.db
-      .select()
-      .from(agentSessionTable)
-      .where(eq(agentSessionTable.id, 'session-stale-activity'))
-    expect(row).toMatchObject({ lastActivityAt: 500, updatedAt: 700 })
-  })
-
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
-    notifyDataApiDataChangeMock.mockClear()
 
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -301,12 +270,6 @@ describe('AgentSessionService', () => {
       workspace: { type: 'user', workspaceId: workspace.id }
     })
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
-    ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
     expect(session.isNameManuallyEdited).toBe(false)
@@ -405,19 +368,12 @@ describe('AgentSessionService', () => {
 
   it('updates a session and returns the updated entity', async () => {
     const session = await createSession('Before update')
-    notifyDataApiDataChangeMock.mockClear()
 
     const updated = agentSessionService.update(session.id, {
       name: 'After update',
       description: 'Updated description',
       isNameManuallyEdited: true
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
-    ])
 
     expect(updated).toMatchObject({
       id: session.id,
@@ -679,19 +635,12 @@ describe('AgentSessionService', () => {
 
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
-    notifyDataApiDataChangeMock.mockClear()
 
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
-    ])
   })
 
   it('clears a paused task projection immediately when its bound session is deleted', async () => {
@@ -770,24 +719,17 @@ describe('AgentSessionService', () => {
     const task = createTaskSchedule()
     const session = await createSession('Bound reassigned task')
     bindTaskSession(session.id, task.id)
-    notifyDataApiDataChangeMock.mockClear()
 
     agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
 
     expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBeNull()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
     bindTaskSession(session.id, task.id)
-    notifyDataApiDataChangeMock.mockClear()
 
     expect(() =>
       dbh.db.transaction((tx) => {

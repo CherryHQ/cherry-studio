@@ -40,7 +40,6 @@ export type EntitySearchItem = {
   title: string
   subtitle?: string
   emoji?: string
-  lastActivityAt?: string
   updatedAt?: string
 } & EntitySearchTarget
 

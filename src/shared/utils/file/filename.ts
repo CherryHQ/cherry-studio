@@ -68,7 +68,7 @@ export type ValidateFileNameResult = { valid: true } | { valid: false; error: st
  * `KnowledgeRelativePathSchema` read path). Too long is `ENAMETOOLONG` at write
  * time, in the same bucket as a full disk.
  */
-export const FILE_NAME_MAX_LENGTH = 255
+const FILE_NAME_MAX_LENGTH = 255
 
 /**
  * Characters Windows forbids anywhere in a filename. Includes both separators.

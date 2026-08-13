@@ -163,10 +163,10 @@ export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: st
 }
 
 export function getTopicTimeBucket(
-  lastActivityAt: string,
+  updatedAt: string,
   now?: Parameters<typeof getResourceTimeBucket>[1]
 ): ResourceListTimeBucket {
-  return getResourceTimeBucket(lastActivityAt, now)
+  return getResourceTimeBucket(updatedAt, now)
 }
 
 function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
@@ -189,7 +189,7 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
   return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 }
 
-export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>({
+export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
   labels,
   mode,
@@ -206,7 +206,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
       composeResourceListGroupResolvers(
         pinnedResolver,
         createTimeGroupResolver<T>({
-          getTimestamp: (topic) => topic.lastActivityAt,
+          getTimestamp: (topic) => topic.updatedAt,
           labels: labels.time,
           now
         })
@@ -252,7 +252,7 @@ function readOptionalOrderKey<T extends object>(item: T): string | undefined {
   return 'orderKey' in item && typeof item.orderKey === 'string' ? item.orderKey : undefined
 }
 
-export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>(
+export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>(
   topics: readonly T[],
   options: TopicDisplaySortOptions
 ): T[] {
@@ -268,8 +268,8 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
 
   return sortRankedResourceItems(topics, {
     getRank: (topic) =>
-      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.lastActivityAt, options.now)],
+      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
     isPinned,
-    compareWithinGroup: compareResourceRecency((topic) => topic.lastActivityAt)
+    compareWithinGroup: compareResourceRecency((topic) => topic.updatedAt)
   })
 }

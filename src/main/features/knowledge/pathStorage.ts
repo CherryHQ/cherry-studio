@@ -69,26 +69,7 @@ export function getKnowledgeVectorStoreFilePathSync(baseId: string): AbsoluteFil
 
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): AbsoluteFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-
-  const materialDir = getKnowledgeMaterialDir(baseId)
-  const resolved = path.join(materialDir, relativePath)
-  assertResolvesBelow(materialDir, resolved, relativePath)
-  return AbsoluteFilePathSchema.parse(resolved)
-}
-
-/**
- * Host-side half of the boundary guard: `assertSafeKnowledgeRelativePath` reads the value as
- * POSIX (the storage contract), `path.join` reads it as the host, and the two disagree about
- * `\` — so a legitimately stored `..\outside.pdf` climbs out of `raw/` on Windows, taking
- * `deleteKnowledgeItemFiles` with it.
- */
-function assertResolvesBelow(materialDir: string, resolved: string, relativePath: string): void {
-  const rel = path.relative(materialDir, resolved)
-  // `''` means it landed back on the root — returning that as one item's file would let a
-  // single-item delete take the whole tree.
-  if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
-    throw new Error(`Knowledge relative path escapes the material root on this platform: ${relativePath}`)
-  }
+  return AbsoluteFilePathSchema.parse(path.join(getKnowledgeMaterialDir(baseId), relativePath))
 }
 
 /**

@@ -28,7 +28,8 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 describe('StreamDispatchService', () => {
   it('routes a resolved ack to subscribers', async () => {
     const ack: AiStreamOpenResponse = {
-      mode: 'started'
+      mode: 'started',
+      userMessageId: 'u-1'
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []

@@ -62,7 +62,6 @@ const AgentSessionMessages = ({
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
-  const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
   const assistantProfile = useMemo(
     () =>
@@ -100,12 +99,11 @@ const AgentSessionMessages = ({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: sessionAssistantId,
       name: sessionName,
-      lastActivityAt: sessionLastActivityAt,
       createdAt: sessionCreatedAt,
       updatedAt: sessionUpdatedAt,
       messages: []
     }),
-    [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
+    [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
   const messageList = useAgentMessageListProviderValue({

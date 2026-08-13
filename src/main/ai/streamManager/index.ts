@@ -1,4 +1,3 @@
-export { AiStreamAdmissionError } from './admission'
 export { AiStreamManager } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'

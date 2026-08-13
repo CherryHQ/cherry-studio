@@ -29,8 +29,7 @@ export const QQChannelConfigSchema = z.object({
   type: z.literal('qq'),
   app_id: z.string(),
   client_secret: z.string(),
-  allowed_chat_ids: z.array(z.string()).default([]),
-  mention_only: z.boolean().optional()
+  allowed_chat_ids: z.array(z.string()).default([])
 })
 
 export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>

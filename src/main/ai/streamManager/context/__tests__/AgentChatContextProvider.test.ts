@@ -194,11 +194,7 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       reasoningEffort: 'default',
       assistantMessageId: prepared.models[0].request.messageId,
-      userMessage: expect.objectContaining({
-        id: prepared.reservedMessages?.find((message) => message.role === 'user')?.id,
-        role: 'user',
-        sessionId: 'session-1'
-      }),
+      userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       headless: false,
       traceId: 'a'.repeat(32),
       messageSnapshot: {
@@ -240,11 +236,10 @@ describe('AgentChatContextProvider', () => {
       }
     )
     expect(prepared.models).toEqual([])
-    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id
-    expect(userMessageId).toEqual(expect.any(String))
+    expect(prepared.userMessageId).toEqual(expect.any(String))
     expect(prepared.reservedMessages).toEqual([
       expect.objectContaining({
-        id: userMessageId,
+        id: prepared.userMessageId,
         role: 'user',
         parts: [{ type: 'text', text: 'hello' }]
       })

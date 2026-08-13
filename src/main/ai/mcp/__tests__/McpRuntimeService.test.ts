@@ -29,12 +29,10 @@ vi.mock('@main/utils/shellEnv', () => ({
 }))
 
 const commandResolverMock = vi.hoisted(() => ({
-  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe'),
-  findExecutableInEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
 }))
 vi.mock('@main/utils/commandResolver', () => ({
-  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv,
-  findExecutableInEnv: commandResolverMock.findExecutableInEnv
+  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv
 }))
 
 // Mock the MCP SDK transports + Client so we can drive the transport-fallback path without

@@ -135,14 +135,10 @@ async function createLegacyVectorDb(
     INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
     VALUES (?, ?, ?, ?, ?, '{}')
   `)
-  // One commit, not one per row: the OOM guard seeds 501 chunks, and 501 durable commits time it
-  // out on CI disks. Raw little-endian float32 bytes — byte-identical to the legacy libsql
-  // F32_BLOB/vector32 payload.
-  db.transaction(() => {
-    for (const row of rows) {
-      insert.run(row.id, row.pageContent, row.uniqueLoaderId, row.source, Buffer.from(encodeVectorBlob(row.vector)))
-    }
-  })()
+  for (const row of rows) {
+    // Raw little-endian float32 bytes — byte-identical to the legacy libsql F32_BLOB/vector32 payload.
+    insert.run(row.id, row.pageContent, row.uniqueLoaderId, row.source, Buffer.from(encodeVectorBlob(row.vector)))
+  }
 
   db.close()
 }

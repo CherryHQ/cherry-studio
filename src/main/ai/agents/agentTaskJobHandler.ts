@@ -38,10 +38,14 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   /** Preserve the existing at-least-once recovery contract; reuse mode inherits its crash-replay limitation. */
   recovery: 'retry',
 
-  /** Bound same-agent parallelism to limit subprocess and workspace contention. */
+  /**
+   * Per-agent serialization queue: a single agent never runs two scheduled
+   * tasks concurrently (Claude Code subprocess + workspace state would
+   * collide). Cross-agent parallelism is unaffected.
+   */
   defaultQueue: (input) => `agent:${input.agentId}`,
 
-  defaultConcurrency: 3,
+  defaultConcurrency: 1,
 
   /**
    * Schedule-driven tasks do not retry inside the Job runtime — failure
