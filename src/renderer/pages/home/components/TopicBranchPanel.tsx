@@ -107,7 +107,6 @@ const TopicBranchPanel: FC<Props> = ({
           params: { id: topicId },
           body: { nodeId: leafId }
         })
-        await refetch()
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
@@ -117,7 +116,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [graph.activeNodeId, graph.nodes, onLocateMessage, refetch, setActiveNode, t, topicId]
+    [graph.activeNodeId, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(
