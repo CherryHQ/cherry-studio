@@ -15,6 +15,7 @@ permissions: {} # uses a PAT so the merge commit triggers CI
 
 jobs:
   update-branch:
+    if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     steps:
       - name: Merge main into approved PRs whose only blocker is being behind
