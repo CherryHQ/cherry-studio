@@ -89,7 +89,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.warning')
     warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-    warningFallback: 'Use with caution — all tools will run without asking for approval.',
+    warningFallback: 'Use with caution — most tools run without approval; explicit safety blocks still apply.',
     dangerous: true
   }
 ]

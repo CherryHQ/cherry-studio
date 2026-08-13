@@ -137,10 +137,28 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(event.input).toEqual({ command: 'ls -a' })
   })
 
-  it('bypassPermissions runs any tool with no approval event', async () => {
+  it('bypassPermissions runs an ordinary bash tool with no approval event', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
     await expect(handler(toolEvent('bash', { command: 'rm -rf x' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
+  })
+
+  it('still blocks disabled tools and global installs under bypassPermissions', async () => {
+    const disabled = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      isDisabled: (toolName) => toolName === 'bash'
+    })
+    await expect(disabled.handler(toolEvent('bash', { command: 'ls' }), extCtx)).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('disabled')
+    })
+
+    const globalInstall = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      globalInstall.handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)
+    ).resolves.toMatchObject({ block: true, reason: expect.stringContaining('pollution') })
+    expect(disabled.emitted).toHaveLength(0)
+    expect(globalInstall.emitted).toHaveLength(0)
   })
 
   it('keeps runtime-neutral approval-required tools gated under bypassPermissions', async () => {
@@ -164,6 +182,22 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(handler(toolEvent('bash', { command: 'ls' }), extCtx)).resolves.toMatchObject({
       block: true,
       reason: expect.stringContaining('unattended')
+    })
+    expect(emitted).toHaveLength(0)
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('does not suggest bypass for an always-prompt tool in unattended bypassPermissions mode', async () => {
+    const toolName = 'mcp__cherry-tools__kb_manage'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      approvalRequiredTools: new Set([toolName])
+    })
+
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
     })
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)

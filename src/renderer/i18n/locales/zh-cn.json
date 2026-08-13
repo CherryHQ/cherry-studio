@@ -670,7 +670,7 @@
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
             "title": "完全访问",
-            "warning": "危险：所有工具都会在无审批情况下执行。"
+            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。"
           },
           "confirmChange": {
             "description": "切换模式会更新自动预先授权的工具。",

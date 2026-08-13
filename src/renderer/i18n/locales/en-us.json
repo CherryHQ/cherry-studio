@@ -670,7 +670,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — all tools will run without asking for approval."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "confirmChange": {
             "description": "Switching modes updates the automatically approved tools.",

@@ -116,24 +116,18 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
       const mode = ctx.getPermissionMode() ?? 'default'
-      if (ctx.autoApprovedTools.has(toolName) && !ctx.approvalRequiredTools.has(toolName)) return
-      if (
-        !(await requiresApproval(
-          mode,
-          toolName,
-          input,
-          ctx.workspacePath,
-          ctx.agentDataPath,
-          ctx.approvalRequiredTools.has(toolName)
-        ))
-      )
+      const approvalRequired = ctx.approvalRequiredTools.has(toolName)
+      if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired)))
         return
 
       const interactionState = ctx.getInteractionState()
       if (interactionState.userResponse === 'unavailable') {
         return {
           block: true,
-          reason: 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+          reason: approvalRequired
+            ? 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+            : 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
         }
       }
 
