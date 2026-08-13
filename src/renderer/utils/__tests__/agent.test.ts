@@ -29,4 +29,14 @@ describe('agent utilities', () => {
       )
     ).toBe('User description')
   })
+
+  it('uses the localized Cherry Support description', () => {
+    const t = (key: string) => `translated:${key}`
+    expect(
+      getAgentDescriptionForDisplay(
+        { description: '', configuration: { builtin_role: 'support' } },
+        t as Parameters<typeof getAgentDescriptionForDisplay>[1]
+      )
+    ).toBe('translated:agent.builtin.cherry_support.description')
+  })
 })
