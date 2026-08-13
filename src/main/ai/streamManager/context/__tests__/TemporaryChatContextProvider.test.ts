@@ -28,6 +28,20 @@ vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: getByKeyMock }
 }))
 
+// prepareDispatch issues an admission ticket through the manager.
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    AiStreamManager: {
+      issueDispatchTicket: (_topicId: string, intent: unknown) => ({
+        intent,
+        admission: { mode: 'start-new' },
+        activeNodeDecision: { move: 'advance' }
+      })
+    }
+  } as never)
+})
+
 const { TemporaryChatContextProvider } = await import('../TemporaryChatContextProvider')
 const { PersistenceListener } = await import('../../listeners/PersistenceListener')
 

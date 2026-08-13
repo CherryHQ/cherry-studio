@@ -139,7 +139,7 @@ function trackSettled<T>(promise: Promise<T>): { promise: Promise<T>; isSettled:
 
 /**
  * Seed a fake stream directly into `activeStreams` — the drain suite only needs
- * the fields `drainWaitSet` reads (listener-key prefixes + `loopPromise`), not a
+ * the fields `drainWaitSet` reads (listener `isPersistent` + `loopPromise`), not a
  * real execution loop.
  */
 function seedFakeStream(
@@ -150,14 +150,13 @@ function seedFakeStream(
   const abortController = new AbortController()
   const stream = {
     topicId,
-    turnId: 'test-turn',
     executions: new Map([
       [
         'provider::model',
         {
           modelId: 'provider::model',
           abortController,
-          status: 'streaming',
+          state: { phase: 'running', firstChunkAt: 0 },
           buffer: [],
           droppedChunks: 0,
           loopPromise: opts.loopPromise,
@@ -165,8 +164,11 @@ function seedFakeStream(
         }
       ]
     ]),
-    listeners: new Map([[opts.listenerKey, { id: opts.listenerKey }]]),
+    listeners: new Map([
+      [opts.listenerKey, { id: opts.listenerKey, isPersistent: opts.listenerKey.startsWith('persistence:') }]
+    ]),
     status: 'streaming',
+    lifecycleState: 'active',
     isMultiModel: false,
     lifecycle: {}
   } as unknown as ActiveStream

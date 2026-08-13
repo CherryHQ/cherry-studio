@@ -182,8 +182,10 @@ describe('chat turn integration trajectory', () => {
     expect(listener.doneResults[0].finalMessage).toEqual(snapshot.executions[0].finalMessage)
     expect(snapshot.executions[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
 
+    // The finalizing rebroadcast repeats 'streaming' before persistence settles.
     expect(cacheWrites.map(({ value }) => (value as { status: string }).status)).toEqual([
       'pending',
+      'streaming',
       'streaming',
       'done'
     ])

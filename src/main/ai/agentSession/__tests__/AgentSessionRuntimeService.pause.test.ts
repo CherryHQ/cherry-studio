@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
-  broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -155,7 +154,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
           startRuntimeTurn: mocks.startRuntimeTurn,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
-          broadcastTopicError: mocks.broadcastTopicError,
+          reconcileCrashRecovery: (_count: number, persist: () => void) => persist(),
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }

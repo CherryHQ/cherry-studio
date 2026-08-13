@@ -9,7 +9,6 @@
  */
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
@@ -78,14 +77,14 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
   userMessage:
-    | { mode: 'create'; dto: CreateMessageDto }
+    | { mode: 'create'; id?: string; dto: CreateMessageDto }
     | { mode: 'existing'; id: string }
     | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: UniqueModelId }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
   /** Keep the topic on its current branch while reserving off-path/live sibling responses. */
-  preserveActiveNode?: boolean
+  activeNodeDecision?: { readonly move: 'advance' | 'keep' }
 }
 
 export interface CreateUserMessageWithPlaceholdersResult {
@@ -834,8 +833,38 @@ export class MessageService {
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: messageTable.id, topicId: messageTable.topicId })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ids))
+        .all()
+      tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+
+      const byTopic = new Map<string, typeof rows>()
+      for (const row of rows) {
+        const topicRows = byTopic.get(row.topicId) ?? []
+        topicRows.push(row)
+        byTopic.set(row.topicId, topicRows)
+      }
+      for (const [topicId, topicRows] of byTopic) {
+        const entityIds = topicRows.map((row) => row.id)
+        tx.effects.add({
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId },
+          entityIds
+        })
+        tx.effects.add({
+          endpoint: '/topics/:topicId/tree',
+          routeParams: { topicId },
+          entityIds
+        })
+      }
+      for (const row of rows) {
+        tx.effects.add({ endpoint: '/messages/:id', routeParams: { id: row.id }, entityIds: [row.id] })
+      }
+    })
   }
 
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
@@ -1191,7 +1220,7 @@ export class MessageService {
    * Atomically create one chat turn: insert (or resolve) one user message,
    * optionally backfill existing siblings with groupId=0, and insert N assistant
    * placeholders as children, then point topic.activeNodeId at the last placeholder unless
-   * `preserveActiveNode` explicitly keeps the user's current branch selected.
+   * `activeNodeDecision.move === 'keep'` keeps the user's current branch selected.
    *
    * The whole operation runs in a single DB transaction, so a failure anywhere
    * rolls back everything — callers don't need compensation logic. Designed for
@@ -1215,7 +1244,6 @@ export class MessageService {
   createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
   ): CreateUserMessageWithPlaceholdersResult {
-    let activityChanged = false
     const result = application.get('DbService').withWriteTx((tx) => {
       // Validate topic
       const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
@@ -1248,6 +1276,7 @@ export class MessageService {
         const [row] = tx
           .insert(messageTable)
           .values({
+            ...(input.userMessage.id ? { id: input.userMessage.id } : {}),
             topicId: input.topicId,
             parentId: resolvedParentId,
             role: dto.role,
@@ -1353,13 +1382,36 @@ export class MessageService {
       // 4. Point activeNodeId at the new turn unless this is an explicitly non-activating
       // live-group append. Streaming work must not move the user's selected branch.
       const topicService = getDataService('TopicService')
-      if (!input.preserveActiveNode) {
+      if (input.activeNodeDecision?.move !== 'keep') {
         const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
         topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
       }
       if (latestActivityAt !== null) {
         topicService.advanceLastActivityAtTx(tx, input.topicId, latestActivityAt)
-        activityChanged = true
+      }
+
+      const changedIds = [userMessage.id, ...placeholders.map((placeholder) => placeholder.id)]
+      tx.effects.add({
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId: input.topicId },
+        entityIds: changedIds
+      })
+      tx.effects.add({
+        endpoint: '/topics/:topicId/tree',
+        routeParams: { topicId: input.topicId },
+        entityIds: changedIds
+      })
+      if (input.activeNodeDecision?.move !== 'keep') {
+        tx.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: [input.topicId] })
+        tx.effects.add({
+          endpoint: '/topics/:id',
+          routeParams: { id: input.topicId },
+          entityIds: [input.topicId]
+        })
+      }
+      if (latestActivityAt !== null) {
+        topicService.addReadModelEffects(tx.effects, [input.topicId], 'projection')
       }
 
       logger.info('Reserved assistant turn', {
@@ -1367,28 +1419,11 @@ export class MessageService {
         userMessageId: userMessage.id,
         placeholderIds: placeholders.map((p) => p.id),
         siblingsGroupId: input.siblingsGroupId,
-        preserveActiveNode: input.preserveActiveNode === true
+        activeNodeDecision: input.activeNodeDecision?.move ?? 'advance'
       })
 
       return { userMessage, placeholders }
     })
-    const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
-    notifyDataApiDataChange([
-      {
-        endpoint: '/topics/:topicId/messages',
-        kind: 'membership',
-        routeParams: { topicId: input.topicId },
-        entityIds: changedIds
-      },
-      { endpoint: '/topics/:topicId/tree', routeParams: { topicId: input.topicId }, entityIds: changedIds },
-      ...(!input.preserveActiveNode
-        ? ([
-            { endpoint: '/topics', kind: 'projection', entityIds: [input.topicId] },
-            { endpoint: '/topics/:id', routeParams: { id: input.topicId }, entityIds: [input.topicId] }
-          ] as const)
-        : [])
-    ])
-    if (activityChanged) getDataService('TopicService').notifyReadModelChange([input.topicId], 'projection')
     return result
   }
 
@@ -1423,10 +1458,10 @@ export class MessageService {
    */
   update(id: string, dto: UpdateMessageDto): Message {
     // Pre-transaction: Check for cycle if moving to new parent
-    // This is done outside transaction since getDescendantIds uses its own db context
+    // This is done outside transaction since collectMessageSubtree uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
     if (dto.parentId !== undefined && dto.parentId !== null) {
-      const descendants = this.getDescendantIds(id)
+      const descendants = this.collectMessageSubtree(id)
       if (descendants.includes(dto.parentId)) {
         throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
       }
@@ -1567,7 +1602,7 @@ export class MessageService {
    * from the failed attempt.
    */
   resetAssistantForRetry(id: string): Message {
-    const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
       if (!row) throw DataApiErrorFactory.notFound('Message', id)
       if (row.role !== 'assistant') {
@@ -1591,7 +1626,7 @@ export class MessageService {
         parts: [],
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
-      const descendantIds = this.getDescendantIdsTx(tx, id)
+      const descendantIds = this.collectMessageSubtreeTx(tx, id)
       for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {
         const chunk = descendantIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
         const descendants = tx
@@ -1626,23 +1661,23 @@ export class MessageService {
       replaceChatMessageFileRefsTx(tx, id, data)
 
       logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
-      return {
-        updated: rowToMessage(updated),
-        affectedIds: [id, ...descendantIds],
-        topicId: row.topicId
-      }
-    })
-    notifyDataApiDataChange([
-      {
+      const affectedIds = [id, ...descendantIds]
+      tx.effects.add({
         endpoint: '/topics/:topicId/messages',
         kind: 'projection',
-        routeParams: { topicId },
+        routeParams: { topicId: row.topicId },
         entityIds: affectedIds
-      },
-      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: affectedIds },
-      { endpoint: '/messages/:id', entityIds: affectedIds }
-    ])
-    return updated
+      })
+      tx.effects.add({
+        endpoint: '/topics/:topicId/tree',
+        routeParams: { topicId: row.topicId },
+        entityIds: affectedIds
+      })
+      for (const messageId of affectedIds) {
+        tx.effects.add({ endpoint: '/messages/:id', routeParams: { id: messageId }, entityIds: [messageId] })
+      }
+      return rowToMessage(updated)
+    })
   }
 
   /**
@@ -1694,9 +1729,9 @@ export class MessageService {
     alreadySettledApprovalIds: string[]
   } | null {
     const completedAt = Date.now()
-    const result = application.get('DbService').withWriteTx((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
-      if (!row) return { response: null, activityTopicId: null }
+      if (!row) return null
 
       const existing = rowToMessage(row)
       const parts = existing.data.parts ?? []
@@ -1725,24 +1760,18 @@ export class MessageService {
           .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
           .where(eq(messageTable.id, anchorId))
           .run()
-        getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, completedAt)
-      }
-      return {
-        response: { parts: after, appliedApprovalIds, alreadySettledApprovalIds },
-        activityTopicId: targetPresent ? row.topicId : null
-      }
-    })
-    if (result.activityTopicId) {
-      getDataService('TopicService').notifyReadModelChange([result.activityTopicId], 'projection')
-      notifyDataApiDataChange([
-        {
+        const topicService = getDataService('TopicService')
+        topicService.advanceLastActivityAtTx(tx, row.topicId, completedAt)
+        topicService.addReadModelEffects(tx.effects, [row.topicId], 'projection')
+        tx.effects.add({
           endpoint: '/topics/:topicId/messages',
           kind: 'projection',
+          routeParams: { topicId: row.topicId },
           entityIds: [anchorId]
-        }
-      ])
-    }
-    return result.response
+        })
+      }
+      return { parts: after, appliedApprovalIds, alreadySettledApprovalIds }
+    })
   }
 
   /**
@@ -1900,7 +1929,7 @@ export class MessageService {
         )
       }
 
-      const descendantIds = cascade ? this.getDescendantIdsTx(tx, id) : []
+      const descendantIds = cascade ? this.collectMessageSubtreeTx(tx, id) : []
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
@@ -1919,7 +1948,7 @@ export class MessageService {
         // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
         // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
         // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
-        // from getDescendantIds for the response and the activeNodeId check.)
+        // from collectMessageSubtree for the response and the activeNodeId check.)
         for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
           const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
           this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
@@ -1961,32 +1990,37 @@ export class MessageService {
         })
       }
 
-      return {
-        topicId: message.topicId,
+      const response = {
         deletedIds,
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
-    })
-    const { topicId, ...response } = result
-    const changedIds = [...response.deletedIds, ...(response.reparentedIds ?? [])]
-    notifyDataApiDataChange([
-      {
+      const changedIds = [...response.deletedIds, ...(response.reparentedIds ?? [])]
+      tx.effects.add({
         endpoint: '/topics/:topicId/messages',
         kind: 'membership',
-        routeParams: { topicId },
+        routeParams: { topicId: message.topicId },
         entityIds: changedIds
-      },
-      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
-      { endpoint: '/messages/:id', entityIds: response.deletedIds },
-      ...(response.newActiveNodeId !== undefined
-        ? ([
-            { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
-            { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
-          ] as const)
-        : [])
-    ])
-    return response
+      })
+      tx.effects.add({
+        endpoint: '/topics/:topicId/tree',
+        routeParams: { topicId: message.topicId },
+        entityIds: changedIds
+      })
+      for (const messageId of response.deletedIds) {
+        tx.effects.add({ endpoint: '/messages/:id', routeParams: { id: messageId }, entityIds: [messageId] })
+      }
+      if (response.newActiveNodeId !== undefined) {
+        tx.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: [message.topicId] })
+        tx.effects.add({
+          endpoint: '/topics/:id',
+          routeParams: { id: message.topicId },
+          entityIds: [message.topicId]
+        })
+      }
+      return response
+    })
+    return result
   }
 
   private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
@@ -2086,13 +2120,13 @@ export class MessageService {
   }
 
   /**
-   * Get all descendant IDs of a message
+   * Collect descendant IDs for response shaping and tree invariants; FK cascade performs deletion.
    */
-  private getDescendantIds(id: string): string[] {
-    return this.getDescendantIdsTx(application.get('DbService').getDb(), id)
+  private collectMessageSubtree(id: string): string[] {
+    return this.collectMessageSubtreeTx(application.get('DbService').getDb(), id)
   }
 
-  private getDescendantIdsTx(tx: DbOrTx, id: string): string[] {
+  private collectMessageSubtreeTx(tx: DbOrTx, id: string): string[] {
     // Use recursive query to get all descendants
     const result = tx.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (

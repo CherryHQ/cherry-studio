@@ -548,7 +548,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { isPending, topicBusy, canSteer, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
@@ -933,7 +933,7 @@ const ChatComposerInner = ({
     setIsSending(false)
   }, [scopeKey])
 
-  const loading = isPending || isSending || awaitingApproval
+  const loading = topicBusy || isSending
   const clearContextDisabled =
     loading ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -942,7 +942,6 @@ const ChatComposerInner = ({
     chatWrite?.canStartNewContext === false
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
-  const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({

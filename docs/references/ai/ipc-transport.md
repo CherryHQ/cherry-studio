@@ -50,7 +50,7 @@ explicit `Ai_ToolApproval_Respond` IPC handled by
 
 `streamDispatchCoordinator` (`src/renderer/services/aiTransport/streamDispatchCoordinator.ts`)
 sits between the transport and the IPC call so the `Ai_Stream_Open` ack
-(`reservedMessages`, `activeExecutions`, and `preserveActiveNode`) is
+(`reservedMessages`, `activeExecutions`, and `activeNodeDecision`) is
 observable to callers that need to seed optimistic UI bubbles, rather than
 being thrown away by AI SDK's transport interface.
 
@@ -63,7 +63,8 @@ running stream.
 
 ## Per-execution demux
 
-The chunk stream from Main is keyed by `(topicId, executionId)`.
+The chunk stream from Main is keyed by immutable `attemptId`; `executionId`
+and `anchorMessageId` form the logical slot whose newest attempt is rendered.
 `TopicStreamSubscription`
 (`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns the
 topic-level `streamAttach` / `streamDetach` with ref-counted lifecycle

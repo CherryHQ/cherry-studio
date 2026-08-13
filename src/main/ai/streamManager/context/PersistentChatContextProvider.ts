@@ -37,6 +37,7 @@ import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -48,7 +49,7 @@ import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observabil
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
-import { AiStreamAdmissionError } from '../admission'
+import { AiStreamAdmissionError, type StreamIntent } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -287,6 +288,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
       const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
+      const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, { kind: 'steer-inject' })
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
@@ -304,7 +306,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
-        reservedMessages: [toReservedUIMessage(userMessage)]
+        reservedMessages: [toReservedUIMessage(userMessage)],
+        ticket
       }
     }
 
@@ -312,7 +315,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
-    let liveGroupSourceAnchorMessageId: string | undefined
+    let dispatchIntent: StreamIntent = { kind: 'start', modelCount: models.length }
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
       fastMode: req.fastMode === true
@@ -343,15 +346,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       } catch {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
       }
-      const admission = application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
-        mode: 'append',
-        modelId: models[0].id,
-        targetMessageId: liveGroupAppendMessageId,
-        parentAnchorId,
-        siblingsGroupId: targetSiblingsGroupId
-      })
-      if (admission.mode === 'append-live') {
-        liveGroupSourceAnchorMessageId = admission.groupAnchorMessageId
+      dispatchIntent = {
+        kind: 'append-live',
+        change: {
+          mode: 'append',
+          modelId: models[0].id,
+          targetMessageId: liveGroupAppendMessageId,
+          parentAnchorId,
+          siblingsGroupId: targetSiblingsGroupId
+        }
       }
     } else if (isRegenerate && ctx.hasLiveStream) {
       // An ordinary regenerate while the topic is live would build placeholder rows that send()'s
@@ -361,21 +364,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         modelCount: models.length
       })
     }
-
-    if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
-      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
-    }
-    const preparedLiveExecutionChange =
-      liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
-        ? {
-            mode: 'append' as const,
-            groupAnchorMessageId: liveGroupSourceAnchorMessageId,
-            parentAnchorId: req.parentAnchorId,
-            siblingsGroupId,
-            activateFallback: true
-          }
-        : undefined
     const assistantIdentity = resolveAssistantIdentity(assistantId)
+    const plannedUserMessageId = req.trigger === 'submit-message' ? (reservedBranchId ?? uuidv7()) : req.parentAnchorId
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
@@ -389,6 +379,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             } as const)
           : ({
               mode: 'create' as const,
+              id: plannedUserMessageId,
               dto: {
                 role: 'user' as const,
                 parentId: req.parentAnchorId,
@@ -405,11 +396,48 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+      const historyTail: CompactionRow[] =
+        req.trigger === 'submit-message'
+          ? [{ id: plannedUserMessageId, role: 'user', parts: req.userMessageParts }]
+          : []
+      const historyAnchorMessageId =
+        req.trigger !== 'submit-message'
+          ? req.parentAnchorId
+          : reservedBranchId
+            ? (messageService.getById(reservedBranchId).parentId ?? undefined)
+            : req.parentAnchorId
+      // All provider/context work finishes before the reservation. From the
+      // transaction below to manager.send there is no asynchronous gap.
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        historyAnchorMessageId,
+        req.topicId,
+        models,
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber),
+        historyTail
+      )
+      const dispatchTicket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, dispatchIntent)
+      const liveGroupSourceAnchorMessageId =
+        dispatchTicket.admission.mode === 'append-live' ? dispatchTicket.admission.groupAnchorMessageId : undefined
+      if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      const preparedLiveExecutionChange =
+        liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
+          ? {
+              mode: 'append' as const,
+              groupAnchorMessageId: liveGroupSourceAnchorMessageId,
+              parentAnchorId: req.parentAnchorId,
+              siblingsGroupId
+            }
+          : undefined
       const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
-        preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
+        activeNodeDecision: dispatchTicket.activeNodeDecision,
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [], turnOptions },
@@ -432,7 +460,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
       // to the first backend only so it fires once for multi-model turns.
-      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [subscriber]
       for (let i = 0; i < assistantPlaceholders.length; i++) {
         const { model, placeholder } = assistantPlaceholders[i]
@@ -455,23 +482,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
                     )
                   }
                 : undefined
-            }),
-            onPersistFailed: (error) =>
-              application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+            })
           })
         )
       }
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
-        userMessage.id,
-        req.topicId,
-        assistantPlaceholders.map((p) => p.model),
-        assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
-      )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
@@ -506,7 +523,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
         liveExecutionChange: preparedLiveExecutionChange,
-        preserveActiveNode: Boolean(liveGroupAppendMessageId)
+        ticket: dispatchTicket
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -538,13 +555,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [model] = resolveModels([targetModelId], targetModelId)
     const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
     const manager = application.get('AiStreamManager')
-    await manager.awaitExecutionRetry(
-      req.topicId,
-      targetModelId,
-      target.id,
-      req.parentAnchorId,
-      compatibleSiblingsGroupId
-    )
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
@@ -581,18 +591,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         messages: request.messages
       })
 
-      // Context preparation can outlive the original sibling turn. Re-admit against the exact
-      // model+anchor immediately before the synchronous reset/dispatch handoff, so an unrelated
-      // newer live turn cannot leave this historical row reset to pending without owning it.
-      const admission = await manager.awaitExecutionRetry(
-        req.topicId,
-        targetModelId,
-        target.id,
-        req.parentAnchorId,
-        compatibleSiblingsGroupId
-      )
+      const ticket = await manager.awaitDispatchTicket(req.topicId, {
+        kind: 'replace-live',
+        change: {
+          mode: 'replace',
+          modelId: targetModelId,
+          anchorMessageId: target.id,
+          parentAnchorId: req.parentAnchorId,
+          siblingsGroupId: compatibleSiblingsGroupId
+        }
+      })
 
-      // Reset only after all async context preparation and the final admission succeed. This atomic
+      // Reset only after all context preparation and immutable admission succeed. This atomic
       // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
       // activate it.
       const resetMessage = messageService.resetAssistantForRetry(target.id)
@@ -605,9 +615,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             assistantMessageId: target.id,
             turnOptions,
             contextSettingsOverride
-          }),
-          onPersistFailed: (error) =>
-            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+          })
         }),
         new TraceFlushListener(req.topicId)
       ]
@@ -619,22 +627,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         reservedMessages: [toReservedUIMessage(resetMessage)],
         siblingsGroupId: target.siblingsGroupId || undefined,
         liveExecutionChange:
-          admission.mode === 'replace-live'
+          ticket.admission.mode === 'replace-live'
             ? {
                 mode: 'replace',
                 parentAnchorId: req.parentAnchorId,
                 siblingsGroupId: compatibleSiblingsGroupId
               }
-            : admission.mode === 'append-live'
+            : ticket.admission.mode === 'append-live'
               ? {
                   mode: 'append',
-                  groupAnchorMessageId: admission.groupAnchorMessageId,
+                  groupAnchorMessageId: ticket.admission.groupAnchorMessageId,
                   parentAnchorId: req.parentAnchorId,
-                  siblingsGroupId: target.siblingsGroupId,
-                  activateFallback: false
+                  siblingsGroupId: target.siblingsGroupId
                 }
               : undefined,
-        preserveActiveNode: true
+        ticket
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -678,12 +685,25 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
     try {
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+      const { messages: storedHistory, retainedContext } = await this.resolveCompactedHistory(
+        anchor.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const history = storedHistory.map((message) =>
+        message.id === anchor.id ? ({ ...message, parts: updatedParts } as CherryUIMessage) : message
+      )
+      const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, {
+        kind: 'continue-conversation'
+      })
       messageService.update(req.parentAnchorId, {
         data: { ...anchor.data, parts: updatedParts },
         status: 'pending'
       })
-
-      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -693,21 +713,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             assistantMessageId: anchor.id,
             turnOptions: anchor.data.turnOptions,
             contextSettingsOverride
-          }),
-          onPersistFailed: (error) =>
-            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+          })
         }),
         new TraceFlushListener(req.topicId)
       ]
-
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
-        anchor.id,
-        req.topicId,
-        [model],
-        assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
-      )
       return {
         topicId: req.topicId,
         models: [
@@ -729,7 +738,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        siblingsGroupId: undefined
+        siblingsGroupId: undefined,
+        ticket
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -767,9 +777,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
     try {
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+        req.userMessageId,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const history = withSteerReminder(compactedHistory)
+      const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, {
+        kind: 'steer-continuation'
+      })
       const { placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
+        activeNodeDecision: ticket.activeNodeDecision,
         placeholders: [
           {
             role: 'assistant',
@@ -781,8 +805,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         ]
       })
       const placeholder = placeholders[0]
-
-      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -792,22 +814,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             assistantMessageId: placeholder.id,
             turnOptions,
             contextSettingsOverride
-          }),
-          onPersistFailed: (error) =>
-            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+          })
         }),
         new TraceFlushListener(req.topicId)
       ]
-
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
-        req.userMessageId,
-        req.topicId,
-        [model],
-        assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
-      )
-      const history = withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
         models: [
@@ -828,7 +838,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        reservedMessages: [toReservedUIMessage(placeholder)]
+        reservedMessages: [toReservedUIMessage(placeholder)],
+        ticket
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -888,17 +899,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    *    compacted view. The tree is never structurally mutated; only a column is set.
    */
   private async resolveCompactedHistory(
-    anchorMessageId: string,
+    anchorMessageId: string | undefined,
     topicId: string,
     models: Model[],
     assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
-    compactionSink?: CompactionSink
+    compactionSink?: CompactionSink,
+    tailRows: readonly CompactionRow[] = []
   ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
-    const messagePath = messageService.getPathToNode(anchorMessageId)
+    const messagePath = anchorMessageId ? messageService.getPathToNode(anchorMessageId) : []
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
     // Capability state from the RAW path: compaction folds file parts and tool
@@ -907,9 +919,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
     // for the manifest prefixes below — handle dedup is a left-to-right fold,
     // so a slice's handles match the full pass only when both share this array.
-    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const rawUI = [
+      ...rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage),
+      ...tailRows.map((row) => ({ parts: row.parts }) as UIMessage)
+    ]
     const retainedContext = collectRetainedContext(rawUI)
-    const rows = rawMsgs.map((m) => this.toRow(m))
+    const rows = [...rawMsgs.map((m) => this.toRow(m)), ...tailRows]
     // Manifest handles cover ONLY the rows folded behind the boundary: live
     // attachments still ride served messages as file parts, and scoping the
     // manifest to the folded prefix makes the summary-row bytes a pure
@@ -930,7 +945,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // read_file / fs_read access to whatever slid out of it.
     const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
       const servedIds = new Set(windowed.map((r) => r.id))
-      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
+      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rows[i].id)))
     }
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(

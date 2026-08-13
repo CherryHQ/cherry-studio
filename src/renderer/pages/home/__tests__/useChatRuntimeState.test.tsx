@@ -223,11 +223,13 @@ describe('useChatRuntimeState', () => {
 
     await act(async () => {
       await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
-        preserveActiveNode: true
+        activeNodeDecision: { move: 'keep' }
       })
     })
 
-    expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
+    expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], {
+      activeNodeDecision: { move: 'keep' }
+    })
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ activeNodeId: 'selected-branch' })
     )

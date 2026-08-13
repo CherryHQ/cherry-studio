@@ -18,6 +18,7 @@ export {
 } from './persistedToolOutput'
 export type {
   ActiveExecution,
+  ActiveNodeDecision,
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
   AiChatRequestBody,

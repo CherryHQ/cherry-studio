@@ -14,11 +14,11 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import { describe, expect, it, type Mock, vi } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
@@ -118,7 +118,7 @@ describe('TopicService', () => {
       orderKey: 'a0'
     })
 
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     const updated = topicService.update('topic-name-only', {
       name: 'Manual topic name'
     })
@@ -128,10 +128,10 @@ describe('TopicService', () => {
       name: 'Manual topic name',
       isNameManuallyEdited: true
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/topics', kind: 'projection', entityIds: ['topic-name-only'] },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-name-only'] },
-      { endpoint: '/topics/:id', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics/:id', routeParams: { id: 'topic-name-only' }, entityIds: ['topic-name-only'] },
       { endpoint: '/topics/latest' }
     ])
   })
@@ -500,20 +500,20 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
       topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      expect(publishedEffects).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
-        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
         { endpoint: '/topics/latest' }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(publishedEffects).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledTimes(2)
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
@@ -829,7 +829,7 @@ describe('TopicService', () => {
 
     it('rolls back the owner and order when applying the order fails', async () => {
       await seedMoveTopics()
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
       dbh.db.run(
         sql.raw(`
         CREATE TRIGGER fail_topic_order_update
@@ -850,7 +850,7 @@ describe('TopicService', () => {
       }
 
       expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
-      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(publishedEffects).not.toHaveBeenCalled()
     })
 
     it('rejects a move to a missing assistant without changing the topic', async () => {
@@ -1006,13 +1006,13 @@ describe('TopicService', () => {
 
   describe('create', () => {
     it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
       const result = topicService.create({ name: 'fresh' })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
-        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/:id', routeParams: { id: result.id }, entityIds: [result.id] },
         { endpoint: '/topics/latest' }
       ])
       expect(result.activeNodeId).toBeUndefined()
@@ -1148,13 +1148,13 @@ describe('TopicService', () => {
         }
       ])
 
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
       const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
-        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/:id', routeParams: { id: result.id }, entityIds: [result.id] },
         { endpoint: '/topics/latest' }
       ])
       expect(result.id).not.toBe('src-t')

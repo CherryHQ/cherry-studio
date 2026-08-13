@@ -344,7 +344,7 @@ export function useChatWriteActions(params: Params): Result {
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
-          preserveActiveNode: ack.preserveActiveNode
+          activeNodeDecision: ack.activeNodeDecision
         })
         return
       }
@@ -364,7 +364,7 @@ export function useChatWriteActions(params: Params): Result {
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
-          preserveActiveNode: ack.preserveActiveNode
+          activeNodeDecision: ack.activeNodeDecision
         })
         return
       }
@@ -440,7 +440,7 @@ export function useChatWriteActions(params: Params): Result {
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
         activeExecutions: ack.activeExecutions,
-        preserveActiveNode: ack.preserveActiveNode
+        activeNodeDecision: ack.activeNodeDecision
       })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
@@ -476,7 +476,7 @@ export function useChatWriteActions(params: Params): Result {
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
         activeExecutions: ack.activeExecutions,
-        preserveActiveNode: ack.preserveActiveNode
+        activeNodeDecision: ack.activeNodeDecision
       })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]

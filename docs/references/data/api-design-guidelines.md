@@ -466,11 +466,12 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 
 ### Fenced Exception: Data Change Notification
 
-One strictly fenced exception to the side-effect rule: after a business write **successfully commits**, the owning data service may publish a read-model observation signal for cross-window data convergence — `notifyDataApiDataChange(effects)` (`src/main/data/dataApiDataChange.ts`), broadcasting `DataApiDataChangeEffect[]` to all windows. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
+One strictly fenced exception to the side-effect rule: a data service may declare read-model observation effects for cross-window convergence. Inside `DbService.withWriteTx()`, add `DataApiDataChangeEffect` values through `tx.effects.add(...)`; `DbService` publishes the deduplicated batch only after the outermost transaction commits. Use `DbService.withEffects()` for an atomic autocommit write. The low-level `notifyDataApiDataChange()` publisher is lint-private to `DbService`. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
 
 Fences (all hard):
 
-- Publish only after commit, never inside a transaction; on rollback the call must be unreachable.
+- Declare effects inside the transaction; only `DbService` may publish, after commit. Rollback discards the collected batch.
+- Template endpoints must include concrete `routeParams`; the effect type enforces this.
 - The notification never participates in write success — a failure must not roll back or otherwise affect committed data.
 - Effects describe endpoint/read-model changes only — no entity rows, field diffs, SQL predicates, or business commands.
 - Not a channel for file, network, process, window-control, or external-service work.

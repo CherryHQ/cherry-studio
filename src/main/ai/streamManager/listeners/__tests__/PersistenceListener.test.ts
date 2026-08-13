@@ -57,7 +57,7 @@ function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
-function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
+function makeListener(modelId?: UniqueModelId) {
   return new PersistenceListener({
     topicId: 'abc',
     modelId,
@@ -66,8 +66,7 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
       messageId: 'assistant-message-id',
       modelId,
       messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
-    }),
-    onPersistFailed
+    })
   })
 }
 
@@ -337,8 +336,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   function makeMessageServiceListener() {
     return new PersistenceListener({
       topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
   }
 
@@ -378,8 +376,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       backend: new MessageServiceBackend({
         assistantMessageId: 'assistant-1',
         turnOptions: { reasoningEffort: 'high', fastMode: true }
-      }),
-      onPersistFailed: vi.fn()
+      })
     })
 
     await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
@@ -412,45 +409,19 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
   })
 
-  it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
+  it('carries the persistence failure for the manager to publish after settlement', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
     messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
-    const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
-
-    expect(onPersistFailed).toHaveBeenCalledTimes(1)
-    expect(onPersistFailed).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('write failed') })
-    )
-  })
-
-  it('raises the control signal even when the persistence-failure callback throws', async () => {
-    messageFinalizeMock.mockImplementationOnce(() => {
-      throw new Error('write failed')
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toMatchObject({
+      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') })
     })
-    const onPersistFailed = vi.fn(() => {
-      throw new Error('renderer notification failed')
-    })
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed
-    })
-
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
-    expect(onPersistFailed).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -474,8 +445,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     const listener = new PersistenceListener({
       topicId: 'topic-1',
       modelId: 'openrouter::x' as UniqueModelId,
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
     const runtimeTiming = { startedAt: 1_000, completedAt: 1_160, spans: [] }

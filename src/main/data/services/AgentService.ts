@@ -793,7 +793,7 @@ export class AgentService {
 
     const deleted = result.rowsAffected > 0
     if (deleted && result.sessionImpact) {
-      agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
+      agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds, id)
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
       this._onAgentDeleted.fire({ agentId: id })
     }

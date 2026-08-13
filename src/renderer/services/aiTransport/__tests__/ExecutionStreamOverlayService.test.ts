@@ -95,6 +95,13 @@ const mocks = vi.hoisted(() => {
       return this.topicOpen
     }
 
+    isSettled(attemptId: number) {
+      return (
+        (this.terminalAttemptWatermark !== undefined && attemptId <= this.terminalAttemptWatermark) ||
+        [...this.terminalByKey.values()].some(({ terminal }) => terminal.attemptId === attemptId)
+      )
+    }
+
     #find(executionId: string, anchorMessageId?: string, attemptId?: number) {
       return this.branches.get(this.#key(executionId, anchorMessageId, attemptId))
     }

@@ -1,4 +1,5 @@
 import type { Span } from '@opentelemetry/api'
+import type { AttemptId } from '@shared/ai/attempt'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -6,6 +7,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import type { AttemptState, StreamLifecycleState } from './attemptMachine'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 
@@ -84,6 +86,8 @@ export interface StreamListener {
   readonly id: string
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
+  /** True only when the listener owns durable writes that drainInFlight must await. */
+  readonly isPersistent?: boolean
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
   onDone(result: StreamDoneResult): void | Promise<void>
@@ -104,14 +108,14 @@ export interface StreamExecution {
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
-  attemptId: number
+  attemptId: AttemptId
   /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
   anchorMessageId?: string
   /** Renderer readers must start from an empty anchor instead of cached persisted parts. */
   seedFromEmpty?: boolean
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
-  status: 'streaming' | 'done' | 'error' | 'aborted'
+  state: AttemptState
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
@@ -153,13 +157,12 @@ export interface StreamExecution {
  */
 export interface ActiveStream {
   topicId: string
-  /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
-  turnId: string
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */
   listeners: Map<string, StreamListener>
   status: TopicStreamStatus
+  lifecycleState: StreamLifecycleState
   isMultiModel: boolean
   lifecycle: StreamLifecycle
 

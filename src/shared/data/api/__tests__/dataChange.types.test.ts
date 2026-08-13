@@ -104,12 +104,12 @@ describe('DataApiDataChangeEffect invariants', () => {
       entityIds: ['t1']
     }
     // @ts-expect-error concrete route scope is read-only for shared listeners
-    scopedEffect.routeParams!.id = 't2'
+    scopedEffect.routeParams.id = 't2'
 
     expectTypeOf(effect).toExtend<DataApiDataChangeEffect>()
   })
 
-  it('keeps the four illegal states unrepresentable', () => {
+  it('keeps illegal states unrepresentable', () => {
     // @ts-expect-error collection endpoint requires a kind
     const collectionWithoutKind: DataApiDataChangeEffect = { endpoint: '/topics' }
 
@@ -129,12 +129,23 @@ describe('DataApiDataChangeEffect invariants', () => {
     // @ts-expect-error endpoint is a schema TEMPLATE path, never a concrete one
     const concreteEndpoint: DataApiDataChangeEffect = { endpoint: '/topics/abc123' }
 
+    // @ts-expect-error template endpoints require their concrete route scope
+    const templateWithoutRouteParams: DataApiDataChangeEffect = { endpoint: '/topics/:id' }
+
+    // @ts-expect-error static endpoints must not invent a route scope
+    const staticWithRouteParams: DataApiDataChangeEffect = {
+      endpoint: '/topics/latest',
+      routeParams: { id: 't1' }
+    }
+
     expectTypeOf([
       collectionWithoutKind,
       scalarWithKind,
       orderWithoutDimension,
       projectionWithDimension,
-      concreteEndpoint
+      concreteEndpoint,
+      templateWithoutRouteParams,
+      staticWithRouteParams
     ]).toExtend<DataApiDataChangeEffect[]>()
   })
 })

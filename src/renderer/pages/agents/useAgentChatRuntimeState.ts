@@ -285,7 +285,7 @@ export function useAgentChatRuntimeState({
     streamingLayers,
     onRespond: respondToolApproval
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const { topicBusy } = useTopicStreamStatus(sessionTopicId)
 
   const composerContext = useMemo<ComposerContextValue>(
     () => ({
@@ -303,7 +303,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    isPending,
+    isPending: topicBusy,
     stop,
     sendMessage,
     deleteMessage,

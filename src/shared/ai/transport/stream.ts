@@ -79,6 +79,8 @@ export interface ActiveExecution {
   seedFromEmpty?: boolean
 }
 
+export type ActiveNodeDecision = { readonly move: 'advance' | 'keep' }
+
 /** Chat-tree target captured when a queued draft is created. */
 export interface ComposerChatTarget {
   parentAnchorId: string | null
@@ -109,9 +111,8 @@ export interface ComposerQueuedMessagePayload {
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.
  *
- * `activeExecutions` names every execution still in its non-terminal phase
- * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
- * `error` / `aborted`). Empty when every execution has hit a terminal state.
+ * `activeExecutions` names every execution in the attempt machine's `running`
+ * phase. Empty once every execution has started terminal persistence.
  *
  * `awaitingApprovalAnchors` names every execution with a still-pending
  * `tool-approval-request` (`exec.pendingApprovalToolCallIds` non-empty), even after
@@ -123,12 +124,6 @@ export interface ComposerQueuedMessagePayload {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
-  /**
-   * Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same
-   * topic. Main writes it today; the renderer consumer is not yet wired — it lands in the renderer
-   * split (do not remove: the consumer is real, just unsplit).
-   */
-  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -306,8 +301,8 @@ export type AiStreamOpenResponse =
       mode: 'started' | 'injected'
       /** Runtime identities, including per-attempt ids, for optimistic stream attachment. */
       activeExecutions?: ActiveExecution[]
-      /** The reservation deliberately left the topic's persisted active node unchanged. */
-      preserveActiveNode?: boolean
+      /** Admission decision applied atomically while reserving persisted messages. */
+      activeNodeDecision?: ActiveNodeDecision
       /**
        * Authoritative persisted message skeletons reserved before the stream starts. Contract
        * intent: a consumer may seed these into its view immediately for an optimistic render, then

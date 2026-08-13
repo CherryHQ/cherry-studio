@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
+import { isAttemptRunning } from '../attemptMachine'
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
 
@@ -24,7 +25,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
           anchorMessageId: exec.anchorMessageId,
           ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
         }
-        if (exec.status === 'streaming') activeExecutions.push(entry)
+        if (isAttemptRunning(exec.state)) activeExecutions.push(entry)
         // Main-side authoritative approval-anchor identity; renderer reads this
         // instead of inferring from `parts` / SWR-lagged status.
         if (exec.pendingApprovalToolCallIds?.size) awaitingApprovalAnchors.push(entry)
@@ -36,7 +37,6 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       const lastCompletedAt = status === 'done' ? Date.now() : prev?.lastCompletedAt
       cacheService.setShared(key, {
         status,
-        turnId: stream.turnId,
         activeExecutions,
         awaitingApprovalAnchors,
         lastCompletedAt

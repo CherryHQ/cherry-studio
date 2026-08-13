@@ -548,8 +548,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     const persistAssistant = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'agent-session:session-1',
-      backend: { kind: 'test', persistAssistant },
-      onPersistFailed: vi.fn()
+      backend: { kind: 'test', persistAssistant }
     })
     await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
 

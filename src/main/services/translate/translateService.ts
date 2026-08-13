@@ -119,8 +119,7 @@ export class TranslateService {
             messageId: req.messageId,
             targetLanguage: req.targetLangCode,
             sourceLanguage: req.sourceLangCode
-          }),
-          onPersistFailed: (error) => wcListener.onError({ error, status: 'error', isTopicDone: true })
+          })
         })
       )
     }

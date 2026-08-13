@@ -11,12 +11,12 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
@@ -39,8 +39,7 @@ describe('AgentSessionService', () => {
   const root = path.join('/tmp', 'cherry-session-service')
 
   beforeEach(async () => {
-    ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -49,10 +48,6 @@ describe('AgentSessionService', () => {
       model: null,
       orderKey: 'a0'
     })
-  })
-
-  afterEach(() => {
-    ;(application.get('DbService').withWriteTx as Mock).mockReset()
   })
 
   function workspacePath(...segments: string[]) {
@@ -293,7 +288,7 @@ describe('AgentSessionService', () => {
 
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -301,10 +296,10 @@ describe('AgentSessionService', () => {
       workspace: { type: 'user', workspaceId: workspace.id }
     })
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', routeParams: { sessionId: session.id }, entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
     expect(session.workspaceId).toBe(workspace.id)
@@ -405,17 +400,17 @@ describe('AgentSessionService', () => {
 
   it('updates a session and returns the updated entity', async () => {
     const session = await createSession('Before update')
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     const updated = agentSessionService.update(session.id, {
       name: 'After update',
       description: 'Updated description',
       isNameManuallyEdited: true
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', routeParams: { sessionId: session.id }, entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
 
@@ -679,21 +674,21 @@ describe('AgentSessionService', () => {
 
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+    expect(publishedEffects).toHaveBeenNthCalledWith(1, [
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', routeParams: { sessionId: session.id }, entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    expect(publishedEffects).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(publishedEffects).toHaveBeenCalledTimes(2)
   })
 
   it('clears a paused task projection immediately when its bound session is deleted', async () => {
@@ -715,11 +710,20 @@ describe('AgentSessionService', () => {
       status: 'paused',
       nextRun: null
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+    expect(publishedEffects).toHaveBeenCalledWith([
       { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
-      { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+      { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: task.id }, entityIds: [task.id] },
+      {
+        endpoint: '/agents/:agentId/tasks',
+        kind: 'projection',
+        routeParams: { agentId: 'agent-session-test' },
+        entityIds: [task.id]
+      },
+      {
+        endpoint: '/agents/:agentId/tasks/:taskId',
+        routeParams: { agentId: 'agent-session-test', taskId: task.id },
+        entityIds: [task.id]
+      }
     ])
   })
 
@@ -772,15 +776,15 @@ describe('AgentSessionService', () => {
     const task = createTaskSchedule()
     const session = await createSession('Bound reassigned task')
     bindTaskSession(session.id, task.id)
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
 
     expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBeNull()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+    expect(publishedEffects).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', routeParams: { sessionId: session.id }, entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
   })
@@ -789,7 +793,7 @@ describe('AgentSessionService', () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
     bindTaskSession(session.id, task.id)
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     expect(() =>
       dbh.db.transaction((tx) => {
@@ -799,7 +803,7 @@ describe('AgentSessionService', () => {
     ).toThrow('rollback')
 
     expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBe(session.id)
-    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    expect(publishedEffects).not.toHaveBeenCalled()
   })
 
   it('clears bindings for bulk, workspace, and agent session deletion paths', async () => {

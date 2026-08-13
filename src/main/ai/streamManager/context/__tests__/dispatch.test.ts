@@ -53,6 +53,11 @@ function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
     inspect: vi.fn(() => undefined),
+    issueDispatchTicket: vi.fn((_topicId, intent) => ({
+      intent,
+      admission: { mode: 'start-new' },
+      activeNodeDecision: { move: 'advance' }
+    })),
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
@@ -193,7 +198,7 @@ describe('dispatchStreamRequest — steer', () => {
     expect(manager.send).not.toHaveBeenCalled()
   })
 
-  it('activates the reserved assistant when a live-group append settles during preparation', async () => {
+  it('uses the immutable ticket when a live-group append settles during preparation', async () => {
     mocks.persistentPrepare.mockResolvedValue({
       topicId: 'topic-append',
       models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
@@ -203,13 +208,24 @@ describe('dispatchStreamRequest — steer', () => {
         mode: 'append',
         groupAnchorMessageId: 'assistant-1',
         parentAnchorId: 'user-1',
-        siblingsGroupId: 1,
-        activateFallback: true
+        siblingsGroupId: 1
       },
-      preserveActiveNode: true
+      ticket: {
+        intent: {
+          kind: 'append-live',
+          change: {
+            mode: 'append',
+            modelId: 'p::m2',
+            targetMessageId: 'assistant-1',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 1
+          }
+        },
+        admission: { mode: 'start-new' },
+        activeNodeDecision: { move: 'advance' }
+      }
     })
     const manager = makeManager(true)
-    vi.mocked(manager.hasLiveStream).mockReturnValueOnce(true).mockReturnValueOnce(false)
 
     const result = await dispatchStreamRequest(manager, makeSubscriber(), {
       topicId: 'topic-append',
@@ -219,8 +235,8 @@ describe('dispatchStreamRequest — steer', () => {
       mentionedModelIds: ['p::m2']
     })
 
-    expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')
+    expect(mocks.setActiveNode).not.toHaveBeenCalled()
     expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
-    expect(result).toMatchObject({ preserveActiveNode: false })
+    expect(result).toMatchObject({ activeNodeDecision: { move: 'advance' } })
   })
 })

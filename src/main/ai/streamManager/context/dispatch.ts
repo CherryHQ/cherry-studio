@@ -5,7 +5,6 @@
  */
 
 import { loggerService } from '@logger'
-import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -158,24 +157,21 @@ export async function dispatchStreamRequest(
     )
   }
 
-  // Async preparation may outlive the stream it planned to append to. Re-check
-  // liveness once at the synchronous handoff and degrade to a fresh turn when
-  // the original stream has settled.
   const preparedChange = prepared.liveExecutionChange
-  const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
-  let preserveActiveNode = prepared.preserveActiveNode
-  if (preparedChange?.mode === 'append' && !canAppendToLiveStream && preparedChange.activateFallback) {
-    const fallbackActiveNodeId = reservedAssistantIds.at(-1)
-    if (!fallbackActiveNodeId) {
-      throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
-    }
-    topicService.setActiveNode(prepared.topicId, fallbackActiveNodeId)
-    preserveActiveNode = false
-  }
+  const ticket =
+    prepared.ticket ??
+    manager.issueDispatchTicket(
+      prepared.topicId,
+      req.trigger === 'continue-conversation'
+        ? { kind: 'continue-conversation' }
+        : req.trigger === 'steer-continuation'
+          ? { kind: 'steer-continuation' }
+          : { kind: 'start', modelCount: prepared.models.length }
+    )
   const liveExecutionChange =
-    preparedChange?.mode === 'replace'
+    preparedChange?.mode === 'replace' && ticket.admission.mode === 'replace-live'
       ? preparedChange
-      : preparedChange?.mode === 'append' && canAppendToLiveStream
+      : preparedChange?.mode === 'append' && ticket.admission.mode === 'append-live'
         ? {
             mode: 'append' as const,
             groupAnchorMessageId: preparedChange.groupAnchorMessageId,
@@ -190,13 +186,14 @@ export async function dispatchStreamRequest(
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
     liveExecutionChange,
+    ticket,
     lifecycle: prepared.lifecycle
   })
 
   return {
     mode: result.mode,
     activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
-    preserveActiveNode,
+    activeNodeDecision: ticket.activeNodeDecision,
     reservedMessages: prepared.reservedMessages
   }
 }

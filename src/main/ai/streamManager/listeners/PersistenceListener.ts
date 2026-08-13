@@ -26,7 +26,11 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 const logger = loggerService.withContext('PersistenceListener')
 
 /** Internal control signal: the persistence failure was already surfaced as an error event. */
-export class TerminalPersistenceError extends Error {}
+export class TerminalPersistenceError extends Error {
+  constructor(readonly serializedError: SerializedError) {
+    super('Terminal persistence failed')
+  }
+}
 
 export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
@@ -34,17 +38,12 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
-  /**
-   * Called when persistence fails after a terminal event. The DB row is already driven to
-   * `error`; this lets the caller surface that error while the manager suppresses the original
-   * terminal notification.
-   */
-  onPersistFailed: (error: SerializedError) => void
 }
 
 export class PersistenceListener implements StreamListener {
   readonly id: string
   readonly terminalPhase = 'persistence' as const
+  readonly isPersistent = true
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
@@ -148,18 +147,7 @@ export class PersistenceListener implements StreamListener {
           err: markErr
         })
       }
-      // Surface the persistence error now; the manager suppresses the original terminal notification.
-      try {
-        this.opts.onPersistFailed(serializeError(err))
-      } catch (notifyErr) {
-        logger.error('Failed to surface terminal persistence error', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: notifyErr
-        })
-      }
-      throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
+      throw new TerminalPersistenceError(serializeError(err))
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {

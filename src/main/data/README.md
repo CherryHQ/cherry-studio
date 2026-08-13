@@ -30,7 +30,9 @@ src/main/data/
 
 ## Data Change Notification
 
-`notifyDataApiDataChange(effects)` is the single publish point for cross-window data convergence: after a business write **successfully commits**, the owning data service states which read models changed (`DataApiDataChangeEffect[]`), and the signal is broadcast to all windows. This is a strictly fenced exception to the "no side effects in data services" rule — see [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the fences, and the notifier's own doc comment for publish invariants (post-commit timing, `*Tx()` never notifies, no-op writes may skip) and the delivery contract.
+`DbService.withWriteTx()` is the single publish boundary for cross-window data convergence. A data service declares affected read models with `tx.effects.add(...)` inside the synchronous transaction; `DbService` deduplicates and broadcasts the collected `DataApiDataChangeEffect[]` only after the outermost commit succeeds. Rollback publishes nothing. Atomic autocommit writes use `DbService.withEffects()` for the same collect-then-publish contract. Template endpoints require concrete `routeParams` at compile time.
+
+The low-level `notifyDataApiDataChange()` publisher is private to `DbService` by lint rule. See [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the remaining fences and delivery contract.
 
 It deliberately lives at the `data/` top level, NOT in `api/` — `api/` is the portable transport framework (HttpAdapter reserved), while this capability is an Electron/IPC special case depending on `WindowManager`.
 

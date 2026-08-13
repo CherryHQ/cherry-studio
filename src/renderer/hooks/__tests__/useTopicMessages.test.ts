@@ -61,7 +61,7 @@ describe('useTopicMessages', () => {
     })
   })
 
-  it('revalidates when a loaded message read model changes', () => {
+  it('revalidates every change already scoped to the subscribed topic', () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -115,17 +115,27 @@ describe('useTopicMessages', () => {
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([
-        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['other-anchor'] }
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['other-anchor']
+        }
       ])
     })
-    expect(mutate).not.toHaveBeenCalled()
+    expect(mutate).toHaveBeenCalledTimes(1)
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([
-        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['anchor-1']
+        }
       ])
     })
-    expect(mutate).toHaveBeenCalledWith()
+    expect(mutate).toHaveBeenCalledTimes(2)
   })
 
   it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {

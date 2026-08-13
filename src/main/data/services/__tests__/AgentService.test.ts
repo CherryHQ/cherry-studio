@@ -24,12 +24,12 @@ import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -1065,13 +1065,13 @@ describe('AgentService', () => {
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       pinService.pin({ entityType: 'agent', entityId: id })
       const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       agentService.deleteAgent(id)
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1107,7 +1107,7 @@ describe('AgentService', () => {
           orderKey: 'a1'
         }
       ])
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       const result = agentService.deleteAgent(id, { deleteSessions: true })
 
@@ -1117,7 +1117,7 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      expect(publishedEffects).toHaveBeenNthCalledWith(1, [
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1125,11 +1125,15 @@ describe('AgentService', () => {
           dimension: 'lastActivityAt',
           entityIds: ['session-delete-with-agent']
         },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'session-delete-with-agent' },
+          entityIds: ['session-delete-with-agent']
+        },
         { endpoint: '/agent-sessions/latest' }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(publishedEffects).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledTimes(2)
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {
@@ -1156,7 +1160,7 @@ describe('AgentService', () => {
         taskScheduleId: task.id,
         orderKey: 'a0'
       })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
 
@@ -1165,7 +1169,7 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
       expect(session).toEqual({ agentId: null, taskScheduleId: null })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
           endpoint: '/agent-sessions',
@@ -1173,7 +1177,11 @@ describe('AgentService', () => {
           dimension: 'lastActivityAt',
           entityIds: ['session-default-detach']
         },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'session-default-detach' },
+          entityIds: ['session-default-detach']
+        },
         { endpoint: '/agent-sessions/latest' }
       ])
     })

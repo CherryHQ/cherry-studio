@@ -12,7 +12,7 @@ import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
-import { AiStreamAdmissionError } from '../../admission'
+import { AiStreamAdmissionError, type DispatchTicket, type StreamIntent } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -24,8 +24,12 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
 const aiStreamManager = vi.hoisted(() => ({
   admitLiveExecutionChange: vi.fn(),
-  awaitExecutionRetry: vi.fn(),
-  broadcastTopicError: vi.fn()
+  awaitDispatchTicket: vi.fn(),
+  issueDispatchTicket: vi.fn<(topicId: string, intent: StreamIntent) => DispatchTicket>((_topicId, intent) => ({
+    intent,
+    admission: { mode: 'start-new' },
+    activeNodeDecision: { move: 'advance' }
+  }))
 }))
 
 vi.mock('@application', async () => {
@@ -633,9 +637,19 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       updatedAt: 250
     })
     const userSelectedBranch = messageService.reserveBranch('a2', true)
-    aiStreamManager.admitLiveExecutionChange.mockReturnValueOnce({
-      mode: 'append-live',
-      groupAnchorMessageId: 'a1'
+    aiStreamManager.issueDispatchTicket.mockReturnValueOnce({
+      intent: {
+        kind: 'append-live',
+        change: {
+          mode: 'append',
+          modelId: appendedModelId,
+          targetMessageId: 'a2',
+          parentAnchorId: 'u1',
+          siblingsGroupId: 1
+        }
+      },
+      admission: { mode: 'append-live', groupAnchorMessageId: 'a1' },
+      activeNodeDecision: { move: 'keep' }
     })
 
     const prepared = await provider.prepareDispatch(
@@ -658,10 +672,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         mode: 'append',
         groupAnchorMessageId: 'a1',
         parentAnchorId: 'u1',
-        siblingsGroupId: 1,
-        activateFallback: true
+        siblingsGroupId: 1
       },
-      preserveActiveNode: true,
+      ticket: {
+        admission: { mode: 'append-live', groupAnchorMessageId: 'a1' },
+        activeNodeDecision: { move: 'keep' }
+      },
       siblingsGroupId: 1
     })
     expect(prepared.models[0].request.messageId).toBe(appended?.id)
@@ -670,7 +686,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('rejects an @-selected model when only another reply group is live', async () => {
-    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+    aiStreamManager.issueDispatchTicket.mockImplementationOnce(() => {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     })
     await dbh.db.insert(messageTable).values({
@@ -704,7 +720,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('rejects a live anchor with the same sibling id under another parent', async () => {
-    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
+    aiStreamManager.issueDispatchTicket.mockImplementationOnce(() => {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     })
     await dbh.db.insert(messageTable).values([

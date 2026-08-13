@@ -19,6 +19,9 @@ interface TopicStreamStatusView {
    */
   awaitingApprovalAnchors: ActiveExecution[]
   isPending: boolean
+  /** Single Main-derived busy selector shared by chat and agent composers. */
+  topicBusy: boolean
+  canSteer: boolean
   /**
    * `done` AND this window's `lastSeenCompletion` does not match the
    * authoritative `lastCompletedAt`. Read-receipt model: per-completion
@@ -45,6 +48,8 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
+  const topicBusy = flags.isStreamLive || flags.isAwaitingApproval
+  const canSteer = flags.isStreamLive && !flags.isAwaitingApproval
   const isFulfilled = status === 'done' && lastCompletedAt !== lastSeenCompletion
 
   const markSeen = useCallback(() => {
@@ -53,7 +58,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, topicBusy, canSteer, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {

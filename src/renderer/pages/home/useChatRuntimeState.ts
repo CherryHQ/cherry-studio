@@ -25,15 +25,13 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import {
-  useTopicAwaitingApproval,
-  useTopicOverlayHandoffOnTerminal,
-  useTopicStreamStatus
-} from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { projectActiveExecutions } from '@renderer/services/aiTransport'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
+import { type AttemptId, toAttemptId } from '@shared/ai/attempt'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -69,30 +67,6 @@ interface UseChatRuntimeStateParams {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
 }
 
-function mergeActiveExecutions(...sources: ReadonlyArray<readonly ActiveExecution[]>): ActiveExecution[] {
-  const order: string[] = []
-  const byId = new Map<string, ActiveExecution>()
-
-  for (const executions of sources) {
-    for (const execution of executions) {
-      const slot = JSON.stringify([execution.executionId, execution.anchorMessageId ?? null])
-      const existing = byId.get(slot)
-      if (!existing) order.push(slot)
-      if (existing && existing.attemptId > execution.attemptId) continue
-      byId.set(slot, {
-        ...existing,
-        ...execution,
-        anchorMessageId: execution.anchorMessageId ?? existing?.anchorMessageId
-      })
-    }
-  }
-
-  return order.flatMap((slot) => {
-    const execution = byId.get(slot)
-    return execution ? [execution] : []
-  })
-}
-
 function projectBranchFlowMessages(
   optimisticReservations: CherryUIMessage[],
   persistedMessages: CherryUIMessage[],
@@ -101,8 +75,8 @@ function projectBranchFlowMessages(
   return mergeMessagesById(optimisticReservations, persistedMessages, liveMessages)
 }
 
-function executionAttemptKey(execution: ActiveExecution): number {
-  return execution.attemptId
+function executionAttemptKey(execution: ActiveExecution): AttemptId {
+  return toAttemptId(execution.attemptId)
 }
 
 export function useChatRuntimeState({
@@ -117,8 +91,7 @@ export function useChatRuntimeState({
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
-  const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
-  const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
+  const { topicBusy } = useTopicStreamStatus(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
@@ -151,7 +124,7 @@ export function useChatRuntimeState({
     previousActiveNodeId: string | null
     activeNodeId: string
   } | null>(null)
-  const finishedBranchExecutionKeysRef = useRef<Set<number>>(new Set())
+  const finishedBranchExecutionKeysRef = useRef<Set<AttemptId>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged topic.id, and the fresh [] literals would defeat React's
@@ -193,7 +166,7 @@ export function useChatRuntimeState({
   }, [])
 
   const branchActiveExecutions = useMemo(
-    () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
+    () => projectActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
   )
   const branchActiveExecutionsRef = useRef(branchActiveExecutions)
@@ -276,24 +249,24 @@ export function useChatRuntimeState({
   const seedMessagesCache = cache.seedReservedMessages
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
-      const { activeExecutions: openedExecutions, preserveActiveNode } = options
+      const { activeExecutions: openedExecutions, activeNodeDecision } = options
       if (reservedMessages.length > 0) {
         const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
           for (const execution of reservedExecutions) {
             finishedBranchExecutionKeysRef.current.delete(executionAttemptKey(execution))
           }
-          setBranchLiveExecutions((current) => mergeActiveExecutions(current, reservedExecutions))
+          setBranchLiveExecutions((current) => projectActiveExecutions(current, reservedExecutions))
         }
         setBranchLiveMessages((current) => mergeMessagesById(current, reservedMessages))
-        if (!preserveActiveNode) {
+        if (activeNodeDecision?.move !== 'keep') {
           const reservedActiveNodeId = reservedMessages.at(-1)?.id
           if (reservedActiveNodeId) {
             setBranchLiveActiveNodeOverride({ previousActiveNodeId: activeNodeId, activeNodeId: reservedActiveNodeId })
           }
         }
       }
-      await seedMessagesCache(reservedMessages, { preserveActiveNode })
+      await seedMessagesCache(reservedMessages, { activeNodeDecision })
     },
     [activeNodeId, seedMessagesCache]
   )
@@ -396,7 +369,7 @@ export function useChatRuntimeState({
 
   const handleExecutionFinish = useCallback(
     (executionId: string, { attemptId, message, isError }: ExecutionFinishEvent) => {
-      const finishedKey = attemptId
+      const finishedKey = toAttemptId(attemptId)
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
         try {
@@ -459,11 +432,7 @@ export function useChatRuntimeState({
     seedReservedMessages,
     scrollToBottom,
     startNewContextBlocked:
-      isHistoryLoading ||
-      isTopicStreamPending ||
-      isTopicAwaitingApproval ||
-      turnController.phase === 'persisting' ||
-      turnController.phase === 'opening',
+      isHistoryLoading || topicBusy || turnController.phase === 'persisting' || turnController.phase === 'opening',
     assistant
   })
 

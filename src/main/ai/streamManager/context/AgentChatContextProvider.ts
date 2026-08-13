@@ -114,6 +114,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', sessionId, 'an active turn')
       }
+      const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, { kind: 'steer-inject' })
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
@@ -138,7 +139,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber]
+        listeners: [subscriber],
+        ticket
       }
     }
 
@@ -147,6 +149,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // distinguish them from the initial turn; persisted messages are the durable boundary.
     const shouldAutoNameInitialTurn = !agentSessionMessageService.hasSessionMessages(sessionId)
     const assistantMessageId = uuidv7()
+    const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, {
+      kind: 'start',
+      modelCount: 1
+    })
 
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
     // child under it; Claude Code child spans join via the connection's TRACEPARENT.
@@ -250,7 +256,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ],
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
-      listeners: [subscriber, ...runtime.listeners]
+      listeners: [subscriber, ...runtime.listeners],
+      ticket
     }
   }
 }

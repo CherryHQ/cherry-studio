@@ -1,9 +1,21 @@
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
 export type DbType = BetterSQLite3Database
 
 /** Structural alias accepted by both BetterSQLite3Database and its synchronous transaction handle. */
 export type DbOrTx = Pick<DbType, 'select' | 'update' | 'insert' | 'delete' | 'run' | 'all' | 'transaction'>
+
+type RequireTemplateRouteParams<Effect extends DataApiDataChangeEffect> =
+  Effect['endpoint'] extends `${string}:${string}`
+    ? Effect & { readonly routeParams: Readonly<Record<string, string>> }
+    : Effect
+
+export interface DataApiEffectCollector {
+  add<const Effect extends DataApiDataChangeEffect>(effect: RequireTemplateRouteParams<Effect>): void
+}
+
+export type DbTxWithEffects = DbOrTx & { readonly effects: DataApiEffectCollector }
 
 export type SeedExecutionPolicy = 'run-on-change' | 'bootstrap-only'
 

@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
@@ -389,6 +388,16 @@ export class AgentSessionMessageService {
     if (messages.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
       const updatedAt = Date.now()
+      const messageSessions = tx
+        .select({ id: sessionMessagesTable.id, sessionId: sessionMessagesTable.sessionId })
+        .from(sessionMessagesTable)
+        .where(
+          inArray(
+            sessionMessagesTable.id,
+            messages.map(({ id }) => id)
+          )
+        )
+        .all()
       for (const message of messages) {
         tx.update(sessionMessagesTable)
           .set({ status: 'error', data: message.data, updatedAt })
@@ -400,6 +409,16 @@ export class AgentSessionMessageService {
           .set({ runtimeResumeToken: null })
           .where(inArray(sessionMessagesTable.sessionId, sessionIds))
           .run()
+      }
+      for (const sessionId of sessionIds) {
+        const entityIds = messageSessions.filter((message) => message.sessionId === sessionId).map(({ id }) => id)
+        agentSessionService.addReadModelEffects(tx.effects, [sessionId], 'projection')
+        tx.effects.add({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds
+        })
       }
     })
   }
@@ -574,22 +593,23 @@ export class AgentSessionMessageService {
     const { db, publishDataChange } = options
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const saved = this.saveMessageTx(tx, params, timestampMs)
+      if (saved.activityTimestamp !== null) {
+        agentSessionService.addReadModelEffects(tx.effects, [params.sessionId], 'projection')
+      }
+      if (publishDataChange) {
+        tx.effects.add({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: saved.dataChange,
+          routeParams: { sessionId: params.sessionId },
+          entityIds: [saved.entity.id]
+        })
+      }
+      return saved
+    })
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
-    }
-    if (result.activityTimestamp !== null) {
-      agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
-    }
-    if (publishDataChange) {
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: result.dataChange,
-          routeParams: { sessionId: params.sessionId },
-          entityIds: [result.entity.id]
-        }
-      ])
     }
     return result.entity
   }
@@ -648,7 +668,7 @@ export class AgentSessionMessageService {
     messageId: string,
     parts: AgentSessionMessageEntity['data']['parts']
   ): AgentSessionMessageEntity {
-    const saved = application.get('DbService').withWriteTx((tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
@@ -662,18 +682,14 @@ export class AgentSessionMessageService {
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      return this.rowToEntity(updated)
-    })
-
-    notifyDataApiDataChange([
-      {
+      tx.effects.add({
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
         routeParams: { sessionId },
         entityIds: [messageId]
-      }
-    ])
-    return saved
+      })
+      return this.rowToEntity(updated)
+    })
   }
 
   /**
@@ -704,20 +720,15 @@ export class AgentSessionMessageService {
         .run()
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+      agentSessionService.addReadModelEffects(tx.effects, [sessionId], 'projection')
+      tx.effects.add({
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [messageId]
+      })
       return true
     })
-
-    if (applied) {
-      agentSessionService.notifyReadModelChange([sessionId], 'projection')
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId },
-          entityIds: [messageId]
-        }
-      ])
-    }
     return applied
   }
 }

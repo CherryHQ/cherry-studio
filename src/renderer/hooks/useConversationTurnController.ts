@@ -2,7 +2,12 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
-import type { ActiveExecution, AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import type {
+  ActiveExecution,
+  ActiveNodeDecision,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse
+} from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
@@ -12,7 +17,7 @@ export type ConversationTurnPhase = 'draft' | 'persisting' | 'opening' | 'stream
 
 export interface ReservedMessageSeedOptions {
   activeExecutions?: readonly ActiveExecution[]
-  preserveActiveNode?: boolean
+  activeNodeDecision?: ActiveNodeDecision
 }
 
 export interface ConversationHistoryAdapter {
@@ -80,7 +85,7 @@ export function useConversationTurnController<TInput, TConversation>({
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages, {
             activeExecutions: ack.activeExecutions,
-            preserveActiveNode: ack.preserveActiveNode
+            activeNodeDecision: ack.activeNodeDecision
           })
         }
 

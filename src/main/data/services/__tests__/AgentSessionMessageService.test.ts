@@ -11,16 +11,11 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
-  notifyDataApiDataChangeMock: vi.fn()
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: notifyDataApiDataChangeMock
-}))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
@@ -52,7 +47,7 @@ describe('AgentSessionMessageService', () => {
   }
 
   beforeEach(async () => {
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
@@ -395,14 +390,16 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'membership',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [USER_MESSAGE_ID]
-      }
-    ])
+    expect(publishedEffects).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [USER_MESSAGE_ID]
+        }
+      ])
+    )
 
     agentSessionMessageService.saveMessage(
       {
@@ -416,14 +413,16 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [USER_MESSAGE_ID]
-      }
-    ])
+    expect(publishedEffects).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [USER_MESSAGE_ID]
+        }
+      ])
+    )
   })
 
   it('reads and updates message data within the owning Agent session', async () => {
@@ -502,14 +501,16 @@ describe('AgentSessionMessageService', () => {
       expect.objectContaining({ toolCallId: 'task-root' }),
       expect.objectContaining({ type: 'text', text: 'Subagent finished' })
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [ASSISTANT_MESSAGE_ID]
-      }
-    ])
+    expect(publishedEffects).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [ASSISTANT_MESSAGE_ID]
+        }
+      ])
+    )
   })
 
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {

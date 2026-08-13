@@ -413,41 +413,36 @@ describe('AiStreamManager', () => {
       expect(s2.executions).toHaveLength(1)
     })
 
-    it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
+    it('rejects a runtime turn while the previous one is still live, leaving it untouched', async () => {
+      // The attempt machine denies live replacement at admission (the runtime only
+      // opens the next turn after the previous one settled or was held).
       vi.useRealTimers()
-      const replaced = controlledStream()
       const current = controlledStream()
-      mockStreamText.mockResolvedValueOnce(replaced.stream).mockResolvedValueOnce(current.stream)
+      mockStreamText.mockResolvedValueOnce(current.stream)
 
+      const liveListener = new FakeListener('agent-runtime:live')
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
-        listeners: [new FakeListener('agent-runtime:replaced')]
+        listeners: [liveListener]
       })
       await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
 
-      const currentListener = new FakeListener('agent-runtime:current')
-      mgr.startRuntimeTurn({
-        topicId: 'agent-session:s1',
-        modelId: 'provider-a::model-a',
-        request: req('agent-session:s1'),
-        listeners: [currentListener]
-      })
-      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
-
-      replaced.enqueue(chunk('stale'))
-      replaced.close()
-      await new Promise((resolve) => setTimeout(resolve, 25))
-
-      expect(currentListener.chunks).toEqual([])
-      expect(currentListener.doneResults).toEqual([])
-      expect(currentListener.pausedResults).toEqual([])
-      expect(currentListener.errorResults).toEqual([])
+      expect(() =>
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:s1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:s1'),
+          listeners: [new FakeListener('agent-runtime:next')]
+        })
+      ).toThrow(AiStreamAdmissionError)
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
       expect(mgr.inspect('agent-session:s1')?.status).toBe('pending')
+      expect(mgr.inspect('agent-session:s1')?.listenerIds).not.toContain('agent-runtime:next')
 
       current.close()
-      await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+      await vi.waitFor(() => expect(liveListener.doneResults).toHaveLength(1))
     })
   })
 
@@ -550,9 +545,10 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
-      // Settled stream is terminal-in-grace (not live), so a follow-up takes the
-      // enqueue-only branch (models: []), not the live inject branch.
-      expect(mgr.inspect(topicId)?.status).not.toBe('streaming')
+      // The stream is HELD for the runtime continuation: nothing is executing, so a
+      // follow-up takes the enqueue-only branch (models: []), while the cross-window
+      // status deliberately stays 'streaming' to keep the topic reading busy.
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
 
       const result = mgr.send({ topicId, models: [], listeners: [new FakeListener('l:b')] })
 
@@ -641,8 +637,7 @@ describe('AiStreamManager', () => {
       const persistence = new FakeListener('persistence:sqlite:persistence-failure', 'persistence')
       persistence.onDoneImpl = (result) => {
         if (result.modelId !== failedModelId) return
-        mgr.broadcastTopicError(topicId, failedModelId, error('write failed'))
-        throw new TerminalPersistenceError('write failed')
+        throw new TerminalPersistenceError(error('write failed'))
       }
       const started = mgr.send({
         topicId,
@@ -760,10 +755,26 @@ describe('AiStreamManager', () => {
       })
 
       await expect(
-        mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant', 'user-1')
+        mgr.awaitDispatchTicket(topicId, {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-a::model-a',
+            anchorMessageId: 'historical-assistant',
+            parentAnchorId: 'user-1'
+          }
+        })
       ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
       await expect(
-        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor', 'user-1')
+        mgr.awaitDispatchTicket(topicId, {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-b::model-b',
+            anchorMessageId: 'different-anchor',
+            parentAnchorId: 'user-1'
+          }
+        })
       ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
       expect(() =>
         mgr.send({
@@ -837,14 +848,40 @@ describe('AiStreamManager', () => {
       })
 
       await expect(
-        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1', 7)
-      ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 'user-1', 7)).rejects.toThrow(
-        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
-      )
-      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1')).rejects.toThrow(
-        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
-      )
+        mgr.awaitDispatchTicket(topicId, {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-b::model-b',
+            anchorMessageId: 'assistant-b',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).resolves.toMatchObject({ admission: { mode: 'append-live', groupAnchorMessageId: 'assistant-a' } })
+      await expect(
+        mgr.awaitDispatchTicket(topicId, {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-b::model-b',
+            anchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).rejects.toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      await expect(
+        mgr.awaitDispatchTicket(topicId, {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-b::model-b',
+            anchorMessageId: 'assistant-b',
+            parentAnchorId: 'user-1'
+          }
+        })
+      ).rejects.toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     })
 
     it('appends a new model execution after the existing live group without replacing its members', () => {
@@ -1300,7 +1337,7 @@ describe('AiStreamManager', () => {
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
       const persistence = new FakeListener('persistence:a', 'persistence')
       persistence.onDoneImpl = () => {
-        throw new TerminalPersistenceError('write failed')
+        throw new TerminalPersistenceError(error('write failed'))
       }
       const renderer = new FakeListener('wc:a')
 
@@ -1366,7 +1403,7 @@ describe('AiStreamManager', () => {
       const feed = controlledStream()
       mockStreamText.mockResolvedValueOnce(feed.stream)
       const renderer = new FakeListener(`wc:1:${topicId}`)
-      const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`)
+      const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`, 'persistence')
       const runtime = new FakeListener(`agent-runtime:session-1`)
       startSingle(mgr, {
         topicId,
@@ -1971,6 +2008,29 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
+    it('drains a steer that lands during the terminal persistence window', async () => {
+      // The topic status stays live until durable persistence completes, so a busy submit landing
+      // inside that await queues without launching — and the pre-await chaining candidate missed it.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+      const persistence = new FakeListener('persistence:chat:a', 'persistence')
+      persistence.onDoneImpl = () => {
+        mgr.enqueuePendingSteer('a', 'u1')
+      }
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1'), persistence]
+      })
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
@@ -2372,7 +2432,7 @@ describe('AiStreamManager', () => {
   // ── idle timeout terminal classification ────────────────────────
   // The idle-chunk timer (withIdleTimeout) aborts `exec.abortController`
   // directly, never going through `mgr.abort`, so on the clean stream exit
-  // `exec.status` is still 'streaming'. The loop must promote it to 'aborted'
+  // the attempt is still running. The loop must promote it to aborted
   // and settle as `paused` — NOT a success `done`. Locks the recently-fixed
   // mis-classification bug.
 
@@ -2807,17 +2867,18 @@ describe('AiStreamManager', () => {
       mgr.onChunk('t', 'p::m', chunk('ho'))
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
+      // Terminal is two-phase: the finalizing rebroadcast repeats 'streaming'
+      // (attempt leaves activeExecutions, topic stays live until persistence).
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
-      expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
-      expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
+      expect(statusWritesFor('t').every((entry) => !entry || !('turnId' in entry))).toBe(true)
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
       // transition; per-window "already animated" is tracked off-schema
       // via `topic.stream.last_seen_completion.*`.
       vi.advanceTimersByTime(31_000)
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
     })
 
     it('sets lastCompletedAt only on done; carries forward through subsequent live; bumps on next done', async () => {
@@ -2895,7 +2956,9 @@ describe('AiStreamManager', () => {
       mgr.abort('t', 'user-stop')
       await vi.runAllTimersAsync()
 
-      expect(statusSequence('t')).toEqual(['pending', 'aborted'])
+      // 'aborted' is written twice: the finalizing rebroadcast (abort already
+      // flipped the status) and the terminal lifecycle.
+      expect(statusSequence('t')).toEqual(['pending', 'aborted', 'aborted'])
     })
 
     it('records error when an execution errors before any chunk', async () => {
@@ -2907,9 +2970,9 @@ describe('AiStreamManager', () => {
       })
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
-      // pending → error directly; we never fabricate a `streaming` transition
-      // when no chunks ever flowed.
-      expect(statusSequence('t')).toEqual(['pending', 'error'])
+      // pending → error with a finalizing 'pending' rebroadcast in between; we
+      // never fabricate a `streaming` transition when no chunks ever flowed.
+      expect(statusSequence('t')).toEqual(['pending', 'pending', 'error'])
     })
 
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
@@ -2924,11 +2987,12 @@ describe('AiStreamManager', () => {
       mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
-      // MCP needsApproval ends the stream cleanly via `done`; resolveTerminalStatus
+      // MCP needsApproval ends the stream cleanly via `done`; topic reduction
       // overrides the would-be `done` to `awaiting-approval` because the execution
-      // is still paused on the approval request.
+      // is still paused on the approval request. The extra 'streaming' is the
+      // finalizing rebroadcast before persistence settles.
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
     })
 
@@ -2947,11 +3011,11 @@ describe('AiStreamManager', () => {
       // The tool output for the same call clears that toolCallId from the pending set.
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
-      // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
-      // NOT stuck on `awaiting-approval`. The extra 'streaming' write is the approval-resolution
-      // rebroadcast that drops the awaiting-approval anchor for cross-window consumers.
+      // Topic reduction no longer finds a paused exec, so the terminal status is `done`,
+      // NOT stuck on `awaiting-approval`. The extra 'streaming' writes are the approval-resolution
+      // rebroadcast that drops the awaiting-approval anchor and the finalizing rebroadcast.
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
@@ -2999,7 +3063,7 @@ describe('AiStreamManager', () => {
       startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
 
       const exec = startAwaitingApproval('t', 'p::m')
-      exec.status = 'aborted'
+      exec.state = { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'aborted', reason: 'test' } }
       await mgr.onExecutionPaused('t', 'p::m')
 
       expect(mgr.inspect('t')!.status).toBe('aborted')
@@ -3037,7 +3101,7 @@ describe('AiStreamManager', () => {
       const exec = startAwaitingApproval('t', 'p::m')
       expect(anchorsOf('t')).toHaveLength(1)
 
-      exec.status = 'aborted'
+      exec.state = { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'aborted', reason: 'test' } }
       await mgr.onExecutionPaused('t', 'p::m')
 
       expect(mgr.inspect('t')!.status).toBe('streaming')
@@ -3087,12 +3151,13 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending'])
 
       await mgr.onExecutionError('t', 'p::a', error('early'))
-      // No spurious transition — topic still pending because B is live.
-      expect(statusSequence('t')).toEqual(['pending'])
+      // No spurious 'streaming' — the finalizing rebroadcast repeats 'pending'
+      // because B is live and chunkless.
+      expect(statusSequence('t')).toEqual(['pending', 'pending'])
       expect(mgr.inspect('t')!.status).toBe('pending')
 
       mgr.onChunk('t', 'p::b', chunk('x'))
-      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+      expect(statusSequence('t')).toEqual(['pending', 'pending', 'streaming'])
     })
 
     it('carries activeExecutions (with anchor message ids) in every status delta', async () => {
@@ -3114,14 +3179,15 @@ describe('AiStreamManager', () => {
       // On send all executions are launched → both listed as active.
       expect(deltas()).toEqual([{ status: 'pending', executionIds: ['p::a', 'p::b'] }])
 
-      // Per-execution terminals that don't take the topic terminal do NOT
-      // re-write (topic still live; `onChunk` is the only path from
-      // `pending` → `streaming` that writes).
+      // A per-execution terminal that doesn't take the topic terminal still
+      // rebroadcasts the surviving active set (finalizing phase), dropping the
+      // errored execution immediately.
       await mgr.onExecutionError('t', 'p::a', error('boom'))
-      expect(deltas()).toHaveLength(1)
+      expect(deltas().at(-1)).toEqual({ status: 'pending', executionIds: ['p::b'] })
+      expect(deltas()).toHaveLength(2)
 
       // First chunk flips topic → 'streaming'. `collectActiveExecutions`
-      // filters by `exec.status === 'streaming'`, so p::a (now 'error') is
+      // filters by running attempt phase, so p::a (now errored) is
       // dropped from the list.
       mgr.onChunk('t', 'p::b', chunk('x'))
       expect(deltas().at(-1)).toEqual({ status: 'streaming', executionIds: ['p::b'] })
@@ -3132,9 +3198,9 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::b')
       expect(deltas().at(-1)).toEqual({ status: 'error', executionIds: [] })
 
-      // Grace-period cleanup is silent.
+      // Grace-period cleanup is silent (finalizing + terminal writes only).
       vi.advanceTimersByTime(31_000)
-      expect(deltas().length).toBe(deltasBeforeCleanup + 1)
+      expect(deltas().length).toBe(deltasBeforeCleanup + 2)
     })
   })
 })

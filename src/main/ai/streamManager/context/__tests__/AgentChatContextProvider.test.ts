@@ -16,7 +16,12 @@ const mocks = vi.hoisted(() => ({
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeValidateSession: vi.fn(),
+  issueDispatchTicket: vi.fn((_topicId: string, intent: unknown) => ({
+    intent,
+    admission: { mode: 'start-new' },
+    activeNodeDecision: { move: 'advance' }
+  }))
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -131,6 +136,9 @@ describe('AgentChatContextProvider', () => {
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy
         }
+      }
+      if (name === 'AiStreamManager') {
+        return { issueDispatchTicket: mocks.issueDispatchTicket }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })

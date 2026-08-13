@@ -1,15 +1,18 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { type AttemptId, toAttemptId } from '@shared/ai/attempt'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import { TopicAttemptProjection } from './TopicAttemptProjection'
+
 const logger = loggerService.withContext('TopicStreamSubscription')
 
 export interface ExecutionTerminal {
-  attemptId?: number
+  attemptId?: AttemptId
   anchorMessageId?: string
   isAbort: boolean
   isError: boolean
@@ -20,7 +23,7 @@ type TopicStateListener = () => void
 
 interface RetiredExecutionBranch {
   executionId: UniqueModelId
-  attemptId: number
+  attemptId: AttemptId
   anchorMessageId?: string
 }
 
@@ -28,20 +31,14 @@ type BranchRetirementListener = (branches: readonly RetiredExecutionBranch[]) =>
 
 interface Branch {
   executionId: UniqueModelId
-  attemptId: number
+  attemptId: AttemptId
   anchorMessageId?: string
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
 }
 
-function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
-  // One model execution can roll into another assistant row during steer continuation.
-  // The branch identity must include the row anchor, not only the model id.
-  return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
-}
-
-function createBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): Branch {
+function createBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: AttemptId): Branch {
   const branch: Branch = {
     executionId,
     attemptId,
@@ -63,8 +60,9 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
 
 export class TopicStreamSubscription {
   readonly #topicId: string
-  readonly #branches = new Map<string, Branch>()
-  readonly #terminalByBranchKey = new Map<string, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
+  readonly #projection: TopicAttemptProjection
+  readonly #branches = new Map<AttemptId, Branch>()
+  readonly #terminalByAttemptId = new Map<AttemptId, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
   readonly #terminalListeners = new Set<TerminalListener>()
   readonly #branchRetirementListeners = new Set<BranchRetirementListener>()
   readonly #topicStateListeners = new Set<TopicStateListener>()
@@ -73,10 +71,10 @@ export class TopicStreamSubscription {
   #attachInFlight: Promise<void> | null = null
   #disposed = false
   #topicOpen = false
-  #terminalAttemptWatermark: number | undefined
 
   constructor(topicId: string) {
     this.#topicId = topicId
+    this.#projection = new TopicAttemptProjection(topicId)
   }
 
   listen(): void {
@@ -101,8 +99,8 @@ export class TopicStreamSubscription {
    *  i.e. a stream (typically a new turn's auto-created branch) has produced
    *  chunks that no reader has claimed yet. */
   hasOpenBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): boolean {
-    const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
-    return branch !== undefined && !branch.closed
+    const branch = this.#branches.get(toAttemptId(attemptId))
+    return branch?.executionId === executionId && branch.anchorMessageId === anchorMessageId && !branch.closed
   }
 
   /** True when any open branch remains — e.g. a continuation round's chunks
@@ -121,14 +119,18 @@ export class TopicStreamSubscription {
     return this.#topicOpen
   }
 
+  isSettled(attemptId: number): boolean {
+    return this.#projection.isSettled(attemptId)
+  }
+
   unregister(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): void {
-    const key = branchKey(executionId, anchorMessageId, attemptId)
-    const branch = this.#branches.get(key)
-    if (branch) {
+    const id = toAttemptId(attemptId)
+    const branch = this.#branches.get(id)
+    if (branch?.executionId === executionId && branch.anchorMessageId === anchorMessageId) {
       this.#closeBranch(branch)
-      this.#branches.delete(key)
+      this.#branches.delete(id)
     }
-    this.#terminalByBranchKey.delete(key)
+    this.#terminalByAttemptId.delete(id)
     if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#topicOpen) {
       // Defer one tick: a transient `activeExecutions` flicker would otherwise
       // detach→reattach and momentarily drop Main's last listener.
@@ -139,8 +141,9 @@ export class TopicStreamSubscription {
   }
 
   cancelBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): void {
-    const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
-    if (!branch || branch.closed) return
+    const branch = this.#branches.get(toAttemptId(attemptId))
+    if (!branch || branch.executionId !== executionId || branch.anchorMessageId !== anchorMessageId || branch.closed)
+      return
     branch.closed = true
     try {
       branch.controller?.error()
@@ -151,7 +154,7 @@ export class TopicStreamSubscription {
 
   onExecutionTerminal(listener: TerminalListener): () => void {
     this.#terminalListeners.add(listener)
-    for (const { executionId, terminal } of this.#terminalByBranchKey.values()) {
+    for (const { executionId, terminal } of this.#terminalByAttemptId.values()) {
       try {
         listener(executionId, terminal)
       } catch (err) {
@@ -176,7 +179,7 @@ export class TopicStreamSubscription {
     this.#disposed = true
     for (const branch of this.#branches.values()) this.#closeBranch(branch)
     this.#branches.clear()
-    this.#terminalByBranchKey.clear()
+    this.#terminalByAttemptId.clear()
     this.#terminalListeners.clear()
     this.#branchRetirementListeners.clear()
     this.#topicStateListeners.clear()
@@ -190,32 +193,37 @@ export class TopicStreamSubscription {
   // ── internals ──────────────────────────────────────────────────────
 
   #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): Branch {
-    const key = branchKey(executionId, anchorMessageId, attemptId)
-    let branch = this.#branches.get(key)
+    const id = toAttemptId(attemptId)
+    let branch = this.#branches.get(id)
     if (!branch) {
-      branch = createBranch(executionId, anchorMessageId, attemptId)
-      if (this.#isBranchSettled(executionId, anchorMessageId, attemptId)) {
+      const registration = this.#projection.register({ executionId, anchorMessageId, attemptId })
+      if (registration.replaced) {
+        const replacedBranch = this.#branches.get(registration.replaced.descriptor.attemptId)
+        if (replacedBranch) this.#retireBranches([replacedBranch])
+        if (registration.replacedUnsettled) {
+          logger.error('newer attempt replaced an unsettled renderer slot', {
+            topicId: this.#topicId,
+            attemptId,
+            replacedAttemptId: registration.replaced.descriptor.attemptId
+          })
+        }
+      }
+      branch = createBranch(executionId, anchorMessageId, id)
+      if (!registration.accepted || this.#isBranchSettled(id)) {
         this.#closeBranch(branch)
         return branch
       }
-      this.#branches.set(key, branch)
+      this.#branches.set(id, branch)
     }
     return branch
   }
 
-  #terminalFor(
-    executionId: UniqueModelId,
-    anchorMessageId: string | undefined,
-    attemptId: number
-  ): ExecutionTerminal | undefined {
-    return this.#terminalByBranchKey.get(branchKey(executionId, anchorMessageId, attemptId))?.terminal
+  #terminalFor(attemptId: AttemptId): ExecutionTerminal | undefined {
+    return this.#terminalByAttemptId.get(attemptId)?.terminal
   }
 
-  #isBranchSettled(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): boolean {
-    return (
-      this.#terminalFor(executionId, anchorMessageId, attemptId) !== undefined ||
-      (this.#terminalAttemptWatermark !== undefined && attemptId <= this.#terminalAttemptWatermark)
-    )
+  #isBranchSettled(attemptId: AttemptId): boolean {
+    return this.#terminalFor(attemptId) !== undefined || this.#projection.isSettled(attemptId)
   }
 
   #closeBranch(branch: Branch): void {
@@ -239,7 +247,7 @@ export class TopicStreamSubscription {
       })
       return
     }
-    if (this.#isBranchSettled(executionId, payload.anchorMessageId, attemptId)) return
+    if (this.#isBranchSettled(toAttemptId(attemptId))) return
     const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
     if (!branch.closed) branch.controller?.enqueue(payload.chunk)
   }
@@ -273,8 +281,7 @@ export class TopicStreamSubscription {
 
   #enqueueErrorToBranches(chunk: CherryUIMessageChunk, branches: Branch[]): void {
     for (const branch of branches) {
-      const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
-      if (this.#branches.get(key) !== branch) continue
+      if (this.#branches.get(branch.attemptId) !== branch) continue
       if (!branch.closed) branch.controller?.enqueue(chunk)
     }
   }
@@ -285,24 +292,35 @@ export class TopicStreamSubscription {
     anchorMessageId?: string,
     attemptId?: number
   ): void {
-    const keys =
-      anchorMessageId !== undefined || attemptId !== undefined
-        ? [branchKey(executionId, anchorMessageId, attemptId)]
-        : [...this.#branches].filter(([, branch]) => branch.executionId === executionId).map(([key]) => key)
+    const attemptIds =
+      attemptId !== undefined
+        ? [toAttemptId(attemptId)]
+        : [...this.#branches.values()]
+            .filter((branch) => branch.executionId === executionId)
+            .map((branch) => branch.attemptId)
 
-    if (keys.length === 0) keys.push(branchKey(executionId, undefined, attemptId))
+    if (attemptIds.length === 0) {
+      for (const listener of this.#terminalListeners) {
+        try {
+          listener(executionId, terminal)
+        } catch (err) {
+          logger.warn('terminal listener threw', { topicId: this.#topicId, err })
+        }
+      }
+      return
+    }
 
-    for (const key of keys) {
-      const branch = this.#branches.get(key)
+    for (const id of attemptIds) {
+      const branch = this.#branches.get(id)
       if (branch) this.#closeBranch(branch)
       const resolvedAnchorMessageId = anchorMessageId ?? branch?.anchorMessageId
-      const resolvedAttemptId = attemptId ?? branch?.attemptId
       const terminalForBranch: ExecutionTerminal = {
         ...terminal,
-        ...(resolvedAttemptId !== undefined ? { attemptId: resolvedAttemptId } : {}),
+        attemptId: id,
         ...(resolvedAnchorMessageId !== undefined ? { anchorMessageId: resolvedAnchorMessageId } : {})
       }
-      this.#terminalByBranchKey.set(key, { executionId, terminal: terminalForBranch })
+      this.#projection.settle({ executionId, attemptId: id, anchorMessageId: resolvedAnchorMessageId })
+      this.#terminalByAttemptId.set(id, { executionId, terminal: terminalForBranch })
       for (const listener of this.#terminalListeners) {
         try {
           listener(executionId, terminalForBranch)
@@ -330,12 +348,11 @@ export class TopicStreamSubscription {
       return
     }
 
-    this.#terminalAttemptWatermark = Math.max(this.#terminalAttemptWatermark ?? 0, topicAttemptWatermark)
-    const exactKey = executionId ? branchKey(executionId, anchorMessageId, attemptId) : undefined
-    const coveredBranches = [...this.#branches.entries()]
-      .filter(([, branch]) => branch.attemptId <= topicAttemptWatermark)
-      .filter(([key]) => key !== exactKey)
-      .map(([, branch]) => branch)
+    this.#projection.advanceWatermark(topicAttemptWatermark)
+    const exactAttemptId = attemptId === undefined ? undefined : toAttemptId(attemptId)
+    const coveredBranches = [...this.#branches.values()]
+      .filter((branch) => branch.attemptId <= topicAttemptWatermark)
+      .filter((branch) => branch.attemptId !== exactAttemptId)
 
     if (executionId) {
       this.#retireBranches(coveredBranches)
@@ -362,18 +379,16 @@ export class TopicStreamSubscription {
     }
 
     for (const branch of branches) {
-      const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
-      if (this.#branches.get(key) !== branch) continue
+      if (this.#branches.get(branch.attemptId) !== branch) continue
       this.#closeBranch(branch)
-      this.#branches.delete(key)
-      this.#terminalByBranchKey.delete(key)
+      this.#branches.delete(branch.attemptId)
+      this.#terminalByAttemptId.delete(branch.attemptId)
     }
   }
 
   #terminateBranches(branches: Branch[], terminal: ExecutionTerminal): void {
     for (const branch of branches) {
-      const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
-      if (this.#branches.get(key) !== branch) continue
+      if (this.#branches.get(branch.attemptId) !== branch) continue
       this.#emitTerminal(branch.executionId, terminal, branch.anchorMessageId, branch.attemptId)
     }
   }
@@ -404,7 +419,7 @@ export class TopicStreamSubscription {
         if (data.topicId !== this.#topicId) return
         const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
         const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+          ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
           isAbort: data.status === 'paused',
           isError: false
         }
@@ -428,7 +443,7 @@ export class TopicStreamSubscription {
           data.isTopicDone ? data.topicAttemptWatermark : undefined
         )
         const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+          ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
           isAbort: false,
           isError: true
         }

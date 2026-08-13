@@ -11,6 +11,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
+import type { DispatchTicket } from '../admission'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
@@ -22,8 +23,6 @@ type PreparedLiveExecutionChange =
       groupAnchorMessageId: string
       parentAnchorId: string
       siblingsGroupId: number
-      /** Activate the reserved assistant if the live stream settles during preparation. */
-      activateFallback: boolean
     }
 
 export interface PreparedDispatch {
@@ -54,8 +53,8 @@ export interface PreparedDispatch {
   siblingsGroupId?: number
   /** Change one execution in the current live reply group. */
   liveExecutionChange?: PreparedLiveExecutionChange
-  /** Reservation intentionally did not move the topic's active node. */
-  preserveActiveNode?: boolean
+  /** Immutable admission result consumed by the synchronous send handoff. */
+  ticket?: DispatchTicket
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
 }

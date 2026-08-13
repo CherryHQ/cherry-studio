@@ -7,8 +7,6 @@
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     getSubscribedChannels: vi.fn()
@@ -31,8 +29,11 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 
 import { agentTaskService, readTaskSessionReuse, writeTaskSessionReuse } from '../AgentTaskService'
+
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
@@ -87,7 +88,7 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
-    notifyDataApiDataChangeMock.mockReset()
+    publishedEffects.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
     vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
@@ -104,15 +105,25 @@ describe('AgentTaskService (read side)', () => {
   })
 
   it('owns and publishes every task read-model projection', () => {
+    vi.mocked(jobScheduleService.getById).mockReturnValue(makeSnapshot())
     agentTaskService.notifyReadModelChange([TASK_ID, TASK_ID])
     agentTaskService.notifyReadModelChange([])
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+    expect(publishedEffects).toHaveBeenCalledTimes(1)
+    expect(publishedEffects).toHaveBeenCalledWith([
       { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
-      { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+      { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: TASK_ID }, entityIds: [TASK_ID] },
+      {
+        endpoint: '/agents/:agentId/tasks',
+        kind: 'projection',
+        routeParams: { agentId: AGENT_ID },
+        entityIds: [TASK_ID]
+      },
+      {
+        endpoint: '/agents/:agentId/tasks/:taskId',
+        routeParams: { agentId: AGENT_ID, taskId: TASK_ID },
+        entityIds: [TASK_ID]
+      }
     ])
   })
 

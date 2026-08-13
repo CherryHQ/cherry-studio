@@ -5,15 +5,15 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadInput: vi.fn(),
-  notifyDataApiDataChange: vi.fn()
+  loadInput: vi.fn()
 }))
 
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataApiDataChange }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 vi.mock('../ensureBuiltinAgent', () => ({
   loadBuiltinAgentEnsureInput: mocks.loadInput
@@ -51,10 +51,10 @@ describe('createBuiltinSupportSession', () => {
     expect(dbh.db.select().from(agentTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
-    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', routeParams: { sessionId: session.id }, entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
   })
@@ -109,7 +109,7 @@ describe('createBuiltinSupportSession', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
     expect(onAgentCreated).not.toHaveBeenCalled()
-    expect(mocks.notifyDataApiDataChange).not.toHaveBeenCalled()
+    expect(publishedEffects).not.toHaveBeenCalled()
   })
 
   it('rolls back claiming and restoring an existing reserved row when session creation fails', () => {
@@ -146,6 +146,6 @@ describe('createBuiltinSupportSession', () => {
     expect(existing.configuration).not.toHaveProperty('builtin_role')
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
-    expect(mocks.notifyDataApiDataChange).not.toHaveBeenCalled()
+    expect(publishedEffects).not.toHaveBeenCalled()
   })
 })

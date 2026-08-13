@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
-  broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
@@ -260,7 +259,7 @@ describe('AgentSessionRuntimeService', () => {
           startRuntimeTurn: mocks.startRuntimeTurn,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
-          broadcastTopicError: mocks.broadcastTopicError,
+          reconcileCrashRecovery: (_count: number, persist: () => void) => persist(),
           resolveToolApproval: mocks.resolveToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
@@ -4671,7 +4670,7 @@ describe('AgentSessionRuntimeService', () => {
       listeners: [
         expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),
         expect.objectContaining({ id: 'agent-runtime:session-1' }),
-        expect.objectContaining({ id: 'persistence:trace:agent-session:session-1' })
+        expect.objectContaining({ id: 'trace-flush:agent-session:session-1' })
       ]
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request
@@ -4784,7 +4783,6 @@ describe('AgentSessionRuntimeService', () => {
       baseTurnInput.modelId,
       expect.anything()
     )
-    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(getEntry(service).pendingTurns).toEqual([])
   })
 
@@ -4805,7 +4803,6 @@ describe('AgentSessionRuntimeService', () => {
     mocks.applicationGet.mockClear()
     mocks.startRuntimeTurn.mockClear()
     mocks.terminateHeldTopicStream.mockClear()
-    mocks.broadcastTopicError.mockClear()
 
     await (service as any).startNextTurn(entry)
 
@@ -4816,7 +4813,6 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.applicationGet).not.toHaveBeenCalled()
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
-    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     void service.closeSession('session-1')
   })
 
@@ -4845,7 +4841,6 @@ describe('AgentSessionRuntimeService', () => {
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })
     )
-    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(service.isSessionBusy('session-1')).toBe(false)
   })
 
@@ -4877,7 +4872,6 @@ describe('AgentSessionRuntimeService', () => {
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })
     )
-    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(service.isSessionBusy('session-1')).toBe(false)
   })
 

@@ -6,11 +6,11 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -27,7 +27,7 @@ describe('TemporaryChatService', () => {
 
   beforeEach(() => {
     service = new TemporaryChatService()
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
   })
 
   describe('appendMessage — input validation', () => {
@@ -192,10 +192,10 @@ describe('TemporaryChatService', () => {
 
       const result = service.persist(topic.id)
       expect(result).toEqual({ topicId: topic.id, messageCount: 3 })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
-        { endpoint: '/topics/:id', entityIds: [topic.id] },
+        { endpoint: '/topics/:id', routeParams: { id: topic.id }, entityIds: [topic.id] },
         { endpoint: '/topics/latest' }
       ])
 

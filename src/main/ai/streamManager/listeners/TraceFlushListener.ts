@@ -10,7 +10,7 @@ export class TraceFlushListener implements StreamListener {
   readonly terminalPhase = 'cleanup' as const
 
   constructor(private readonly topicId: string) {
-    this.id = `persistence:trace:${topicId}`
+    this.id = `trace-flush:${topicId}`
   }
 
   onChunk(): void {}

@@ -3,17 +3,19 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
+import { notifyDataApiDataChange } from '../dataApiDataChange'
 import { applyMigrations } from './applyMigrations'
 import { checkpointTruncateAssert } from './restore/checkpoint'
 import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
 import { SeedRunner } from './seeding/SeedRunner'
-import type { DbOrTx, DbType } from './types'
+import type { DataApiEffectCollector, DbTxWithEffects, DbType } from './types'
 
 const logger = loggerService.withContext('DbService')
 
@@ -40,6 +42,7 @@ export class DbService extends BaseService {
   private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
+  private activeDataChangeEffects: DataApiDataChangeEffect[] | undefined
 
   constructor() {
     super()
@@ -239,11 +242,72 @@ export class DbService extends BaseService {
    * })
    * ```
    */
-  public withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
+  public withWriteTx<T>(fn: (tx: DbTxWithEffects) => T): T {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
-    return this.db.transaction(fn, { behavior: 'immediate' })
+    const effects = this.activeDataChangeEffects ?? []
+    const isOutermost = this.activeDataChangeEffects === undefined
+    const checkpoint = effects.length
+    if (isOutermost) this.activeDataChangeEffects = effects
+
+    try {
+      const result = this.db.transaction(
+        (tx) => fn(Object.assign(tx, { effects: this.createEffectCollector(effects) })),
+        {
+          behavior: 'immediate'
+        }
+      )
+      if (isOutermost) notifyDataApiDataChange(this.dedupeEffects(effects))
+      return result
+    } catch (error) {
+      effects.length = checkpoint
+      throw error
+    } finally {
+      if (isOutermost) this.activeDataChangeEffects = undefined
+    }
+  }
+
+  /** Publish effects for an already-committed autocommit write or composed service result. */
+  public withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    const collected = this.activeDataChangeEffects ?? []
+    const isOutermost = this.activeDataChangeEffects === undefined
+    const checkpoint = collected.length
+    if (isOutermost) this.activeDataChangeEffects = collected
+
+    try {
+      const result = fn(this.createEffectCollector(collected))
+      if (isOutermost) notifyDataApiDataChange(this.dedupeEffects(collected))
+      return result
+    } catch (error) {
+      collected.length = checkpoint
+      throw error
+    } finally {
+      if (isOutermost) this.activeDataChangeEffects = undefined
+    }
+  }
+
+  private createEffectCollector(target: DataApiDataChangeEffect[]): DataApiEffectCollector {
+    return {
+      add: (effect) => {
+        target.push(effect)
+      }
+    }
+  }
+
+  private dedupeEffects(effects: readonly DataApiDataChangeEffect[]): DataApiDataChangeEffect[] {
+    const unique = new Map<string, DataApiDataChangeEffect>()
+    for (const effect of effects) {
+      const routeParams = effect.routeParams
+        ? Object.fromEntries(Object.entries(effect.routeParams).sort(([left], [right]) => left.localeCompare(right)))
+        : undefined
+      const key = JSON.stringify({ ...effect, routeParams })
+      if (!unique.has(key)) unique.set(key, effect)
+    }
+    return [...unique.values()]
   }
 
   /**

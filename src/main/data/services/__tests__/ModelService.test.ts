@@ -20,13 +20,13 @@ import {
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const { lookupModelMock } = vi.hoisted(() => ({
   // `list()` enriches every row by calling `lookupModel`. Default to an
@@ -1757,14 +1757,14 @@ describe('ModelService.delete', () => {
       ])
     const targetPin = pinService.pin({ entityType: 'model', entityId: targetModelId })
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     modelService.delete('openai', 'gpt-4o')
 
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {

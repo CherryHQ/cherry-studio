@@ -1,14 +1,13 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DataApiEffectCollector, DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
@@ -86,15 +85,27 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
-  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
-    if (sessionIds.length === 0) return
+  addReadModelEffects(
+    effects: DataApiEffectCollector,
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection'
+  ): void {
     const entityIds = [...new Set(sessionIds)]
-    notifyDataApiDataChange([
-      { endpoint: '/agent-sessions', kind, entityIds },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      { endpoint: '/agent-sessions/:sessionId', entityIds },
-      { endpoint: '/agent-sessions/latest' }
-    ])
+    if (entityIds.length === 0) return
+    effects.add({ endpoint: '/agent-sessions', kind, entityIds })
+    effects.add({ endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds })
+    for (const sessionId of entityIds) {
+      effects.add({
+        endpoint: '/agent-sessions/:sessionId',
+        routeParams: { sessionId },
+        entityIds: [sessionId]
+      })
+    }
+    effects.add({ endpoint: '/agent-sessions/latest' })
+  }
+
+  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
+    application.get('DbService').withEffects((effects) => this.addReadModelEffects(effects, sessionIds, kind))
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {

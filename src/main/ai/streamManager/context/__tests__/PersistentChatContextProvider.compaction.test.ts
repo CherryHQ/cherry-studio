@@ -101,7 +101,13 @@ vi.mock('@application', async () => {
   const originalGet = base.application.get
   base.application.get = vi.fn((name: string) => {
     if (name === 'AiStreamManager') {
-      return { broadcastTopicError: vi.fn() }
+      return {
+        issueDispatchTicket: (_topicId: string, intent: unknown) => ({
+          intent,
+          admission: { mode: 'start-new' },
+          activeNodeDecision: { move: 'advance' }
+        })
+      }
     }
     if (name === 'FileManager') {
       return { getPhysicalPath: (id: string) => `/blobs/${id}.txt` }
@@ -320,7 +326,9 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
-    expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+    // The submission rides as a planned tail row with a generated id; the last-3
+    // window over path+tail opens on a user row, extending back to u2.
+    expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3', expect.any(String)])
   })
 
   it('1c. maxMessages=1 serves only the current user message (stateless assistant)', async () => {
@@ -334,7 +342,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const { messages } = await makeHistory('u2')
 
-    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    // The current user message is the planned tail row, not a persisted anchor.
+    expect(messages.map((m) => m.role)).toEqual(['user'])
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
@@ -351,7 +360,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const { messages } = await makeHistory('u2')
 
-    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(messages.map((m) => m.role)).toEqual(['user'])
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
@@ -371,7 +380,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const { messages, prepared } = await makeHistory('u2')
 
-    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(messages.map((m) => m.role)).toEqual(['user'])
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
   })
 
@@ -385,11 +394,12 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
     })
     mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'older'), fakeMsg('a1', 'assistant', 'ok'), attachedMsg])
-    maxMessagesOn(1)
+    // The planned tail occupies one window slot, so last-2 keeps the attachment row.
+    maxMessagesOn(2)
 
     const { messages, prepared } = await makeHistory('u2')
 
-    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(messages.map((m) => m.id)).toEqual(['u2', expect.any(String)])
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
       { fileEntryId: 'fe-1', handle: 'doc.txt', displayName: 'doc.txt' }
     ])
@@ -409,13 +419,13 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const boundary = fakeMsg('a1', 'assistant', 'old answer')
     boundary.compactionSummary = 'PRIOR_SUMMARY'
     mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
-    maxMessagesOn(1)
+    maxMessagesOn(2)
 
     const { messages, prepared } = await makeHistory('u2')
 
     // Everything before the window is gone — no synthetic summary row, and the
     // folded message's attachment leaves the read_file allow-list with it.
-    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(messages.map((m) => m.id)).toEqual(['u2', expect.any(String)])
     expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
   })
@@ -434,12 +444,12 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const boundary = fakeMsg('a1', 'assistant', 'old answer')
     boundary.compactionSummary = 'PRIOR_SUMMARY'
     mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
-    // Last 2 = [a1, u2] opens on an assistant row, so the window extends back to u1.
-    maxMessagesOn(2)
+    // Last 3 = [a1, u2, tail] opens on an assistant row, so the window extends back to u1.
+    maxMessagesOn(3)
 
     const { messages, prepared } = await makeHistory('u2')
 
-    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', expect.any(String)])
     expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
       { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
@@ -613,8 +623,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
-    // Nothing folded — the whole path is still served.
-    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+    // Nothing folded — the whole path (plus the planned tail row) is still served.
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', expect.any(String)])
   })
 
   it('2g. budgets the summarize call by the compressor window, not the chat window', async () => {

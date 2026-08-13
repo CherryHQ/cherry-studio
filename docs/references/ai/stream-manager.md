@@ -762,7 +762,7 @@ listener composition:
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
+| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, activeNodeDecision? }` | Open / inject; provider routes by topicId |
 | `Ai_Stream_Attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `Ai_Stream_Detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
 | `Ai_Stream_Abort` | `{ topicId }` | void | Stop current generation |
@@ -775,9 +775,9 @@ listener composition:
 
 | Channel | Payload | Notes |
 |---|---|---|
-| `Ai_StreamChunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
-| `Ai_StreamDone` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
-| `Ai_StreamError` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
+| `Ai_StreamChunk` | `{ topicId, executionId?, attemptId?, anchorMessageId?, chunk }` | `attemptId` is the immutable runtime identity; **only sent to attached windows** |
+| `Ai_StreamDone` | `{ topicId, executionId?, attemptId?, anchorMessageId?, topicAttemptWatermark?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }`; the watermark retires older attempts only when the topic is done; **only sent to attached windows** |
+| `Ai_StreamError` | `{ topicId, executionId?, attemptId?, anchorMessageId?, topicAttemptWatermark?, isTopicDone, error }` | `SerializedError`; the terminal attempt is settled before topic-level retirement; **only sent to attached windows** |
 
 Topic-level status transitions are NOT a bespoke IPC — they live in the
 SharedCache key `topic.stream.statuses.${topicId}` (Main `setShared` →
@@ -803,8 +803,9 @@ read-receipt: `entry.lastCompletedAt` (authoritative, bumped only on
 (cross-window shared cache, written by the renderer when the user
 acknowledges).
 
-**All traffic is keyed by topicId**; multi-model uses `executionId` to
-demux chunks per model.
+**All traffic is scoped by topicId**. Within a topic, renderer ownership is
+keyed by `attemptId`; the logical slot `(executionId, anchorMessageId)` selects
+the newest attempt, so stale terminal events cannot retire a replacement.
 
 **Topic status vs message status.** Don't conflate:
 
@@ -827,7 +828,7 @@ dispatchStreamRequest(manager, subscriber, req)
   → provider = providers.find(p => p.canHandle(req.topicId))
   → prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream })
   → result   = manager.send(prepared)        // ← the only manager.send call
-  → return { mode, activeExecutions?, reservedMessages?, preserveActiveNode? }
+  → return { mode, activeExecutions?, reservedMessages?, activeNodeDecision? }
 ```
 
 Providers only "prepare" — they never call `manager.send` directly. Two
@@ -859,9 +860,9 @@ interface PreparedDispatch {
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch
   siblingsGroupId?: number
   liveExecutionChange?:
-    | { mode: 'replace' }
-    | { mode: 'append'; groupAnchorMessageId: string; activateFallback: boolean }
-  preserveActiveNode?: boolean
+    | { mode: 'replace'; parentAnchorId: string; siblingsGroupId?: number }
+    | { mode: 'append'; groupAnchorMessageId: string; parentAnchorId: string; siblingsGroupId: number }
+  ticket?: DispatchTicket // immutable intent + admission + active-node decision
   lifecycle?: StreamLifecycle
 }
 

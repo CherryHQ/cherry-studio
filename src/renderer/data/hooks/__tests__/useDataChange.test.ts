@@ -90,14 +90,9 @@ describe('useDataChange', () => {
       routeParams: { id: 't1' },
       entityIds: ['t1']
     }
-    const unscoped: DataApiDataChangeEffect = { endpoint: '/topics/:id', entityIds: ['t1'] }
-    mockService._emitDataChange([
-      matching,
-      { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] },
-      unscoped
-    ])
+    mockService._emitDataChange([matching, { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] }])
 
-    expect(listener).toHaveBeenCalledExactlyOnceWith([matching, unscoped])
+    expect(listener).toHaveBeenCalledExactlyOnceWith([matching])
   })
 
   it('uses the latest route parameters without resubscribing', () => {

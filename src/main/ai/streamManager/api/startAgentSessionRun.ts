@@ -122,6 +122,7 @@ export async function startAgentSessionRun(input: {
         ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
         : [...prepared.listeners, ...extras],
       siblingsGroupId: prepared.siblingsGroupId,
+      ticket: prepared.ticket,
       lifecycle: prepared.lifecycle
     })
     result = { mode: 'started' }

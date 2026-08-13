@@ -501,7 +501,7 @@ describe('useChatWriteActions — regenerate', () => {
     })
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
-      preserveActiveNode: undefined
+      activeNodeDecision: undefined
     })
   })
 
@@ -540,7 +540,7 @@ describe('useChatWriteActions — regenerate', () => {
       mode: 'started',
       reservedMessages: [reservedMessage],
       activeExecutions: [activeExecution],
-      preserveActiveNode: true
+      activeNodeDecision: { move: 'keep' }
     })
     const { actions, regenerate, seedReservedMessages } = renderActions([
       uiMsg('u1', 'user', 'vroot'),
@@ -559,7 +559,7 @@ describe('useChatWriteActions — regenerate', () => {
     })
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
-      preserveActiveNode: true
+      activeNodeDecision: { move: 'keep' }
     })
   })
 

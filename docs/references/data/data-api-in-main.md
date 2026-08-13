@@ -12,7 +12,7 @@ Handlers → Services → Database
 - **Services**: Business logic, validation, transaction coordination, data access via Drizzle ORM
 - **Database**: Drizzle ORM + SQLite
 
-After a write commits, a service may additionally publish a cross-window data change notification via `notifyDataApiDataChange(effects)` — a strictly fenced exception to the no-side-effects rule. See [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification) and [Fenced Exception: Data Change Notification](./api-design-guidelines.md#fenced-exception-data-change-notification).
+Services declare cross-window read-model invalidations with `tx.effects.add(...)` inside `DbService.withWriteTx()`; `DbService` publishes them only after commit. Atomic autocommit paths use `withEffects()`. See [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification) and [Fenced Exception: Data Change Notification](./api-design-guidelines.md#fenced-exception-data-change-notification).
 
 ## Transport Adapters
 

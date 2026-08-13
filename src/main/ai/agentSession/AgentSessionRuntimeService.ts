@@ -351,13 +351,15 @@ export class AgentSessionRuntimeService extends BaseService {
       // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
       // tasks, unanswerable approval requests) so history renders settled, and discard the
       // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
-      agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
-          id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
-        })),
-        sessionIds
-      )
+      application.get('AiStreamManager').reconcileCrashRecovery(stale.length, () => {
+        agentSessionMessageService.resolveCrashOrphanedMessages(
+          stale.map(({ id, data }) => ({
+            id,
+            data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
+          })),
+          sessionIds
+        )
+      })
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
     }
@@ -2415,7 +2417,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // `entry.modelId` still caches the deleted model. Re-read the live model before draining — starting the
     // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
     // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
-    // settle instead of starting a doomed turn. Use `terminateHeldTopicStream` (not `broadcastTopicError`):
+    // settle instead of starting a doomed turn. Terminalize the held topic stream directly:
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
@@ -2908,9 +2910,7 @@ export class AgentSessionRuntimeService extends BaseService {
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
         afterPersist
-      }),
-      onPersistFailed: (error) =>
-        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
+      })
     })
   }
 
