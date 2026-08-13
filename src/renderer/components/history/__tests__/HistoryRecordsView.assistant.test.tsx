@@ -131,17 +131,23 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => hookMocks.useSessions(),
-  useAssistantTopicsSource: () => {
-    const source = hookMocks.useTopics()
-    return {
-      ...source,
-      isLoadingAll: source.isLoadingAll ?? source.isLoading,
-      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+vi.mock('@renderer/hooks/resourceViewSources', async () => {
+  // Resolves to the mocked useTopic module, so rendererTopics uses the same mapper as the test.
+  const { mapApiTopicToRendererTopic } = await import('@renderer/hooks/useTopic')
+  return {
+    useAgentSessionsSource: () => hookMocks.useSessions(),
+    useAssistantTopicsSource: () => {
+      const source = hookMocks.useTopics()
+      return {
+        ...source,
+        rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
+        orderSignature: '',
+        isLoadingAll: source.isLoadingAll ?? source.isLoading,
+        isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+      }
     }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
@@ -339,6 +345,7 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
     assistantId: 'assistant-alpha',
     isNameManuallyEdited: false,
     orderKey: 'a',
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides

@@ -9,6 +9,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
@@ -17,8 +18,16 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
+  notifyDataApiDataChangeMock: vi.fn()
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -128,6 +137,7 @@ describe('MessageService', () => {
 
   beforeEach(async () => {
     mockMainLoggerService.warn.mockClear()
+    notifyDataApiDataChangeMock.mockClear()
     const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
@@ -192,6 +202,64 @@ describe('MessageService', () => {
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
 
+  it('tracks conversation activity independently from metadata and later assistant rewrites', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-activity',
+      name: 'Activity',
+      orderKey: 'a0',
+      lastActivityAt: 100,
+      createdAt: 100,
+      updatedAt: 100
+    })
+    messageService.createRootMessageTx(dbh.db, 'topic-activity')
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      const assistant = messageService.create('topic-activity', {
+        parentId: null,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:01.000Z')
+
+      now.mockReturnValue(2_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('done'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(3_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('projection rewrite'),
+        status: 'success'
+      })
+      topicService.update('topic-activity', { name: 'Renamed' })
+
+      const renamed = topicService.getById('topic-activity')
+      expect(renamed.lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+      expect(renamed.updatedAt).toBe('1970-01-01T00:00:03.000Z')
+
+      now.mockReturnValue(4_000)
+      messageService.update(assistant.id, { status: 'pending' })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(5_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('continued'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
+
+      now.mockReturnValue(6_000)
+      messageService.delete(assistant.id)
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   /**
    * Build a small message tree with a multi-model siblings group.
    *
@@ -253,6 +321,94 @@ describe('MessageService', () => {
     ]
     await dbh.db.insert(messageTable).values(withRoot('topic-1', messages))
   }
+
+  describe('resetAssistantForRetry', () => {
+    it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-a1-child-user',
+          parentId: 'm-a1',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('follow up on A'),
+          status: 'success',
+          stats: { totalTokens: 80, contextTokens: 75 },
+          compactionSummary: 'summary through downstream user',
+          createdAt: 400,
+          updatedAt: 400
+        },
+        {
+          id: 'm-a1-child-assistant',
+          parentId: 'm-a1-child-user',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('downstream answer'),
+          status: 'success',
+          stats: { totalTokens: 90, contextTokens: 85 },
+          compactionSummary: 'summary through downstream assistant',
+          createdAt: 500,
+          updatedAt: 500
+        }
+      ])
+      dbh.db
+        .update(messageTable)
+        .set({
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          status: 'error',
+          stats: {
+            totalTokens: 42,
+            requestCount: 1,
+            contextTokens: 40,
+            runtimeTiming: { startedAt: 10, completedAt: 20, spans: [] },
+            timeFirstTokenMs: 5,
+            timeCompletionMs: 10
+          },
+          compactionSummary: 'summary through failed assistant'
+        })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+
+      const before = messageService.getById('m-a1')
+      const reset = messageService.resetAssistantForRetry('m-a1')
+      const topic = dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1')).get()
+      const invalidatedRows = dbh.db
+        .select({
+          id: messageTable.id,
+          stats: messageTable.stats,
+          compactionSummary: messageTable.compactionSummary,
+          updatedAt: messageTable.updatedAt
+        })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ['m-a1', 'm-a1-child-user', 'm-a1-child-assistant']))
+        .all()
+
+      expect(reset).toMatchObject({
+        id: 'm-a1',
+        parentId: before.parentId,
+        siblingsGroupId: before.siblingsGroupId,
+        modelId: before.modelId,
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
+      expect(reset.stats).not.toHaveProperty('runtimeTiming')
+      expect(reset.stats).not.toHaveProperty('contextTokens')
+      expect(reset.stats).not.toHaveProperty('timeFirstTokenMs')
+      expect(reset.stats).not.toHaveProperty('timeCompletionMs')
+      expect(messageService.getById('m-a1-child-user').parentId).toBe('m-a1')
+      expect(messageService.getById('m-a1-child-assistant').parentId).toBe('m-a1-child-user')
+      expect(topic?.activeNodeId).toBe('m-follow')
+      expect(invalidatedRows).toHaveLength(3)
+      expect(invalidatedRows.every((row) => row.compactionSummary === null)).toBe(true)
+      expect(invalidatedRows.every((row) => row.stats?.contextTokens === undefined)).toBe(true)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.stats?.totalTokens).toBe(80)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.stats?.totalTokens).toBe(90)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+    })
+  })
 
   describe('findPendingAssistantMessageIds', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {
@@ -328,7 +484,14 @@ describe('MessageService', () => {
 
   describe('markMessagesError', () => {
     async function seedStatuses() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-e', activeNodeId: 'm-a', orderKey: 'c0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-e',
+        activeNodeId: 'm-a',
+        orderKey: 'c0',
+        lastActivityAt: 120,
+        createdAt: 100,
+        updatedAt: 120
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-e', [
           {
@@ -381,6 +544,7 @@ describe('MessageService', () => {
       expect(await statusOf('m-a')).toBe('error')
       expect(await statusOf('m-b')).toBe('error')
       expect(await statusOf('m-keep')).toBe('success')
+      expect(topicService.getById('topic-e').lastActivityAt).toBe('1970-01-01T00:00:00.120Z')
     })
 
     it('is a no-op for an empty id list', async () => {
@@ -2825,7 +2989,14 @@ describe('MessageService', () => {
     }
 
     async function seedAnchorWithTwoApprovals() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-ap', activeNodeId: 'anchor', orderKey: 'a0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-ap',
+        activeNodeId: 'anchor',
+        orderKey: 'a0',
+        lastActivityAt: 100,
+        createdAt: 100,
+        updatedAt: 100
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-ap', [
           {
@@ -2871,6 +3042,29 @@ describe('MessageService', () => {
       expect(stateOf(committed.data.parts, 'ap-b')).toBe('approval-responded')
     })
 
+    it('publishes the message read-model change after every committed approval decision', async () => {
+      await seedAnchorWithTwoApprovals()
+      const getMessageProjectionNotifications = () =>
+        notifyDataApiDataChangeMock.mock.calls
+          .map(([effects]) => effects)
+          .filter(([effect]) => effect?.endpoint === '/topics/:topicId/messages')
+      const expectedNotification = [
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: ['anchor']
+        }
+      ]
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
+
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: true }])
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
+    })
+
     it('commits the approval response and wait-span completion together', async () => {
       await seedAnchorWithTwoApprovals()
       dbh.db
@@ -2909,6 +3103,16 @@ describe('MessageService', () => {
         expect.objectContaining({ approvalId: 'ap-a', completedAt: expect.any(Number) }),
         expect.not.objectContaining({ completedAt: expect.anything() })
       ])
+    })
+
+    it('records a persisted approval as conversation activity', async () => {
+      await seedAnchorWithTwoApprovals()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(500)
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+
+      expect(topicService.getById('topic-ap').lastActivityAt).toBe('1970-01-01T00:00:00.500Z')
+      now.mockRestore()
     })
 
     it('returns null for a missing anchor (stale click on a deleted message)', async () => {

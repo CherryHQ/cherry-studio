@@ -252,6 +252,49 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
   })
 })
 
+describe('AnthropicMessageConverter tool_result media', () => {
+  const withToolResult = (content: unknown) =>
+    params({
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'shot', input: {} }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content }] }
+      ] as MessageCreateParams['messages']
+    })
+
+  const toolPartOutput = (p: MessageCreateParams) => {
+    const msgs = converter.toUIMessages(p)
+    const part = msgs.flatMap((m) => m.parts).find((x) => x.type === 'dynamic-tool') as { output?: unknown }
+    return part.output
+  }
+
+  // A nested tool_result image never rides inside the tool output — it is relocated into
+  // the carrying user message as a `file` part (covered by the relocation tests above),
+  // so the output keeps only text plus the anchor placeholder.
+  it('keeps the base64 payload out of the tool output when an image is relocated', () => {
+    const output = toolPartOutput(
+      withToolResult([
+        { type: 'text', text: 'here' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
+      ])
+    )
+    expect(typeof output).toBe('string')
+    expect(output as string).toContain('here')
+    expect(output as string).not.toContain('AAAA')
+    expect(output as string).not.toContain('data:image/png;base64')
+  })
+
+  it('keeps a text-only tool_result as a joined string (unchanged)', () => {
+    expect(
+      toolPartOutput(
+        withToolResult([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' }
+        ])
+      )
+    ).toBe('a\nb')
+  })
+})
+
 describe('AnthropicMessageConverter.extractStreamOptions', () => {
   it('maps Anthropic sampling params to common options', () => {
     expect(

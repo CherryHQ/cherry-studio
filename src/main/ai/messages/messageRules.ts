@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 
 import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
-import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+import { ALL_MEDIA, gateToolResultMedia, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
@@ -113,18 +113,21 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * make legacy v1 tool names wire-legal → strip unsupported audio/video → convert,
- * dropping incomplete tool calls that would otherwise dangle without a result → merge
- * adjacent same-role turns left by drops → placeholder any turn that still converted
- * to empty content. See #16195.
+ * make legacy v1 tool names wire-legal → strip media the model can't accept → convert,
+ * dropping incomplete tool calls that would otherwise dangle without a result → gate media
+ * inside tool-result outputs by `toolResultCaps` (wire-aware, see
+ * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
+ * left by drops → placeholder any turn that still converted to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
-  tools?: ToolSet
+  tools?: ToolSet,
+  toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
   const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
   const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
-  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
+  const gated = gateToolResultMedia(model, toolResultCaps ?? caps ?? ALL_MEDIA)
+  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

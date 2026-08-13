@@ -8,7 +8,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
+import { loadClaudeCodeSettingsBuilder } from '@main/ai/runtime/claudeCode'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { Disposable } from '@main/core/lifecycle'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
@@ -175,7 +175,7 @@ export class ChannelMessageHandler {
       })
       return Promise.resolve()
     }
-    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
+    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
@@ -339,6 +339,8 @@ export class ChannelMessageHandler {
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
+        const { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } =
+          await loadClaudeCodeSettingsBuilder()
         try {
           await prepareClaudeCodeWorkspaceDirectory(session)
         } catch (error) {
@@ -430,6 +432,7 @@ export class ChannelMessageHandler {
         )
       } catch (streamError) {
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
+        const { isAgentSessionWorkspaceError } = await loadClaudeCodeSettingsBuilder()
         if (isAgentSessionWorkspaceError(streamError)) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound

@@ -14,7 +14,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
-import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -104,6 +104,7 @@ export function AssistantResourceList({
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const {
     topics: apiTopics,
+    rendererTopics,
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     isRefreshing: isTopicsRefreshing,
@@ -131,13 +132,10 @@ export function AssistantResourceList({
     [assistantGroups]
   )
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
+  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
   const topics = useMemo(
-    () =>
-      apiTopics.map((apiTopic) => ({
-        ...mapApiTopicToRendererTopic(apiTopic),
-        pinned: topicPinnedIdSet.has(apiTopic.id)
-      })),
-    [apiTopics, topicPinnedIdSet]
+    () => rendererTopics.map((topic) => (topicPinnedIdSet.has(topic.id) ? { ...topic, pinned: true } : topic)),
+    [rendererTopics, topicPinnedIdSet]
   )
   const topicsRef = useRef(topics)
   useEffect(() => {

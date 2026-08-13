@@ -93,9 +93,13 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
-  useDataChange('/agent-sessions/:sessionId/messages', () => {
-    if (enabled) void mutate()
-  })
+  useDataChange(
+    '/agent-sessions/:sessionId/messages',
+    () => {
+      if (enabled) void mutate()
+    },
+    { routeParams: { sessionId } }
+  )
 
   // Detached-window catch-up: a sub-window bootstrapping onto a live session may
   // miss DataApi change notifications (first GET before subscription

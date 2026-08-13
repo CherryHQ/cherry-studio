@@ -228,3 +228,127 @@ describe('ChannelAdapter.sendFile default', () => {
     await expect(adapter.sendFile('100', file)).rejects.toThrow('Channel type "qq" does not support sending files')
   })
 })
+
+describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function createAdapterWithConfig(config: Record<string, unknown>) {
+    return qqFactory(
+      {
+        id: 'ch-qq-1',
+        type: 'qq',
+        enabled: true,
+        config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
+      },
+      'agent-1'
+    )
+  }
+
+  it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1'))
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('mention_only=false: processes GROUP_MESSAGE_CREATE and emits message event', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g1', 'hey everyone'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('full-1')
+    expect(events[0].text).toBe('hey everyone')
+  })
+
+  it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // Real routing through handleDispatch: AT arrives first, then the FULL twin.
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-1')
+  })
+
+  it('mention_only=false: dedup—FULL event then AT event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // Real routing through handleDispatch: FULL arrives first, then the AT twin.
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-2')
+  })
+
+  it('mention_only=false: still respects allowed_chat_ids filter', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false, allowed_chat_ids: ['group:g-whitelist'] })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('full-1', 'g-other', 'hi'))
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('routing: mention_only=true (default) — AT processed, FULL dropped, via handleDispatch', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi'))
+    expect(events).toHaveLength(0)
+
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi @bot'))
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('m-1')
+  })
+
+  it('rollback: FULL fails → AT retries the same message successfully', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // First copy fails (e.g. transient download error) — the dedup mark must be rolled back.
+    vi.spyOn(adapter, 'processMessage').mockRejectedValueOnce(new Error('download failed'))
+    await expect(adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))).rejects.toThrow(
+      'download failed'
+    )
+
+    // Twin AT event arrives — the mark was rolled back, so this copy processes.
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('rb-1')
+  })
+
+  it('dedup cap: 501 marks → map stays at 500, oldest evicted', () => {
+    vi.useFakeTimers()
+    try {
+      const adapter = createAdapterWithConfig({ mention_only: false })
+      for (let i = 0; i < 501; i++) adapter.markSeen(`cap-${i}`)
+      expect(adapter.seenMsgIds.size).toBe(500)
+      expect(adapter.wasSeen('cap-0')).toBe(false) // oldest evicted by the cap
+      expect(adapter.wasSeen('cap-500')).toBe(true) // newest still present
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('parseContent strips alphanumeric mentions of other users', () => {
+    const adapter = createAdapter()
+    expect(adapter.parseContent('hi <@!A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4> how are you')).toBe('hi how are you')
+    expect(adapter.parseContent('@bot hello')).toBe('@bot hello') // non-bracket text untouched
+  })
+})
