@@ -1,9 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { createContext, use, useCallback } from 'react'
 
 import { useSessions } from './agent/useSession'
-import { useTopics } from './useTopic'
+import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
 
 /**
  * Window-level data sources shared by every kept-alive chat / agent route.
@@ -72,6 +74,26 @@ type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
  */
 type RefreshError = { refreshError: RawAssistantTopicsSource['error'] }
 
+/**
+ * View of the full topic list derived once per window (in
+ * ResourceViewSourceProvider), so every kept-alive tab shares one mapped copy
+ * instead of each remapping — and re-joining an order signature over — the
+ * entire list.
+ */
+export type AssistantTopicsView = {
+  /** `topics` mapped to the renderer {@link RendererTopic} shape. */
+  rendererTopics: readonly RendererTopic[]
+  /** Signature over order-relevant fields (id / assistantId / orderKey). */
+  orderSignature: string
+}
+
+export function deriveAssistantTopicsView(topics: readonly ApiTopic[]): AssistantTopicsView {
+  return {
+    rendererTopics: topics.map(mapApiTopicToRendererTopic),
+    orderSignature: topics.map((t) => `${t.id}:${t.assistantId ?? ''}:${t.orderKey ?? ''}`).join('|')
+  }
+}
+
 export type AssistantTopicsSource = Pick<
   RawAssistantTopicsSource,
   | 'topics'
@@ -83,7 +105,8 @@ export type AssistantTopicsSource = Pick<
   | 'loadLatestTopic'
   | 'reuseOrCreateTopic'
 > &
-  RefreshError
+  RefreshError &
+  AssistantTopicsView
 
 export type AgentSessionsSource = Pick<
   RawAgentSessionsSource,
