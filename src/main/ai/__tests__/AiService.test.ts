@@ -1,6 +1,10 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ListModelsModule from '../provider/listModels'
+import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
 const mockAgentGenerate = vi.fn()
@@ -180,6 +184,8 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
 
+const { listModels: listModelsFromProviderActual } =
+  await vi.importActual<typeof ListModelsModule>('../provider/listModels')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -1425,6 +1431,55 @@ describe('AiService tool approval', () => {
     )
     expect(embedSpy).not.toHaveBeenCalled()
     expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('checks NewAPI chat models advertised with embeddings through text generation', async () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 'deepseek-v4-flash',
+              supported_endpoint_types: ['embeddings', 'openai']
+            }
+          ]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    try {
+      const [listedModel] = await listModelsFromProviderActual(provider)
+      expect(listedModel).toMatchObject({
+        apiModelId: 'deepseek-v4-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        capabilities: []
+      })
+      expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
+
+      const service = createService()
+      const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      mockModelGetByKey.mockReturnValue({
+        ...listedModel,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+
+      await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
+
+      expect(embedSpy).not.toHaveBeenCalled()
+      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 
   it('passes the selected API key override into text health checks', async () => {
