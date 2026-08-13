@@ -31,7 +31,7 @@ export type TabLimits = typeof TAB_LIMITS
  * 功能：
  * - 当活跃标签数超过软上限时，选择 LRU 候选进行休眠
  * - 硬保险丝作为极端兜底，防止内存失控
- * - 支持豁免机制：当前标签、默认聊天标签、置顶标签不参与休眠
+ * - 支持豁免机制：当前标签、默认聊天标签、置顶标签不参与软上限休眠
  */
 export class TabLruManager {
   private softCap: number
@@ -64,13 +64,10 @@ export class TabLruManager {
 
     const isHardCapTriggered = activeCount > this.hardCap
 
-    // 获取候选列表
-    // 硬保险丝触发时，使用更宽松的豁免规则（仅保留当前+默认聊天标签）
     const candidates = isHardCapTriggered
       ? this.getHardCapCandidates(activeTabs, activeTabId)
       : this.getLRUCandidates(activeTabs, activeTabId)
 
-    // 计算需要休眠的数量：始终休眠到 softCap
     let toHibernateCount = activeCount - this.softCap
 
     if (isHardCapTriggered) {
@@ -85,10 +82,8 @@ export class TabLruManager {
     // 只能休眠可用的候选数量
     toHibernateCount = Math.min(toHibernateCount, candidates.length)
 
-    // 检查是否能达到目标
     const afterHibernation = activeCount - toHibernateCount
     if (isHardCapTriggered && afterHibernation > this.hardCap) {
-      // 极端情况：即使放宽豁免，仍无法降到 hardCap 以下
       logger.error('Cannot guarantee hard cap - insufficient candidates', {
         activeCount,
         candidatesAvailable: candidates.length,
@@ -97,7 +92,6 @@ export class TabLruManager {
         hardCap: this.hardCap
       })
     } else if (afterHibernation > this.softCap) {
-      // 一般情况：无法降到 softCap，但仍在 hardCap 以下
       logger.warn('Cannot reach soft cap - limited by available candidates', {
         activeCount,
         candidatesAvailable: candidates.length,
@@ -131,21 +125,10 @@ export class TabLruManager {
       .sort((a, b) => (a.lastAccessTime ?? 0) - (b.lastAccessTime ?? 0))
   }
 
-  /**
-   * 硬保险丝豁免判断（更严格，仅保留当前+默认聊天标签）
-   */
   private isHardExempt(tab: Tab, activeTabId: string): boolean {
-    return (
-      tab.id === activeTabId || // 当前活动标签
-      tab.id === 'home' || // 默认聊天标签（须与 TabsContext 的 DEFAULT_TAB.id 一致）
-      tab.isDormant === true // 已休眠的不再参与
-    )
-    // 注意：isPinned 在硬保险丝触发时不再豁免
+    return tab.id === activeTabId || tab.id === 'home' || tab.isDormant === true
   }
 
-  /**
-   * 获取 LRU 候选列表（排除豁免项，按访问时间升序）
-   */
   private getLRUCandidates(tabs: Tab[], activeTabId: string): Tab[] {
     return tabs
       .filter((tab) => !this.isExempt(tab, activeTabId))
