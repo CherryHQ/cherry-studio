@@ -7625,7 +7625,6 @@
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
-        "model": "Mô hình đặt tên",
         "prompt": "Lời nhắc đặt tên cuộc trò chuyện"
       },
       "translate_model": "Mô hình Dịch",
