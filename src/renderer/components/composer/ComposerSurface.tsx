@@ -1,23 +1,30 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { getComposerEditorMinHeight } from './composerSizing'
-import type { ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
+import type { ComposerDeferredIntent, ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 
 const COMPOSER_SIDE_PADDING_PX = 24
 
+const logger = loggerService.withContext('ComposerSurface')
+
 export type {
+  ComposerDeferredIntent,
   ComposerSurfaceActions,
   ComposerSurfaceEditingState,
   ComposerSurfaceProps
@@ -26,7 +33,12 @@ export type {
 let runtimePromise: Promise<{ default: ComponentType<ComposerSurfaceProps> }> | undefined
 
 function loadRuntime() {
-  runtimePromise ??= import('./ComposerSurfaceRuntime')
+  runtimePromise ??= import('./ComposerSurfaceRuntime').catch((error) => {
+    // Drop the rejected promise so the next interaction retries instead of replaying the failure.
+    runtimePromise = undefined
+    logger.error('Failed to load composer runtime', error as Error)
+    throw error
+  })
   return runtimePromise
 }
 
@@ -48,18 +60,37 @@ function isSendShortcut(event: ReactKeyboardEvent<HTMLTextAreaElement>, shortcut
   }
 }
 
+/** Clipboard/drag payloads are only readable during their own event, so keep an owned copy. */
+function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
+  if (!source) return undefined
+  const clone = new DataTransfer()
+  for (const type of source.types) {
+    if (type !== 'Files') clone.setData(type, source.getData(type))
+  }
+  for (const file of source.files) clone.items.add(file)
+  return clone
+}
+
 function DeferredComposerSurface(props: ComposerSurfaceProps) {
+  const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
+  const intentRef = useRef<ComposerDeferredIntent>({})
+  const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = props.sendMessageShortcut ?? preferredSendMessageShortcut
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
 
   const requestRuntime = useCallback(() => {
-    void loadRuntime().then((module) => {
-      setRuntime(() => module.default)
-      setRuntimeReady(true)
-    })
+    void loadRuntime()
+      .then((module) => {
+        setRuntime(() => module.default)
+        setRuntimeReady(true)
+      })
+      .catch(() => {
+        // Already logged; the fallback stays usable and a later interaction retries.
+      })
   }, [])
 
   const getFallbackDraft = useCallback(
@@ -71,6 +102,13 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     }),
     [props.draftTokens, props.text, props.tokens]
   )
+
+  // The fallback cannot rebase token offsets or render the editing header, so hand those states
+  // straight to the runtime instead of serving them badly.
+  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length)
+  useEffect(() => {
+    if (needsRuntime) requestRuntime()
+  }, [needsRuntime, requestRuntime])
 
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
@@ -117,7 +155,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }, [Runtime, getFallbackDraft, props, requestRuntime])
 
   if (Runtime && runtimeReady && !isComposing) {
-    return <Runtime {...props} initialTextSelection={selectionRef.current} />
+    return <Runtime {...props} initialTextSelection={selectionRef.current} deferredIntent={intentRef.current} />
   }
 
   const updateSelection = () => {
@@ -125,8 +163,38 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     if (input) selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
   }
 
-  const leftControls = props.renderLeftControls?.()
-  const belowControls = props.renderBelowControls?.()
+  const captureTransfer = (kind: 'paste' | 'drop', data: DataTransfer | null) => {
+    const transfer = cloneTransfer(data)
+    if (transfer) intentRef.current.transfer = { kind, data: transfer }
+    requestRuntime()
+  }
+
+  const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (!props.isInputHistoryActive || !props.onInputHistoryNavigate) return false
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
+
+    const input = event.currentTarget
+    const isAllSelected =
+      input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
+    const isAtBoundary =
+      event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
+    if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
+
+    return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
+  }
+
+  // Keeps panel-backed toolbar controls (Skills, the "+" menu) rendered and remembers the panel the
+  // user asked for; the runtime opens it as soon as it mounts.
+  const pendingPanelControl = {
+    available: props.quickPanelEnabled,
+    open: (options?: { launcherId?: string; searchText?: string }) => {
+      intentRef.current.openPanel = options ?? {}
+      requestRuntime()
+    }
+  }
+  const leftControls = props.renderLeftControls?.(undefined, pendingPanelControl)
+  const belowControls = props.renderBelowControls?.(undefined, pendingPanelControl)
   const sendAccessoryElement = typeof props.sendAccessory === 'function' ? props.sendAccessory() : props.sendAccessory
   const editorMinHeight = getComposerEditorMinHeight(props.fontSize)
   const sendAction =
@@ -135,6 +203,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         data-ui="chat.composer.action.pause"
         type="button"
         className="flex size-7.5 items-center justify-center rounded-full text-error hover:bg-accent"
+        aria-label={t('chat.input.pause')}
         onClick={() => void props.onPause()}>
         <CirclePause size={20} />
       </button>
@@ -179,7 +248,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             props.onFocus?.()
           }}
           onSelect={updateSelection}
-          onPaste={requestRuntime}
+          onPaste={(event) => {
+            // Native insertion would keep only the plain text and drop files, HTML and token
+            // fragments, so hand the whole payload to the runtime instead.
+            event.preventDefault()
+            captureTransfer('paste', event.clipboardData)
+          }}
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={(event) => {
             selectionRef.current = {
@@ -190,7 +264,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }}
           onKeyDown={(event) => {
             requestRuntime()
-            if (!isSendShortcut(event, props.sendMessageShortcut ?? 'Enter')) return
+            if (navigateInputHistory(event)) {
+              event.preventDefault()
+              return
+            }
+            if (!isSendShortcut(event, sendMessageShortcut)) return
             event.preventDefault()
             if (!event.repeat && !props.sendDisabled) void props.onSendDraft(getFallbackDraft())
           }}
@@ -210,6 +288,19 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     </div>
   )
 
+  const handleDragOver = props.enableDragDrop
+    ? (event: ReactDragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        requestRuntime()
+      }
+    : undefined
+  const handleDrop = props.enableDragDrop
+    ? (event: ReactDragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        captureTransfer('drop', event.dataTransfer)
+      }
+    : undefined
+
   return (
     <NarrowLayout
       narrowMode={props.narrowMode}
@@ -225,7 +316,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           : {})
       }}>
       <div className="w-full">
-        <div className="inputbar relative z-2 flex flex-col pt-0">
+        <div className="inputbar relative z-2 flex flex-col pt-0" onDragOver={handleDragOver} onDrop={handleDrop}>
           {belowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">
               {props.queueContent}

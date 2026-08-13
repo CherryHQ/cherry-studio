@@ -1,9 +1,13 @@
+import type { Point } from 'unist'
+
 import type { HtmlArtifactKind } from './plugins/remarkHtmlArtifact'
 
 export interface StandaloneHtmlArtifact {
   html: string
   kind: HtmlArtifactKind
   source: 'document' | 'fence'
+  /** Opening position in the original Markdown, so code-block saves keep matching the remark node. */
+  start: Point
 }
 
 function skipWhitespace(value: string, start: number, end = value.length): number {
@@ -16,6 +20,38 @@ function trimEndIndex(value: string): number {
   let index = value.length
   while (index > 0 && /\s/.test(value[index - 1])) index -= 1
   return index
+}
+
+function toPoint(source: string, offset: number): Point {
+  const before = source.slice(0, offset)
+  return { line: before.split('\n').length, column: offset - (before.lastIndexOf('\n') + 1) + 1, offset }
+}
+
+function classifyHtml(html: string): HtmlArtifactKind {
+  return /^\s*(?:<!doctype(?:\s|>)|<html(?:\s|>))/i.test(html) ? 'document' : 'fragment'
+}
+
+/** Finds the CommonMark closing fence line, returning where the fenced content and the line end. */
+function findClosingFence(source: string, from: number, end: number, marker: string, minCount: number) {
+  for (let lineStart = from; lineStart < end; ) {
+    const newline = source.indexOf('\n', lineStart)
+    const lineEnd = newline === -1 || newline > end ? end : newline
+    let cursor = lineStart
+    while (cursor < lineEnd && cursor - lineStart < 4 && (source[cursor] === ' ' || source[cursor] === '\t'))
+      cursor += 1
+    const indent = cursor - lineStart
+    let count = 0
+    while (cursor < lineEnd && source[cursor] === marker) {
+      cursor += 1
+      count += 1
+    }
+    if (indent < 4 && count >= minCount && skipWhitespace(source, cursor, lineEnd) === lineEnd) {
+      return { contentEnd: lineStart, lineEnd }
+    }
+    if (lineEnd === end) break
+    lineStart = lineEnd + 1
+  }
+  return undefined
 }
 
 function scanStandaloneHtmlFence(
@@ -36,26 +72,20 @@ function scanStandaloneHtmlFence(
   const language = source.slice(markerEnd, openingLineEnd).trim()
   if (!/^html?$/i.test(language)) return undefined
 
-  let closingStart = end
-  while (closingStart > openingLineEnd + 1 && source[closingStart - 1] === marker) closingStart -= 1
-  if (end - closingStart < markerEnd - start) {
+  const contentStart = openingLineEnd + 1
+  const closing = findClosingFence(source, contentStart, end, marker, markerEnd - start)
+  if (!closing) {
+    // An unterminated fence is only an artifact while the message is still arriving.
     if (!isStreaming) return undefined
-    const html = source.slice(openingLineEnd + 1, end)
-    return {
-      html,
-      kind: /^\s*(?:<!doctype(?:\s|>)|<html(?:\s|>))/i.test(html) ? 'document' : 'fragment',
-      source: 'fence'
-    }
+    const html = source.slice(contentStart, end)
+    return { html, kind: classifyHtml(html), source: 'fence', start: toPoint(source, start) }
   }
-  if (closingStart > openingLineEnd + 1 && source[closingStart - 1] !== '\n') return undefined
 
-  const htmlEnd = closingStart > openingLineEnd + 1 ? closingStart - 1 : closingStart
-  const html = source.slice(openingLineEnd + 1, htmlEnd)
-  return {
-    html,
-    kind: /^\s*(?:<!doctype(?:\s|>)|<html(?:\s|>))/i.test(html) ? 'document' : 'fragment',
-    source: 'fence'
-  }
+  // Anything after a closed fence makes this mixed Markdown, streaming or not.
+  if (skipWhitespace(source, closing.lineEnd, end) !== end) return undefined
+
+  const html = source.slice(contentStart, Math.max(contentStart, closing.contentEnd - 1))
+  return { html, kind: classifyHtml(html), source: 'fence', start: toPoint(source, start) }
 }
 
 function scanStandaloneHtmlDocument(
@@ -67,14 +97,15 @@ function scanStandaloneHtmlDocument(
   const prefix = source.slice(start, Math.min(end, start + 512))
   if (!/^(?:<!--(?:[\s\S]*?)-->\s*)*(?:<!doctype(?:\s|>)|<html(?:\s|>))/i.test(prefix)) return undefined
 
-  if (!isStreaming) {
-    const closingStart = source.toLowerCase().lastIndexOf('</html', end)
-    if (closingStart < start) return undefined
-    const closingEnd = source.indexOf('>', closingStart + 6)
-    if (closingEnd === -1 || skipWhitespace(source, closingEnd + 1, end) !== end) return undefined
+  const closingStart = source.toLowerCase().lastIndexOf('</html', end)
+  const closingEnd = closingStart >= start ? source.indexOf('>', closingStart + 6) : -1
+  if (closingEnd !== -1 && closingEnd < end) {
+    if (skipWhitespace(source, closingEnd + 1, end) !== end) return undefined
+  } else if (!isStreaming) {
+    return undefined
   }
 
-  return { html: source.slice(start, end), kind: 'document', source: 'document' }
+  return { html: source.slice(start, end), kind: 'document', source: 'document', start: toPoint(source, start) }
 }
 
 /** Recognizes only content whose entire message is one HTML artifact. */

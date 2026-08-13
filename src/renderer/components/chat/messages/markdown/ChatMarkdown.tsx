@@ -19,7 +19,9 @@ export type InlineHtmlPreviewMode = 'generating' | 'ready'
 const ChatMarkdownRuntime = lazy(() => import('./ChatMarkdownRuntime'))
 const ChatMarkdownMermaidRuntime = lazy(() => import('./ChatMarkdownMermaidRuntime'))
 const StandaloneHtmlArtifactRenderer = lazy(() => import('./StandaloneHtmlArtifactRenderer'))
-const MERMAID_FENCE_REGEX = /(?:^|\n)[ \t]{0,3}(?:`{3,}|~{3,})mermaid(?:[ \t]*\n|[ \t]*$)/i
+// Deliberately permissive about block-quote/list prefixes and info strings: a false positive only
+// loads the Mermaid runtime needlessly, a false negative renders a diagram as a plain code block.
+const MERMAID_FENCE_REGEX = /(?:^|\n)[ \t>]*(?:[*+-][ \t]+|\d{1,9}[.)][ \t]+)?(?:`{3,}|~{3,})[ \t]*mermaid\b/i
 
 const ChatMarkdown: FC<ChatMarkdownProps> = (props) => {
   const { block, inlineHtmlPreviewMode } = props

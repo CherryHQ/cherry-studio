@@ -51,12 +51,14 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
     const codeStyle = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
+    const fallback = theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
 
-    if (!codeStyle || codeStyle === 'auto') {
-      return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
-    }
+    if (!codeStyle || codeStyle === 'auto') return fallback
+    // The catalog arrives with the first highlight; until then a stored id is taken on trust and the
+    // highlighter's own resolution covers a stale one.
+    if (shikiThemesInfo.length && !shikiThemesInfo.some((info) => info.id === codeStyle)) return fallback
     return codeStyle
-  }, [theme, codeViewerThemeLight, codeViewerThemeDark])
+  }, [theme, codeViewerThemeLight, codeViewerThemeDark, shikiThemesInfo])
 
   const isShikiThemeDark = useMemo(() => {
     const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)
@@ -69,11 +71,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   )
 
   useEffect(() => {
-    if (!codeEditorEnabled) {
-      setActiveCmTheme(theme === ThemeMode.light ? 'light' : 'dark')
-      return
-    }
-
+    // Every CodeMirror consumer (Notes, MCP editors, ArtifactPane, previews) reads this, so it must
+    // not depend on the chat-editor flag. getCmThemeByName already falls back for unknown names.
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
     let themeName = codeStyle
     if (!themeName || themeName === 'auto') {
@@ -89,7 +88,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return () => {
       cancelled = true
     }
-  }, [codeEditorEnabled, theme, codeEditorThemeLight, codeEditorThemeDark])
+  }, [theme, codeEditorThemeLight, codeEditorThemeDark])
 
   // 自定义 shiki 语言别名
   const languageAliases = useMemo(() => {
@@ -149,8 +148,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       await loadShikiThemesInfo()
       const highlighter = await getHighlighter()
       await loadLanguageIfNeeded(highlighter, language)
-      await loadThemeIfNeeded(highlighter, activeShikiTheme)
-      return highlighter.codeToHtml(code, { lang: language, theme: activeShikiTheme })
+      const loadedTheme = await loadThemeIfNeeded(highlighter, activeShikiTheme)
+      return highlighter.codeToHtml(code, { lang: language, theme: loadedTheme })
     },
     [activeShikiTheme, loadShikiThemesInfo]
   )

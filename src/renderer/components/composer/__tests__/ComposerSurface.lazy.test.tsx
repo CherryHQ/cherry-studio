@@ -1,12 +1,15 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ComposerSurface, { type ComposerSurfaceProps } from '../ComposerSurface'
+import ComposerSurface, { type ComposerDeferredIntent, type ComposerSurfaceProps } from '../ComposerSurface'
 
 const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
-  runtimeLoads: 0
+  runtimeLoads: 0,
+  runtimeIntent: undefined as ComposerDeferredIntent | undefined,
+  failNextLoad: false
 }))
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
@@ -19,18 +22,44 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
 
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
+  if (mocks.failNextLoad) {
+    mocks.failNextLoad = false
+    throw new Error('chunk load failed')
+  }
   return {
-    default: ({ initialTextSelection, text }: ComposerSurfaceProps) => (
-      <div
-        data-testid="composer-runtime"
-        data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
-        {text}
-      </div>
-    )
+    default: ({ initialTextSelection, text, deferredIntent }: ComposerSurfaceProps) => {
+      mocks.runtimeIntent = deferredIntent
+      return (
+        <div
+          data-testid="composer-runtime"
+          data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
+          {text}
+        </div>
+      )
+    }
   }
 })
 
-function Harness({ editable = true }: { editable?: boolean } = {}) {
+/** jsdom ships none of the transfer APIs the fallback uses to snapshot a payload. */
+class FakeDataTransfer {
+  private data = new Map<string, string>()
+  readonly items = { add: (file: File) => this.fileList.push(file) }
+  private fileList: File[] = []
+  get types() {
+    return [...this.data.keys(), ...(this.fileList.length ? ['Files'] : [])]
+  }
+  get files() {
+    return this.fileList
+  }
+  getData(type: string) {
+    return this.data.get(type) ?? ''
+  }
+  setData(type: string, value: string) {
+    this.data.set(type, value)
+  }
+}
+
+function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
   const [text, setText] = useState('draft')
   const props: ComposerSurfaceProps = {
     text,
@@ -52,16 +81,26 @@ function Harness({ editable = true }: { editable?: boolean } = {}) {
     quickPanelEnabled: true,
     enableDragDrop: true,
     enableSpellCheck: true,
-    editable,
     fontSize: 14,
     narrowMode: true,
-    renderLeftControls: () => <span>Composer tools</span>
+    renderLeftControls: () => <span>Composer tools</span>,
+    ...overrides
   }
 
   return <ComposerSurface {...props} />
 }
 
 describe('deferred ComposerSurface', () => {
+  beforeEach(() => {
+    vi.stubGlobal('DataTransfer', FakeDataTransfer)
+    mocks.runtimeIntent = undefined
+    MockUsePreferenceUtils.resetMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('matches the regular composer shell before loading the rich runtime', () => {
     const { container } = render(<Harness editable={undefined} />)
 
@@ -101,5 +140,94 @@ describe('deferred ComposerSurface', () => {
     const runtime = await screen.findByTestId('composer-runtime')
     expect(runtime).toHaveTextContent('draft text')
     expect(runtime).toHaveAttribute('data-selection', '10:10')
+  })
+
+  it('hands the whole clipboard payload to the runtime instead of inserting plain text', async () => {
+    render(<Harness />)
+
+    const clipboardData = new FakeDataTransfer()
+    clipboardData.setData('text/plain', 'x'.repeat(20000))
+    clipboardData.setData('text/html', '<span data-composer-token="skill:review"></span>')
+    clipboardData.items.add(new File(['png'], 'shot.png', { type: 'image/png' }))
+
+    fireEvent.paste(screen.getByRole('textbox', { name: 'Message' }), { clipboardData })
+
+    await screen.findByTestId('composer-runtime')
+    const transfer = mocks.runtimeIntent?.transfer
+    expect(transfer?.kind).toBe('paste')
+    expect(transfer?.data.getData('text/plain')).toHaveLength(20000)
+    expect(transfer?.data.getData('text/html')).toContain('data-composer-token')
+    expect([...transfer!.data.files].map((file) => file.name)).toEqual(['shot.png'])
+  })
+
+  it('hands a first file drop to the runtime instead of losing it', async () => {
+    const { container } = render(<Harness />)
+
+    const dataTransfer = new FakeDataTransfer()
+    dataTransfer.items.add(new File(['pdf'], 'paper.pdf', { type: 'application/pdf' }))
+    fireEvent.drop(container.querySelector('.inputbar')!, { dataTransfer })
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.transfer?.kind).toBe('drop')
+    expect([...mocks.runtimeIntent!.transfer!.data.files].map((file) => file.name)).toEqual(['paper.pdf'])
+  })
+
+  it('keeps panel-backed toolbar controls usable and opens the requested panel once ready', async () => {
+    render(
+      <Harness
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) =>
+          unifiedPanelControl?.available ? (
+            <button type="button" onClick={() => unifiedPanelControl.open({ launcherId: 'skills' })}>
+              Skills
+            </button>
+          ) : null
+        }
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }))
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.openPanel).toEqual({ launcherId: 'skills' })
+  })
+
+  it('loads the runtime for states the fallback cannot represent', async () => {
+    const { unmount } = render(<Harness editingState={{ messageId: 'm1' } as ComposerSurfaceProps['editingState']} />)
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+    unmount()
+
+    render(
+      <Harness
+        draftTokens={[{ id: 't1', kind: 'quote', index: 0, textOffset: 0 } as never]}
+        text="tail after the token"
+      />
+    )
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('follows the send-shortcut preference when the caller does not pass one', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.input.send_message_shortcut', 'Ctrl+Enter')
+    render(<Harness sendMessageShortcut={undefined} />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('navigates input history on the first arrow key', () => {
+    const onInputHistoryNavigate = vi.fn(() => true)
+    render(<Harness text="" isInputHistoryActive onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+  })
+
+  it('names the fallback pause action for screen readers', () => {
+    const { container } = render(<Harness isLoading sendDisabled />)
+    const pause = container.querySelector('[data-ui="chat.composer.action.pause"]')
+    expect(pause?.getAttribute('aria-label')).toBeTruthy()
   })
 })

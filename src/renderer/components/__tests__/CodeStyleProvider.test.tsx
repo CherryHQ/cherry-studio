@@ -45,12 +45,13 @@ vi.mock('@renderer/utils/shiki', () => ({
 }))
 
 const Probe = () => {
-  const { loadThemeNames, themeNames, activeCmTheme } = useCodeStyle()
+  const { loadThemeNames, themeNames, activeCmTheme, activeShikiTheme } = useCodeStyle()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
       <span data-testid="cm-theme-type">{typeof activeCmTheme}</span>
       <span data-testid="cm-theme-string">{typeof activeCmTheme === 'string' ? activeCmTheme : ''}</span>
+      <span data-testid="shiki-theme">{activeShikiTheme}</span>
       <button type="button" onClick={() => void loadThemeNames()}>
         Load themes
       </button>
@@ -112,9 +113,29 @@ describe('CodeStyleProvider', () => {
     renderProvider()
 
     expect(vi.mocked(getShiki)).not.toHaveBeenCalled()
-    expect(screen.getByTestId('cm-theme-string').textContent).toBe('light')
 
     fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
     await waitFor(() => expect(vi.mocked(getShiki)).toHaveBeenCalledOnce())
+  })
+
+  // Notes, MCP editors, ArtifactPane and the previews all read activeCmTheme; gating its
+  // resolution on the chat-only flag left them on the bare light/dark theme.
+  it('resolves a real cm theme for non-chat editors while the chat code editor is disabled', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
+
+    renderProvider()
+
+    await waitFor(() => expect(screen.getByTestId('cm-theme-type').textContent).toBe('object'), { timeout: 15000 })
+  })
+
+  it('falls back to a bundled shiki theme once the catalog shows the saved one is gone', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
+
+    renderProvider()
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('theme-deleted-upstream')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
+    await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light'))
   })
 })

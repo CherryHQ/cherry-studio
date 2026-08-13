@@ -1,5 +1,4 @@
-// eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,

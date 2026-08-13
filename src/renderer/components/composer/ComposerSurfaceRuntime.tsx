@@ -200,6 +200,13 @@ export interface ComposerSurfaceProps {
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
   deferQuickPanel?: boolean
   initialTextSelection?: { start: number; end: number }
+  deferredIntent?: ComposerDeferredIntent
+}
+
+/** One-shot interactions the deferred fallback captured before this runtime existed. */
+export interface ComposerDeferredIntent {
+  transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
+  openPanel?: { launcherId?: string; searchText?: string }
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -567,7 +574,8 @@ export default function ComposerSurfaceRuntime({
   renderCompactControls,
   sendAccessory,
   deferQuickPanel = false,
-  initialTextSelection
+  initialTextSelection,
+  deferredIntent
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -2093,6 +2101,36 @@ export default function ComposerSurfaceRuntime({
       unifiedPanelAvailable
     ]
   )
+
+  // Replay what the deferred fallback captured while this runtime was still loading. Both transfers
+  // are re-dispatched on the editor DOM so they take the very same paths a live event would; the
+  // timer queues behind onCreate's focus restore so a paste lands on the caret the user left.
+  const unifiedPanelOpen = unifiedPanelControl.open
+  useEffect(() => {
+    if (!deferredIntent || !editor) return
+    const { transfer, openPanel } = deferredIntent
+    delete deferredIntent.transfer
+    delete deferredIntent.openPanel
+    if (!transfer && !openPanel) return
+
+    return setTimeoutTimer(
+      'composerDeferredIntent',
+      () => {
+        if (editor.isDestroyed) return
+        if (transfer?.kind === 'paste') {
+          editor.view.dom.dispatchEvent(
+            new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: true, cancelable: true })
+          )
+        } else if (transfer?.kind === 'drop') {
+          editor.view.dom.dispatchEvent(
+            new DragEvent('drop', { dataTransfer: transfer.data, bubbles: true, cancelable: true })
+          )
+        }
+        if (openPanel) unifiedPanelOpen(openPanel)
+      },
+      0
+    )
+  }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelOpen])
 
   const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled

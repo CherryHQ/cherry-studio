@@ -1,9 +1,8 @@
-import { type ComponentProps, lazy, Suspense } from 'react'
+import type { ComponentProps } from 'react'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
+import CodeBlock from './CodeBlock'
 import type { StandaloneHtmlArtifact } from './standaloneHtmlArtifact'
-
-const CodeBlock = lazy(() => import('./CodeBlock'))
 
 interface Props {
   artifact: StandaloneHtmlArtifact
@@ -21,14 +20,8 @@ export default function StandaloneHtmlArtifactRenderer({ artifact, block, inline
   }
 
   if (artifact.source === 'fence') {
-    codeBlockProps.node = {
-      position: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } }
-    }
+    codeBlockProps.node = { position: { start: artifact.start, end: artifact.start } }
   }
 
-  return (
-    <Suspense fallback={null}>
-      <CodeBlock {...codeBlockProps} />
-    </Suspense>
-  )
+  return <CodeBlock {...codeBlockProps} />
 }
