@@ -135,7 +135,8 @@ export class AgentGlobalSkillService {
         kind: 'membership',
         dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
         entityIds: [id]
-      }
+      },
+      { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
     return this.rowToInstalledSkill(updated)
   }

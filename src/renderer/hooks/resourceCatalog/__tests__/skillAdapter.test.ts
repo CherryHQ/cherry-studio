@@ -47,7 +47,9 @@ describe('skillAdapter mutations', () => {
       await result.current.updateGlobalEnabled(false)
     })
 
-    expect(useMutation).toHaveBeenCalledWith('PATCH', '/skills/skill-1', { refresh: ['/skills'] })
+    expect(useMutation).toHaveBeenCalledWith('PATCH', '/skills/skill-1', {
+      refresh: ['/skills', '/skills/skill-1']
+    })
     expect(trigger).toHaveBeenCalledWith({ body: { isGlobalEnabled: false } })
   })
 

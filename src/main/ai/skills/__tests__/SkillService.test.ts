@@ -172,7 +172,8 @@ describe('SkillService', () => {
       expect(disabledSkill?.isGlobalEnabled).toBe(false)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] },
-        { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] }
+        { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills/:skillId', entityIds: [SKILL_ID_1] }
       ])
       const emittedEffects = notifyDataApiDataChangeMock.mock.calls[0]?.[0] as DataApiDataChangeEffect[]
       const membershipEffect = emittedEffects.find((effect) => effect.kind === 'membership')

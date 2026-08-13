@@ -74,7 +74,7 @@ export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()
   const path = `/skills/${id}` as const
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', path, {
-    refresh: ['/skills']
+    refresh: ['/skills', path]
   })
 
   const updateGlobalEnabled = useCallback(
