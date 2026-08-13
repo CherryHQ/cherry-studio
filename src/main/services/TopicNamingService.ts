@@ -401,7 +401,8 @@ export class TopicNamingService {
   private resolveNamingModelId(): UniqueModelId {
     const preferenceService = application.get('PreferenceService')
 
-    const configured = preferenceService.get('feature.quick_assistant.model_id')
+    const configured =
+      preferenceService.get('feature.quick_assistant.model_id') ?? preferenceService.get('chat.default_model_id')
     const quickModelId = this.toUsableNamingModelId(configured)
     if (quickModelId) return quickModelId
     if (configured != null) {

@@ -155,8 +155,26 @@ describe('TopicNamingService', () => {
     })
   })
 
-  it('falls back to the managed CherryAI default when the quick model preference is empty', async () => {
+  it('uses the chat default model when the quick model preference is empty', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', null)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'anthropic::claude-3-haiku')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'anthropic::claude-3-haiku'
+      })
+    )
+    expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
+  })
+
+  it('falls back to the managed CherryAI default when the quick and chat default models are empty', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', null)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
 
     await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
       role: 'assistant',
@@ -168,11 +186,11 @@ describe('TopicNamingService', () => {
         uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     )
-    expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
   })
 
   it('falls back to the managed CherryAI default when the quick model preference is invalid', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'bad-value')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'anthropic::claude-3-haiku')
 
     await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
       role: 'assistant',
