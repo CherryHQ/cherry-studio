@@ -196,6 +196,16 @@ const input: AgentRuntimeConnectInput = {
   modelId: 'p::m'
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 function userInput(text: string, systemReminder = false): AgentRuntimeUserInput {
   return {
     message: {
@@ -388,6 +398,16 @@ describe('PiRuntimeConnection', () => {
     await firstConnection.close()
     expect(mocks.unregisterApiProviders).toHaveBeenCalledWith(`provider:${first[0]}`)
     expect(mocks.unregisterApiProviders).not.toHaveBeenCalledWith(`provider:${second[0]}`)
+  })
+
+  it('does not leak a rejected provider result through the usage observer', async () => {
+    await new PiRuntimeConnection(input).start()
+    const failure = new Error('provider failed')
+    mocks.providerStreamSimple.mockReturnValueOnce({ result: () => Promise.reject(failure) })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+
+    providerConfig.streamSimple({}, [], {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 
   it('unregisters its provider when materialization fails after registration', async () => {
@@ -1128,7 +1148,25 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
-  it('applies an exact camelCase MCP disable immediately during reconcile', async () => {
+  it('serializes concurrent reconciles before reading or applying their snapshots', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const snapshot = await mocks.captureConnectionSnapshot(SESSION_ID, 'agent-1', 'p::m')
+    const firstSnapshot = createDeferred<typeof snapshot>()
+    mocks.captureConnectionSnapshot.mockClear()
+    mocks.captureConnectionSnapshot.mockImplementationOnce(() => firstSnapshot.promise).mockResolvedValueOnce(snapshot)
+
+    const first = conn.reconcile({ modelId: 'p::m' })
+    const second = conn.reconcile({ modelId: 'p::m' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mocks.captureConnectionSnapshot).toHaveBeenCalledOnce()
+    firstSnapshot.resolve(snapshot)
+    await expect(first).resolves.toBe('current')
+    await expect(second).resolves.toBe('current')
+    expect(mocks.captureConnectionSnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies an exact camelCase MCP disable immediately before requesting a tool-catalog rebuild', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
     mocks.buildMcpToolDefinitions.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })

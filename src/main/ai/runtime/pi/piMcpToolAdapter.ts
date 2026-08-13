@@ -13,6 +13,8 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 const logger = loggerService.withContext('PiMcpToolAdapter')
 type PiToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
 
+class PiMcpToolIdentityError extends Error {}
+
 export interface PiMcpToolBridge {
   tools: ToolDefinition[]
   close(): Promise<void>
@@ -61,7 +63,7 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
       const serverNames = new Set<string>()
       for (const tool of serverTools) {
         if (existingNames.has(tool.name) || serverNames.has(tool.name)) {
-          throw new Error(`Duplicate Pi MCP tool name: ${tool.name}`)
+          throw new PiMcpToolIdentityError(`Duplicate Pi MCP tool name: ${tool.name}`)
         }
         serverNames.add(tool.name)
       }
@@ -69,6 +71,10 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
       tools.push(...serverTools)
     } catch (error) {
       await client.close().catch(() => undefined)
+      if (error instanceof PiMcpToolIdentityError) {
+        await Promise.allSettled(clients.map((connected) => connected.close()))
+        throw error
+      }
       logger.warn('Skipping unavailable MCP server for Pi session', { serverId, error })
     }
   }

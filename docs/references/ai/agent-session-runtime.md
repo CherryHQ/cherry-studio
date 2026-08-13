@@ -21,7 +21,7 @@ queue, and `resume` handling are driver internals.
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
-| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `redirect` (mid-turn steer) and `applyPolicyUpdate`, `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
@@ -257,12 +257,13 @@ write `ai_usage_record`, and SDK assistant usage never manufactures a tool
 span. The message performance view joins both read models only in the
 renderer.
 
-`applyPolicyUpdate` carries live agent edits onto the warm connection: a
+`reconcile()` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating
 the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
-change refreshes the snapshot's disabled set in place. A rejected update is
-failed closed by the host (the connection is torn down) rather than left
-running under the old policy.
+change refreshes the snapshot's disabled set in place. Concurrent push/pull
+reconciles are serialized per connection. A rejected update is failed closed
+by the host (the connection is torn down) rather than left running under the
+old policy.
 
 ## pi driver resource boundary
 
@@ -291,8 +292,12 @@ Allowed in v1:
 - The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
   knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
   MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
-  bridge. Every call therefore uses the same naming, metadata, abort, and error
-  translation path. The approval extension still distinguishes Cherry-owned
+  bridge. Every adapted call therefore uses the same naming, metadata, abort,
+  and error translation path. A server that cannot connect or list tools is logged
+  and omitted, preserving the existing best-effort MCP availability contract; a
+  duplicate normalized tool identity is different — it makes approval/routing
+  ambiguous, so startup closes all bridge clients and fails materialization.
+  The approval extension still distinguishes Cherry-owned
   safe tools, Cherry tools that always require approval, and third-party MCP
   tools; `disabledTools` hard-blocks every class.
 - New pi agents start in `acceptEdits`: reads and writes inside the selected
@@ -353,6 +358,14 @@ If the signatures differ, startup fails closed and cleans up the connection's
 generation-scoped provider registration. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache
 contract above.
+
+Warm Pi reconciles serialize push and pull calls per connection so a slower
+older snapshot cannot overwrite a newer policy result. `permission_mode` is
+live policy and stays frozen for an active turn. `disabledTools` has two jobs:
+the live gate applies newly disabled tools immediately, while the spawn-time
+`excludeTools` list controls which tools the model can see. It therefore remains
+a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
+after any applicable live tightening has landed.
 
 ## Internal Agent continuation normalization
 

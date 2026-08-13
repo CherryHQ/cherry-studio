@@ -105,6 +105,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
+  /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
+  private reconcileChain: Promise<unknown> = Promise.resolve()
   private _usageCapture?: AgentSessionUsageCapture
   private apiProviderSourceId?: string
   private promptRunActive = false
@@ -415,6 +417,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
+    const run = this.reconcileChain.then(
+      () => this.reconcileOnce(input),
+      () => this.reconcileOnce(input)
+    )
+    this.reconcileChain = run.catch(() => undefined)
+    return run
+  }
+
+  private async reconcileOnce(input: {
+    modelId: UniqueModelId
+    knowledgeBaseIds?: readonly string[]
+  }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
       snapshot = await capturePiConnectionSnapshot(
@@ -667,7 +681,7 @@ function withPiInvocationCapture(
     ...config,
     streamSimple: (model, context, options) => {
       const stream = streamSimple(model, context, options)
-      void stream.result().then(onComplete)
+      void stream.result().then(onComplete, () => undefined)
       return stream
     }
   }

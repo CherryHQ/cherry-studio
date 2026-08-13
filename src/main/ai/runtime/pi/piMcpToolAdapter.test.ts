@@ -79,12 +79,27 @@ describe('buildMcpToolDefinitions', () => {
     expect(second.length).toBeLessThanOrEqual(63)
   })
 
-  it('fails a server closed when its tool snapshot contains duplicate wire identities', async () => {
+  it('fails materialization closed when a tool snapshot contains duplicate wire identities', async () => {
     const duplicate = createServer([tool('same'), tool('same')], async () => ({ content: [] }))
-    const bridge = await buildMcpToolDefinitions({ duplicate: { name: 'duplicate', instance: duplicate } })
 
-    expect(bridge.tools).toEqual([])
-    await bridge.close()
+    await expect(buildMcpToolDefinitions({ duplicate: { name: 'duplicate', instance: duplicate } })).rejects.toThrow(
+      'Duplicate Pi MCP tool name: mcp__duplicate__same'
+    )
+  })
+
+  it('closes earlier clients before failing on a cross-server tool identity collision', async () => {
+    const first = createServer([tool('same')], async () => ({ content: [] }))
+    const second = createServer([tool('same')], async () => ({ content: [] }))
+    const firstClosed = vi.fn()
+    first.server.onclose = firstClosed
+
+    await expect(
+      buildMcpToolDefinitions({
+        first: { name: 'duplicate', instance: first },
+        second: { name: 'duplicate', instance: second }
+      })
+    ).rejects.toThrow('Duplicate Pi MCP tool name: mcp__duplicate__same')
+    expect(firstClosed).toHaveBeenCalledOnce()
   })
 
   it('adapts every supplied MCP server instead of filtering by server origin', async () => {

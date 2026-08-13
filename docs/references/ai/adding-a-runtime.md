@@ -83,16 +83,16 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      learns a recovery handle, `error` on failure.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`.
+   - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
+     calls per connection; hot-apply safe policy facts before returning `rebuild` for
+     spawn-frozen differences, freeze permission-mode changes during an active turn,
+     and return `failed` when a live tightening cannot be applied so the host fails closed.
    - `close()`.
    - Optional, with host fallbacks when omitted:
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
        `steer-boundary` when a steer is injected and `steer-undelivered` for
        steers the turn ended before injecting.
-     - `applyPolicyUpdate(update)` — live permission-mode / tool-policy
-       changes on a warm connection; without it the host tears the
-       connection down and reconnects. Return `false` to signal rejection —
-       the host fails closed.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`

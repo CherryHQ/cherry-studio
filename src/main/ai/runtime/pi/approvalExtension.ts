@@ -66,7 +66,7 @@ export interface PiApprovalContext {
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
-  /** Live permission mode; read at fire-time so a mid-session `applyPolicyUpdate` takes effect. */
+  /** Live permission mode; read at fire-time so a warm-connection `reconcile` takes effect. */
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
   isDisabled: (toolName: string) => boolean

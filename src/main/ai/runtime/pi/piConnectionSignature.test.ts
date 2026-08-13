@@ -69,6 +69,7 @@ describe('capturePiConnectionSnapshot', () => {
     expect(withPermissionChange).toBe(baseline)
 
     const mutations = [
+      () => mocks.getAgent.mockReturnValueOnce({ ...agent, disabledTools: ['bash'] }),
       () =>
         mocks.getSession.mockReturnValueOnce({
           id: 'session-1',
