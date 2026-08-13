@@ -228,6 +228,10 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
       const source = React.useMemo(
         () => ({
           topics: homeMocks.classicLayoutTopics,
+          // The mocked mapApiTopicToRendererTopic below is the identity, so the
+          // shared renderer view is the same list.
+          rendererTopics: homeMocks.classicLayoutTopics,
+          orderSignature: '',
           isLoading: homeMocks.isTopicsFirstPageLoading,
           isLoadingAll: homeMocks.isTopicsLoadingAll,
           isFullyLoaded: homeMocks.isTopicsFullyLoaded,
