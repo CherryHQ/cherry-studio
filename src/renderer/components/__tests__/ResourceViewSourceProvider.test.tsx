@@ -75,7 +75,6 @@ describe('ResourceViewSourceProvider', () => {
       stats: { total: 2, pinnedCount: 0, byAssistant: [] },
       isStatsLoading: false,
       statsError: undefined,
-      refetchStats: vi.fn(),
       loadLatestTopic: vi.fn(),
       loadReusableTopic: vi.fn()
     }

@@ -278,7 +278,6 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
         return {
           isStatsLoading: false,
           statsError: undefined,
-          refetchStats: vi.fn().mockResolvedValue(undefined),
           stats: { total: topics.length, pinnedCount: 0, byAssistant },
           loadLatestTopic: vi.fn(async (assistantId?: string | null) => {
             if (assistantId !== undefined) {

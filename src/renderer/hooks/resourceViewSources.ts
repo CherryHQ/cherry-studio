@@ -34,7 +34,6 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
     stats: statsSource.stats,
     isStatsLoading: statsSource.isLoading,
     statsError: statsSource.error,
-    refetchStats: statsSource.refetch,
     loadLatestTopic,
     loadReusableTopic
   }

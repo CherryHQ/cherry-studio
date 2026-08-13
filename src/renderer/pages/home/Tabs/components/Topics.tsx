@@ -26,6 +26,7 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicListOptionsMenu,
+  useDisplayModeRevealRequest,
   useResourceListActions,
   useResourceListPinnedItems,
   useResourceListRowState
@@ -76,7 +77,6 @@ import {
   getAssistantIdFromTopicGroupId,
   getTopicAssistantDisplayGroupId,
   moveAssistantGroupAfterDrop,
-  normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_ORDINARY_GROUP_ID,
@@ -642,15 +642,7 @@ export function Topics({
   )
   const topicsRef = useRef(topics)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
-  const previousRevealDisplayModeRef = useRef(displayMode)
-  const modeRevealRequestIdRef = useRef(0)
-  const incomingRevealRequestKey = revealRequest ? `${revealRequest.requestId}:${revealRequest.itemId}` : null
-  const [modeRevealRequest, setModeRevealRequest] = useState<{
-    incomingRequestKey: string | null
-    request?: ResourceListRevealRequest
-  }>()
-  const effectiveRevealRequest =
-    modeRevealRequest?.incomingRequestKey === incomingRevealRequestKey ? modeRevealRequest.request : revealRequest
+  const effectiveRevealRequest = useDisplayModeRevealRequest(displayMode, activeTopic?.id, revealRequest)
   const commitActiveTopic = useCallback(
     (topic: Topic) => {
       activeTopicIdRef.current = topic.id
@@ -684,29 +676,6 @@ export function Topics({
     },
     [cancelOwnerResourceActivation, commitActiveTopic]
   )
-
-  useEffect(() => {
-    if (previousRevealDisplayModeRef.current === displayMode) return
-    previousRevealDisplayModeRef.current = displayMode
-    const request =
-      revealRequest?.itemId === activeTopic?.id
-        ? revealRequest
-        : activeTopic
-          ? { itemId: activeTopic.id, requestId: 0 }
-          : undefined
-    if (!request) {
-      setModeRevealRequest(undefined)
-      return
-    }
-
-    // A fresh request identity makes ResourceList re-locate the current result,
-    // expanding only its saved group while preserving every other collapse choice.
-    modeRevealRequestIdRef.current -= 1
-    setModeRevealRequest({
-      incomingRequestKey: incomingRevealRequestKey,
-      request: { ...request, requestId: modeRevealRequestIdRef.current }
-    })
-  }, [activeTopic, displayMode, incomingRevealRequestKey, revealRequest])
 
   useEffect(() => {
     setOptimisticMove(null)
@@ -1641,12 +1610,11 @@ export function Topics({
         return
       }
 
-      const normalizedPayload = normalizeTopicDropPayload(payload)
-      const anchor = buildTopicDropAnchor(normalizedPayload)
+      const anchor = buildTopicDropAnchor(payload)
       const ownerChanged = (topic.assistantId ?? null) !== targetAssistantId
       if (!anchor) return
       if (ownerChanged && targetAssistantId === null) return
-      setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
+      setOptimisticMove({ payload, targetAssistantId })
 
       try {
         // `moveTopic` owns the cache orchestration: the open conversation follows the new
@@ -1675,6 +1643,19 @@ export function Topics({
     ]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
+  const topicListOptionsMenu = (
+    <TopicListOptionsMenu
+      historyRecordsActive={historyRecordsActive}
+      manageAssistantsActive={manageAssistantsActive}
+      mode={displayMode}
+      onChange={handleTopicDisplayModeChange}
+      onManageAssistants={onManageAssistants}
+      onOpenHistoryRecords={onOpenHistoryRecords}
+      onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
+      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
+      sortBy={topicSortBy}
+    />
+  )
 
   return (
     <>
@@ -1730,19 +1711,7 @@ export function Topics({
               icon={<Plus />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
-              actions={
-                <TopicListOptionsMenu
-                  historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsActive}
-                  mode={displayMode}
-                  onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={onManageAssistants}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                  onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
-                  sectionIds={topicAssistantSectionIds}
-                  sortBy={topicSortBy}
-                />
-              }
+              actions={topicListOptionsMenu}
             />
           ) : showHeaderCreateItem ? (
             <ResourceList.HeaderItem
@@ -1753,31 +1722,10 @@ export function Topics({
               icon={<NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
-              actions={
-                <TopicListOptionsMenu
-                  historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsActive}
-                  mode={displayMode}
-                  onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={onManageAssistants}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                  onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
-                  sortBy={topicSortBy}
-                />
-              }
+              actions={topicListOptionsMenu}
             />
           ) : (
-            <TopicListOptionsMenu
-              historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsActive}
-              mode={displayMode}
-              onChange={handleTopicDisplayModeChange}
-              onManageAssistants={onManageAssistants}
-              onOpenHistoryRecords={onOpenHistoryRecords}
-              onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
-              sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
-              sortBy={topicSortBy}
-            />
+            topicListOptionsMenu
           )}
         </ResourceList.Header>
 

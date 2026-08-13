@@ -62,26 +62,6 @@ export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
-export function moveTopicAfterDrop<T extends { id: string }>(
-  topics: readonly T[],
-  payload: ResourceListItemReorderPayload
-): T[] {
-  const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
-  const overIndex = topics.findIndex((topic) => topic.id === payload.overId)
-
-  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
-    return [...topics]
-  }
-
-  const next = [...topics]
-  const [movedTopic] = next.splice(activeIndex, 1)
-  const adjustedOverIndex = next.findIndex((topic) => topic.id === payload.overId)
-  const insertIndex = payload.position === 'before' ? adjustedOverIndex : adjustedOverIndex + 1
-  next.splice(insertIndex, 0, movedTopic)
-
-  return next
-}
-
 export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   topics: readonly T[],
   payload: ResourceListItemReorderPayload,
@@ -138,18 +118,6 @@ export function moveAssistantGroupAfterDrop(
   payload: Pick<ResourceListGroupReorderPayload, 'sourceIndex' | 'targetIndex'>
 ): string[] {
   return moveResourceListStringGroupAfterDrop(assistantIds, activeAssistantId, overAssistantId, payload)
-}
-
-export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
-  return payload
-}
-
-export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
-  if (topic.pinned) {
-    return { id: 'pinned', label: pinnedLabel }
-  }
-
-  return { id: 'topics', label: topicLabel }
 }
 
 export function getAssistantIdFromTopicGroupId(groupId: string): string | undefined {

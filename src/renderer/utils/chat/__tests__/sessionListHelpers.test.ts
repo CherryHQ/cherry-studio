@@ -8,11 +8,9 @@ import {
   canDropSessionItemInDisplayGroup,
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
-  createSessionWorkdirLabelMap,
   getPrimarySessionWorkdir,
   getSessionWorkdirGroupId,
   moveSessionWorkdirGroupAfterDrop,
-  normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_ORDINARY_GROUP_ID,
   SESSION_SYSTEM_WORKSPACE_GROUP_ID,
@@ -92,22 +90,6 @@ describe('SessionList helpers', () => {
     expect(buildSessionWorkdirGroupDropAnchor({ ...payload, sourceIndex: 2, targetIndex: 1 }, 'ws-b')).toEqual({
       before: 'ws-b'
     })
-  })
-
-  it('preserves same-group item drop positions from the insertion line', () => {
-    const payload = createResourceListItemReorderPayload({
-      sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
-    })
-
-    expect(normalizeSessionDropPayload(payload)).toBe(payload)
-
-    const crossGroupPayload = {
-      ...payload,
-      sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-b'
-    }
-    expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
 
   it('allows drag only inside the same non-pinned display group', () => {
@@ -199,7 +181,7 @@ describe('SessionList helpers', () => {
     const workdirDisplay = createSessionWorkdirDisplayMaps([session], [systemWorkspace])
 
     expect(getPrimarySessionWorkdir(session)).toBeNull()
-    expect(createSessionWorkdirLabelMap([session], [systemWorkspace])).toEqual(new Map())
+    expect(workdirDisplay.labelByGroupId).toEqual(new Map())
     const workdirGroup = createSessionDisplayGroupResolver({
       labels: SESSION_GROUP_LABELS,
       mode: 'workdir',
@@ -232,7 +214,7 @@ describe('SessionList helpers', () => {
     expect(getPrimarySessionWorkdir(createSession({ workspace: makeWorkspace('  /Users/jd/app/  ') }))).toBe(
       '/Users/jd/app'
     )
-    expect(createSessionWorkdirLabelMap(sessions)).toEqual(
+    expect(createSessionWorkdirDisplayMaps(sessions).labelByGroupId).toEqual(
       new Map([
         ['session:workdir:%2FUsers%2Fjd%2Falpha%2Fapp', 'alpha/app'],
         ['session:workdir:%2FUsers%2Fjd%2Fbeta%2Fapp', 'beta/app'],
@@ -260,7 +242,7 @@ describe('SessionList helpers', () => {
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'DB Alpha', orderKey: 'b' })
     ]
 
-    expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
+    expect(createSessionWorkdirDisplayMaps(sessions, workspaces).labelByGroupId).toEqual(
       new Map([
         ['session:workspace:ws-b', 'DB Beta'],
         ['session:workspace:ws-a', 'DB Alpha']
@@ -314,7 +296,7 @@ describe('SessionList helpers', () => {
     ]
     const workspaces = [makeWorkspace('/Users/jd/known', { id: 'ws-known', name: 'Known Workspace' })]
 
-    expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
+    expect(createSessionWorkdirDisplayMaps(sessions, workspaces).labelByGroupId).toEqual(
       new Map([
         ['session:workspace:ws-known', 'Known Workspace'],
         ['session:workdir:%2FUsers%2Fjd%2Funknown', 'unknown']

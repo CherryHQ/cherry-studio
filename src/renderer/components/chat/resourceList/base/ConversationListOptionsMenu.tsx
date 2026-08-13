@@ -1,5 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { ChevronsDownUp, ChevronsUpDown, ListFilter } from 'lucide-react'
+import type { TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
+import { Activity, CalendarPlus, ChevronsDownUp, ChevronsUpDown, GripVertical, ListFilter } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 
@@ -30,6 +31,12 @@ type ConversationListOptionGroup<TValue extends string> = {
   title: string
   value: TValue
 }
+
+export const TOPIC_SESSION_SORT_OPTIONS = [
+  { icon: <CalendarPlus size={16} />, labelKey: 'common.sort.created_at', value: 'createdAt' },
+  { icon: <Activity size={16} />, labelKey: 'common.sort.activity_at', value: 'lastActivityAt' },
+  { icon: <GripVertical size={16} />, labelKey: 'common.sort.manual_order', value: 'orderKey' }
+] satisfies ReadonlyArray<{ icon: ReactNode; labelKey: string; value: TopicSessionSortBy }>
 
 type ConversationListOptionsMenuProps<TMode extends string, TSort extends string> = {
   historyAction?: ConversationListMenuAction

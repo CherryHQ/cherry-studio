@@ -627,7 +627,6 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
   return {
     isStatsLoading: false,
     statsError: undefined,
-    refetchStats: vi.fn().mockResolvedValue(undefined),
     loadLatestTopic: vi.fn().mockResolvedValue(null),
     loadReusableTopic: vi.fn().mockResolvedValue(null),
     stats: { total: items.length, pinnedCount: 0, byAssistant }
@@ -2924,8 +2923,6 @@ describe('Topics', () => {
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
-    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
-    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 

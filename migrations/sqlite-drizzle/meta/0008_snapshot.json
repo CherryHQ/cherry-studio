@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "476349d1-d61c-46cf-b9a0-33d171b05eb7",
+  "id": "160a0632-938b-43f3-aee5-c7097b916b00",
   "prevId": "0f5fea5a-c909-4d37-b8ba-6d1f61856523",
   "tables": {
     "agent": {
@@ -591,9 +591,9 @@
           "columns": ["order_key"],
           "isUnique": false
         },
-        "agent_session_updated_at_id_idx": {
-          "name": "agent_session_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -4163,19 +4163,14 @@
           "columns": ["\"last_activity_at\" desc", "id"],
           "isUnique": false
         },
-        "topic_updated_at_id_idx": {
-          "name": "topic_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "topic_updated_at_idx": {
+          "name": "topic_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         },
         "topic_order_key_idx": {
           "name": "topic_order_key_idx",
           "columns": ["order_key"],
-          "isUnique": false
-        },
-        "topic_assistant_id_idx": {
-          "name": "topic_assistant_id_idx",
-          "columns": ["assistant_id"],
           "isUnique": false
         },
         "topic_assistant_id_created_at_id_idx": {
@@ -4727,13 +4722,6 @@
           }
         }
       },
-      "agent_session_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
@@ -4751,13 +4739,6 @@
       "topic_last_activity_at_id_idx": {
         "columns": {
           "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
             "isExpression": true
           }
         }

@@ -6,10 +6,7 @@ import {
   buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
-  groupTopicByPinned,
   moveAssistantGroupAfterDrop,
-  moveTopicAfterDrop,
-  normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_ORDINARY_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
@@ -87,44 +84,6 @@ describe('Topics helpers', () => {
     ).toEqual(['assistant-c', 'assistant-a', 'assistant-b'])
   })
 
-  it('preserves same-group item drop positions from the insertion line', () => {
-    const basePayload = createResourceListItemReorderPayload({
-      sourceGroupId: 'topic:assistant:assistant-1',
-      targetGroupId: 'topic:assistant:assistant-1'
-    })
-
-    expect(normalizeTopicDropPayload(basePayload)).toBe(basePayload)
-
-    const movingUpPayload = {
-      ...basePayload,
-      position: 'after' as const,
-      sourceIndex: 1,
-      targetIndex: 0
-    }
-    expect(normalizeTopicDropPayload(movingUpPayload)).toBe(movingUpPayload)
-
-    const crossGroupPayload = {
-      ...basePayload,
-      sourceGroupId: 'topic:assistant:assistant-1',
-      targetGroupId: 'topic:assistant:assistant-2'
-    }
-    expect(normalizeTopicDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
-  })
-
-  it('projects ResourceList drag payload into the dropped topic order', () => {
-    const topics = [createTopic({ id: 'a' }), createTopic({ id: 'b' }), createTopic({ id: 'c' })]
-    const payload = createResourceListItemReorderPayload({
-      overId: 'c',
-      position: 'after',
-      sourceGroupId: 'all',
-      targetGroupId: 'all',
-      targetIndex: 2
-    })
-
-    expect(moveTopicAfterDrop(topics, payload).map((topic) => topic.id)).toEqual(['b', 'c', 'a'])
-    expect(topics.map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
-  })
-
   it('projects group drops at the visual append position of the target group', () => {
     const topics = [
       createTopic({ id: 'a', assistantId: 'assistant-1' }),
@@ -150,17 +109,6 @@ describe('Topics helpers', () => {
       'a',
       'd'
     ])
-  })
-
-  it('groups pinned topics separately for ResourceList rendering', () => {
-    expect(groupTopicByPinned(createTopic({ pinned: true }), 'Pinned', 'Topics')).toEqual({
-      id: 'pinned',
-      label: 'Pinned'
-    })
-    expect(groupTopicByPinned(createTopic({ pinned: false }), 'Pinned', 'Topics')).toEqual({
-      id: 'topics',
-      label: 'Topics'
-    })
   })
 
   it('builds pinned and ordinary creation-time groups', () => {

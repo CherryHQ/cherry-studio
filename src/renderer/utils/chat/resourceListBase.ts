@@ -40,8 +40,6 @@ export function buildResourceOwnerFallbackIds(orderedOwnerIds: readonly string[]
   return [...uniqueOwnerIds.slice(removedIndex + 1), ...uniqueOwnerIds.slice(0, removedIndex).reverse()]
 }
 
-type GroupRankResolver<T> = (item: T) => number
-
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
 ): ResourceListGroupResolver<T> {
@@ -62,17 +60,6 @@ export function createPinnedGroupResolver<T>({
   isPinned: (item: T) => boolean
 }): ResourceListGroupResolver<T> {
   return (item) => (isPinned(item) ? group : null)
-}
-
-export function createPinnedFirstSorter<T>({ isPinned }: { isPinned: (item: T) => boolean }): GroupRankResolver<T> {
-  return (item) => (isPinned(item) ? 0 : 1)
-}
-
-export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: GroupRankResolver<T>): T[] {
-  return items
-    .map((item, index) => ({ item, index, rank: getGroupRank(item) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map(({ item }) => item)
 }
 
 /**
@@ -173,48 +160,4 @@ export function moveResourceListStringGroupAfterDrop(
   next.splice(insertIndex, 0, activeId)
 
   return next
-}
-
-/**
- * Time buckets only carry meaning against each other: a list that falls entirely into "Earlier"
- * gains nothing from a header saying so. Blank the label in that case — {@link ResourceList} drops
- * headers without one — while keeping the group id so ordering and collapse state stay intact.
- *
- * Any other group in the list — "Pinned" in particular — puts the label back to work: it now marks
- * where that group ends, so only a list that is ONE group top to bottom drops its header.
- * `ignoreGroupIds` names groups that must keep their label even alone ("Pinned" is a state, not a
- * point on the time axis, so it stays legible on its own).
- */
-export function withSoleGroupLabelHidden<T>(
-  resolver: ResourceListGroupResolver<T>,
-  items: readonly T[],
-  { ignoreGroupIds }: { ignoreGroupIds?: readonly string[] } = {}
-): ResourceListGroupResolver<T> {
-  const ignored = new Set(ignoreGroupIds ?? [])
-  const groupIds = new Set<string>()
-  for (const item of items) {
-    const group = resolver(item)
-    if (group) groupIds.add(group.id)
-    if (groupIds.size > 1) return resolver
-  }
-
-  const [soleGroupId] = groupIds
-  if (groupIds.size !== 1 || ignored.has(soleGroupId)) return resolver
-
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, label: '' }
-  }
-}
-
-export function withResourceListGroupIdPrefix<T>(
-  prefix: string,
-  resolver: ResourceListGroupResolver<T>
-): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `${prefix}${group.id}` }
-  }
 }

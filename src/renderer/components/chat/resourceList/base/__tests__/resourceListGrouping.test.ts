@@ -2,9 +2,7 @@ import {
   compareResourceCreationOrder,
   compareResourceOrderKey,
   composeResourceListGroupResolvers,
-  createPinnedFirstSorter,
   createPinnedGroupResolver,
-  sortByResourceGroupRank,
   sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import { describe, expect, it } from 'vitest'
@@ -34,21 +32,6 @@ describe('resource list grouping', () => {
       label: 'Pinned'
     })
     expect(resolver({ id: 'regular', createdAt: localIso(2026, 5, 14, 9) })).toEqual({ id: 'created', label: '' })
-  })
-
-  it('sorts pinned items into a stable top layer before derived groups are rendered', () => {
-    const items: TestItem[] = [
-      { id: 'new', createdAt: localIso(2026, 5, 12, 9) },
-      { id: 'pinned-old', pinned: true, createdAt: localIso(2026, 5, 4, 23) },
-      { id: 'old', createdAt: localIso(2026, 5, 6, 9) },
-      { id: 'pinned-new', pinned: true, createdAt: localIso(2026, 5, 12, 9) }
-    ]
-
-    expect(
-      sortByResourceGroupRank(items, createPinnedFirstSorter({ isPinned: (item) => item.pinned === true })).map(
-        (item) => item.id
-      )
-    ).toEqual(['pinned-old', 'pinned-new', 'new', 'old'])
   })
 
   describe('sortRankedResourceItems', () => {

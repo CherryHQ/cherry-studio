@@ -271,20 +271,6 @@ export function createSessionWorkdirDisplayMaps(
   return { groupIdByPath, groupIdByWorkspaceId, labelByGroupId, pathByGroupId, rankByGroupId, workspaceIdByGroupId }
 }
 
-export function createSessionWorkdirLabelMap(
-  sessions: readonly SessionWorkdirSource[],
-  workspaces: readonly WorkspaceDisplaySource[] = []
-) {
-  return createSessionWorkdirDisplayMaps(sessions, workspaces).labelByGroupId
-}
-
-export function createSessionWorkdirRankMap(
-  sessions: readonly SessionWorkdirSource[],
-  workspaces: readonly WorkspaceDisplaySource[] = []
-) {
-  return createSessionWorkdirDisplayMaps(sessions, workspaces).rankByGroupId
-}
-
 export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   agentById,
   labels,
@@ -402,10 +388,6 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
     isPinned,
     compareWithinGroup
   })
-}
-
-export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
-  return payload
 }
 
 export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest | undefined {

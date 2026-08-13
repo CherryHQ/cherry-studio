@@ -35,7 +35,7 @@ export const agentSessionTable = sqliteTable(
     index('agent_session_last_activity_at_id_idx').on(sql`${t.lastActivityAt} desc`, t.id),
     index('agent_session_agent_id_last_activity_at_id_idx').on(t.agentId, sql`${t.lastActivityAt} desc`, t.id),
     orderKeyIndex('agent_session')(t),
-    index('agent_session_updated_at_id_idx').on(sql`${t.updatedAt} desc`, t.id)
+    index('agent_session_updated_at_idx').on(t.updatedAt)
   ]
 )
 

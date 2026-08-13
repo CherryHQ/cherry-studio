@@ -15,6 +15,7 @@ import {
   type ResourceListSection,
   SESSION_DISPLAY_LABEL_KEYS,
   SessionListOptionsMenu,
+  useDisplayModeRevealRequest,
   useResourceListPinnedItems
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
@@ -89,7 +90,6 @@ import {
   isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
-  normalizeSessionDropPayload,
   SESSION_AGENT_SECTION_ID,
   SESSION_NO_WORKDIR_GROUP_ID,
   SESSION_ORDINARY_GROUP_ID,
@@ -731,15 +731,7 @@ const Sessions = ({
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const requestFileNavigation = useOptionalAgentFileNavigation()
-  const previousRevealDisplayModeRef = useRef(displayMode)
-  const modeRevealRequestIdRef = useRef(0)
-  const incomingRevealRequestKey = revealRequest ? `${revealRequest.requestId}:${revealRequest.itemId}` : null
-  const [modeRevealRequest, setModeRevealRequest] = useState<{
-    incomingRequestKey: string | null
-    request?: ResourceListRevealRequest
-  }>()
-  const effectiveRevealRequest =
-    modeRevealRequest?.incomingRequestKey === incomingRevealRequestKey ? modeRevealRequest.request : revealRequest
+  const effectiveRevealRequest = useDisplayModeRevealRequest(displayMode, activeSessionId, revealRequest)
   const commitActiveSession = useCallback(
     (id: string | null, selectedSession?: AgentSessionEntity | null) => {
       activeSessionIdRef.current = id
@@ -771,29 +763,6 @@ const Sessions = ({
     activeSessionIdRef.current = activeSessionId
     cancelOwnerResourceActivation()
   }, [activeSessionId, cancelOwnerResourceActivation])
-
-  useEffect(() => {
-    if (previousRevealDisplayModeRef.current === displayMode) return
-    previousRevealDisplayModeRef.current = displayMode
-    const request =
-      revealRequest?.itemId === activeSessionId
-        ? revealRequest
-        : activeSessionId
-          ? { itemId: activeSessionId, requestId: 0 }
-          : undefined
-    if (!request) {
-      setModeRevealRequest(undefined)
-      return
-    }
-
-    // A fresh request identity makes ResourceList re-locate the current result,
-    // expanding only its saved group while preserving every other collapse choice.
-    modeRevealRequestIdRef.current -= 1
-    setModeRevealRequest({
-      incomingRequestKey: incomingRevealRequestKey,
-      request: { ...request, requestId: modeRevealRequestIdRef.current }
-    })
-  }, [activeSessionId, displayMode, incomingRevealRequestKey, revealRequest])
 
   const setActiveSessionId = useCallback(
     (id: string | null, selectedSession?: AgentSessionEntity | null) => {
@@ -1851,10 +1820,9 @@ const Sessions = ({
       const session = sessionItems.find((candidate) => candidate.id === payload.activeId)
       if (!session || session.pinned) return
 
-      const normalizedPayload = normalizeSessionDropPayload(payload)
-      const anchor = buildSessionDropAnchor(normalizedPayload)
+      const anchor = buildSessionDropAnchor(payload)
       if (!anchor) return
-      setOptimisticMove(normalizedPayload)
+      setOptimisticMove(payload)
 
       const reordered = await reorderSession(payload.activeId, anchor)
       if (!reordered) {

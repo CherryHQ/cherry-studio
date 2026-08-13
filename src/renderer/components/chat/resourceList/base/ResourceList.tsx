@@ -1,12 +1,4 @@
-import {
-  Button,
-  DropdownMenuItem,
-  EmptyState as UiEmptyState,
-  Input,
-  MenuItem,
-  Skeleton,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
@@ -311,43 +303,6 @@ function SectionToggleMenuItem({
       }}
       {...props}
     />
-  )
-}
-
-type SectionToggleDropdownMenuItemProps = Omit<ComponentProps<typeof DropdownMenuItem>, 'children'> & {
-  collapseIcon?: ReactNode
-  collapseLabel: string
-  expandIcon?: ReactNode
-  expandLabel: string
-  sectionIds: readonly string[]
-}
-
-function SectionToggleDropdownMenuItem({
-  collapseIcon,
-  collapseLabel,
-  disabled,
-  expandIcon,
-  expandLabel,
-  onSelect,
-  sectionIds,
-  ...props
-}: SectionToggleDropdownMenuItemProps) {
-  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
-  const isDisabled = disabled || groupIds.length === 0
-  const icon = hasExpandedGroup ? collapseIcon : expandIcon
-
-  return (
-    <DropdownMenuItem
-      disabled={isDisabled}
-      onSelect={(event) => {
-        onSelect?.(event)
-        if (event.defaultPrevented || isDisabled) return
-        toggle()
-      }}
-      {...props}>
-      {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
-      <span>{hasExpandedGroup ? collapseLabel : expandLabel}</span>
-    </DropdownMenuItem>
   )
 }
 
@@ -819,7 +774,6 @@ const ResourceList = {
   HeaderActionButton,
   GroupHeaderActionButton,
   SectionCollapseActionButton,
-  SectionToggleDropdownMenuItem,
   SectionToggleMenuItem,
   HeaderItem,
   Search,
