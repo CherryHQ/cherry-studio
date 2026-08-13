@@ -902,8 +902,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string; runId?: string }> = 
         onClear={() => setSearchText('')}
         onChange={(event) => setSearchText(event.target.value)}
       />
-      <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
-        <div data-slot="task-logs-table-width" className="min-w-[720px]">
+      <div className="max-w-full overflow-x-auto">
+        <div className="min-w-[720px]">
           <DataTable
             data={filteredLogs}
             columns={columns}
