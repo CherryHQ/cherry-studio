@@ -912,7 +912,7 @@ class AssistantServer {
         proxy: proxy ? redactUrlToOrigin(proxy) : proxy,
         zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
-        topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),
+        quickModel: this.describeModelId(preferenceService.get('feature.quick_assistant.model_id')),
         tray: preferenceService.get('app.tray.enabled'),
         trayOnClose: preferenceService.get('app.tray.on_close'),
         launchToTray: preferenceService.get('app.tray.on_launch'),
