@@ -22,13 +22,13 @@
         "count_tokens": "Estima cuántos tokens de entrada consume un conjunto de mensajes en formato Anthropic.",
         "generate_content": "Genera contenido mediante el método `generateContent` de Gemini. El cuerpo de la petición y de la respuesta sigue el formato de la API de Gemini; `streamGenerateContent` se sirve en la misma ruta.",
         "get_knowledge_base": "Obtiene una base de conocimiento por su ID.",
-        "get_mcp_server": "Obtener los detalles de un servidor MCP y su lista de herramientas.",
+        "get_mcp_server": "Obtén los detalles de un servidor MCP y su lista de herramientas.",
         "health": "Estado del servicio, hora actual y versión. No requiere autenticación.",
         "info": "Nombre y versión de la API y sus endpoints principales. No requiere autenticación.",
         "list_knowledge_bases": "Lista las bases de conocimiento disponibles en esta instancia de Cherry Studio.",
-        "list_mcp_servers": "[Liste los servidores MCP habilitados en Cherry Studio, junto con la URL para conectarse a cada uno de ellos.]",
+        "list_mcp_servers": "Enumera los servidores MCP habilitados en Cherry Studio, cada uno con la URL para conectarse.",
         "list_models": "Lista los modelos disponibles en esta pasarela, en formato de modelos de OpenAI.",
-        "mcp_proxy": "[Punto final del protocolo de contexto de modelo para un servidor MCP (streamable HTTP)]. Dirija cualquier cliente MCP a esta dirección URL para utilizar el servidor a través de Cherry Studio.",
+        "mcp_proxy": "Punto de conexión de Model Context Protocol para un servidor MCP (Streamable HTTP). Usa esta URL en cualquier cliente MCP para utilizar el servidor a través de Cherry Studio.",
         "messages": "Crea un mensaje. El cuerpo de la petición y de la respuesta sigue el formato de Anthropic Messages; con `stream: true` la salida es incremental.",
         "responses": "Crea una respuesta. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Responses.",
         "search_knowledge_bases": "Busca en una o varias bases de conocimiento y devuelve los fragmentos de documento coincidentes."
@@ -106,8 +106,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "El servicio actual de análisis de documentos requiere que los archivos tengan un tamaño inferior a {{maxSize}}. Comprime o divide el archivo y luego agregalo de nuevo.",
-      "pdf_page_limit_exceeded": "Este PDF supera el límite de {{maxPages}} páginas establecido por el servicio de análisis de documentos actual. Divida el PDF manualmente y luego intérgrelo de nuevo."
+      "document_size_limit_exceeded": "El servicio actual de análisis de documentos requiere archivos de menos de {{maxSize}}. Comprime o divide este archivo y vuelve a añadirlo.",
+      "pdf_page_limit_exceeded": "Este PDF supera el límite de {{maxPages}} páginas del servicio actual de análisis de documentos. Divide el PDF manualmente y vuelve a añadirlo."
     }
   },
   "openclaw": {
