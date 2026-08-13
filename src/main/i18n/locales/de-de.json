@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[Ausgabe gekürzt: {{omittedBytes}} Bytes ausgelassen]"
+      },
       "new": "Neue Aufgabe",
       "run_status": {
         "busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",

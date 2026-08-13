@@ -8,5 +8,6 @@ export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportA
 export { SessionResultCards } from './SessionResultCards'
 export { getSessionToolTarget, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
 export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
+export { TerminalOutput } from './TerminalOutput'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'

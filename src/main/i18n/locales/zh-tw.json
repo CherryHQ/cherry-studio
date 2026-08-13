@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[輸出已截斷：已省略 {{omittedBytes}} 位元組]"
+      },
       "new": "新任務",
       "run_status": {
         "busy": "Agent 工作階段忙碌中，請稍後再試。",

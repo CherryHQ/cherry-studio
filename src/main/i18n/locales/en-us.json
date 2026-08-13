@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[output truncated: {{omittedBytes}} bytes omitted]"
+      },
       "new": "New task",
       "run_status": {
         "busy": "The Agent Session is busy. Please try again shortly.",

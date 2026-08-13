@@ -23,7 +23,9 @@ import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
   AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
-  type AgentSessionBackgroundTasks
+  type AgentSessionBackgroundTasks,
+  type AgentSessionTaskEvents,
+  mergeAgentSessionTaskEvent
 } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
@@ -107,6 +109,9 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
+const MAX_PENDING_TASK_EVENT_HANDOFFS = 256
+const TERMINAL_TASK_STATUSES = new Set<AgentTaskEventPartData['status']>(['completed', 'stopped', 'error'])
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -209,9 +214,17 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  finalizing?: Promise<void>
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
+}
+
+type WorkflowCheckpoint = {
+  messageId: string
+  event: AgentTaskEventPartData
+  lastWrittenAt?: number
+  timer?: ReturnType<typeof setTimeout>
 }
 
 type SteerContinuationReservation = {
@@ -255,6 +268,18 @@ type AgentSessionRuntimeEntry = {
   contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
   /** Root/nested tool call → persisted assistant row that owns its FlowTab projection. */
   flowMessageIdsByToolCallId?: Map<string, string>
+  /** Background task → its native launch tool call, retained after the turn stream closes. */
+  taskToolCallIdsByTaskId?: Map<string, string>
+  /** Background task → assistant row that owns its complete lifecycle history. */
+  taskMessageIdsByTaskId?: Map<string, string>
+  /** Latest task lifecycle edge waiting for its launch tool call to acquire a message anchor. */
+  pendingTaskEventChunksByTaskId?: Map<string, UIMessageChunk>
+  /** Tasks whose first workflow snapshot is already scheduled for transcript persistence. */
+  workflowSnapshotPersistedTaskIds?: Set<string>
+  /** Tasks whose terminal workflow snapshot is already scheduled for transcript persistence. */
+  terminalWorkflowSnapshotPersistedTaskIds?: Set<string>
+  /** Tasks whose terminal notification guarantees no later detached output. */
+  terminalNotificationTaskIds?: Set<string>
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
@@ -263,6 +288,10 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
+  /** Latest crash-recovery checkpoint per workflow task. */
+  workflowCheckpoints?: Map<string, WorkflowCheckpoint>
+  /** Allows final detached-flow persistence to finish after this entry leaves the live map. */
+  closing?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -1537,16 +1566,22 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
     entry.usageCapture = connection.usageCapture
-    this.resetConnectionRuntimeState(entry, connection)
+    await this.resetConnectionRuntimeState(entry, connection)
+    if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) {
+      void this.closeRuntimeConnection(connection, entry.sessionId)
+      return false
+    }
     // Priming opens an idle connection only to populate connection-local metadata such as slash
     // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
     // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
-    const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+    const connectionLoop = this.runConnectionLoop(entry, connection).finally(async () => {
       void this.closeRuntimeConnection(connection, entry.sessionId)
       if (this.currentConnection(entry) === connection) {
-        this.resetConnectionRuntimeState(entry, connection)
+        await this.resetConnectionRuntimeState(entry, connection)
+      }
+      if (this.currentConnection(entry) === connection) {
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
@@ -1595,6 +1630,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // chunks so `flush-transition` can replay them into the exact successor stream in order.
         const execution = entry.runtimeState.execution
         const turn = this.currentTurn(entry)
+        if (turn && this.isTaskEventOwnedByDifferentMessage(entry, turn, event.chunk)) break
         if (
           execution.kind === 'steer-transition' ||
           (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
@@ -1906,6 +1942,9 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
+    for (const task of tasks) {
+      if (task.toolCallId) this.rememberBackgroundTaskToolCall(entry, task.id, task.toolCallId)
+    }
   }
 
   private handleBackgroundWorkState(
@@ -1926,7 +1965,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (active) {
       this.clearIdleTimer(entry)
     } else {
-      void this.finishBackgroundFlows(entry)
+      void this.finishBackgroundFlows(entry).then(() => {
+        if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+        if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return
+        this.pruneSettledBackgroundFlowState(entry)
+      })
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }
   }
@@ -1951,8 +1994,17 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+      this.resolveBackgroundTasksForToolCall(entry, chunk.toolCallId, messageId)
     }
 
+    this.routeBackgroundFlowChunkToMessage(entry, messageId, chunk)
+  }
+
+  private routeBackgroundFlowChunkToMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk
+  ): void {
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
       const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
       entry.pendingBackgroundFlowChunks = pending
@@ -1968,11 +2020,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
     ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
     const pending = entry.pendingBackgroundFlowChunks?.get(messageId)
-    if (!pending?.length) return
-
-    entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
-    if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
+    if (pending?.length) {
+      entry.pendingBackgroundFlowChunks?.delete(messageId)
+      for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    }
+    this.pruneSettledBackgroundFlowState(entry, messageId)
+    this.finishSettledBackgroundFlowMessage(entry, messageId)
+    if (pending?.length && !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
+      void this.finishBackgroundFlows(entry)
+    }
+    this.writeWorkflowCheckpointsForMessage(entry, messageId)
   }
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
@@ -2059,11 +2116,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * `readUIMessageStream` yields a full snapshot per chunk; broadcasting each one re-sends the whole
-   * parts array to every window. Publish immediately when the window has elapsed, otherwise arm one
-   * trailing timer so the overlay still converges without a chunk-rate broadcast storm.
-   */
+  // Each chunk is a full snapshot; throttle broadcasts and keep one trailing publish for convergence.
   private publishBackgroundFlowSnapshot(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
     if (accumulator.publishTimer) return
     const elapsed = Date.now() - (accumulator.lastPublishedAt ?? 0)
@@ -2091,8 +2144,25 @@ export class AgentSessionRuntimeService extends BaseService {
     const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
     if (accumulators.length === 0) return Promise.resolve()
 
-    for (const accumulator of accumulators) {
-      if (accumulator.closed) continue
+    const flush = Promise.all(
+      accumulators.map((accumulator) => this.finishBackgroundFlowAccumulator(entry, accumulator))
+    )
+      .then(() => undefined)
+      .finally(() => {
+        if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+      })
+    entry.backgroundFlowFlush = flush
+    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
+    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
+    return flush
+  }
+
+  private finishBackgroundFlowAccumulator(
+    entry: AgentSessionRuntimeEntry,
+    accumulator: BackgroundFlowAccumulator
+  ): Promise<void> {
+    if (accumulator.finalizing) return accumulator.finalizing
+    if (!accumulator.closed) {
       accumulator.closed = true
       try {
         accumulator.controller.close()
@@ -2101,43 +2171,131 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
+    const finalizing = accumulator.done
       .then(() => {
-        const completedMessageIds = new Set<string>()
-        const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
-        for (const accumulator of accumulators) {
-          const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
-          if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
+        const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+        if (parts) {
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          completedFlows.push({ messageId: accumulator.messageId, parts })
-        }
-
-        entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
-        }
-        if (this.isCurrentEntry(entry)) {
-          const cacheService = application.get('CacheService')
-          for (const { messageId, parts } of completedFlows) {
-            cacheService.setShared(
-              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
-              parts,
-              BACKGROUND_FLOW_HANDOFF_TTL_MS
-            )
+          this.writeWorkflowCheckpointsForMessage(entry, accumulator.messageId, entry.closing === true)
+          this.releaseBackgroundFlowMessageState(entry, accumulator.messageId)
+          if (this.isCurrentEntry(entry)) {
+            application
+              .get('CacheService')
+              .setShared(
+                AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
+                parts,
+                BACKGROUND_FLOW_HANDOFF_TTL_MS
+              )
           }
+        }
+        if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+          entry.backgroundFlowAccumulators.delete(accumulator.messageId)
         }
       })
       .catch((error) => {
-        logger.warn('Failed to finalize detached subagent flow parts', { sessionId: entry.sessionId, error })
+        logger.warn('Failed to finalize detached subagent flow parts', {
+          sessionId: entry.sessionId,
+          messageId: accumulator.messageId,
+          error
+        })
       })
       .finally(() => {
-        if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+          accumulator.finalizing = undefined
+        }
       })
-    entry.backgroundFlowFlush = flush
-    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
-    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
-    return flush
+    accumulator.finalizing = finalizing
+    return finalizing
+  }
+
+  private finishSettledBackgroundFlowMessage(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    if (entry.pendingBackgroundFlowChunks?.get(messageId)?.length) return
+    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
+    if (!accumulator) return
+
+    const taskIds = [...(entry.taskMessageIdsByTaskId ?? [])]
+      .filter(([, ownerMessageId]) => ownerMessageId === messageId)
+      .map(([taskId]) => taskId)
+    if (taskIds.length === 0) return
+
+    const events: AgentSessionTaskEvents =
+      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    if (
+      taskIds.some(
+        (taskId) =>
+          !TERMINAL_TASK_STATUSES.has(events[taskId]?.status) || !entry.terminalNotificationTaskIds?.has(taskId)
+      )
+    ) {
+      return
+    }
+    void this.finishBackgroundFlowAccumulator(entry, accumulator)
+  }
+
+  private releaseBackgroundFlowMessageState(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    for (const [toolCallId, ownerMessageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (ownerMessageId === messageId) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+    }
+    for (const [taskId, ownerMessageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (ownerMessageId !== messageId) continue
+      entry.taskMessageIdsByTaskId?.delete(taskId)
+      entry.taskToolCallIdsByTaskId?.delete(taskId)
+      entry.pendingTaskEventChunksByTaskId?.delete(taskId)
+      entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+      entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+      entry.terminalNotificationTaskIds?.delete(taskId)
+      const checkpoint = entry.workflowCheckpoints?.get(taskId)
+      if (checkpoint?.timer) clearTimeout(checkpoint.timer)
+      entry.workflowCheckpoints?.delete(taskId)
+    }
+    entry.persistedFlowMessageIds?.delete(messageId)
+    entry.pendingBackgroundFlowChunks?.delete(messageId)
+  }
+
+  private pruneSettledBackgroundFlowState(entry: AgentSessionRuntimeEntry, latestPersistedMessageId?: string): void {
+    const retainedMessageIds = new Set<string>()
+    if (latestPersistedMessageId) retainedMessageIds.add(latestPersistedMessageId)
+    for (const [messageId, chunks] of entry.pendingBackgroundFlowChunks ?? []) {
+      if (chunks.length > 0) retainedMessageIds.add(messageId)
+    }
+    for (const messageId of entry.backgroundFlowAccumulators?.keys() ?? []) retainedMessageIds.add(messageId)
+
+    const retainedTaskIds = new Set(entry.pendingTaskEventChunksByTaskId?.keys() ?? [])
+    const retainLiveTaskAnchors = hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+    for (const [taskId, messageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (retainLiveTaskAnchors || retainedTaskIds.has(taskId) || retainedMessageIds.has(messageId)) {
+        retainedTaskIds.add(taskId)
+        retainedMessageIds.add(messageId)
+      } else {
+        entry.taskMessageIdsByTaskId?.delete(taskId)
+      }
+    }
+    for (const taskId of entry.taskToolCallIdsByTaskId?.keys() ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.taskToolCallIdsByTaskId?.delete(taskId)
+    }
+
+    const retainedToolCallIds = new Set(entry.taskToolCallIdsByTaskId?.values() ?? [])
+    for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (!retainedMessageIds.has(messageId) && !retainedToolCallIds.has(toolCallId)) {
+        entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+      }
+    }
+    for (const taskId of entry.workflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalNotificationTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationTaskIds?.delete(taskId)
+    }
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (retainedTaskIds.has(taskId)) continue
+      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      entry.workflowCheckpoints?.delete(taskId)
+    }
+    for (const messageId of entry.persistedFlowMessageIds ?? []) {
+      if (!retainedMessageIds.has(messageId)) entry.persistedFlowMessageIds?.delete(messageId)
+    }
   }
 
   private waitForBackgroundWorkRelease(
@@ -2184,7 +2342,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /** Keep the latest lifecycle edge per task for the current connection. */
+  /** Keep the latest lifecycle edge per task and append turn-out edges to the spawning message. */
   private publishBackgroundTaskEvent(
     entry: AgentSessionRuntimeEntry,
     data: AgentTaskEventPartData,
@@ -2193,14 +2351,216 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
-    const events = cache.getShared(key) ?? {}
-    // Merge instead of replace: identity fields and the row title may exist only on the start edge.
-    // A completion overwriting it wholesale would strip the task of its type and display name.
-    const merged: Record<string, unknown> = { ...events[data.taskId] }
-    for (const [field, value] of Object.entries(data)) {
-      if (value !== undefined) merged[field] = value
+    const events: AgentSessionTaskEvents = cache.getShared(key) ?? {}
+    const merged = mergeAgentSessionTaskEvent(events[data.taskId], data)
+    cache.setShared(key, { ...events, [data.taskId]: merged })
+    if (data.event === 'notification' && TERMINAL_TASK_STATUSES.has(data.status)) {
+      ;(entry.terminalNotificationTaskIds ??= new Set()).add(data.taskId)
     }
-    cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+
+    if (merged.toolUseId) this.rememberBackgroundTaskToolCall(entry, merged.taskId, merged.toolUseId)
+    const persistedData = this.prepareTaskEventForTranscript(entry, data, merged)
+    this.routeBackgroundTaskEventChunk(entry, merged.taskId, {
+      type: 'data-agent-task-event',
+      id: `task-${merged.taskId}-${merged.event}`,
+      data: persistedData
+    } as UIMessageChunk)
+    const messageId = entry.taskMessageIdsByTaskId?.get(merged.taskId)
+    if (messageId && data.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, merged)
+    if (messageId && entry.terminalNotificationTaskIds?.has(merged.taskId)) {
+      this.finishSettledBackgroundFlowMessage(entry, messageId)
+    }
+  }
+
+  private scheduleWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    event: AgentTaskEventPartData
+  ): void {
+    const checkpoints = entry.workflowCheckpoints ?? new Map<string, WorkflowCheckpoint>()
+    entry.workflowCheckpoints = checkpoints
+    const terminal = event.event === 'notification' && TERMINAL_TASK_STATUSES.has(event.status)
+    const existing = checkpoints.get(event.taskId)
+    if (existing?.event === event) return
+    const checkpoint = existing ?? { messageId, event }
+    if (checkpoint.event.event === 'notification' && TERMINAL_TASK_STATUSES.has(checkpoint.event.status) && !terminal) {
+      return
+    }
+    checkpoint.messageId = messageId
+    checkpoint.event = event
+    checkpoints.set(event.taskId, checkpoint)
+
+    const elapsed = Date.now() - (checkpoint.lastWrittenAt ?? 0)
+    if (terminal || elapsed >= WORKFLOW_CHECKPOINT_THROTTLE_MS) {
+      this.writeWorkflowCheckpoint(entry, event.taskId, checkpoint)
+      return
+    }
+    checkpoint.timer ??= setTimeout(
+      () => this.writeWorkflowCheckpoint(entry, event.taskId, checkpoint),
+      WORKFLOW_CHECKPOINT_THROTTLE_MS - elapsed
+    )
+    checkpoint.timer.unref?.()
+  }
+
+  private writeWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    taskId: string,
+    checkpoint: WorkflowCheckpoint,
+    allowDetached = false
+  ): void {
+    if (entry.workflowCheckpoints?.get(taskId) !== checkpoint || (!allowDetached && !this.isCurrentEntry(entry))) return
+    if (checkpoint.timer) clearTimeout(checkpoint.timer)
+    checkpoint.timer = undefined
+    try {
+      agentSessionMessageService.checkpointWorkflowTaskEvent(entry.sessionId, checkpoint.messageId, checkpoint.event)
+      checkpoint.lastWrittenAt = Date.now()
+    } catch (error) {
+      logger.warn('Failed to checkpoint workflow statistics', {
+        sessionId: entry.sessionId,
+        messageId: checkpoint.messageId,
+        taskId,
+        error
+      })
+    }
+  }
+
+  private writeWorkflowCheckpointsForMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    allowDetached = false
+  ): void {
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (checkpoint.messageId === messageId) {
+        this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached)
+      }
+    }
+  }
+
+  private prepareTaskEventForTranscript(
+    entry: AgentSessionRuntimeEntry,
+    incoming: AgentTaskEventPartData,
+    merged: AgentTaskEventPartData
+  ): AgentTaskEventPartData {
+    if (incoming.workflow) {
+      const isTerminalNotification = incoming.event === 'notification' && TERMINAL_TASK_STATUSES.has(incoming.status)
+      const terminalNotificationPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
+      const persisted = isTerminalNotification
+        ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
+        : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
+      if ((!isTerminalNotification && terminalNotificationPersisted) || persisted.has(merged.taskId)) {
+        const withoutWorkflow = { ...merged }
+        delete withoutWorkflow.workflow
+        return withoutWorkflow
+      }
+      persisted.add(merged.taskId)
+      return merged
+    }
+
+    const withoutWorkflow = { ...merged }
+    delete withoutWorkflow.workflow
+    return withoutWorkflow
+  }
+
+  private rememberBackgroundTaskToolCall(entry: AgentSessionRuntimeEntry, taskId: string, toolCallId: string): void {
+    ;(entry.taskToolCallIdsByTaskId ??= new Map()).set(taskId, toolCallId)
+    const messageId = entry.taskMessageIdsByTaskId?.get(taskId) ?? entry.flowMessageIdsByToolCallId?.get(toolCallId)
+    if (messageId) this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+  }
+
+  private resolveBackgroundTasksForToolCall(
+    entry: AgentSessionRuntimeEntry,
+    toolCallId: string,
+    messageId: string
+  ): void {
+    for (const [taskId, taskToolCallId] of entry.taskToolCallIdsByTaskId ?? []) {
+      if (taskToolCallId === toolCallId) this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+    }
+  }
+
+  private attachBackgroundTaskToMessage(entry: AgentSessionRuntimeEntry, taskId: string, messageId: string): void {
+    const taskMessageIds = entry.taskMessageIdsByTaskId ?? new Map<string, string>()
+    entry.taskMessageIdsByTaskId = taskMessageIds
+    const existingMessageId = taskMessageIds.get(taskId)
+    if (existingMessageId && existingMessageId !== messageId) {
+      logger.warn('Ignoring background task message re-parenting', {
+        sessionId: entry.sessionId,
+        taskId,
+        existingMessageId,
+        messageId
+      })
+      return
+    }
+    taskMessageIds.set(taskId, messageId)
+
+    const events: AgentSessionTaskEvents =
+      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    if (events[taskId]?.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, events[taskId])
+
+    const pending = entry.pendingTaskEventChunksByTaskId?.get(taskId)
+    if (!pending) return
+    entry.pendingTaskEventChunksByTaskId?.delete(taskId)
+    this.routeBackgroundTaskEventChunkToMessage(entry, messageId, pending)
+    this.finishSettledBackgroundFlowMessage(entry, messageId)
+  }
+
+  private routeBackgroundTaskEventChunk(entry: AgentSessionRuntimeEntry, taskId: string, chunk: UIMessageChunk): void {
+    const knownMessageId = entry.taskMessageIdsByTaskId?.get(taskId)
+    if (knownMessageId) {
+      this.routeBackgroundTaskEventChunkToMessage(entry, knownMessageId, chunk)
+      return
+    }
+
+    const toolCallId = entry.taskToolCallIdsByTaskId?.get(taskId)
+    const messageId = toolCallId ? entry.flowMessageIdsByToolCallId?.get(toolCallId) : undefined
+    if (messageId) {
+      this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+      this.routeBackgroundTaskEventChunkToMessage(entry, messageId, chunk)
+      return
+    }
+
+    const pending = entry.pendingTaskEventChunksByTaskId ?? new Map<string, UIMessageChunk>()
+    entry.pendingTaskEventChunksByTaskId = pending
+    const previous = pending.get(taskId)
+    if (previous?.type === 'data-agent-task-event' && chunk.type === 'data-agent-task-event') {
+      pending.set(taskId, {
+        ...chunk,
+        data: mergeAgentSessionTaskEvent(previous.data as AgentTaskEventPartData, chunk.data as AgentTaskEventPartData)
+      } as UIMessageChunk)
+    } else {
+      pending.set(taskId, chunk)
+    }
+    while (pending.size > MAX_PENDING_TASK_EVENT_HANDOFFS) {
+      const oldestTaskId = pending.keys().next().value
+      if (oldestTaskId === undefined) break
+      pending.delete(oldestTaskId)
+    }
+  }
+
+  private routeBackgroundTaskEventChunkToMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk
+  ): void {
+    const turn = this.currentTurn(entry)
+    const execution = entry.runtimeState.execution
+    const runtimeTerminalLatched = execution.kind !== 'idle' && execution.terminal !== undefined
+    // While the spawning turn is live the driver also emits this lifecycle edge through that turn's
+    // stream. Only turn-out edges need the detached accumulator, otherwise history would duplicate it.
+    if (turn?.assistantMessageId === messageId && this.isTurnLive(entry, turn) && !runtimeTerminalLatched) return
+    this.routeBackgroundFlowChunkToMessage(entry, messageId, chunk)
+  }
+
+  private isTaskEventOwnedByDifferentMessage(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    chunk: UIMessageChunk
+  ): boolean {
+    if (chunk.type !== 'data-agent-task-event') return false
+    const data = chunk.data as AgentTaskEventPartData
+    const taskMessageId = entry.taskMessageIdsByTaskId?.get(data.taskId)
+    const toolCallId = entry.taskToolCallIdsByTaskId?.get(data.taskId) ?? data.toolUseId
+    const ownerMessageId = taskMessageId ?? (toolCallId ? entry.flowMessageIdsByToolCallId?.get(toolCallId) : undefined)
+    return ownerMessageId !== undefined && ownerMessageId !== turn.assistantMessageId
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
@@ -2280,12 +2640,47 @@ export class AgentSessionRuntimeService extends BaseService {
    * Connection-scoped status is reset at every attach/detach boundary. Keep the mutation guarded by
    * the captured connection so a late old loop cannot clear its successor.
    */
-  private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+  private async resetConnectionRuntimeState(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection
+  ): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-    void this.finishBackgroundFlows(entry)
-    entry.flowMessageIdsByToolCallId?.clear()
+    await this.finishBackgroundFlows(entry)
+    if (!this.isCurrentEntry(entry)) return
+    const currentConnection = this.currentConnection(entry)
+    if (currentConnection && currentConnection !== connection) return
+    const pendingMessageIds = new Set(
+      [...(entry.pendingBackgroundFlowChunks ?? [])]
+        .filter(([, chunks]) => chunks.length > 0)
+        .map(([messageId]) => messageId)
+    )
+    const retainedTaskIds = new Set<string>()
+    for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (!pendingMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+    }
+    for (const [taskId, messageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (pendingMessageIds.has(messageId)) retainedTaskIds.add(taskId)
+      else entry.taskMessageIdsByTaskId?.delete(taskId)
+    }
+    for (const taskId of entry.taskToolCallIdsByTaskId?.keys() ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.taskToolCallIdsByTaskId?.delete(taskId)
+    }
+    for (const taskId of entry.workflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalNotificationTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationTaskIds?.delete(taskId)
+    }
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (retainedTaskIds.has(taskId)) continue
+      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      entry.workflowCheckpoints?.delete(taskId)
+    }
+    entry.pendingTaskEventChunksByTaskId?.clear()
     entry.persistedFlowMessageIds?.clear()
-    entry.pendingBackgroundFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
@@ -2340,6 +2735,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+      this.resolveBackgroundTasksForToolCall(entry, chunk.toolCallId, turn.assistantMessageId)
     } else if (
       (chunk.type === 'tool-output-available' ||
         chunk.type === 'tool-output-error' ||
@@ -3018,7 +3414,11 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
+    entry.closing = true
     this.clearIdleTimer(entry)
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (checkpoint.timer) this.writeWorkflowCheckpoint(entry, taskId, checkpoint)
+    }
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
       if (!parts) continue
@@ -3030,7 +3430,12 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
-    const backgroundFlowFlush = this.finishBackgroundFlows(entry)
+    const backgroundClose = this.finishBackgroundFlows(entry).finally(() => {
+      for (const checkpoint of entry.workflowCheckpoints?.values() ?? []) {
+        if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      }
+      entry.workflowCheckpoints?.clear()
+    })
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
@@ -3051,9 +3456,8 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return Promise.all([backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
-      () => undefined
-    )
+    const connectionClose = this.closeRuntimeConnection(connection, entry.sessionId)
+    return Promise.all([backgroundClose, connectionClose]).then(() => undefined)
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
@@ -3071,7 +3475,7 @@ export class AgentSessionRuntimeService extends BaseService {
     resetRuntimeState = true
   ): AgentRuntimeConnection | undefined {
     const connection = this.currentConnection(entry)
-    if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
+    if (connection && resetRuntimeState) void this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
     entry.connectionLoop = undefined
     return connection

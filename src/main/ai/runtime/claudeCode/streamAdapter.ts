@@ -1,3 +1,6 @@
+import { closeSync, fstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
+import path from 'node:path'
+
 import type {
   JSONObject,
   JSONValue,
@@ -34,9 +37,11 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { t } from '@main/i18n'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -46,6 +51,14 @@ import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { AgentRuntimeEvent } from '../types'
 import type { McpToolDisplayMetadata } from './types'
+import {
+  type LocalWorkflowLaunch,
+  type LocalWorkflowPlan,
+  parseLocalWorkflowLaunch,
+  parseLocalWorkflowPlan,
+  parseWorkflowSnapshotText,
+  updateLocalWorkflowSnapshot
+} from './workflowSnapshot'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
@@ -88,6 +101,11 @@ const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
+const MAX_WORKFLOW_SNAPSHOT_BYTES = 1_048_576
+const MAX_WORKFLOW_TRANSCRIPT_READ_BYTES = 256 * 1024
+const BACKGROUND_BASH_HEAD_BYTES = 32 * 1024
+const BACKGROUND_BASH_TAIL_BYTES = 32 * 1024
+const BACKGROUND_BASH_POLL_INTERVAL_MS = 1000
 
 // ── Internal types ──────────────────────────────────────────────────
 
@@ -98,6 +116,7 @@ type SdkTaskSystemMessage =
   | SDKTaskProgressMessage
   | SDKTaskStartedMessage
   | SDKTaskUpdatedMessage
+type SdkTaskProgressRuntimeMessage = SDKTaskProgressMessage & { workflow_progress?: unknown }
 type SdkRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SdkTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
@@ -178,6 +197,36 @@ type FlowContext = {
   stream: StreamContext
 }
 
+type BackgroundBashOutputState = {
+  toolCallId: string
+  outputFile: string
+  lastOutput?: string
+  sizeBytes?: number
+  mtimeMs?: number
+  timer?: NodeJS.Timeout
+}
+
+type WorkflowSnapshotCacheEntry = {
+  snapshotPath: string
+  sizeBytes: number
+  mtimeMs: number
+  workflow?: AgentTaskEventPartData['workflow']
+}
+
+type WorkflowTranscriptStatsCacheEntry = {
+  transcriptPath: string
+  sizeBytes: number
+  mtimeMs: number
+  readOffset: number
+  pendingLine: Buffer
+  cumulativeTokens: number
+  latestTokens: number
+  latestMessageId?: string
+  messageTokens: Map<string, number>
+  totalToolCalls: number
+  toolCallIds: Set<string>
+}
+
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
   /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
@@ -229,10 +278,15 @@ function getToolParentId(
 }
 
 function getLaunchedBackgroundTaskId(result: unknown): string | undefined {
-  if (!isRecord(result) || (result.status !== 'async_launched' && result.status !== 'remote_launched')) {
-    return undefined
-  }
+  if (!isRecord(result)) return undefined
+  if (result.status !== 'async_launched' && result.status !== 'remote_launched') return undefined
   const id = result.taskId ?? result.agentId
+  return typeof id === 'string' && id ? id : undefined
+}
+
+function getBackgroundBashTaskId(result: unknown): string | undefined {
+  if (!isRecord(result)) return undefined
+  const id = result.backgroundTaskId
   return typeof id === 'string' && id ? id : undefined
 }
 
@@ -483,6 +537,223 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
   }
 }
 
+function getSdkMessageTimestamp(message: SDKMessage): string {
+  const timestamp = (message as unknown as { timestamp?: unknown }).timestamp
+  if (typeof timestamp === 'string') {
+    const parsed = Date.parse(timestamp)
+    if (Number.isFinite(parsed)) return new Date(parsed).toISOString()
+  }
+  return new Date().toISOString()
+}
+
+function isTerminalTaskStatus(status: AgentTaskEventPartData['status']): boolean {
+  return status === 'completed' || status === 'stopped' || status === 'error'
+}
+
+function readBufferAt(fd: number, length: number, position: number): Buffer {
+  const buffer = Buffer.allocUnsafe(length)
+  let offset = 0
+  while (offset < length) {
+    const bytesRead = readSync(fd, buffer, offset, length - offset, position + offset)
+    if (bytesRead === 0) break
+    offset += bytesRead
+  }
+  return buffer.subarray(0, offset)
+}
+
+function readUtf8FileWithinLimit(
+  filePath: string,
+  maxBytes: number,
+  cached?: Pick<WorkflowSnapshotCacheEntry, 'sizeBytes' | 'mtimeMs'>
+): { text?: string; sizeBytes: number; mtimeMs: number; oversized: boolean; unchanged: boolean } {
+  const fd = openSync(filePath, 'r')
+  try {
+    const stat = fstatSync(fd)
+    if (!stat.isFile()) throw new Error('Path is not a regular file')
+    if (cached && cached.sizeBytes === stat.size && cached.mtimeMs === stat.mtimeMs) {
+      return { sizeBytes: stat.size, mtimeMs: stat.mtimeMs, oversized: false, unchanged: true }
+    }
+    if (stat.size > maxBytes) {
+      return { sizeBytes: stat.size, mtimeMs: stat.mtimeMs, oversized: true, unchanged: false }
+    }
+    return {
+      text: readBufferAt(fd, stat.size, 0).toString('utf8'),
+      sizeBytes: stat.size,
+      mtimeMs: stat.mtimeMs,
+      oversized: false,
+      unchanged: false
+    }
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function applyAssistantTranscriptStats(line: string, cache: WorkflowTranscriptStatsCacheEntry): void {
+  let value: unknown
+  try {
+    value = JSON.parse(line)
+  } catch {
+    return
+  }
+  if (!isRecord(value) || value.type !== 'assistant' || value.isApiErrorMessage === true) return
+  const message = isRecord(value.message) ? value.message : undefined
+  const content = message?.content
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (!isRecord(block) || typeof block.id !== 'string' || !block.id || cache.toolCallIds.has(block.id)) continue
+      switch (block.type) {
+        case 'tool_use':
+        case 'server_tool_use':
+        case 'mcp_tool_use':
+          cache.toolCallIds.add(block.id)
+          cache.totalToolCalls += 1
+      }
+    }
+  }
+
+  const messageId = message?.id
+  const usage = message && isRecord(message.usage) ? message.usage : undefined
+  if (typeof messageId !== 'string' || !messageId || !usage) return
+
+  let total = 0
+  for (const key of ['input_tokens', 'output_tokens'] as const) {
+    const tokens = usage[key]
+    if (typeof tokens !== 'number' || !Number.isInteger(tokens) || tokens < 0) return
+    total += tokens
+  }
+  for (const key of ['cache_creation_input_tokens', 'cache_read_input_tokens'] as const) {
+    const tokens = usage[key]
+    if (tokens === undefined) continue
+    if (typeof tokens !== 'number' || !Number.isInteger(tokens) || tokens < 0) return
+    total += tokens
+  }
+  if (total <= 0) return
+
+  const previous = cache.messageTokens.get(messageId)
+  if (previous !== undefined && total <= previous) return
+  cache.messageTokens.set(messageId, total)
+  cache.cumulativeTokens += total - (previous ?? 0)
+  if (previous === undefined) cache.latestMessageId = messageId
+  if (cache.latestMessageId === messageId) cache.latestTokens = total
+}
+
+function readWorkflowTranscriptStats(
+  transcriptPath: string,
+  cached?: WorkflowTranscriptStatsCacheEntry
+): WorkflowTranscriptStatsCacheEntry {
+  const fd = openSync(transcriptPath, 'r')
+  try {
+    const stat = fstatSync(fd)
+    if (!stat.isFile()) throw new Error('Path is not a regular file')
+    let cache = cached
+    if (!cache) {
+      cache = {
+        transcriptPath,
+        sizeBytes: stat.size,
+        mtimeMs: stat.mtimeMs,
+        readOffset: 0,
+        pendingLine: Buffer.alloc(0),
+        cumulativeTokens: 0,
+        latestTokens: 0,
+        messageTokens: new Map(),
+        totalToolCalls: 0,
+        toolCallIds: new Set()
+      }
+    } else if (
+      stat.size < cache.readOffset ||
+      (stat.size === cache.sizeBytes && stat.mtimeMs !== cache.mtimeMs && cache.readOffset === stat.size)
+    ) {
+      cache.readOffset = 0
+      cache.pendingLine = Buffer.alloc(0)
+    }
+    if (cache.readOffset >= stat.size && cache.sizeBytes === stat.size && cache.mtimeMs === stat.mtimeMs) return cache
+
+    while (cache.readOffset < stat.size) {
+      const length = Math.min(MAX_WORKFLOW_TRANSCRIPT_READ_BYTES, stat.size - cache.readOffset)
+      const chunk = readBufferAt(fd, length, cache.readOffset)
+      if (chunk.length === 0) break
+      cache.readOffset += chunk.length
+
+      const buffer = cache.pendingLine.length > 0 ? Buffer.concat([cache.pendingLine, chunk]) : chunk
+      const completeEnd = buffer.lastIndexOf(0x0a)
+      if (completeEnd < 0) {
+        cache.pendingLine = buffer
+        continue
+      }
+
+      const lines = buffer
+        .subarray(0, completeEnd + 1)
+        .toString('utf8')
+        .split(/\r?\n/)
+      for (const line of lines) applyAssistantTranscriptStats(line, cache)
+      cache.pendingLine = buffer.subarray(completeEnd + 1)
+    }
+    cache.sizeBytes = stat.size
+    cache.mtimeMs = stat.mtimeMs
+    return cache
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function readBackgroundBashOutputFile(filePath: string): {
+  text: string
+  sizeBytes: number
+  mtimeMs: number
+  truncated: boolean
+} {
+  const fd = openSync(filePath, 'r')
+  try {
+    const stat = fstatSync(fd)
+    if (!stat.isFile()) throw new Error('Path is not a regular file')
+    const maxBytes = BACKGROUND_BASH_HEAD_BYTES + BACKGROUND_BASH_TAIL_BYTES
+    if (stat.size <= maxBytes) {
+      return {
+        text: readBufferAt(fd, stat.size, 0).toString('utf8'),
+        sizeBytes: stat.size,
+        mtimeMs: stat.mtimeMs,
+        truncated: false
+      }
+    }
+
+    const head = readBufferAt(fd, BACKGROUND_BASH_HEAD_BYTES, 0)
+    const tail = readBufferAt(fd, BACKGROUND_BASH_TAIL_BYTES, stat.size - BACKGROUND_BASH_TAIL_BYTES)
+    const omittedBytes = Math.max(0, stat.size - head.length - tail.length)
+    return {
+      text: `${head.toString('utf8')}\n${t('agent.session.background_bash.output_truncated', { omittedBytes })}\n${tail.toString('utf8')}`,
+      sizeBytes: stat.size,
+      mtimeMs: stat.mtimeMs,
+      truncated: true
+    }
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function extractBackgroundBashReceipt(content: unknown): { taskId: string; outputFile: string } | undefined {
+  const texts = getTextContent(content)
+  for (let index = texts.length - 1; index >= 0; index -= 1) {
+    const lines = texts[index].split(/\r?\n/)
+    for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+      const line = lines[lineIndex].trim()
+      const match = /^Command running in background with ID:\s*([^.\r\n]+)\.\s*Output is being written to:\s*/i.exec(
+        line
+      )
+      if (!match) continue
+      const taskId = match[1].trim()
+      const pathStart = match[0].length
+      const expectedBasename = `${taskId}.output`
+      const pathEnd = line.lastIndexOf(expectedBasename)
+      if (!taskId || pathEnd < pathStart) continue
+      return {
+        taskId,
+        outputFile: line.slice(pathStart, pathEnd + expectedBasename.length).trim()
+      }
+    }
+  }
+  return undefined
+}
+
 export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
   private readonly modelId: string
@@ -501,6 +772,19 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  private readonly backgroundTaskTypes = new Map<string, string>()
+  private readonly terminalTaskIds = new Set<string>()
+  private readonly taskTimelines = new Map<string, { createdAt: string; completedAt?: string }>()
+  private readonly localWorkflowLaunches = new Map<string, LocalWorkflowLaunch>()
+  private readonly localWorkflowPlans = new Map<string, LocalWorkflowPlan>()
+  private readonly localWorkflowLiveSnapshots = new Map<string, NonNullable<AgentTaskEventPartData['workflow']>>()
+  private readonly localWorkflowRuntimeProgresses = new Map<string, unknown[]>()
+  private readonly persistedWorkflowSnapshotTaskIds = new Set<string>()
+  private readonly persistedTerminalWorkflowSnapshotTaskIds = new Set<string>()
+  private readonly workflowSnapshotCache = new Map<string, WorkflowSnapshotCacheEntry>()
+  private readonly workflowTranscriptStatsCaches = new Map<string, Map<string, WorkflowTranscriptStatsCacheEntry>>()
+  private readonly backgroundBashOutputs = new Map<string, BackgroundBashOutputState>()
+  private disposed = false
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -599,6 +883,15 @@ export class ClaudeCodeStreamAdapter {
 
   get hasTurnActivity(): boolean {
     return this.turnHasActivity
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.clearBackgroundTaskState()
+    this.backgroundTasks = []
+    this.backgroundWorkReleasePending = false
+    this.flowContexts.length = 0
   }
 
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
@@ -1160,16 +1453,28 @@ export class ClaudeCodeStreamAdapter {
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
+    const toolResults = this.extractToolResults(content)
+    const structuredResult = toolResults.length === 1 ? message.tool_use_result : undefined
 
-    for (const result of this.extractToolResults(content)) {
-      this.handleToolResult(result, sdkParentToolUseId, ctx)
+    for (const result of toolResults) {
+      this.handleToolResult(
+        result,
+        sdkParentToolUseId,
+        ctx,
+        structuredResult,
+        getSdkMessageTimestamp(message),
+        message.session_id
+      )
     }
   }
 
   private handleToolResult(
     result: ClaudeToolResultBlock,
     sdkParentToolUseId: SdkParentToolUseId,
-    ctx: StreamContext
+    ctx: StreamContext,
+    structuredResult?: unknown,
+    resultTimestamp?: string,
+    sdkSessionId?: string
   ): void {
     if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
 
@@ -1189,7 +1494,14 @@ export class ClaudeCodeStreamAdapter {
     }
     state.name = toolName
 
+    const isProviderWorkflow = toolName === 'Workflow' && state.toolType !== 'mcp'
+    if (isProviderWorkflow && structuredResult !== undefined && resultTimestamp) {
+      this.registerLocalWorkflowLaunch(result.tool_use_id, structuredResult, resultTimestamp)
+    }
+
     const normalizedResult = this.normalizeToolResult(result.content)
+    const normalizedStructuredResult =
+      structuredResult === undefined ? undefined : this.normalizeToolResult(structuredResult)
     const errorText =
       typeof result.content === 'string'
         ? result.content
@@ -1206,11 +1518,20 @@ export class ClaudeCodeStreamAdapter {
 
     const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
-    const isLocalWorkflowLaunch =
-      toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
-    if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
-      const taskId = getLaunchedBackgroundTaskId(normalizedResult)
-      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+    const isProviderBash = toolName === 'Bash' && state.toolType !== 'mcp'
+    let backgroundTaskId: string | undefined
+    if (!isError) {
+      const launchResult =
+        (isProviderWorkflow || isProviderBash) && normalizedStructuredResult !== undefined
+          ? normalizedStructuredResult
+          : normalizedResult
+      backgroundTaskId = isProviderBash
+        ? getBackgroundBashTaskId(launchResult)
+        : getLaunchedBackgroundTaskId(launchResult)
+      if (backgroundTaskId && (isSubagentToolName(toolName) || isProviderWorkflow || isProviderBash)) {
+        this.registerBackgroundTaskToolCallId(backgroundTaskId, result.tool_use_id)
+        if (isProviderBash) this.backgroundTaskTypes.set(backgroundTaskId, 'local_bash')
+      }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -1236,6 +1557,9 @@ export class ClaudeCodeStreamAdapter {
       })
     }
     ctx.toolResultsEmitted.add(result.tool_use_id)
+    if (!isError && isProviderBash && backgroundTaskId && sdkSessionId) {
+      this.registerBackgroundBashOutput(backgroundTaskId, result.tool_use_id, result.content, sdkSessionId)
+    }
   }
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
@@ -1320,15 +1644,35 @@ export class ClaudeCodeStreamAdapter {
       case 'permission_denied':
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
-      case 'background_tasks_changed':
-        // Membership feeds presentation immediately, but an empty snapshot may precede the terminal
-        // task bookend and an autonomous wake. Keep the connection alive until session idle, which
-        // the SDK defines as occurring after held-back results and the background-agent loop drain.
-        this.backgroundTasks = message.tasks.map((task) => ({
-          id: task.task_id,
-          type: task.task_type,
-          description: task.description
-        }))
+      case 'background_tasks_changed': {
+        // Missing members can precede their terminal edge, so retain them until that edge or idle.
+        const nextTasks = new Map(
+          message.tasks.map((task) => {
+            this.backgroundTaskTypes.set(task.task_id, task.task_type)
+            return [
+              task.task_id,
+              {
+                id: task.task_id,
+                type: task.task_type,
+                description: task.description
+              } satisfies AgentSessionBackgroundTask
+            ] as const
+          })
+        )
+        const retainedTasks: AgentSessionBackgroundTask[] = []
+        for (const task of this.backgroundTasks) {
+          const next = nextTasks.get(task.id)
+          if (next) {
+            retainedTasks.push(next)
+            nextTasks.delete(task.id)
+          } else if (!this.terminalTaskIds.has(task.id)) {
+            retainedTasks.push(task)
+          }
+        }
+        for (const task of nextTasks.values()) {
+          if (!this.terminalTaskIds.has(task.id)) retainedTasks.push(task)
+        }
+        this.backgroundTasks = retainedTasks
         this.publishBackgroundTasks()
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
@@ -1337,6 +1681,7 @@ export class ClaudeCodeStreamAdapter {
           this.backgroundWorkReleasePending = true
         }
         return
+      }
       case 'session_state_changed':
         this.handleSessionStateChangedSystemMessage(message)
         return
@@ -1413,6 +1758,382 @@ export class ClaudeCodeStreamAdapter {
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
+  private registerBackgroundBashOutput(
+    taskId: string,
+    toolCallId: string,
+    content: unknown,
+    sdkSessionId: string
+  ): void {
+    if (this.disposed) return
+    const receipt = extractBackgroundBashReceipt(content)
+    const outputFile =
+      receipt?.taskId === taskId
+        ? this.validateBackgroundBashOutputPath(receipt.outputFile, taskId, sdkSessionId)
+        : undefined
+    if (!outputFile) {
+      logger.warn('Rejected background Bash output receipt', {
+        sessionId: this.sessionId,
+        sdkSessionId,
+        taskId,
+        receiptTaskId: receipt?.taskId,
+        outputFile: receipt?.outputFile
+      })
+      return
+    }
+
+    this.stopBackgroundBashPolling(taskId, true)
+    const state: BackgroundBashOutputState = { toolCallId, outputFile }
+    const timer = setInterval(() => this.pollBackgroundBashOutput(taskId), BACKGROUND_BASH_POLL_INTERVAL_MS)
+    timer.unref()
+    state.timer = timer
+    this.backgroundBashOutputs.set(taskId, state)
+    this.pollBackgroundBashOutput(taskId)
+  }
+
+  private validateBackgroundBashOutputPath(
+    outputFile: string,
+    taskId: string,
+    sdkSessionId: string
+  ): string | undefined {
+    if (!path.isAbsolute(outputFile)) return undefined
+    try {
+      const claudeRoot = realpathSync(path.join(application.getPath('sys.temp'), 'claude'))
+      const canonicalOutputFile = realpathSync(outputFile)
+      const relative = path.relative(claudeRoot, canonicalOutputFile)
+      if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+        return undefined
+      }
+      const segments = relative.split(path.sep)
+      if (
+        segments.length !== 4 ||
+        segments[1] !== sdkSessionId ||
+        segments[2] !== 'tasks' ||
+        segments[3] !== `${taskId}.output`
+      ) {
+        return undefined
+      }
+      return canonicalOutputFile
+    } catch {
+      return undefined
+    }
+  }
+
+  private pollBackgroundBashOutput(taskId: string): void {
+    const state = this.backgroundBashOutputs.get(taskId)
+    if (!state || this.disposed) return
+    try {
+      const stat = statSync(state.outputFile)
+      if (state.sizeBytes === stat.size && state.mtimeMs === stat.mtimeMs) return
+    } catch {
+      return
+    }
+    const result = this.readBackgroundBashOutput(taskId, state, false)
+    if (!result || result.text === state.lastOutput) return
+    state.lastOutput = result.text
+    this.emitBackgroundToolChunk(state.toolCallId, {
+      type: 'tool-output-available',
+      toolCallId: state.toolCallId,
+      output: result.text,
+      dynamic: true,
+      providerExecuted: true
+    })
+  }
+
+  private readBackgroundBashOutput(
+    taskId: string,
+    state: BackgroundBashOutputState,
+    warnOnError: boolean
+  ): ReturnType<typeof readBackgroundBashOutputFile> | undefined {
+    try {
+      const result = readBackgroundBashOutputFile(state.outputFile)
+      state.sizeBytes = result.sizeBytes
+      state.mtimeMs = result.mtimeMs
+      if (result.truncated && result.text !== state.lastOutput) {
+        logger.warn('Truncated background Bash output', {
+          sessionId: this.sessionId,
+          taskId,
+          outputFile: state.outputFile,
+          sizeBytes: result.sizeBytes
+        })
+      }
+      return result
+    } catch (error) {
+      if (warnOnError) {
+        logger.warn('Failed to read background Bash output', {
+          sessionId: this.sessionId,
+          taskId,
+          outputFile: state.outputFile,
+          error
+        })
+      }
+      return undefined
+    }
+  }
+
+  private stopBackgroundBashPolling(taskId: string, remove: boolean): BackgroundBashOutputState | undefined {
+    const state = this.backgroundBashOutputs.get(taskId)
+    if (!state) return undefined
+    if (state.timer) {
+      clearInterval(state.timer)
+      state.timer = undefined
+    }
+    if (remove) this.backgroundBashOutputs.delete(taskId)
+    return state
+  }
+
+  private emitBackgroundToolChunk(toolCallId: string, chunk: CherryUIMessageChunk): void {
+    const flow = this.flowContexts.find((candidate) => candidate.stream.toolStates.has(toolCallId))
+    if (flow) {
+      flow.stream.sink.enqueue(chunk)
+      return
+    }
+    if (this.turnActive && this.ctx.toolStates.has(toolCallId)) {
+      this.ctx.sink.enqueue(chunk)
+      return
+    }
+    this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId: toolCallId, chunk })
+  }
+
+  private clearBackgroundTaskState(): void {
+    for (const taskId of this.backgroundBashOutputs.keys()) this.stopBackgroundBashPolling(taskId, false)
+    this.backgroundBashOutputs.clear()
+    this.backgroundTaskToolCallIds.clear()
+    this.backgroundTaskTypes.clear()
+    this.terminalTaskIds.clear()
+    this.taskTimelines.clear()
+    this.localWorkflowLaunches.clear()
+    this.localWorkflowPlans.clear()
+    this.localWorkflowLiveSnapshots.clear()
+    this.localWorkflowRuntimeProgresses.clear()
+    this.persistedWorkflowSnapshotTaskIds.clear()
+    this.persistedTerminalWorkflowSnapshotTaskIds.clear()
+    this.workflowSnapshotCache.clear()
+    this.workflowTranscriptStatsCaches.clear()
+  }
+
+  private registerLocalWorkflowLaunch(toolCallId: string, value: unknown, createdAt: string): void {
+    const launch = parseLocalWorkflowLaunch(value, createdAt)
+    if (!launch) return
+
+    this.localWorkflowLaunches.set(launch.taskId, launch)
+    this.localWorkflowLiveSnapshots.delete(launch.taskId)
+    this.localWorkflowRuntimeProgresses.delete(launch.taskId)
+    this.workflowSnapshotCache.delete(launch.taskId)
+    this.workflowTranscriptStatsCaches.delete(launch.taskId)
+    this.backgroundTaskTypes.set(launch.taskId, 'local_workflow')
+    if (!this.taskTimelines.has(launch.taskId)) this.taskTimelines.set(launch.taskId, { createdAt: launch.createdAt })
+    this.registerBackgroundTaskToolCallId(launch.taskId, toolCallId)
+  }
+
+  private getTaskTimeline(
+    taskId: string,
+    status: AgentTaskEventPartData['status'],
+    eventTimestamp: string
+  ): { createdAt: string; completedAt?: string } {
+    const timeline =
+      this.taskTimelines.get(taskId) ??
+      ({ createdAt: this.localWorkflowLaunches.get(taskId)?.createdAt ?? eventTimestamp } satisfies {
+        createdAt: string
+        completedAt?: string
+      })
+    if (isTerminalTaskStatus(status) && !timeline.completedAt) timeline.completedAt = eventTimestamp
+    this.taskTimelines.set(taskId, timeline)
+    return timeline
+  }
+
+  private readLocalWorkflowSnapshot(
+    taskId: string,
+    preferSnapshotContext: boolean
+  ): AgentTaskEventPartData['workflow'] | undefined {
+    const launch = this.localWorkflowLaunches.get(taskId)
+    if (!launch) return undefined
+    try {
+      const cached = this.workflowSnapshotCache.get(taskId)
+      const result = readUtf8FileWithinLimit(
+        launch.snapshotPath,
+        MAX_WORKFLOW_SNAPSHOT_BYTES,
+        cached?.snapshotPath === launch.snapshotPath ? cached : undefined
+      )
+      if (result.unchanged) {
+        return cached?.workflow
+          ? this.mergeLocalWorkflowTranscriptStats(taskId, cached.workflow, preferSnapshotContext)
+          : undefined
+      }
+      if (result.oversized) {
+        logger.warn('Skipped oversized workflow snapshot', {
+          sessionId: this.sessionId,
+          taskId,
+          snapshotPath: launch.snapshotPath,
+          sizeBytes: result.sizeBytes
+        })
+        this.workflowSnapshotCache.set(taskId, {
+          snapshotPath: launch.snapshotPath,
+          sizeBytes: result.sizeBytes,
+          mtimeMs: result.mtimeMs
+        })
+        return undefined
+      }
+      const parsedWorkflow = result.text === undefined ? undefined : parseWorkflowSnapshotText(result.text, launch)
+      this.workflowSnapshotCache.set(taskId, {
+        snapshotPath: launch.snapshotPath,
+        sizeBytes: result.sizeBytes,
+        mtimeMs: result.mtimeMs,
+        workflow: parsedWorkflow
+      })
+      return parsedWorkflow
+        ? this.mergeLocalWorkflowTranscriptStats(taskId, parsedWorkflow, preferSnapshotContext)
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private readLocalWorkflowAgentStats(
+    taskId: string,
+    agentId: unknown
+  ): { cumulativeTokens: number; latestTokens: number; totalToolCalls: number } | undefined {
+    const launch = this.localWorkflowLaunches.get(taskId)
+    if (!launch?.transcriptDir || typeof agentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId)) {
+      return undefined
+    }
+
+    const taskCache = this.workflowTranscriptStatsCaches.get(taskId)
+    const cached = taskCache?.get(agentId)
+    try {
+      let transcriptPath = cached?.transcriptPath
+      if (!transcriptPath) {
+        const transcriptDir = realpathSync(launch.transcriptDir)
+        transcriptPath = realpathSync(path.join(transcriptDir, `agent-${agentId}.jsonl`))
+        if (path.dirname(transcriptPath) !== transcriptDir) return undefined
+      }
+      const next = readWorkflowTranscriptStats(transcriptPath, cached)
+      const nextTaskCache = taskCache ?? new Map<string, WorkflowTranscriptStatsCacheEntry>()
+      nextTaskCache.set(agentId, next)
+      if (!taskCache) this.workflowTranscriptStatsCaches.set(taskId, nextTaskCache)
+      return {
+        cumulativeTokens: next.cumulativeTokens,
+        latestTokens: next.latestTokens,
+        totalToolCalls: next.totalToolCalls
+      }
+    } catch {
+      return cached
+        ? {
+            cumulativeTokens: cached.cumulativeTokens,
+            latestTokens: cached.latestTokens,
+            totalToolCalls: cached.totalToolCalls
+          }
+        : undefined
+    }
+  }
+
+  private fillLocalWorkflowTranscriptStats(taskId: string, workflowProgress: unknown[]): unknown[] {
+    return workflowProgress.map((item) => {
+      if (!isRecord(item) || item.type !== 'workflow_agent') return item
+      const stats = this.readLocalWorkflowAgentStats(taskId, item.agentId)
+      if (!stats) return item
+      const reportedCumulativeTokens =
+        typeof item.cumulativeTokens === 'number' && item.cumulativeTokens >= 0 ? item.cumulativeTokens : 0
+      const reportedToolCalls = typeof item.toolCalls === 'number' && item.toolCalls >= 0 ? item.toolCalls : 0
+      const hasNewCumulativeTokens = stats.cumulativeTokens > reportedCumulativeTokens
+      const hasNewContextTokens = stats.latestTokens > 0 && stats.latestTokens !== item.tokens
+      const hasNewToolCalls = stats.totalToolCalls > reportedToolCalls
+      return hasNewCumulativeTokens || hasNewContextTokens || hasNewToolCalls
+        ? {
+            ...item,
+            ...(hasNewCumulativeTokens ? { cumulativeTokens: stats.cumulativeTokens } : {}),
+            ...(hasNewContextTokens ? { tokens: stats.latestTokens } : {}),
+            ...(hasNewToolCalls ? { toolCalls: stats.totalToolCalls } : {})
+          }
+        : item
+    })
+  }
+
+  private mergeLocalWorkflowTranscriptStats(
+    taskId: string,
+    workflow: NonNullable<AgentTaskEventPartData['workflow']>,
+    preferWorkflowContext: boolean
+  ): NonNullable<AgentTaskEventPartData['workflow']> {
+    const runtimeProgress = this.localWorkflowRuntimeProgresses.get(taskId)
+    if (!runtimeProgress) return workflow
+    const statsByIndex = new Map<number, { cumulativeTokens: number; tokens?: number; toolCalls: number }>()
+    for (const item of this.fillLocalWorkflowTranscriptStats(taskId, runtimeProgress)) {
+      if (!isRecord(item) || item.type !== 'workflow_agent' || typeof item.index !== 'number') continue
+      const cumulativeTokens =
+        typeof item.cumulativeTokens === 'number' && item.cumulativeTokens >= 0 ? item.cumulativeTokens : 0
+      const tokens = typeof item.tokens === 'number' && item.tokens >= 0 ? item.tokens : undefined
+      const toolCalls = typeof item.toolCalls === 'number' && item.toolCalls >= 0 ? item.toolCalls : 0
+      statsByIndex.set(item.index, { cumulativeTokens, tokens, toolCalls })
+    }
+    if (statsByIndex.size === 0) return workflow
+
+    let changed = false
+    let totalCumulativeTokens = 0
+    let totalTokens = 0
+    let hasContextTokens = false
+    let totalToolCalls = 0
+    const workflowProgress = workflow.workflowProgress.map((item) => {
+      if (item.type !== 'workflow_agent') return item
+      const stats = statsByIndex.get(item.index)
+      const cumulativeTokens = Math.max(item.cumulativeTokens ?? 0, stats?.cumulativeTokens ?? 0)
+      const tokens = preferWorkflowContext && item.tokens !== undefined ? item.tokens : (stats?.tokens ?? item.tokens)
+      const toolCalls = Math.max(item.toolCalls ?? 0, stats?.toolCalls ?? 0)
+      totalCumulativeTokens += cumulativeTokens
+      if (tokens !== undefined) {
+        totalTokens += tokens
+        hasContextTokens = true
+      }
+      totalToolCalls += toolCalls
+      if (cumulativeTokens === item.cumulativeTokens && tokens === item.tokens && toolCalls === item.toolCalls)
+        return item
+      changed = true
+      return { ...item, cumulativeTokens, ...(tokens !== undefined ? { tokens } : {}), toolCalls }
+    })
+    totalCumulativeTokens = Math.max(totalCumulativeTokens, workflow.totalCumulativeTokens ?? 0)
+    const nextTotalTokens =
+      preferWorkflowContext && workflow.totalTokens !== undefined
+        ? workflow.totalTokens
+        : hasContextTokens
+          ? totalTokens
+          : workflow.totalTokens
+    const nextTotalToolCalls =
+      preferWorkflowContext && workflow.totalToolCalls !== undefined ? workflow.totalToolCalls : totalToolCalls
+    return changed ||
+      totalCumulativeTokens !== workflow.totalCumulativeTokens ||
+      nextTotalTokens !== workflow.totalTokens ||
+      nextTotalToolCalls !== workflow.totalToolCalls
+      ? {
+          ...workflow,
+          ...(nextTotalTokens !== undefined ? { totalTokens: nextTotalTokens } : {}),
+          totalCumulativeTokens,
+          totalToolCalls: nextTotalToolCalls,
+          workflowProgress
+        }
+      : workflow
+  }
+
+  private updateLocalWorkflowLiveSnapshot(
+    eventData: AgentTaskEventPartData,
+    workflowProgress?: unknown
+  ): AgentTaskEventPartData['workflow'] | undefined {
+    const launch = this.localWorkflowLaunches.get(eventData.taskId)
+    const plan = this.localWorkflowPlans.get(eventData.taskId)
+    if (!launch || !plan) return undefined
+    const workflow = updateLocalWorkflowSnapshot(
+      plan,
+      launch,
+      {
+        status: eventData.status ?? 'in_progress',
+        description: eventData.description,
+        lastToolName: eventData.lastToolName,
+        usage: eventData.usage,
+        workflowProgress
+      },
+      this.localWorkflowLiveSnapshots.get(eventData.taskId)
+    )
+    this.localWorkflowLiveSnapshots.set(eventData.taskId, workflow)
+    return workflow
+  }
+
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
     this.setSessionId(message.session_id)
     // A primed connection initializes before any turn opens. The resume token above is session state
@@ -1434,32 +2155,152 @@ export class ClaudeCodeStreamAdapter {
    * row stays running forever.
    */
   private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
-    const eventData = this.toTaskEventPartData(message)
+    const baseEventData = this.toTaskEventPartData(message)
+    if (message.subtype === 'task_started' && baseEventData.taskType === 'local_workflow' && baseEventData.prompt) {
+      const plan = parseLocalWorkflowPlan(baseEventData.prompt)
+      if (plan) {
+        this.localWorkflowPlans.set(baseEventData.taskId, plan)
+        this.localWorkflowLiveSnapshots.delete(baseEventData.taskId)
+      }
+    }
+    if (baseEventData.taskType) this.backgroundTaskTypes.set(baseEventData.taskId, baseEventData.taskType)
+    const timeline = this.getTaskTimeline(baseEventData.taskId, baseEventData.status, getSdkMessageTimestamp(message))
+    const reportedWorkflowProgress =
+      message.subtype === 'task_progress' ? (message as SdkTaskProgressRuntimeMessage).workflow_progress : undefined
+    if (Array.isArray(reportedWorkflowProgress)) {
+      this.localWorkflowRuntimeProgresses.set(baseEventData.taskId, reportedWorkflowProgress)
+    }
+    const runtimeWorkflowProgress = this.localWorkflowRuntimeProgresses.get(baseEventData.taskId)
+    const isTerminal = isTerminalTaskStatus(baseEventData.status)
+    const workflowSnapshot =
+      this.readLocalWorkflowSnapshot(baseEventData.taskId, isTerminal) ??
+      this.updateLocalWorkflowLiveSnapshot(
+        baseEventData,
+        // Claude Code emits this field at runtime although the SDK declaration currently omits it.
+        runtimeWorkflowProgress
+          ? this.fillLocalWorkflowTranscriptStats(baseEventData.taskId, runtimeWorkflowProgress)
+          : undefined
+      )
+    const workflow =
+      workflowSnapshot && isTerminal && baseEventData.usage
+        ? {
+            ...workflowSnapshot,
+            ...(baseEventData.usage.totalTokens !== undefined ? { totalTokens: baseEventData.usage.totalTokens } : {}),
+            ...(baseEventData.usage.toolUses !== undefined ? { totalToolCalls: baseEventData.usage.toolUses } : {})
+          }
+        : workflowSnapshot
+    const eventData: AgentTaskEventPartData = {
+      ...baseEventData,
+      toolUseId: baseEventData.toolUseId ?? this.backgroundTaskToolCallIds.get(baseEventData.taskId),
+      ...timeline,
+      ...(workflow ? { workflow } : {})
+    }
+    if (isTerminal) this.stopBackgroundBashPolling(eventData.taskId, false)
 
-    // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
-    // subagent edge may enrich an already-authoritative row with its explicit root tool-use id for
-    // navigation only; missing/reordered edges therefore delay the button but never add/hide a chip.
+    // Native task edges enrich membership with navigation identity; terminal edges also settle it.
     if (
       eventData.toolUseId &&
       (eventData.taskType === 'subagent' ||
         eventData.taskType === 'local_agent' ||
         eventData.taskType === 'local_workflow' ||
+        this.isBackgroundBashTask(eventData.taskId) ||
         eventData.subagentType)
     ) {
       this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
     }
 
+    if (message.subtype === 'task_notification') this.publishTerminalBackgroundBashOutput(message)
+
     // Keep a process-scoped per-task surface for status history and stop targets.
     this.statusSink.emit({ type: 'background-task-event', data: eventData })
+    if (isTerminal) {
+      this.terminalTaskIds.add(eventData.taskId)
+      const taskIndex = this.backgroundTasks.findIndex((task) => task.id === eventData.taskId)
+      if (taskIndex >= 0) {
+        this.backgroundTasks.splice(taskIndex, 1)
+        this.publishBackgroundTasks()
+      }
+    }
 
     if (!this.turnActive) {
+      if (message.subtype === 'task_notification' && isTerminal) this.releaseTerminalTaskState(eventData.taskId)
       return
+    }
+
+    let persistedEventData = eventData
+    if (workflow) {
+      const isTerminalNotification = isTerminal && message.subtype === 'task_notification'
+      const terminalNotificationPersisted = this.persistedTerminalWorkflowSnapshotTaskIds.has(eventData.taskId)
+      const persistedTaskIds = isTerminalNotification
+        ? this.persistedTerminalWorkflowSnapshotTaskIds
+        : this.persistedWorkflowSnapshotTaskIds
+      if ((!isTerminalNotification && terminalNotificationPersisted) || persistedTaskIds.has(eventData.taskId)) {
+        const withoutWorkflow = { ...eventData }
+        delete withoutWorkflow.workflow
+        persistedEventData = withoutWorkflow
+      } else {
+        persistedTaskIds.add(eventData.taskId)
+      }
     }
 
     ctx.sink.enqueue({
       type: 'data-agent-task-event',
-      id: `task-${eventData.taskId}-${eventData.event}-${message.uuid}`,
-      data: eventData
+      id: `task-${eventData.taskId}-${eventData.event}`,
+      data: persistedEventData
+    })
+    if (message.subtype === 'task_notification' && isTerminal) this.releaseTerminalTaskState(eventData.taskId)
+  }
+
+  private releaseTerminalTaskState(taskId: string): void {
+    this.backgroundTaskToolCallIds.delete(taskId)
+    this.backgroundTaskTypes.delete(taskId)
+    this.localWorkflowLaunches.delete(taskId)
+    this.localWorkflowPlans.delete(taskId)
+    this.localWorkflowLiveSnapshots.delete(taskId)
+    this.localWorkflowRuntimeProgresses.delete(taskId)
+    this.persistedWorkflowSnapshotTaskIds.delete(taskId)
+    this.persistedTerminalWorkflowSnapshotTaskIds.delete(taskId)
+    this.workflowSnapshotCache.delete(taskId)
+    this.workflowTranscriptStatsCaches.delete(taskId)
+    this.backgroundBashOutputs.delete(taskId)
+  }
+
+  private isBackgroundBashTask(taskId: string): boolean {
+    const taskType = this.backgroundTaskTypes.get(taskId) ?? ''
+    return taskType.includes('bash') || taskType.includes('shell')
+  }
+
+  private publishTerminalBackgroundBashOutput(message: SDKTaskNotificationMessage): void {
+    if (!this.isBackgroundBashTask(message.task_id)) return
+    const state = this.stopBackgroundBashPolling(message.task_id, false)
+    const toolCallId = state?.toolCallId ?? this.backgroundTaskToolCallIds.get(message.task_id)
+    if (!toolCallId) return
+    const notificationOutputFile = message.output_file
+      ? this.validateBackgroundBashOutputPath(message.output_file, message.task_id, message.session_id)
+      : undefined
+    const outputState = notificationOutputFile ? { toolCallId, outputFile: notificationOutputFile } : state
+    const result = outputState ? this.readBackgroundBashOutput(message.task_id, outputState, true) : undefined
+    this.backgroundBashOutputs.delete(message.task_id)
+
+    if (message.status === 'completed') {
+      if (!result) return
+      this.emitBackgroundToolChunk(toolCallId, {
+        type: 'tool-output-available',
+        toolCallId,
+        output: result.text,
+        dynamic: true,
+        providerExecuted: true
+      })
+      return
+    }
+
+    const errorText = [message.summary, result?.text].filter((value): value is string => Boolean(value)).join('\n\n')
+    this.emitBackgroundToolChunk(toolCallId, {
+      type: 'tool-output-error',
+      toolCallId,
+      errorText,
+      dynamic: true,
+      providerExecuted: true
     })
   }
 
@@ -1520,12 +2361,22 @@ export class ClaudeCodeStreamAdapter {
 
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
-    // Idle means held-back results and the background-agent loop have drained, so no detached flow
-    // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
-    // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
-    if (!this.turnActive) this.flowContexts.length = 0
-    if (!this.backgroundWorkReleasePending) return
+    if (!this.backgroundWorkReleasePending) {
+      if (!this.turnActive && this.backgroundTasks.length === 0) {
+        this.flowContexts.length = 0
+        this.clearBackgroundTaskState()
+      }
+      return
+    }
     this.backgroundWorkReleasePending = false
+    if (this.backgroundTasks.length > 0) {
+      this.backgroundTasks = []
+      this.publishBackgroundTasks()
+    }
+    if (!this.turnActive) {
+      this.flowContexts.length = 0
+      this.clearBackgroundTaskState()
+    }
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 

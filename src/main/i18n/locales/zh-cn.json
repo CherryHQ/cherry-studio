@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[输出已截断：已省略 {{omittedBytes}} 字节]"
+      },
       "new": "新任务",
       "run_status": {
         "busy": "Agent 会话正忙，请稍后重试。",
