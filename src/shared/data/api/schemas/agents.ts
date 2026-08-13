@@ -6,6 +6,7 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
@@ -38,6 +39,9 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
+export const AGENT_TYPES = ['claude-code', 'pi'] as const
+export const AgentTypeSchema = z.enum(AGENT_TYPES)
+export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
@@ -56,7 +60,8 @@ export const AgentConfigurationSchema = z
     scheduler_one_time_delay: z.number().optional(),
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
-    heartbeat_interval: z.number().optional()
+    heartbeat_interval: z.number().optional(),
+    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -136,7 +141,7 @@ export const AGENT_MUTABLE_FIELDS = {
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  type: z.enum(['claude-code']),
+  type: AgentTypeSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */

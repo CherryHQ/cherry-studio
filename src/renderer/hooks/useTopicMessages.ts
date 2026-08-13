@@ -1,7 +1,7 @@
 /**
  * Hook for loading topic messages from DataApi as CherryUIMessage[].
  *
- * Uses `useInfiniteQuery` + `useInfiniteFlatItems` with `reversePages: true` —
+ * Uses `useConversationHistoryQuery` + `useInfiniteFlatItems` with `reversePages: true` —
  * the branch endpoint paginates newest-page-first but keeps within-page items
  * in oldest→newest order, so reversing page order yields a monotonically
  * chronological `items` array (root → activeNode) across any number of loaded
@@ -14,7 +14,7 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
@@ -25,6 +25,8 @@ import type {
 } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
+import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
 // Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50
@@ -155,19 +157,22 @@ export function useTopicMessages(
   // `limit` is part of the SWR infinite key, so toggling the preference
   // mid-session swaps to a fresh cache entry instead of mixing page sizes.
   const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
-  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
-    params: { topicId },
-    query: { includeSiblings: true },
-    limit: pageSize,
-    enabled,
-    swrOptions: {
-      dedupingInterval: 0,
-      ...(!fetchOnMount && {
-        revalidateIfStale: false,
-        revalidateOnMount: false
-      })
+  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useConversationHistoryQuery(
+    '/topics/:topicId/messages',
+    {
+      params: { topicId },
+      query: { includeSiblings: true },
+      limit: pageSize,
+      enabled,
+      swrOptions: {
+        dedupingInterval: 0,
+        ...(!fetchOnMount && {
+          revalidateIfStale: false,
+          revalidateOnMount: false
+        })
+      }
     }
-  })
+  )
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.

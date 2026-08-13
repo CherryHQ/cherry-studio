@@ -725,6 +725,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     return result
   }
 
@@ -764,6 +765,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return result
   }
@@ -792,6 +794,7 @@ export class AgentSessionService {
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -818,16 +821,24 @@ export class AgentSessionService {
   }
 
   deleteByAgentId(agentId: string): DeleteAgentSessionsResult {
+    const result = this.deleteByAgentIdForDelivery(agentId)
+    return { deletedIds: result.deletedIds }
+  }
+
+  deleteByAgentIdForDelivery(agentId: string): AgentSessionDeletionOutcome {
+    const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
-      const deletedIds = this.deleteByAgentIdTx(tx, agentId)
-      return { deletedIds, taskScheduleIds }
+      const deletedIds = this.deleteByAgentIdTx(tx, agentId, { deliveryResults })
+      return { deletedIds, taskScheduleIds, deliveryResults }
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
-    return { deletedIds: result.deletedIds }
+    return result
   }
 
   deleteByAgentIdTx(

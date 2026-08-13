@@ -265,8 +265,8 @@ export class TopicNamingService {
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
    * DB (`session.name`) rather than `topics.name`. Uses the shared topic
-   * naming model preference (`topic.naming.model_id`) for summarization,
-   * matching normal chat topic naming behavior. The agent id is deliberately
+   * quick-assistant model preference for summarization, matching normal chat
+   * topic naming behavior. The agent id is deliberately
    * NOT passed to the generation request — that would attach the agent's tool
    * configuration (MCP tools, web search, knowledge bases) to the title.
    *
@@ -401,20 +401,15 @@ export class TopicNamingService {
   private resolveNamingModelId(): UniqueModelId {
     const preferenceService = application.get('PreferenceService')
 
-    const configured = preferenceService.get('topic.naming.model_id')
-    const namingModelId = this.toUsableNamingModelId(configured)
-    if (namingModelId) return namingModelId
-    if (configured != null) {
-      logger.warn(
-        'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
-        { configured }
-      )
-    }
-
-    // A title is a lightweight summary, so prefer the user's own quick-assistant model over the
-    // managed CherryAI default whenever the dedicated naming model is unset or unusable.
-    const quickModelId = this.toUsableNamingModelId(preferenceService.get('feature.quick_assistant.model_id'))
+    const configured =
+      preferenceService.get('feature.quick_assistant.model_id') ?? preferenceService.get('chat.default_model_id')
+    const quickModelId = this.toUsableNamingModelId(configured)
     if (quickModelId) return quickModelId
+    if (configured != null) {
+      logger.warn('Quick assistant model is not usable for topic naming; falling back to managed CherryAI default', {
+        configured
+      })
+    }
 
     return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
   }

@@ -10,21 +10,21 @@ const {
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinAssistantFeedbackSession
+  createBuiltinSupportSession
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinAssistantFeedbackSession: vi.fn()
+  createBuiltinSupportSession: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
-vi.mock('@main/ai/agents/createBuiltinAssistantFeedbackSession', () => ({ createBuiltinAssistantFeedbackSession }))
+vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 
 import { aiHandlers } from '../ai'
 
@@ -60,7 +60,12 @@ const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
-const agentSessionDeliveryService = { deleteSessions: vi.fn(), deleteAgent: vi.fn(), deleteWorkspace: vi.fn() }
+const agentSessionDeliveryService = {
+  deleteSessions: vi.fn(),
+  deleteAgent: vi.fn(),
+  deleteAgentSessions: vi.fn(),
+  deleteWorkspace: vi.fn()
+}
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -78,7 +83,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
-  createBuiltinAssistantFeedbackSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-assistant' })
+  createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -136,6 +141,15 @@ describe('aiHandlers', () => {
     expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
   })
 
+  it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1')
+  })
+
   it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
     agentSessionDeliveryService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
 
@@ -145,10 +159,10 @@ describe('aiHandlers', () => {
     expect(agentSessionDeliveryService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
-  it('delegates feedback-session creation and returns its id', async () => {
-    const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
+  it('delegates Support-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
 
-    expect(createBuiltinAssistantFeedbackSession).toHaveBeenCalledTimes(1)
+    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 

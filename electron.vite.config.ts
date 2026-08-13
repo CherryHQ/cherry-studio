@@ -59,8 +59,8 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -133,6 +133,7 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
         '@test-mocks': resolve('tests/__mocks__')
@@ -162,6 +163,29 @@ export default defineConfig({
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
           warn(warning)
+        },
+        output: {
+          advancedChunks: {
+            // Without this, groups recursively capture dependencies — React
+            // itself ends up inside an icon bucket and every window preloads it.
+            includeDependenciesRecursively: false,
+            groups: [
+              // Bucket per-icon lazy modules into mid-size chunks instead of one
+              // tiny chunk per icon. Model icons only: they are reached solely
+              // through the dynamic loaders, so the buckets stay off every
+              // window's eager graph. Provider icons must NOT be grouped — a few
+              // files statically import specific providers from
+              // @cherrystudio/ui/icons/providers, and bucketing would chain
+              // whole buckets of unrelated SVGs into those windows' first load.
+              // Only the SVG component files (*.tsx) may match: each icon dir's
+              // meta.ts is eagerly imported by the meta-catalogs.
+              {
+                name: 'icons-models',
+                test: /packages\/ui\/src\/components\/icons\/models\/[^/]+\/(?:index|light|dark|avatar)\.tsx$/,
+                maxSize: 150_000
+              }
+            ]
+          }
         }
       }
     },

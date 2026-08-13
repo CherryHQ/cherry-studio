@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Ενσωματωμένος σύμβουλος Cherry Studio. Διάγνωση προβλημάτων, καθοδήγηση λειτουργιών, συλλογή συχνών ερωτήσεων, υποβολή σφαλμάτων/αιτημάτων χαρακτηριστικών και αναζήτηση/δημιουργία Δεξιοτήτων"
+      },
+      "cherry_support": {
+        "description": "Επίσημος Agent υποστήριξης του Cherry Studio για ρυθμίσεις, διάγνωση, FAQ και σχόλια"
       }
     },
     "channels": {
@@ -1150,6 +1153,11 @@
       "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
       "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
       "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "Εκτελείται",
@@ -2494,6 +2502,7 @@
     "openai-response": "Απάντηση OpenAI"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Διαθέσιμοι πάροχοι",
     "availableTools": "Διαθέσιμα εργαλεία",
     "backup": {
@@ -3444,6 +3453,18 @@
             "hint": "Αποσύνθεση εργασιών και προγραμματισμός",
             "label": "Μοντέλο σχεδίου (προαιρετικό)"
           },
+          "runtime": {
+            "immutable_hint": "Δεν μπορεί να αλλάξει μετά τη δημιουργία",
+            "label": "Λειτουργία εκτέλεσης",
+            "option": {
+              "claude_code": "Προηγμένο: Claude Agent",
+              "pi": "Γρήγορο: Pi"
+            },
+            "selected": {
+              "claude_code": "Προηγμένο",
+              "pi": "Γρήγορο"
+            }
+          },
           "small_model": {
             "hint": "Ελαφριοί έλεγχοι και μορφοποίηση",
             "label": "Μικρό μοντέλο (προαιρετικό)"
@@ -3546,7 +3567,7 @@
             "hint": "Μήκος απάντησης του Caps όταν είναι ενεργοποιημένο"
           },
           "max_tool_calls": {
-            "hint": "Περιορίζει τους βρόχους κλήσεων εργαλείων όταν είναι ενεργοποιημένο"
+            "hint": "Περιορίζει τους γύρους κλήσεων εργαλείων όταν είναι ενεργοποιημένο· διαφορετικά χρησιμοποιείται το προεπιλεγμένο όριο των {{count}} γύρων"
           },
           "model": {
             "hint": "Παρακάμπτει το παγκόσμιο προεπιλεγμένο μοντέλο για αυτόν τον βοηθό"
@@ -4812,7 +4833,7 @@
     },
     "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
     "migration": {
-      "description": "Έχει εντοπιστεί παλιά έκδοση του OpenClaw που εγκαταστάθηκε μέσω npm. Παρακαλούμε επανεγκαταστήστε για να αποκτήσετε την τελευταία επίσημη έκδοση.",
+      "description": "Εντοπίστηκε μια εξωτερική εγκατάσταση OpenClaw στο PATH, αλλά το Cherry Studio χρησιμοποιεί το δικό του διαχειριζόμενο δυαδικό αρχείο OpenClaw. Εγκαταστήστε τη διαχειριζόμενη έκδοση για να συνεχίσετε.",
       "install_button": "Επανεγκαταστήστε το OpenClaw",
       "title": "Το OpenClaw χρειάζεται ενημέρωση"
     },
@@ -5994,10 +6015,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Συνομιλήστε με την Βοηθό Cherry για να μοιραστείτε τα σχόλιά σας.",
+          "description": "Συνομιλήστε με το Cherry Support για βοήθεια ή για να μοιραστείτε σχόλια.",
           "title": "Χρήση Πράκτορα"
         },
-        "agent_error": "Αδυναμία ανοίγματος του Cherry Assistant για σχόλια. Παρακαλώ προσπαθήστε ξανά.",
+        "agent_error": "Αδυναμία ανοίγματος του Cherry Support για σχόλια. Παρακαλώ προσπαθήστε ξανά.",
         "button": "Σχόλια και Παρατηρήσεις",
         "dialog": {
           "description": "Επιλέξτε πώς θέλετε να μοιραστείτε τα σχόλιά σας και να μας βοηθήσετε να κάνουμε το Cherry Studio καλύτερο.",
@@ -6763,7 +6784,7 @@
       "removeDefinitionOnlyDependents": "Τα εγκατεστημένα εργαλεία εξαρτώνται από αυτό: {{dependents}}.",
       "removeError": "Αποτυχία αφαίρεσης εργαλείου",
       "removeErrorHint": "Η εντολή εκκαθάρισης απέτυχε. Αντιγράψτε το αρχείο καταγραφής παρακάτω για αντιμετώπιση προβλημάτων ή κοινοποιήστε το για βοήθεια.",
-      "removeRuntimeConfirmMessage": "Είστε σίγουροι ότι θέλετε να αφαιρέσετε το \"{{name}}\"; Η απεγκατάσταση αυτού του runtime ενδέχεται να καταστρέψει εργαλεία npm ή pip που εξαρτώνται από αυτό.",
+      "removeRuntimeConfirmMessage": "Να καταργηθεί το \"{{name}}\" από το Cherry Studio; Το Cherry θα καθαρίσει μόνο το ακριβές αντίγραφο που διαχειρίζεται το mise. Τα περιβάλλοντα εκτέλεσης του συστήματος και τα ενσωματωμένα δεν τροποποιούνται ποτέ. Εγκατεστημένα εργαλεία npm ή pip ενδέχεται να εμποδίσουν την κατάργηση εάν εξαρτώνται από αυτό το περιβάλλον εκτέλεσης.",
       "runtimeDependency": "Χρόνος εκτέλεσης",
       "runtimeDependencyHint": "Χρόνος εκτέλεσης για εργαλεία npm/pip",
       "searchFailed": "Η αναζήτηση απέτυχε, ελέγξτε τα αρχεία καταγραφής",
@@ -7622,7 +7643,6 @@
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
         "label": "Ονομασία θέματος",
-        "model": "Μοντέλο Ονομασίας",
         "prompt": "Προτροπή ονομασίας συνομιλίας"
       },
       "translate_model": "Μοντέλο μετάφρασης",
@@ -8817,7 +8837,7 @@
       "aborted": "Η μετάφραση διακόπηκε"
     },
     "input": {
-      "placeholder": "Μπορείτε να επικολλήσετε ή να σύρετε κείμενο, αρχεία κειμένου, εικόνες (υποστηρίζεται η OCR)"
+      "placeholder": "Εισαγάγετε κείμενο..."
     },
     "language": {
       "not_pair": "Η γλώσσα πηγής διαφέρει από την οριζόμενη γλώσσα",

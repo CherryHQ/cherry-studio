@@ -3,7 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode'
+import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -117,6 +117,15 @@ export class AgentSessionDeliveryService extends BaseService {
     const work = this.deleteAgentInternal(agentId, deleteSessions)
     this.track(
       `delete-agent:${agentId}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  deleteAgentSessions(agentId: string): Promise<{ deletedIds: string[] }> {
+    const work = this.deleteAgentSessionsInternal(agentId)
+    this.track(
+      `delete-agent-sessions:${agentId}`,
       work.then(() => undefined)
     )
     return work
@@ -244,6 +253,13 @@ export class AgentSessionDeliveryService extends BaseService {
       deleted: result.deleted,
       ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
     }
+  }
+
+  private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
+    this.assertWritesAvailable()
+    const result = agentSessionService.deleteByAgentIdForDelivery(agentId)
+    await this.finishDeletion(result.deletedIds, result.deliveryResults)
+    return { deletedIds: result.deletedIds }
   }
 
   private async deleteWorkspaceInternal(workspaceId: string): Promise<{ deletedIds: string[] }> {

@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -679,7 +682,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — all tools will run without asking for approval."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "confirmChange": {
             "description": "Switching modes updates the automatically approved tools.",
@@ -1094,6 +1097,34 @@
         "Write": {
           "description": "Creates or overwrites files",
           "label": "Write"
+        },
+        "bash": {
+          "description": "Run shell commands",
+          "label": "Run shell commands"
+        },
+        "edit": {
+          "description": "Edit files",
+          "label": "Edit files"
+        },
+        "find": {
+          "description": "Find files",
+          "label": "Find files"
+        },
+        "grep": {
+          "description": "Search file contents",
+          "label": "Search file contents"
+        },
+        "ls": {
+          "description": "List directory contents",
+          "label": "List directory contents"
+        },
+        "read": {
+          "description": "Read files",
+          "label": "Read files"
+        },
+        "write": {
+          "description": "Write files",
+          "label": "Write files"
         }
       }
     },
@@ -1159,6 +1190,11 @@
       "startSuccess": "API Gateway started successfully",
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
+    },
+    "required": {
+      "confirm": "Enable",
+      "description": "This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "Enable the API Gateway?"
     },
     "status": {
       "running": "Running",
@@ -2503,6 +2539,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",
     "backup": {
@@ -3453,6 +3490,18 @@
             "hint": "Task decomposition and planning",
             "label": "Plan model"
           },
+          "runtime": {
+            "immutable_hint": "Cannot be changed after creation",
+            "label": "Runtime mode",
+            "option": {
+              "claude_code": "Advanced: Claude Agent",
+              "pi": "Fast: Pi"
+            },
+            "selected": {
+              "claude_code": "Advanced",
+              "pi": "Fast"
+            }
+          },
           "small_model": {
             "hint": "Lightweight checks and formatting",
             "label": "Small model"
@@ -3860,10 +3909,17 @@
     "skill_marketplace": {
       "empty_description": "Search online registries to find installable skills.",
       "empty_title": "Search for skills",
+      "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Install from GitHub",
+      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "GitHub SKILL.md URL",
+      "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
       "no_results_title": "No skills found",
       "search_failed_description": "Search failed. Please try again later.",
+      "search_label": "Search skills",
       "search_placeholder": "Search skills...",
+      "source_label": "Skill source",
       "title": "Online skill search"
     },
     "sort": {
@@ -3890,13 +3946,6 @@
       "placeholder": "New tag name..."
     },
     "tag_sync_failed": "Failed to sync tags",
-    "time_ago": {
-      "days": "{{count}} day(s) ago",
-      "hours": "{{count}} hour(s) ago",
-      "just_now": "Just now",
-      "minutes": "{{count}} minute(s) ago",
-      "months": "{{count}} month(s) ago"
-    },
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",
@@ -6018,10 +6067,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Assistant to share feedback.",
+          "description": "Chat with Cherry Support to get help or share feedback.",
           "title": "Use Agent"
         },
-        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support for feedback. Please try again.",
         "button": "Feedback",
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
@@ -7646,7 +7695,6 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
-        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -7669,7 +7717,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "App Update"
     },
     "openai": {
       "service_tier": {

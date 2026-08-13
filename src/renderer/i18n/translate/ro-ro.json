@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
+      },
+      "cherry_support": {
+        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
       }
     },
     "channels": {
@@ -1150,6 +1153,11 @@
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
       "stopSuccess": "Serverul API s-a oprit cu succes"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "Rulează",
@@ -2494,6 +2502,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Furnizori disponibili",
     "availableTools": "Instrumente disponibile",
     "backup": {
@@ -3444,6 +3453,18 @@
             "hint": "Descompunerea sarcinii și planificarea",
             "label": "Model de plan (opțional)"
           },
+          "runtime": {
+            "immutable_hint": "Nu poate fi schimbat după creare",
+            "label": "Mod de rulare",
+            "option": {
+              "claude_code": "Avansat: Claude Agent",
+              "pi": "Rapid: Pi"
+            },
+            "selected": {
+              "claude_code": "Avansat",
+              "pi": "Rapid"
+            }
+          },
           "small_model": {
             "hint": "Verificări ușoare și formatare",
             "label": "Model mic (opțional)"
@@ -3546,7 +3567,7 @@
             "hint": "Lungimea răspunsului Caps când este activată"
           },
           "max_tool_calls": {
-            "hint": "Limitează buclele de apeluri ale funcțiilor când este activat"
+            "hint": "Limitează numărul de runde de apeluri de instrumente când este activat; altfel se aplică limita implicită de {{count}} runde"
           },
           "model": {
             "hint": "Suprascrie modelul implicit global pentru acest asistent"
@@ -4812,7 +4833,7 @@
     },
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
+      "description": "A fost detectată o instalare externă OpenClaw în PATH, dar Cherry Studio folosește propriul binar OpenClaw gestionat. Instalați versiunea gestionată pentru a continua.",
       "install_button": "Reinstalați OpenClaw",
       "title": "OpenClaw necesită actualizare"
     },
@@ -5994,10 +6015,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Asistentul Cherry pentru a împărtăși feedback-ul tău.",
+          "description": "Discută cu Cherry Support pentru ajutor sau pentru a împărtăși feedback-ul tău.",
           "title": "Folosește agentul"
         },
-        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Încearcă din nou.",
+        "agent_error": "Nu se poate deschide Cherry Support pentru feedback. Încearcă din nou.",
         "button": "Feedback",
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
@@ -7622,7 +7643,6 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
-        "model": "Model de denumire",
         "prompt": "Prompt numire subiect"
       },
       "translate_model": "Model traducere",
@@ -8817,7 +8837,7 @@
       "aborted": "Traducere anulată"
     },
     "input": {
-      "placeholder": "Textul, fișierele text sau imaginile (cu suport OCR) pot fi lipite sau trase aici"
+      "placeholder": "Introduceți text..."
     },
     "language": {
       "not_pair": "Limba sursă este diferită de limba setată",

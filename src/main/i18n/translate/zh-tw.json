@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋"
       }
     },
     "session": {

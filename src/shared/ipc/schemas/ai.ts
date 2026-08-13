@@ -50,7 +50,7 @@ import { defineRoute } from '../define'
  */
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
-  type: z.literal('claude-code'),
+  type: AgentEntitySchema.shape.type,
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
@@ -286,7 +286,11 @@ export const aiRequestSchemas = {
     input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
-  'ai.agent.feedback_session.create': defineRoute({
+  'ai.agent.sessions.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.support_session.create': defineRoute({
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),

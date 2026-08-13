@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋"
       }
     },
     "channels": {
@@ -670,7 +673,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "警告：所有工具都會在無核准情況下執行。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1085,6 +1088,34 @@
         "Write": {
           "description": "建立或覆寫檔案",
           "label": "寫入檔案"
+        },
+        "bash": {
+          "description": "執行 Shell 命令",
+          "label": "執行 Shell 命令"
+        },
+        "edit": {
+          "description": "編輯檔案",
+          "label": "編輯檔案"
+        },
+        "find": {
+          "description": "尋找檔案",
+          "label": "尋找檔案"
+        },
+        "grep": {
+          "description": "搜尋檔案內容",
+          "label": "搜尋檔案內容"
+        },
+        "ls": {
+          "description": "列出目錄內容",
+          "label": "列出目錄內容"
+        },
+        "read": {
+          "description": "讀取檔案",
+          "label": "讀取檔案"
+        },
+        "write": {
+          "description": "寫入檔案",
+          "label": "寫入檔案"
         }
       }
     },
@@ -1150,6 +1181,11 @@
       "startSuccess": "API 閘道啟動成功",
       "stopError": "停止 API 閘道失敗：",
       "stopSuccess": "API 閘道停止成功"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "執行中",
@@ -2494,6 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
@@ -3444,6 +3481,18 @@
             "hint": "任務分解與規劃",
             "label": "計畫模型"
           },
+          "runtime": {
+            "immutable_hint": "建立後不可切換",
+            "label": "執行模式",
+            "option": {
+              "claude_code": "增強：Claude Agent",
+              "pi": "快速：Pi"
+            },
+            "selected": {
+              "claude_code": "增強",
+              "pi": "快速"
+            }
+          },
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"
@@ -3546,7 +3595,7 @@
             "hint": "啟用時限制回覆長度"
           },
           "max_tool_calls": {
-            "hint": "啟用時會限制工具呼叫輪數；否則使用預設的 20 輪上限"
+            "hint": "啟用後限制工具呼叫輪次；關閉時使用預設的 {{count}} 輪上限"
           },
           "model": {
             "hint": "覆寫此助理的全域預設模型"
@@ -5994,10 +6043,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "與 Cherry Assistant 聊天以分享回饋。",
+          "description": "與 Cherry 支援對話，取得使用協助或提交回饋。",
           "title": "使用 Agent"
         },
-        "agent_error": "無法開啟 Cherry Assistant 以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟 Cherry 支援以提供意見回饋。請再試一次。",
         "button": "回饋",
         "dialog": {
           "description": "選擇分享回饋的方式，幫助我們讓 Cherry Studio 變得更好。",
@@ -7061,7 +7110,7 @@
       },
       "fetch": {
         "button": "取得伺服器",
-        "success": "伺服器取得成功"
+        "success": "已成功取得 MCP 伺服器"
       },
       "filter": {
         "allStatuses": "所有狀態",
@@ -7622,7 +7671,6 @@
       "topic_naming": {
         "auto": "對話自動重新命名",
         "label": "對話命名",
-        "model": "命名模型",
         "prompt": "對話命名提示詞"
       },
       "translate_model": "翻譯模型",

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listRecoverable: vi.fn(),
   resolveCrash: vi.fn(),
   deleteByIds: vi.fn(),
+  deleteByAgentId: vi.fn(),
   deleteAgent: vi.fn(),
   deleteWorkspace: vi.fn(),
   validateDispatch: vi.fn(),
@@ -55,7 +56,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-vi.mock('@main/ai/runtime/claudeCode', () => ({
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   isAgentSessionWorkspaceError: (error: unknown) =>
     error instanceof Error && error.name === 'AgentSessionWorkspaceError'
 }))
@@ -63,6 +64,7 @@ vi.mock('@main/ai/runtime/claudeCode', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     deleteByIdsForDelivery: mocks.deleteByIds,
+    deleteByAgentIdForDelivery: mocks.deleteByAgentId,
     deleteWorkspaceCascadeForDelivery: mocks.deleteWorkspace
   }
 }))
@@ -176,6 +178,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.finalize.mockReturnValue(null)
     mocks.findByTurnRef.mockReturnValue(null)
     mocks.deleteByIds.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.deleteByAgentId.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
     mocks.deleteAgent.mockReturnValue({
       deleted: true,
       deletedSessionIds: [],
@@ -634,6 +637,23 @@ describe('AgentSessionDeliveryService', () => {
     await service.deleteAgent('agent-1', true)
 
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
+  })
+
+  it('deletes every Session owned by a protected Agent through the delivery owner', async () => {
+    mocks.deleteByAgentId.mockReturnValue({
+      deletedIds: ['session-1', 'session-not-loaded'],
+      taskScheduleIds: [],
+      deliveryResults: []
+    })
+    const service = new AgentSessionDeliveryService()
+
+    await expect(service.deleteAgentSessions('agent-1')).resolves.toEqual({
+      deletedIds: ['session-1', 'session-not-loaded']
+    })
+
+    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1')
+    expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
+    expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
   })
 
   it('closes deleted workspace runtimes through the delivery owner', async () => {

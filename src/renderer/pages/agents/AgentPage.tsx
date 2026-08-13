@@ -803,7 +803,7 @@ const AgentPage = () => {
       setFeedbackComposerLaunch(routeFeedbackComposerLaunch)
     } catch (err) {
       setFeedbackComposerLaunch(null)
-      logger.error('Failed to prepare Cherry Assistant feedback session', err as Error)
+      logger.error('Failed to prepare Cherry Support feedback session', err as Error)
       toast.error(t('settings.about.feedback.agent_error'))
       showMissingAgentSelection()
     } finally {

@@ -1559,7 +1559,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'request-sonnet',
+          requestId: 'claude-agent:request-sonnet',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -1575,7 +1575,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'request-haiku',
+          requestId: 'claude-agent:request-haiku',
           model: 'haiku-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -1651,7 +1651,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).toContainEqual({
       type: 'usage',
       invocation: expect.objectContaining({
-        requestId: 'request-without-model',
+        requestId: 'claude-agent:request-without-model',
         model: 'sonnet-sdk'
       })
     })
@@ -1717,7 +1717,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         type: 'usage',
         invocation: {
-          requestId: 'completed-step',
+          requestId: 'claude-agent:completed-step',
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
         }
       }
@@ -1824,7 +1824,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'longcat-request',
+          requestId: 'claude-agent:longcat-request',
           model: 'LongCat-2.0',
           messageAssociation: 'current-turn',
           usage: {
@@ -1934,7 +1934,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'sparse-terminal-request',
+          requestId: 'claude-agent:sparse-terminal-request',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -2009,7 +2009,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen.find((event) => event?.type === 'usage')).toEqual({
       type: 'usage',
       invocation: {
-        requestId: 'background-request',
+        requestId: 'claude-agent:background-request',
         model: 'sonnet-sdk',
         messageAssociation: 'stateless',
         usage: {
