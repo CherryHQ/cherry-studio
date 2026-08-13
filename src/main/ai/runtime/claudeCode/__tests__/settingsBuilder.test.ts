@@ -387,12 +387,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
-    expect(settings.additionalDirectories).toEqual(['/app/feature.agents.data/agent-1'])
+    expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
     expect(mocks.buildPrompt).toHaveBeenCalledWith(
       '/workspace/project',
       expect.anything(),
       true,
-      '/app/feature.agents.data/agent-1'
+      path.join('/app/feature.agents.data', 'agent-1')
     )
     expect(settings.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Workspace')
@@ -2573,7 +2573,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
       // application.getPath('sys.home') is mocked to '/app/sys.home'.
-      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe(path.join('/app/sys.home', '.claude'))
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
@@ -2586,7 +2586,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
-      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe(path.join('/app/sys.home', '.claude'))
     })
 
     it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
