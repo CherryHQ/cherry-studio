@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Tạo hoặc ghi đè lên các tệp",
           "label": "Viết"
+        },
+        "bash": {
+          "description": "Chạy lệnh shell",
+          "label": "Chạy lệnh shell"
+        },
+        "edit": {
+          "description": "Sửa tập tin",
+          "label": "Sửa tập tin"
+        },
+        "find": {
+          "description": "Tìm tập tin",
+          "label": "Tìm tập tin"
+        },
+        "grep": {
+          "description": "Tìm kiếm nội dung tập tin",
+          "label": "Tìm kiếm nội dung tập tin"
+        },
+        "ls": {
+          "description": "Liệt kê nội dung thư mục",
+          "label": "Liệt kê nội dung thư mục"
+        },
+        "read": {
+          "description": "Đọc tập tin",
+          "label": "Đọc tập tin"
+        },
+        "write": {
+          "description": "Ghi tập tin",
+          "label": "Ghi tập tin"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "Máy chủ API đã dừng thành công"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Bật",
+      "description": "Mô hình của Agent này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio. Bật tính năng này cũng sẽ tự động khởi động máy chủ trong các lần chạy sau; bạn có thể tắt lại trong Cài đặt.",
+      "title": "Bật Máy chủ API?"
     },
     "status": {
       "running": "Chạy",
@@ -2502,7 +2530,7 @@
     "openai-response": "Phản hồi của OpenAI"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Mô hình này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio, nhưng máy chủ hiện đang bị tắt. Bật nó lên để chạy Agent này.",
     "availableProviders": "Nhà cung cấp có sẵn",
     "availableTools": "Công cụ có sẵn",
     "backup": {
@@ -3872,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Tìm kiếm trong các sổ đăng ký trực tuyến để tìm các kỹ năng có thể cài đặt.",
       "empty_title": "Tìm kiếm kỹ năng",
+      "github_empty_description": "Dán liên kết đến tập tin SKILL.md của một kỹ năng, ví dụ github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Cài đặt từ GitHub",
+      "github_url_invalid": "Hãy dán liên kết GitHub có kết thúc bằng SKILL.md",
+      "github_url_label": "URL SKILL.md trên GitHub",
+      "github_url_placeholder": "Liên kết GitHub, kết thúc bằng /SKILL.md",
       "no_results_description": "Thử một từ khóa khác hoặc nhập tệp ZIP hoặc thư mục cục bộ.",
       "no_results_title": "Không tìm thấy kỹ năng nào",
       "search_failed_description": "Tìm kiếm thất bại. Vui lòng thử lại sau.",
+      "search_label": "Tìm kiếm kỹ năng",
       "search_placeholder": "Kỹ năng tìm kiếm...",
+      "source_label": "Nguồn kỹ năng",
       "title": "Tìm kiếm kỹ năng trực tuyến"
     },
     "sort": {
@@ -3902,13 +3937,6 @@
       "placeholder": "Tên thẻ mới..."
     },
     "tag_sync_failed": "Không đồng bộ được thẻ",
-    "time_ago": {
-      "days": "{{count}} ngày trước",
-      "hours": "{{count}} giờ trước",
-      "just_now": "Vừa xong",
-      "minutes": "{{count}} phút trước",
-      "months": "{{count}} tháng trước"
-    },
     "title": "Thư viện",
     "toolbar": {
       "add_group_placeholder": "Tên nhóm...",
@@ -7665,7 +7693,8 @@
       "assistant": "Tin nhắn Trợ lý",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
-      "title": "Thông báo"
+      "title": "Thông báo",
+      "update": "Cập nhật Ứng dụng"
     },
     "openai": {
       "service_tier": {
