@@ -3,6 +3,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { providerErrorText } from '@renderer/utils/error'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 import {
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -13,11 +14,51 @@ import {
 
 import type {
   ApiKeyWithStatus,
+  ModelCheckCredential,
+  ModelCheckKeySelection,
   ModelHealthCheckGenerationOutput,
   ModelHealthCheckSkipReason,
   ModelWithStatus
 } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
+
+export type ModelCheckCredentialsErrorCode = 'api_key_required' | 'api_key_unavailable'
+
+export class ModelCheckCredentialsError extends Error {
+  readonly code: ModelCheckCredentialsErrorCode
+
+  constructor(code: ModelCheckCredentialsErrorCode) {
+    super(code)
+    this.name = 'ModelCheckCredentialsError'
+    this.code = code
+  }
+}
+
+export function resolveModelCheckCredentials(
+  apiKeyEntries: readonly ApiKeyEntry[],
+  selection: ModelCheckKeySelection,
+  requiresApiKey: boolean
+): ModelCheckCredential[] {
+  if (!requiresApiKey) {
+    return [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
+  }
+
+  const enabledEntries = apiKeyEntries.filter((entry) => entry.isEnabled)
+
+  if (selection.mode === 'single') {
+    const selectedEntry = enabledEntries.find((entry) => entry.id === selection.keyId)
+    if (!selectedEntry) {
+      throw new ModelCheckCredentialsError('api_key_unavailable')
+    }
+    return [{ kind: 'api-key', entry: selectedEntry }]
+  }
+
+  if (enabledEntries.length === 0) {
+    throw new ModelCheckCredentialsError('api_key_required')
+  }
+
+  return enabledEntries.map((entry) => ({ kind: 'api-key', entry }))
+}
 
 export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {
   if (error == null) {

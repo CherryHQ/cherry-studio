@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 
-import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
+import type { ApiKeyWithStatus, ModelCheckCredential, ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
 import { aggregateApiKeyResults, checkApi } from '../utils/healthCheck'
 
@@ -9,22 +9,29 @@ const logger = loggerService.withContext('ProviderSettings:checkModelsHealth')
 
 export async function checkModelWithMultipleKeys(
   model: ModelCheckOptions['models'][number],
-  apiKeys: string[],
+  credentials: ModelCheckCredential[],
   timeout?: number,
   signal?: AbortSignal
 ): Promise<ApiKeyWithStatus[]> {
-  if (apiKeys.length === 0) return []
+  if (credentials.length === 0) return []
 
   return Promise.all(
-    apiKeys.map(async (key) => {
+    credentials.map(async (credential) => {
       signal?.throwIfAborted()
       try {
-        const { latency } = await checkApi(model.id, { apiKey: key, timeout, signal })
-        return { kind: 'ok', key, status: HealthStatus.SUCCESS, checking: false, latency } satisfies ApiKeyWithStatus
+        const apiKey = credential.kind === 'api-key' ? credential.entry.key : undefined
+        const { latency } = await checkApi(model.id, { apiKey, timeout, signal })
+        return {
+          kind: 'ok',
+          credential,
+          status: HealthStatus.SUCCESS,
+          checking: false,
+          latency
+        } satisfies ApiKeyWithStatus
       } catch (error) {
         return {
           kind: 'failed',
-          key,
+          credential,
           status: HealthStatus.FAILED,
           checking: false,
           error: serializeHealthCheckError(error)
@@ -38,13 +45,13 @@ export async function checkModelsHealth(
   options: ModelCheckOptions,
   onModelChecked?: (result: ModelWithStatus, index: number) => void
 ): Promise<ModelWithStatus[]> {
-  const { models, apiKeys, isConcurrent, timeout, signal } = options
+  const { models, credentials, isConcurrent, timeout, signal } = options
   const results: ModelWithStatus[] = []
 
   try {
     const runModelCheck = async (model: ModelCheckOptions['models'][number], index: number) => {
       signal?.throwIfAborted()
-      const keyResults = await checkModelWithMultipleKeys(model, apiKeys, timeout, signal)
+      const keyResults = await checkModelWithMultipleKeys(model, credentials, timeout, signal)
       signal?.throwIfAborted()
       const analysis = aggregateApiKeyResults(keyResults)
 

@@ -3,6 +3,7 @@ import { aggregateApiKeyResults } from '@renderer/pages/settings/ProviderSetting
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ModelCheckCredential } from '../../types/healthCheck'
 import { checkModelsHealth } from '../checkModelsHealth'
 
 const checkApiMock = vi.fn()
@@ -28,6 +29,12 @@ function deferred<T = void>() {
 // + per-iteration deferreds, so most use a default latency of 0.
 const okResult = { latency: 0 }
 
+const credentials = [
+  { kind: 'api-key', entry: { id: 'key-1', key: 'sk-1', label: 'Primary', isEnabled: true } },
+  { kind: 'api-key', entry: { id: 'key-2', key: 'sk-2', label: 'Backup', isEnabled: true } },
+  { kind: 'api-key', entry: { id: 'key-3', key: 'sk-3', isEnabled: true } }
+] satisfies ModelCheckCredential[]
+
 describe('checkModelsHealth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -40,7 +47,7 @@ describe('checkModelsHealth', () => {
 
     const run = checkModelsHealth({
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
+      credentials: credentials.slice(0, 1),
       isConcurrent: false,
       timeout: 1000
     })
@@ -59,7 +66,7 @@ describe('checkModelsHealth', () => {
 
     const results = await checkModelsHealth({
       models: [{ id: 'model-a' }] as never,
-      apiKeys: ['sk-1', 'sk-2', 'sk-3'],
+      credentials,
       isConcurrent: true,
       timeout: 1000
     })
@@ -70,6 +77,22 @@ describe('checkModelsHealth', () => {
     expect(checkApiMock).toHaveBeenNthCalledWith(3, 'model-a', expect.objectContaining({ apiKey: 'sk-3' }))
     expect(results[0].kind).toBe('ok')
     expect(results[0].keyResults).toHaveLength(3)
+    expect(results[0].keyResults.map((result) => result.credential)).toEqual(credentials)
+  })
+
+  it('uses provider authentication without an API-key override', async () => {
+    checkApiMock.mockResolvedValue(okResult)
+    const providerAuth = { kind: 'provider-auth', id: 'provider-auth', key: '' } as const
+
+    const results = await checkModelsHealth({
+      models: [{ id: 'model-a' }] as never,
+      credentials: [providerAuth],
+      isConcurrent: true,
+      timeout: 1000
+    })
+
+    expect(checkApiMock).toHaveBeenCalledWith('model-a', expect.objectContaining({ apiKey: undefined }))
+    expect(results[0].keyResults[0].credential).toEqual(providerAuth)
   })
 
   it('rejects when the health check pipeline fails outside per-key results', async () => {
@@ -81,7 +104,7 @@ describe('checkModelsHealth', () => {
     await expect(
       checkModelsHealth({
         models: [{ id: 'model-a' }] as never,
-        apiKeys: ['sk-test'],
+        credentials: credentials.slice(0, 1),
         isConcurrent: true,
         timeout: 1000
       })
@@ -101,7 +124,7 @@ describe('checkModelsHealth', () => {
 
     const run = checkModelsHealth({
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
+      credentials: credentials.slice(0, 1),
       isConcurrent: false,
       timeout: 1000,
       signal: controller.signal
@@ -130,7 +153,7 @@ describe('checkModelsHealth', () => {
     const controller = new AbortController()
     const run = checkModelsHealth({
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
+      credentials: credentials.slice(0, 1),
       isConcurrent: true,
       timeout: 1000,
       signal: controller.signal

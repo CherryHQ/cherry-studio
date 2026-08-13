@@ -1,8 +1,18 @@
 import type { SerializedError } from '@renderer/types/error'
-import { HealthStatus } from '@renderer/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 
-export { HealthStatus }
+export enum HealthStatus {
+  SUCCESS = 'success',
+  FAILED = 'failed',
+  NOT_CHECKED = 'not_checked'
+}
+
+export type ModelCheckKeySelection = { mode: 'all' } | { mode: 'single'; keyId: string }
+
+export type ModelCheckCredential =
+  | { kind: 'api-key'; entry: ApiKeyEntry }
+  | { kind: 'provider-auth'; id: 'provider-auth'; key: '' }
 
 export type ApiKeyConnectivity =
   | {
@@ -39,7 +49,7 @@ export type ApiKeyConnectivity =
     }
 
 export type ApiKeyWithStatus = ApiKeyConnectivity & {
-  key: string
+  credential: ModelCheckCredential
 }
 
 export type ModelHealthCheckGenerationOutput = 'image' | 'video' | 'audio'
@@ -103,7 +113,7 @@ export type ModelWithStatus =
 
 export interface ModelCheckOptions {
   models: readonly Model[]
-  apiKeys: string[]
+  credentials: ModelCheckCredential[]
   isConcurrent: boolean
   timeout?: number
   signal?: AbortSignal

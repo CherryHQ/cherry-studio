@@ -120,7 +120,11 @@ export const useHealthCheck = (providerId: string) => {
         return
       }
 
-      const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
+      const credentials = apiKeys.length
+        ? (apiKeysData?.keys ?? [])
+            .filter((entry) => entry.isEnabled && apiKeys.includes(entry.key))
+            .map((entry) => ({ kind: 'api-key' as const, entry }))
+        : [{ kind: 'provider-auth' as const, id: 'provider-auth' as const, key: '' as const }]
       const abortController = new AbortController()
       abortControllerRef.current = abortController
       setIsChecking(true)
@@ -129,7 +133,7 @@ export const useHealthCheck = (providerId: string) => {
         await checkModelsHealth(
           {
             models: checkableEntries.map((entry) => entry.model),
-            apiKeys: keys,
+            credentials,
             isConcurrent,
             timeout,
             signal: abortController.signal
@@ -167,7 +171,7 @@ export const useHealthCheck = (providerId: string) => {
         }
       }
     },
-    [models, provider]
+    [apiKeysData?.keys, models, provider]
   )
 
   return {
