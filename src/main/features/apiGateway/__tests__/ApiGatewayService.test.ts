@@ -10,10 +10,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, mockGetActiveUsageContext, captured } = vi.hoisted(() => ({
+const { mockStart, mockStop, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(() => ({
   mockStart: vi.fn(),
   mockStop: vi.fn(),
   mockGetActiveUsageContext: vi.fn(),
+  mockPreferenceSet: vi.fn(async () => {}),
   captured: {
     prefHandler: undefined as ((enabled: boolean) => void) | undefined,
     enabledPreference: false
@@ -39,7 +40,7 @@ vi.mock('@application', async () => {
         port: 23333,
         apiKey: 'existing-key'
       })),
-      set: vi.fn(async () => {})
+      set: mockPreferenceSet
     },
     CacheService: { setShared: vi.fn() },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext }
@@ -55,6 +56,8 @@ beforeEach(() => {
   BaseService.resetInstances()
   captured.prefHandler = undefined
   captured.enabledPreference = false
+  mockPreferenceSet.mockReset()
+  mockPreferenceSet.mockResolvedValue(undefined)
   startResolvers = []
   rejectStart = false
   mockStart.mockReset()
@@ -150,6 +153,33 @@ describe('ApiGatewayService reconcile', () => {
     await ready
 
     expect(service.isActivated).toBe(true)
+  })
+
+  // The command and the persisted intent must land together: a stop whose preference write never
+  // happened comes back on the next launch, which is the whole of #18521.
+  it('persists the intent before converging, and reports a failed persist instead of stopping', async () => {
+    captured.enabledPreference = true
+    const service = new ApiGatewayService()
+    const ready = service._doInit()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await ready
+
+    mockPreferenceSet.mockRejectedValueOnce(new Error('disk full'))
+    await expect(service.stop()).rejects.toThrow('disk full')
+    expect(service.isActivated).toBe(true)
+  })
+
+  it('persists the intent when a start succeeds', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const started = service.start()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await started
+
+    expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.enabled', true)
   })
 
   it('honors an opposing toggle that lands during an in-flight activation (no dropped toggle)', async () => {

@@ -2,7 +2,7 @@
 title: The API Gateway no longer starts on its own
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18523"
 date: 2026-08-13
 ---
 
@@ -13,7 +13,8 @@ itself on every launch as soon as any agent existed, and the switch was flipped 
 user's back — so turning it off never stuck.
 
 Agents whose model has to be bridged through the gateway no longer start it silently either. They
-ask first: a dialog offers to enable the gateway and then resends the message.
+ask first: a dialog offers to enable the gateway, and resends the text of the message that could
+not be sent (attachments and other turn context are not carried over).
 
 ## Why this matters to the user
 

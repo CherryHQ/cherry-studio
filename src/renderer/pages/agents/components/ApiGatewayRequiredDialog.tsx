@@ -5,7 +5,7 @@ import { useIpcOn } from '@renderer/ipc'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -48,22 +48,47 @@ function GatewayPrompt({
 }: Omit<Props, 'sessionId'> & { onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation()
   const { startApiGateway } = useApiGateway()
+  const [enabling, setEnabling] = useState(false)
+  const inFlight = useRef(false)
+  const failed = useRef(false)
 
   const handleConfirm = async () => {
-    // `startApiGateway` toasts its own failure and returns false (e.g. the port is taken).
-    if (!(await startApiGateway())) return
-    const text = retryText(messages, partsByMessageId)
-    if (text) await sendMessage({ text })
+    // The confirm button only disables once React commits `enabling`, so a fast double-click can
+    // enter twice and resend twice. The ref closes that window synchronously.
+    if (inFlight.current) return
+    inFlight.current = true
+    setEnabling(true)
+    try {
+      // `startApiGateway` toasts its own failure and returns false (e.g. the port is taken).
+      failed.current = !(await startApiGateway())
+      if (failed.current) return
+      const text = retryText(messages, partsByMessageId)
+      if (text) await sendMessage({ text })
+    } finally {
+      inFlight.current = false
+      setEnabling(false)
+    }
+  }
+
+  // `ConfirmDialog` closes unconditionally once `onConfirm` settles. The event that raised this
+  // prompt is transient, so letting a failed start close it would strand the user with no way back.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && failed.current) {
+      failed.current = false
+      return
+    }
+    onOpenChange(next)
   }
 
   return (
     <ConfirmDialog
       open
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={t('apiGateway.required.title')}
       description={t('apiGateway.required.description')}
       confirmText={t('apiGateway.required.confirm')}
       cancelText={t('common.cancel')}
+      confirmLoading={enabling}
       onConfirm={handleConfirm}
     />
   )

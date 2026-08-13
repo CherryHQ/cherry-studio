@@ -112,12 +112,30 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  async start(): Promise<void> {
-    // Set the desired state and converge through the reconciler — never transition directly, so
-    // this can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
-    this.desiredEnabled = true
+  /**
+   * Converge the runtime on `enabled` through the reconciler — never transition directly, so this
+   * can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
+   */
+  private async converge(enabled: boolean): Promise<void> {
+    this.desiredEnabled = enabled
     this.reconciler.request()
     await this.reconciler.flush()
+  }
+
+  /**
+   * Persist the intent BEFORE converging, in the same authoritative call. A runtime transition
+   * whose persisted intent never landed is exactly the divergence #18521 was about — a stop that
+   * left `enabled: true` behind reopens the port on the next launch. The preference write throws
+   * on failure, so the caller learns the intent did not stick.
+   */
+  private async applyIntent(enabled: boolean): Promise<void> {
+    await application.get('PreferenceService').set('feature.api_gateway.enabled', enabled)
+    // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
+    await this.converge(enabled)
+  }
+
+  async start(): Promise<void> {
+    await this.applyIntent(true)
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
@@ -127,9 +145,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async stop(): Promise<void> {
-    this.desiredEnabled = false
-    this.reconciler.request()
-    await this.reconciler.flush()
+    await this.applyIntent(false)
     if (this.isActivated) {
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
@@ -139,10 +155,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async restart(): Promise<void> {
-    // Re-create the server (e.g. to apply a new host/port) as a stop→start, so it goes
-    // through the same single reconciler — no direct, race-prone transition.
-    await this.stop()
-    await this.start()
+    // Re-create the server (e.g. to apply a new host/port) as a stop→start through the same single
+    // reconciler. A re-bind is not an intent change, so the persisted preference is left alone.
+    await this.converge(false)
+    await this.converge(true)
+    if (!this.isActivated) {
+      const error = this.failureError('Failed to restart API Gateway')
+      logger.error('Failed to restart API Gateway:', error)
+      throw error
+    }
     logger.info('API Gateway restarted successfully')
   }
 
