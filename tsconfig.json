@@ -13,11 +13,10 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "useDefineForClassFields": true,
-    "baseUrl": ".",
     "paths": {
-      "@renderer/*": ["src/renderer/*"],
-      "@shared/*": ["src/shared/*"],
-      "@cherrystudio/provider-registry": ["packages/provider-registry/src/index.ts"]
+      "@renderer/*": ["./src/renderer/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"]
     }
   }
 }
