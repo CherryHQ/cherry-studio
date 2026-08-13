@@ -63,7 +63,16 @@ describe('validate rejects broken translations', () => {
   })
 
   it('rejects a dropped Trans tag placeholder', () => {
+    // The catalog uses named tags, never numeric ones: <provider> becomes a <Link> to the provider
+    // settings page (ErrorBlock.tsx), so dropping it renders the provider name as dead plain text.
+    const english = 'Please go to the <provider>{{provider}}</provider> to recharge.'
+    expect(validate(english, 'Bitte gehen Sie zu {{provider}}, um aufzuladen.')).toMatch(/tag/)
     expect(validate('Read the <0>docs</0> first', 'Lesen Sie zuerst die Dokumentation')).toMatch(/tag/)
+  })
+
+  it('rejects a renamed Trans tag placeholder', () => {
+    const english = 'Provided by <website>{{provider}}</website>'
+    expect(validate(english, 'Fourni par <site>{{provider}}</site>')).toMatch(/tag/)
   })
 
   it('rejects a translated product name', () => {
@@ -82,6 +91,8 @@ describe('validate accepts translations the catalog already relies on', () => {
     expect(validate('{{count}} channels', '{{count}} 個のチャンネル')).toBeNull()
     expect(validate('Add Provider', 'Anbieter hinzufügen', ['Cherry Studio'])).toBeNull()
     expect(validate('Read the <0>docs</0> first', 'Lisez d’abord la <0>documentation</0>')).toBeNull()
+    const english = 'Please go to the <provider>{{provider}}</provider> to recharge.'
+    expect(validate(english, 'Rufen Sie <provider>{{provider}}</provider> auf, um aufzuladen.')).toBeNull()
   })
 
   it('accepts a technical string left in English', () => {

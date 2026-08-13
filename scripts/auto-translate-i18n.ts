@@ -92,7 +92,8 @@ const mapPool = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise
 // ------------------------------------------------------------------ validation
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
-const tagPlaceholders = (text: string) => (text.match(/<\/?\d+\s*\/?>/g) ?? []).sort()
+// `<Trans>` in this codebase uses named component tags (`<provider>`, `<link>`), never numeric ones.
+const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+\s*\/?>/g) ?? []).sort()
 const nestedKeys = (text: string) => (text.match(/\$t\([^)]*\)/g) ?? []).sort()
 
 /** Case and separators vary legitimately: "Github", "Cherry-Studio-Diagnose". Spelling does not. */
@@ -255,7 +256,7 @@ Cherry Studio is a desktop AI chat client. Each string below comes with a brief 
 Rules:
 - Return only the translated string. No explanations, no bracketed notes, no quotes around the result.
 - Copy every {{variable}} through unchanged. Never translate or rename the text inside {{ }}, never drop one, and never substitute the value it stands for.
-- Copy <0>...</0> style tag placeholders and $t(...) references through unchanged.
+- Copy every tag placeholder and $t(...) reference through unchanged, including named ones such as <provider>...</provider>, <link>...</link>, <strong>...</strong> and <INPUT>...</INPUT>. They wrap the text in a link or other component at runtime, so translate what is between the tags and never rename, reorder away or drop the tags themselves.
 - Keep these verbatim in Latin script: ${glossary.doNotTranslate.join(', ')}.
 - Follow lengthHint: a "tight" string must stay roughly as short as the English, because it sits in a fixed-width control.
 - Use the established terminology below. Inflect it as the target language requires, but do not switch to a synonym.
