@@ -1,5 +1,6 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
@@ -23,8 +24,11 @@ export function getAgentDescriptionForDisplay(
   if (agent.description) return agent.description
   // Builtin contract: an empty DB description means the bundle/UI owns the localized
   // default. A non-empty user edit is user-owned and is never overwritten.
-  if (agent.configuration?.builtin_role === 'assistant') {
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT) {
     return t('agent.builtin.cherry_assistant.description')
+  }
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT) {
+    return t('agent.builtin.cherry_support.description')
   }
   return ''
 }

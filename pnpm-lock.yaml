@@ -869,6 +869,12 @@ importers:
       htmlparser2:
         specifier: ^10.0.0
         version: 10.0.0
+      http-proxy-agent:
+        specifier: ^7.0.2
+        version: 7.0.2
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
       i18next:
         specifier: ^23.11.5
         version: 23.16.8
@@ -980,9 +986,6 @@ importers:
       postcss:
         specifier: 8.5.6
         version: 8.5.6
-      proxy-agent:
-        specifier: ^6.5.0
-        version: 6.5.0
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -1055,6 +1058,9 @@ importers:
       shiki:
         specifier: ^3.12.0
         version: 3.20.0
+      socks-proxy-agent:
+        specifier: ^8.0.5
+        version: 8.0.5
       stream-json:
         specifier: ^1.9.1
         version: 1.9.1

@@ -416,6 +416,20 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     }
   )
 
+  it('loads the bundled product feedback role for Cherry Support', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({
+      instructions: 'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+    })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(promptText(result)).toContain(
+      'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+    )
+    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledWith('support')
+  })
+
   it('initializes persona and memory resources in agent data on every build', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',

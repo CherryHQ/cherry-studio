@@ -3,12 +3,13 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer from '@main/ai/mcp/servers/assistant'
+import AssistantServer, { SUPPORT_ASSISTANT_TOOL_NAMES } from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -61,7 +62,8 @@ export function buildAgentMcpServers(
       workspaceSource,
       workspacePath: session.workspace.path,
       sourceChannelId,
-      canAccessAllKnowledgeBases: () => agentService.getAgent(agent.id)?.configuration?.builtin_role === 'assistant',
+      canAccessAllKnowledgeBases: () =>
+        agentService.getAgent(agent.id)?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
@@ -72,10 +74,17 @@ export function buildAgentMcpServers(
     name: 'agent-memory',
     instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
   }
-  servers.skills = { name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
+    servers.skills = { name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  }
 
   if (assistantMcpEnabled) {
-    servers.assistant = { name: 'assistant', instance: new AssistantServer(agent.model ?? undefined).mcpServer }
+    const assistantToolNames =
+      agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? SUPPORT_ASSISTANT_TOOL_NAMES : undefined
+    servers.assistant = {
+      name: 'assistant',
+      instance: new AssistantServer(agent.model ?? undefined, assistantToolNames).mcpServer
+    }
     servers['assistant-files'] = {
       name: 'assistant-files',
       instance: new AssistantFileToolsServer({

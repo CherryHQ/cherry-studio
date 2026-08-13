@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -6030,10 +6033,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Assistant to share feedback.",
+          "description": "Chat with Cherry Support to get help or share feedback.",
           "title": "Use Agent"
         },
-        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support for feedback. Please try again.",
         "button": "Feedback",
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
@@ -7681,7 +7684,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "App Update"
     },
     "openai": {
       "service_tier": {
