@@ -885,9 +885,10 @@ async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // down while binding at boot, mid-restart, or after a failed activation, and prompting the user
   // to enable a service they already enabled would be nonsense.
   if (!config.enabled) throw new ApiGatewayNotRunningError()
-  // Consent already given, so converging is not an implicit start. `start()` goes through the same
-  // reconciler (serializing behind an in-flight transition) and throws the real bind error.
-  if (!apiGatewayService.isRunning()) await apiGatewayService.start()
+  // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
+  // the same reconciler (serializing behind an in-flight transition) and throws the real bind
+  // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
+  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()

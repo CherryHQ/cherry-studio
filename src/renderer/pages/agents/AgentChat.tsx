@@ -604,12 +604,7 @@ const AgentChatSessionCenter = ({
         deleteMessage={runtime.deleteMessage}
         respondToolApproval={runtime.respondToolApproval}
       />
-      <ApiGatewayRequiredDialog
-        sessionId={runtime.sessionId}
-        messages={runtime.uiMessages}
-        partsByMessageId={runtime.partsByMessageId}
-        sendMessage={runtime.sendMessage}
-      />
+      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 

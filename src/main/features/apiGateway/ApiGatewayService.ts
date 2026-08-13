@@ -158,6 +158,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     // Re-create the server (e.g. to apply a new host/port) as a stop→start through the same single
     // reconciler. A re-bind is not an intent change, so the persisted preference is left alone.
     await this.converge(false)
+    // Re-read the intent before re-activating: another window may have persisted a stop while this
+    // restart was queued behind it, and a re-bind must never resurrect a gateway the user disabled.
+    if (!this.getCurrentConfig().enabled) {
+      const error = new Error('API Gateway was disabled while restarting')
+      logger.warn('Aborting API Gateway restart: the gateway was disabled meanwhile')
+      throw error
+    }
     await this.converge(true)
     if (!this.isActivated) {
       const error = this.failureError('Failed to restart API Gateway')
@@ -165,6 +172,23 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     }
     logger.info('API Gateway restarted successfully')
+  }
+
+  /**
+   * Converge an already-enabled gateway toward running. Unlike {@link start} this never touches the
+   * persisted intent, so a caller that merely needs the gateway up (an agent route whose model must
+   * be bridged) can wait for readiness without being able to re-enable what a user disabled.
+   */
+  async ensureRunning(): Promise<void> {
+    if (!this.getCurrentConfig().enabled) {
+      throw new Error('API Gateway is disabled')
+    }
+    await this.converge(true)
+    if (!this.isActivated) {
+      const error = this.failureError('Failed to start API Gateway')
+      logger.error('Failed to start API Gateway:', error)
+      throw error
+    }
   }
 
   /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */

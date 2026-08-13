@@ -182,6 +182,23 @@ describe('ApiGatewayService reconcile', () => {
     expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.enabled', true)
   })
 
+  // A re-bind must not resurrect a gateway another window disabled while the restart was queued:
+  // that would leave runtime=running with the preference persisted as disabled.
+  it('aborts a restart when the gateway was disabled meanwhile', async () => {
+    captured.enabledPreference = true
+    const service = new ApiGatewayService()
+    const ready = service._doInit()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await ready
+
+    // Another window's stop lands: the preference is already persisted when the restart re-reads it.
+    captured.enabledPreference = false
+    await expect(service.restart()).rejects.toThrow('disabled while restarting')
+    expect(service.isActivated).toBe(false)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+  })
+
   it('honors an opposing toggle that lands during an in-flight activation (no dropped toggle)', async () => {
     const service = new ApiGatewayService()
     await service._doInit() // Ready; desiredEnabled=false; reconcile is a no-op.

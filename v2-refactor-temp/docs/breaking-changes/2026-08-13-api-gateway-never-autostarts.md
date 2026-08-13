@@ -13,8 +13,8 @@ itself on every launch as soon as any agent existed, and the switch was flipped 
 user's back — so turning it off never stuck.
 
 Agents whose model has to be bridged through the gateway no longer start it silently either. They
-ask first: a dialog offers to enable the gateway, and resends the text of the message that could
-not be sent (attachments and other turn context are not carried over).
+ask first: a dialog offers to enable the gateway. Enabling does not resend anything — send the
+message again once the gateway is up.
 
 ## Why this matters to the user
 

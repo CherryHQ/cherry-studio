@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
+  apiGatewayEnsureRunning: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('@application', () => ({
           ensureValidApiKey: mocks.apiGatewayEnsureKey,
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
+          ensureRunning: mocks.apiGatewayEnsureRunning,
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders,
           getInternalRequestToken: mocks.apiGatewayGetInternalRequestToken
@@ -159,6 +161,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
+    mocks.apiGatewayEnsureRunning.mockResolvedValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({
       enabled: true,
       host: '127.0.0.1',
@@ -807,6 +810,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ApiGatewayNotRunningError
     )
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureRunning).not.toHaveBeenCalled()
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
   })
 
@@ -823,7 +827,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayStart).toHaveBeenCalled()
+    // `ensureRunning`, never `start`: converging must not be able to re-persist the intent.
+    expect(mocks.apiGatewayEnsureRunning).toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
   })
 
