@@ -1,125 +1,131 @@
 {
-  "generated_at": "2026-08-12T00:00:00Z",
-  "date": "2026-08-12",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-08-13T17:00:00Z",
+  "date": "2026-08-13",
+  "source": "github_mcp",
   "open_issues": {
-    "total": 879,
-    "p1_count": 3,
-    "uncategorized_count_estimate": 153,
-    "uncategorized_pct_estimate": 17.5
+    "total": 859,
+    "unlabeled_count": 228,
+    "unlabeled_pct": 26.5,
+    "inactive_labeled": 163,
+    "label_breakdown": {
+      "UI/UX": 314,
+      "Models": 159,
+      "Assistant": 69,
+      "Performance": 60,
+      "MCP": 47,
+      "RAG": 30,
+      "Data": 26,
+      "Docs": 17,
+      "Connectivity": 13,
+      "Agent": 9
+    }
   },
-  "closed_issues_30d": 526,
   "open_prs": {
-    "total_estimate": "200+",
-    "page1_count": 100,
+    "total": 100,
     "targeting_main": 95,
     "targeting_v1": 3,
-    "targeting_v2": 0,
-    "drafts": 3
+    "targeting_other": 2,
+    "drafts": 0
   },
-  "closed_prs_30d": {
-    "found": 100,
-    "merged": 93,
-    "closed_without_merge": 7
+  "v2_branch_prs": {
+    "open": 0,
+    "merged_last_30d": 0,
+    "note": "v2 branch appears merged into main; no active PRs target v2 base"
   },
-  "p1_issues": [
+  "closed_last_30d": {
+    "issues": 549
+  },
+  "p1_urgent_open": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
       "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
+        "Data"
       ],
-      "created_at": "2026-05-07",
-      "updated_at": "2026-05-07",
-      "user": "SiinXu",
-      "age_days": 97
+      "severity": "SECURITY"
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "number": 18439,
+      "title": "[Bug]: Frontend UI freezes when running Agent — Agent continues in background, UI shows error page",
       "labels": [
-        "P1",
-        "Models"
+        "UI/UX",
+        "Performance"
       ],
-      "created_at": "2026-03-18",
-      "updated_at": "2026-03-19",
-      "user": "lsy08",
-      "age_days": 147
+      "severity": "P1"
     },
     {
-      "number": 13193,
-      "title": "[Bug]: Azure openai Resource not found / Responses API 404",
+      "number": 18445,
+      "title": "[Bug]: App doesn't fully quit when closing main window with tray disabled — 5 processes keep running",
+      "labels": [],
+      "severity": "P1"
+    },
+    {
+      "number": 18336,
+      "title": "[Bug] Agent Feishu channel: WebSocket connects but inbound messages never reach the session (2.0.3)",
       "labels": [
-        "P1",
-        "Models"
+        "BUG",
+        "Connectivity"
       ],
-      "created_at": "2026-03-04",
-      "updated_at": "2026-03-05",
-      "user": "simplezhao",
-      "age_days": 161
+      "severity": "P1"
+    },
+    {
+      "number": 18131,
+      "title": "[Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
+      "labels": [
+        "needs-more-info",
+        "MCP"
+      ],
+      "severity": "P1",
+      "comments": 9
+    },
+    {
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent system-workspace validation)",
+      "labels": [
+        "Data"
+      ],
+      "severity": "P1"
+    },
+    {
+      "number": 18063,
+      "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime — macOS 27",
+      "labels": [],
+      "severity": "P1",
+      "comments": 2
+    },
+    {
+      "number": 17629,
+      "title": "[Bug]: Processes remain running in Task Manager after closing window with 'Minimize to tray on close' disabled",
+      "labels": [],
+      "severity": "P1",
+      "comments": 7
     }
   ],
-  "label_distribution_estimate": {
-    "UI/UX": 180,
-    "Models": 96,
-    "Performance": 57,
-    "MCP": 52,
-    "Assistant": 48,
-    "inactive": 153,
-    "help wanted": 43,
-    "discussion": 43,
-    "RAG": 35,
-    "Data": 35,
-    "Connectivity": 21,
-    "needs-repro": 30,
-    "needs-more-info": 17,
-    "Docs": 17,
-    "BUG": 8,
-    "Planned": 8,
-    "feature": 13,
-    "internal_team": 17,
-    "P3": 4,
-    "v2": 8
-  },
-  "issue_health": {
-    "Active": {
-      "count": 400,
-      "description": "updated within 7 days",
-      "pct": 45.5
+  "notable_recently_closed": [
+    {
+      "number": 18318,
+      "title": "DeepSeek V4 Pro & 57 more models clamped to 100K context",
+      "closed_at": "2026-08-11"
     },
-    "Aging": {
-      "count": 280,
-      "description": "updated 7–30 days ago",
-      "pct": 31.9
+    {
+      "number": 18397,
+      "title": "Model context window not passed to Claude Code SDK — [1m] suffix not parsed",
+      "closed_at": "2026-08-12"
     },
-    "Stale": {
-      "count": 145,
-      "description": "updated 30–90 days ago",
-      "pct": 16.5
+    {
+      "number": 18317,
+      "title": "Agent session deadlocks — live-stream replay ring overflow",
+      "closed_at": "2026-08-12"
     },
-    "Zombie": {
-      "count": 54,
-      "description": "not updated in 90+ days",
-      "pct": 6.1
+    {
+      "number": 18175,
+      "title": "Agent outputs internal system reminder verbatim — leaks into replies",
+      "closed_at": "2026-08-11"
+    },
+    {
+      "number": 18187,
+      "title": "Migrated v1 files with trailing-space/dot extension are unreadable in v2",
+      "closed_at": "2026-08-13"
     }
-  },
-  "v2_branch": {
-    "status": "shipped",
-    "open_prs_targeting_v2": 0,
-    "historical_merged_prs": "90+",
-    "v1_hotfix_open_prs": 3,
-    "notes": "v2 branch was pre-release dev track. v2.0.x is now shipping on main. Active v1 hotfixes: 3 open PRs from 404-Page-Found targeting v1."
-  },
-  "top_issue_categories_closed_30d": {
-    "UI/UX": 32,
-    "Models": 13,
-    "MCP": 13,
-    "Assistant": 9,
-    "Data": 8,
-    "RAG": 3,
-    "Performance": 1
-  }
+  ]
 }

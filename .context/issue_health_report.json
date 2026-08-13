@@ -1,152 +1,50 @@
 {
-  "generated_at": "2026-08-12T00:00:00Z",
-  "date": "2026-08-12",
-  "total_open": 879,
-  "health_summary": {
-    "Active": {
-      "count": 400,
-      "pct": 45.5,
-      "definition": "updated within 7 days"
+  "generated_at": "2026-08-13T17:00:00Z",
+  "date": "2026-08-13",
+  "total_open": 859,
+  "health_distribution": {
+    "active": {
+      "count": 217,
+      "pct": 25.3,
+      "definition": "updated in last 7 days (>2026-08-06)"
     },
-    "Aging": {
-      "count": 280,
-      "pct": 31.9,
-      "definition": "updated 7–30 days ago"
+    "aging": {
+      "count": 219,
+      "pct": 25.5,
+      "definition": "updated 7-30 days ago (2026-07-14..2026-08-06)"
     },
-    "Stale": {
-      "count": 145,
-      "pct": 16.5,
-      "definition": "updated 30–90 days ago"
+    "stale": {
+      "count": 196,
+      "pct": 22.8,
+      "definition": "updated 30-90 days ago (2026-05-14..2026-07-13)"
     },
-    "Zombie": {
-      "count": 54,
-      "pct": 6.1,
-      "definition": "not updated in 90+ days"
+    "zombie": {
+      "count": 227,
+      "pct": 26.4,
+      "definition": "not updated in 90+ days (<2026-05-14)"
     }
   },
-  "note": "Health classification estimated from update-date distribution of 200-issue sample. 'inactive' label applied by team to ~17.5% of open issues.",
-  "inactive_labeled_count_estimate": 154,
-  "uncategorized_estimate": {
-    "count": 153,
-    "pct": 17.5,
-    "note": "Issues with no labels assigned"
+  "label_health": {
+    "unlabeled_open": 228,
+    "unlabeled_pct": 26.5,
+    "inactive_labeled": 163,
+    "top_backlog_labels": {
+      "UI/UX": 314,
+      "Models": 159,
+      "Assistant": 69,
+      "Performance": 60,
+      "MCP": 47,
+      "RAG": 30,
+      "Data": 26
+    }
   },
-  "critical_aging_issues": [
-    {
-      "number": 18007,
-      "title": "v2.0 agent cannot access web properly",
-      "age_days": 6,
-      "health": "Active"
-    },
-    {
-      "number": 17629,
-      "title": "Processes remain after closing window with tray disabled",
-      "age_days": 13,
-      "health": "Aging"
-    },
-    {
-      "number": 16660,
-      "title": "Disabling thinking doesn't work",
-      "age_days": 41,
-      "health": "Stale"
-    },
-    {
-      "number": 15712,
-      "title": "MCP Tool Messages removed from context in subsequent turns",
-      "age_days": 68,
-      "health": "Stale"
-    },
-    {
-      "number": 14724,
-      "title": "MCP tools disappear after a while in agent mode",
-      "age_days": 105,
-      "health": "Zombie"
-    },
-    {
-      "number": 11906,
-      "title": "Add video upload support",
-      "age_days": 241,
-      "health": "Zombie"
-    },
-    {
-      "number": 11101,
-      "title": "Keep Tool Calling Context",
-      "age_days": 283,
-      "health": "Zombie"
-    },
-    {
-      "number": 5640,
-      "title": "Cherry Studio as a Service (CSaaS)",
-      "age_days": 466,
-      "health": "Zombie"
-    },
-    {
-      "number": 6505,
-      "title": "Selection Assistant FAQ",
-      "age_days": 441,
-      "health": "Zombie"
-    }
+  "triage_recommendations": [
+    "228 (~26.5%) open issues have no category label — batch-triage first",
+    "227 zombie issues (>90 days stale) should be reviewed for closure or 'inactive' labeling",
+    "SECURITY: #18273 zip-slip in backup restore needs immediate fix",
+    "Process leak: #18445/#17629 are same root cause — consolidate and prioritize",
+    "MCP: #18131 has 9 comments and needs-more-info — follow up or close"
   ],
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "Unified Notification Center",
-      "age_days": 97,
-      "health": "Zombie",
-      "note": "P1+Planned — long standing feature, last activity May 2026"
-    },
-    {
-      "number": 13608,
-      "title": "xiaomi mimo response only displays last line",
-      "age_days": 147,
-      "health": "Zombie"
-    },
-    {
-      "number": 13193,
-      "title": "Azure openai Resource not found (Responses API 404)",
-      "age_days": 161,
-      "health": "Zombie"
-    }
-  ],
-  "high_comment_open_issues": [
-    {
-      "number": 11906,
-      "title": "Add video upload support",
-      "comments": 8
-    },
-    {
-      "number": 18371,
-      "title": "Agent session reasoning rendered as plain body text",
-      "comments": 5
-    },
-    {
-      "number": 17629,
-      "title": "Processes remain in Task Manager after close",
-      "comments": 6
-    },
-    {
-      "number": 18131,
-      "title": "MCP shows connected but no tools in agent",
-      "comments": 7
-    }
-  ],
-  "top_label_areas_open": {
-    "UI/UX": 181,
-    "Models": 97,
-    "inactive": 154,
-    "Performance": 57,
-    "MCP": 53,
-    "Assistant": 49,
-    "RAG": 35,
-    "Data": 35,
-    "Connectivity": 22,
-    "Docs": 18,
-    "needs-repro": 31,
-    "needs-more-info": 18
-  },
-  "issue_velocity": {
-    "closed_last_30d": 526,
-    "avg_closed_per_day": 17.5,
-    "note": "High closure rate indicates active triage; open count (879) remains elevated due to high incoming volume"
-  }
+  "closed_last_30d": 549,
+  "close_rate_per_day_30d": 18.3
 }

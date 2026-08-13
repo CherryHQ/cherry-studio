@@ -1,113 +1,49 @@
 {
-  "generated_at": "2026-08-12T00:00:00Z",
-  "date": "2026-08-12",
-  "data_source": "Inferred from GitHub issues with 'discussion' label + issue trending topics",
-  "total_discussion_issues": {
-    "open": 28,
-    "description": "Issues labeled as [Discussion] or having 'discussion' label"
+  "generated_at": "2026-08-13T17:00:00Z",
+  "date": "2026-08-13",
+  "note": "Discussion data sourced from issues tagged discussion+help wanted; GitHub Discussions GraphQL requires separate auth",
+  "discussion_labeled_open_issues": {
+    "total_with_discussion_label": 12,
+    "sample": [
+      {
+        "number": 18363,
+        "title": "AiStreamManager 状态机的身份与 ownership 结构问题",
+        "comments": 1
+      },
+      {
+        "number": 18474,
+        "title": "Code blocks are no longer rendered during streaming",
+        "comments": 1
+      },
+      {
+        "number": 18362,
+        "title": "Custom OpenAI Compatible Provider Fails to Send Authorization Header"
+      },
+      {
+        "number": 18327,
+        "title": "Token/s generation speed and TTFT display missing since v2.0"
+      },
+      {
+        "number": 18241,
+        "title": "How to collapse thinking content without aggregating it into a summary"
+      },
+      {
+        "number": 18134,
+        "title": "I was using V1 and now want to use V2 but migration keeps failing"
+      }
+    ]
   },
   "hot_topics": [
-    {
-      "topic": "v2 regression / missing v1 features",
-      "issue_count": 45,
-      "examples": [
-        "#18220 - Restore subscription source for web search blacklist",
-        "#18196 - Restore Regenerate Conversation button",
-        "#18195 - Restore Export to Phone option",
-        "#18099 - Restore Save Only when editing messages",
-        "#18299 - Why can't v2.x modify answers like v1.9.x?"
-      ],
-      "severity": "high"
-    },
-    {
-      "topic": "Performance / streaming lag",
-      "issue_count": 25,
-      "examples": [
-        "#18466 - Topic branch selection refetches full tree twice",
-        "#18465 - Streaming snapshots rerender Home composer tree",
-        "#18437 - Deferred MCP tools reminder causes context overflow",
-        "#18356 - UI scrolling lag after 20k tokens",
-        "#18242 - Multiple redundant model calls without cache"
-      ],
-      "severity": "high"
-    },
-    {
-      "topic": "Agent session issues",
-      "issue_count": 30,
-      "examples": [
-        "#18007 - v2.0 agent cannot access web properly",
-        "#18131 - MCP shows connected but agent has no tools",
-        "#18346 - Agent loses memory after backup restore on different machine",
-        "#18336 - Feishu channel WebSocket connects but messages never reach session"
-      ],
-      "severity": "critical"
-    },
-    {
-      "topic": "Data migration from v1 to v2",
-      "issue_count": 18,
-      "examples": [
-        "#18283 - Cannot update from v1.9.13 to v2",
-        "#18129 - Data migration failed",
-        "#18187 - Migrated v1 files with trailing-space extension unreadable in v2"
-      ],
-      "severity": "high"
-    },
-    {
-      "topic": "MCP integration bugs",
-      "issue_count": 22,
-      "examples": [
-        "#18464 - MCP settings eagerly fetch inactive capability tabs",
-        "#18463 - Hidden MCP logs rerender entire settings form",
-        "#18131 - MCP server shows connected but no tools in agent",
-        "#18228 - Built-in filesystem MCP grep completely fails"
-      ],
-      "severity": "high"
-    }
+    "v1→v2 migration failures — multiple open issues + 549 closed in 30d",
+    "Context compaction / auto-compact behavior (multiple issues)",
+    "Agent mode stability (freezes, process leaks, Feishu channel broken)",
+    "MCP connectivity and tool visibility issues",
+    "v2 feature regressions vs v1.9.x (edit messages, save-only, subscription sources)"
   ],
-  "unresolved_discussions": [
-    {
-      "number": 18363,
-      "title": "AiStreamManager 状态机身份与ownership结构问题",
-      "upvotes": 0,
-      "answers": 0,
-      "age_days": 1
-    },
-    {
-      "number": 17090,
-      "title": "Knowledge Base Networking Issue",
-      "upvotes": 0,
-      "answers": 0,
-      "age_days": 27
-    },
-    {
-      "number": 18327,
-      "title": "Token/s generation speed and TTFT display missing since v2.0",
-      "upvotes": 0,
-      "answers": 0,
-      "age_days": 2
-    },
-    {
-      "number": 18299,
-      "title": "Why can't v2.x modify answers like v1.9.x?",
-      "upvotes": 0,
-      "answers": 0,
-      "age_days": 2
-    },
-    {
-      "number": 18362,
-      "title": "Custom OpenAI Provider Fails to Send Authorization Header",
-      "upvotes": 0,
-      "answers": 0,
-      "age_days": 1
-    }
-  ],
-  "newly_filed_today": {
-    "count": 8,
-    "highest_number": 18484,
-    "categories": [
-      "UI/UX regression",
-      "Performance",
-      "Models"
-    ]
-  }
+  "v2_pain_points": [
+    "Cannot edit AI messages (#18243, 2 comments)",
+    "Context compaction thrashes low-window models (fixed in #18318)",
+    "Minimize to tray / quit leaves orphan processes (#17629, #18445)",
+    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context option"
+  ]
 }

@@ -1,172 +1,95 @@
 {
-  "generated_at": "2026-08-12T00:00:00Z",
-  "date": "2026-08-12",
-  "v2_release_status": {
-    "current_version": "v2.0.3",
-    "status": "active_development",
-    "branch_model": "v2 dev branch merged to main; all new work targets main",
-    "v1_branch": "maintained for hotfixes only"
+  "generated_at": "2026-08-13T17:00:00Z",
+  "date": "2026-08-13",
+  "v2_status": {
+    "latest_release": "v2.0.5",
+    "branch_model": "main-based; v2 branch has no open PRs — effectively retired as separate branch",
+    "open_prs_to_main": 95,
+    "open_prs_to_v1": 3
   },
-  "v2_open_prs_targeting_v2": 0,
-  "v2_open_prs_targeting_main": "200+",
-  "v1_hotfix_open_prs": [
+  "open_blocked_v2": [
     {
-      "number": 18247,
-      "title": "fix(notes): prevent deleted note from being recreated by pending autosave",
-      "author": "404-Page-Found"
-    },
-    {
-      "number": 17715,
-      "title": "fix(chat): scroll to top correctly",
-      "author": "404-Page-Found"
-    },
-    {
-      "number": 17743,
-      "title": "fix(mcp): repair stale auto-install package args",
-      "author": "404-Page-Found"
-    }
-  ],
-  "recently_merged_v2_prs_historical": {
-    "note": "v2 development branch was the pre-release track. Selected recent merges to main (post-v2.0.0):",
-    "sample": [
-      "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
-      "feat(settings): redesign settings navigation",
-      "refactor(knowledge): knowledge workflow jobs round2",
-      "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination",
-      "refactor(notes): migrate notes UI and data to v2",
-      "feat(translate): refresh translate page and shared drawer composition"
-    ]
-  },
-  "active_feature_areas": [
-    {
-      "area": "Performance",
-      "issues": [
-        "#18466 - Topic branch selection refetches full tree twice",
-        "#18465 - Streaming snapshots rerender Home composer tree",
-        "#18464 - MCP settings eagerly fetch inactive capability tabs",
-        "#18463 - Hidden MCP logs rerender entire settings form",
-        "#16478 - Lazy load markdown/math/mermaid rendering",
-        "#18356 - UI scrolling lag after 20k tokens"
-      ],
-      "open_count": 12,
-      "priority": "high"
-    },
-    {
-      "area": "Agent/MCP",
-      "issues": [
-        "#18007 - v2.0 agent cannot access web properly",
-        "#18131 - MCP shows connected but no tools in agent",
-        "#18437 - Deferred MCP tools reminder causes context overflow",
-        "#18336 - Feishu channel WebSocket inbound messages lost",
-        "#18463 - Hidden MCP logs rerender settings form",
-        "#15712 - MCP Tool Messages removed from context in subsequent turns"
-      ],
-      "open_count": 28,
-      "priority": "critical"
-    },
-    {
-      "area": "Data / Migration",
-      "issues": [
-        "#18373 - Data directory relocation leaves stale absolute paths",
-        "#18273 - Backup restore has zip-slip vulnerability",
-        "#18284 - S3 backup/restore failures",
-        "#18272 - Knowledge material filenames not sanitized (zip-slip on restore)",
-        "#18187 - Migrated v1 files with trailing-space extension unreadable",
-        "#18129 - Data migration failed"
-      ],
-      "open_count": 15,
-      "priority": "high"
-    },
-    {
-      "area": "Models / API",
-      "issues": [
-        "#18408 - Custom API address ignored, routed to Anthropic",
-        "#18399 - Regenerate fails to use currently selected model",
-        "#18341 - DeepSeek cannot accept/drop reasoning_effort",
-        "#18323 - Image panel hardcodes response_format, causes 400",
-        "#18150 - DeepSeek V4 Flash 0731 triggers errors",
-        "#18149 - Vertex AI Service Account always returns 404 in v2.0.2"
-      ],
-      "open_count": 22,
-      "priority": "high"
-    },
-    {
-      "area": "UI/UX Regressions from v1",
-      "issues": [
-        "#18220 - Restore subscription source for web search blacklist",
-        "#18196 - Restore Regenerate Conversation button",
-        "#18195 - Restore Export to Phone in Settings",
-        "#18099 - Restore Save Only when editing messages",
-        "#18484 - AI responses cannot be uniformly edited & saved",
-        "#18483 - Branch feature truncates instead of branching",
-        "#18474 - Code blocks not rendered during streaming",
-        "#18457 - Collapse Thinking still collapses when disabled"
-      ],
-      "open_count": 35,
-      "priority": "high"
-    },
-    {
-      "area": "RAG / Knowledge Base",
-      "issues": [
-        "#18298 - Knowledge base repeatedly invoked on every request",
-        "#18232 - Knowledge search 404 when embedding model diverges from UI",
-        "#18267 - Knowledge base doesn't update when source files change",
-        "#18442 - Request support for jpg/bmp/Office formats in KB",
-        "#17002 - Cannot add knowledge base"
-      ],
-      "open_count": 12,
-      "priority": "medium"
-    }
-  ],
-  "planned_features": [
-    {
-      "number": 14899,
-      "title": "Unified Notification Center",
-      "labels": [
-        "P1",
-        "Planned"
-      ],
-      "status": "planned"
-    },
-    {
-      "number": 11906,
-      "title": "Add video upload support",
-      "labels": [
-        "Planned",
-        "feature"
-      ],
-      "status": "planned"
+      "number": 5442,
+      "title": "[功能]: LLMOps 观察框架（如 Langfuse）支持",
+      "label": "Blocked: v2",
+      "comments": 7
     },
     {
       "number": 12786,
-      "title": "Context progress indicator (token usage bar)",
-      "labels": [
-        "Planned",
-        "v2",
-        "UI/UX"
-      ],
-      "status": "likely_shipped_v2"
+      "title": "Add context progress indicator showing token usage",
+      "label": "v2",
+      "comments": 8
     }
   ],
-  "pr_velocity": {
-    "merged_last_30d": 93,
-    "avg_per_day": 3.1,
-    "open_prs": "200+",
-    "drafts": 3,
-    "note": "High merge velocity; most PRs target main (v2.x)"
-  },
-  "release_notes_signals": {
-    "recent_bugfixes_shipped": [
-      "v2.0.3 released with multiple agent/performance fixes",
-      "MCP tool context handling improvements",
-      "File manager and knowledge base refactors",
-      "Settings navigation redesign"
-    ],
-    "next_release_candidates": [
-      "Performance: reduce redundant re-renders (DeJeune's batch #18463-18467)",
-      "Agent reasoning display regression fix (#18371)",
-      "AI message edit regression (#18484, #18243)",
-      "Zip-slip security fix (#18273)"
-    ]
+  "recent_main_highlights_closed_last_30d": [
+    "Agent Pi runtime integration (#16483, 2026-08-13)",
+    "Model context window fix for Claude Code SDK [1m] suffix (#18397, 2026-08-12)",
+    "DeepSeek V4 Pro 100K context clamp fix — 57+ models (#18318, 2026-08-11)",
+    "Agent outputs internal system reminder verbatim fix (#18175, 2026-08-11)",
+    "MCP-over-HTTP endpoints restored on v2 API Gateway (#17992, 2026-08-11)",
+    "V1 file migration trailing-space/dot extension fix (#18187, 2026-08-13)",
+    "10+ lazy-load / performance bundle deferrals merged today"
+  ],
+  "top_open_feature_requests": [
+    {
+      "number": 18547,
+      "title": "Pi agent UX — flatten engine selection, smart approval default"
+    },
+    {
+      "number": 18545,
+      "title": "Topic dual-column side-by-side or multi-window"
+    },
+    {
+      "number": 18442,
+      "title": "Knowledge base: add jpg, bmp, Office format support"
+    },
+    {
+      "number": 11906,
+      "title": "Video upload support",
+      "comments": 8,
+      "label": "Planned"
+    },
+    {
+      "number": 18267,
+      "title": "Knowledge base refresh when source files change"
+    },
+    {
+      "number": 18268,
+      "title": "Agent session start/end hooks for cross-session continuity"
+    },
+    {
+      "number": 18476,
+      "title": "Add Huawei Cloud MaaS as preset model provider"
+    }
+  ],
+  "active_sigs": {
+    "UI_UX": {
+      "open": 314,
+      "trend": "high"
+    },
+    "Models": {
+      "open": 159,
+      "trend": "high"
+    },
+    "Assistant_Agent": {
+      "open": 78,
+      "trend": "medium"
+    },
+    "Performance": {
+      "open": 60,
+      "trend": "medium"
+    },
+    "MCP": {
+      "open": 47,
+      "trend": "medium"
+    },
+    "RAG": {
+      "open": 30,
+      "trend": "medium"
+    },
+    "Data": {
+      "open": 26,
+      "trend": "low"
+    }
   }
 }
