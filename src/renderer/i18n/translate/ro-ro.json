@@ -3546,7 +3546,7 @@
             "hint": "Lungimea răspunsului Caps când este activată"
           },
           "max_tool_calls": {
-            "hint": "Limitează buclele de apeluri ale funcțiilor când este activat"
+            "hint": "Limitează numărul de runde de apeluri de instrumente când este activat; altfel se aplică limita implicită de {{count}} runde"
           },
           "model": {
             "hint": "Suprascrie modelul implicit global pentru acest asistent"

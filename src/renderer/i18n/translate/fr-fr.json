@@ -3546,7 +3546,7 @@
             "hint": "Longueur de réponse des majuscules lorsqu'elle est activée"
           },
           "max_tool_calls": {
-            "hint": "Limite les boucles d'appels d'outils lorsqu'elle est activée"
+            "hint": "Limite le nombre de tours d'appels d'outils lorsque activé ; sinon, la limite par défaut de {{count}} tours s'applique"
           },
           "model": {
             "hint": "Remplace le modèle par défaut global pour cet assistant"
@@ -4513,7 +4513,7 @@
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "field_for_tier": "{{champ}}, niveau {{index}}",
+      "field_for_tier": "{{field}}, palier {{index}}",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
       "min_input_tokens": "Commence aux jetons d'entrée",

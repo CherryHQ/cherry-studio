@@ -3546,7 +3546,7 @@
             "hint": "Comprimento da resposta do Caps quando ativado"
           },
           "max_tool_calls": {
-            "hint": "Limita os loops de chamadas de ferramenta quando ativado"
+            "hint": "Limita as rodadas de chamadas de ferramentas quando ativado; caso contrário, usa o limite padrão de {{count}} rodadas"
           },
           "model": {
             "hint": "Substitui o modelo padrão global para este assistente"

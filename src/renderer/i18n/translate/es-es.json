@@ -3546,7 +3546,7 @@
             "hint": "Longitud de respuesta de las mayúsculas cuando está habilitada"
           },
           "max_tool_calls": {
-            "hint": "Limita los bucles de llamadas a herramientas cuando está habilitado"
+            "hint": "Limita las rondas de llamadas a herramientas cuando está activado; de lo contrario, se usa el límite predeterminado de {{count}} rondas"
           },
           "model": {
             "hint": "Anula el modelo predeterminado global para este asistente"

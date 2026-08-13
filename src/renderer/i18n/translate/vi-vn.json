@@ -3546,7 +3546,7 @@
             "hint": "Giới hạn độ dài phản hồi của Caps khi được bật"
           },
           "max_tool_calls": {
-            "hint": "Giới hạn vòng lặp gọi công cụ khi được bật"
+            "hint": "Giới hạn số vòng gọi công cụ khi bật; nếu tắt sẽ dùng giới hạn mặc định {{count}} vòng"
           },
           "model": {
             "hint": "Ghi đè mô hình mặc định toàn cục cho trợ lý này"

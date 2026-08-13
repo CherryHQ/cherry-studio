@@ -3546,7 +3546,7 @@
             "hint": "Antwortlänge von Caps, wenn aktiviert"
           },
           "max_tool_calls": {
-            "hint": "Begrenzt Tool-Call-Schleifen, wenn aktiviert"
+            "hint": "Begrenzt bei Aktivierung die Anzahl der Tool-Aufruf-Runden; andernfalls gilt das Standardlimit von {{count}} Runden"
           },
           "model": {
             "hint": "Überschreibt das globale Standardmodell für diesen Assistenten"
