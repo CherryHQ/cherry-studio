@@ -3,6 +3,8 @@ export const BUILTIN_AGENT_ROLE = {
   SUPPORT: 'support'
 } as const
 
+export const CHERRY_SUPPORT_AGENT_ID = 'cherry-support'
+
 export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLE)[keyof typeof BUILTIN_AGENT_ROLE]
 
 export function isProtectedBuiltinAgentRole(role: unknown): role is BuiltinAgentRole {

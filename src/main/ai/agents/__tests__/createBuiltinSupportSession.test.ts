@@ -3,7 +3,9 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +41,7 @@ describe('createBuiltinSupportSession', () => {
     const session = createBuiltinSupportSession()
 
     expect(session).toMatchObject({
-      agentId: expect.any(String),
+      agentId: CHERRY_SUPPORT_AGENT_ID,
       name: '',
       workspace: { type: 'system' }
     })
@@ -56,6 +58,27 @@ describe('createBuiltinSupportSession', () => {
     expect(first.agentId).toBe(second.agentId)
     expect(dbh.db.select().from(agentTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(2)
+  })
+
+  it('isolates a forged legacy role before creating the official Support session', () => {
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'forged-support',
+        type: 'claude-code',
+        name: 'User Agent',
+        instructions: 'User instructions',
+        orderKey: 'a0',
+        configuration: { builtin_role: 'support', avatar: 'U' }
+      })
+      .run()
+
+    const session = createBuiltinSupportSession()
+
+    expect(session.agentId).toBe(CHERRY_SUPPORT_AGENT_ID)
+    const [ordinary] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'forged-support')).all()
+    expect(ordinary).toMatchObject({ name: 'User Agent', instructions: 'User instructions' })
+    expect(ordinary.configuration).toEqual({ avatar: 'U' })
   })
 
   it('rolls back the restored Support role when session creation fails', () => {
@@ -77,5 +100,41 @@ describe('createBuiltinSupportSession', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
     expect(onAgentCreated).not.toHaveBeenCalled()
+  })
+
+  it('rolls back claiming and restoring an existing reserved row when session creation fails', () => {
+    const deletedAt = Date.UTC(2026, 0, 1)
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        type: 'claude-code',
+        name: 'Reserved User Agent',
+        description: 'Keep description',
+        instructions: 'Keep instructions',
+        orderKey: 'a0',
+        deletedAt,
+        configuration: { avatar: 'U' }
+      })
+      .run()
+    const originalCreateTx = agentSessionService.createTx.bind(agentSessionService)
+    vi.spyOn(agentSessionService, 'createTx').mockImplementationOnce((tx, id, dto) => {
+      originalCreateTx(tx, id, dto)
+      throw new Error('forced session creation failure')
+    })
+
+    expect(() => createBuiltinSupportSession()).toThrow('forced session creation failure')
+
+    const [existing] = dbh.db.select().from(agentTable).where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID)).all()
+    expect(existing).toMatchObject({
+      name: 'Reserved User Agent',
+      description: 'Keep description',
+      instructions: 'Keep instructions',
+      deletedAt,
+      configuration: { avatar: 'U' }
+    })
+    expect(existing.configuration).not.toHaveProperty('builtin_role')
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 })

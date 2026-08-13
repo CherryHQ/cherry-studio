@@ -1,6 +1,6 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { app } from 'electron'
@@ -27,17 +27,19 @@ export class CherrySupportSeeder implements ISeeder {
   readonly name = 'cherrySupport'
   readonly description = 'Insert the builtin Cherry Support agent in every agent library'
   readonly executionPolicy = 'run-on-change' as const
-  readonly version = '1'
+  readonly version = '2'
 
   run(db: DbType): void {
     db.transaction((tx) => {
+      agentService.clearUntrustedBuiltinSupportRolesTx(tx)
+      agentService.claimBuiltinSupportIdentityTx(tx)
       const existing = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.SUPPORT, {
         includeDeleted: true
       })
       if (existing) return
 
       const assistant = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.ASSISTANT)
-      const agentId = uuidv4()
+      const agentId = CHERRY_SUPPORT_AGENT_ID
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',

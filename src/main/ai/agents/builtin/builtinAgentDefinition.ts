@@ -8,6 +8,9 @@ import path from 'path'
 
 const logger = loggerService.withContext('BuiltinAgentDefinition')
 
+/** Canonical Claude plugin name declared by the bundled Cherry Assistant manifest. */
+export const BUILTIN_AGENT_PLUGIN_NAME = 'cherry-assistant-builtin'
+
 const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
   [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-support'

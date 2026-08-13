@@ -29,6 +29,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { BUILTIN_AGENT_PLUGIN_NAME } from '@main/ai/agents/builtin/builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
@@ -37,7 +38,7 @@ import {
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer from '@main/ai/mcp/servers/assistant'
+import AssistantServer, { SUPPORT_ASSISTANT_TOOL_NAMES } from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
@@ -98,6 +99,7 @@ import {
 import { AgentsMdLoader } from './AgentsMdLoader'
 import {
   detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
   isLarkFormSubmissionCommand,
   isPermanentDeletionToolName
 } from './assistantCommandSafety'
@@ -469,9 +471,13 @@ export async function buildClaudeCodeSessionSettings(
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
+  const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
-  const plugins =
-    needsPrivateSkillPlugin || builtinPluginDirectory
+  const plugins = isSupport
+    ? builtinPluginDirectory
+      ? [{ type: 'local' as const, path: builtinPluginDirectory, skipMcpDiscovery: true }]
+      : undefined
+    : needsPrivateSkillPlugin || builtinPluginDirectory
       ? [
           ...(workspacePlugins ?? []),
           ...(needsPrivateSkillPlugin
@@ -558,7 +564,9 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools)
+  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools).filter(
+    (toolName) => builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT || toolName !== 'mcp__skills__search_skills'
+  )
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -581,7 +589,9 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    settingSources: getSettingSources(provider),
+    // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
+    // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
+    settingSources: isSupport ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
@@ -883,6 +893,11 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
 /**
  * Compute the SDK `Options.skills` whitelist for a session.
  *
+ * Cherry Support is intentionally limited to canonical names from its bundled
+ * plugin. Plugin qualification prevents project or managed skills with the
+ * same unqualified name from satisfying the SDK filter. Other agents merge
+ * the sources below.
+ *
  * `Options.skills` is a *filter over everything the SDK discovers* — both the
  * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
  * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
@@ -890,16 +905,20 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
  *   - the workspace's project-local skills (omitting them would filter the
  *     user's own project skills out of their session).
  *
- * We match by *directory name only* (`folderName` for managed skills, the
- * `.claude/skills/<dir>` name for workspace skills). The SDK also matches the
- * SKILL.md `name`, but that field is not unique — including it would let an
- * enabled skill's name un-hide a different, disabled skill that happens to
- * share it. Directory names are unique within each root, so they can't collide.
+ * For other agents, we match by directory name (`folderName` for managed
+ * skills and the `.claude/skills/<dir>` name for workspace skills), preserving
+ * their existing discovery behavior.
  *
  * Read-only: the filesystem mirror is maintained at install / uninstall /
  * startup reconcile, never here — so concurrent session builds never race.
  */
 export async function buildSkillWhitelist(agentId: string, cwd: string, builtinRole?: string): Promise<string[]> {
+  if (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
+    return (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []).map(
+      (skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`
+    )
+  }
+
   const [installedSkills, workspaceNames] = await Promise.all([
     skillService.list({ agentId }),
     skillService.listLocalFolderNames(cwd)
@@ -946,6 +965,8 @@ async function buildToolPermissions(
 }> {
   const agentConfig = agent.configuration
   const isProtectedBuiltinAgent = isProtectedBuiltinAgentRole(agentConfig?.builtin_role)
+  const isAssistantBuiltinAgent = agentConfig?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
+  const isSupportBuiltinAgent = agentConfig?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
@@ -1231,16 +1252,21 @@ async function buildToolPermissions(
     }
   }
 
-  // The feedback skill submits through Bash, so the MCP-only approval list cannot protect it when
-  // bypassPermissions skips canUseTool. Keep the submission itself behind a live per-call approval;
-  // headless turns may still prepare the local feedback draft and inspect the form schema.
+  // Cherry Assistant feedback skills submit through Bash, so the MCP-only approval list cannot
+  // protect them when bypassPermissions skips canUseTool. Cherry Support has a stricter role-level
+  // Bash policy below.
   const assistantFeedbackSubmissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!isProtectedBuiltinAgent || !input || input.hook_event_name !== 'PreToolUse') return {}
+    if (!isAssistantBuiltinAgent || !input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
-    if (typeof command !== 'string' || !isLarkFormSubmissionCommand(command)) return {}
+    if (
+      typeof command !== 'string' ||
+      (!isLarkFormSubmissionCommand(command) && !isGitHubIssueCreationCommand(command))
+    ) {
+      return {}
+    }
 
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
@@ -1249,7 +1275,7 @@ async function buildToolPermissions(
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
           permissionDecisionReason:
-            'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep the local feedback draft for an interactive user to review and submit.'
+            'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep only a sanitized local feedback draft for an interactive user to review and submit.'
         }
       }
     }
@@ -1257,7 +1283,37 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'ask',
-        permissionDecisionReason: 'Submitting Cherry Studio feedback to Feishu requires live per-call user approval.'
+        permissionDecisionReason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.'
+      }
+    }
+  }
+
+  // Support shell commands can hide external submissions behind arbitrary wrappers. Require a live
+  // per-call decision for every non-destructive Bash call instead of attempting to parse commands.
+  const supportBashPermissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!isSupportBuiltinAgent || !input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command === 'string' && detectDestructiveAssistantCommand(command)) return {}
+
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
+        }
+      }
+    }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: 'Cherry Support shell commands require live per-call user approval.'
       }
     }
   }
@@ -1387,6 +1443,7 @@ async function buildToolPermissions(
             disabledToolHook,
             assistantDestructiveOperationHook,
             assistantFeedbackSubmissionHook,
+            supportBashPermissionHook,
             approvalRequiredToolHook,
             workspacePathHook,
             agentsMdHook,
@@ -1561,10 +1618,12 @@ export function buildMcpServers(
   const memoryServer = new AgentMemoryServer(agent.id, agentDataPath)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
-  // skills — deterministic marketplace search + install (the find-skills skill drives these).
-  // install_skill clones and installs exactly one skill into the managed library via SkillService,
-  // so a model only needs one tool call instead of a correct multi-step shell sequence.
-  mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
+    // skills — deterministic marketplace search + install (the find-skills skill drives these).
+    // install_skill clones and installs exactly one skill into the managed library via SkillService,
+    // so a model only needs one tool call instead of a correct multi-step shell sequence.
+    mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  }
 
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {
     agentId: agent.id,
@@ -1574,7 +1633,10 @@ export function buildMcpServers(
   // 5. Product support tools. Cherry Assistant receives these locally; Cherry Support receives
   // them in every session, with runtime policy denying sensitive unattended actions.
   if (assistantMcpEnabled) {
-    const assistantServer = new AssistantServer(agent.model ?? undefined)
+    const assistantServer = new AssistantServer(
+      agent.model ?? undefined,
+      agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? SUPPORT_ASSISTANT_TOOL_NAMES : undefined
+    )
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
     const fileToolsServer = new AssistantFileToolsServer({
       sessionId: session.id,

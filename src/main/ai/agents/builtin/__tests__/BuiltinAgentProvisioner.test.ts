@@ -16,7 +16,7 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
-import { loadBuiltinAgentDefaults } from '../builtinAgentDefinition'
+import { BUILTIN_AGENT_PLUGIN_NAME, loadBuiltinAgentDefaults } from '../builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
@@ -60,7 +60,7 @@ describe('BuiltinAgentProvisioner', () => {
     vi.spyOn(application, 'getPath').mockReturnValue(templateRoot)
     vi.mocked(app.getLocale).mockReturnValue('en-US')
 
-    writeFile(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), '{"name":"builtin-test"}')
+    writeFile(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), '{"name":"cherry-assistant-builtin"}')
     writeFile(path.join(templateDir, '.claude', 'skills', 'cherry-assistant-guide', 'SKILL.md'), 'SKILL_V1')
     writeFile(path.join(templateDir, 'SOUL.md'), 'TEMPLATE_SOUL')
     writeFile(path.join(templateDir, 'USER.md'), 'TEMPLATE_USER')
@@ -101,6 +101,13 @@ describe('BuiltinAgentProvisioner', () => {
     expect(getBuiltinAgentPluginDirectory('assistant')).toBe(path.join(templateDir, '.claude'))
     expect(mocks.toAsarUnpackedPath).toHaveBeenCalledWith(path.join(templateDir, '.claude'))
     expect(loadBuiltinAgentDefinition('assistant')?.skills).toEqual(['cherry-assistant-guide'])
+  })
+
+  it('keeps the canonical bundled plugin name aligned with its manifest', () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), 'utf-8')
+    )
+    expect(manifest.name).toBe(BUILTIN_AGENT_PLUGIN_NAME)
   })
 
   it('loads Cherry Support identity from its own package and plugins from Cherry Assistant', () => {
