@@ -10,10 +10,6 @@ const logger = loggerService.withContext('SkillPaths')
 
 const MAX_FOLDER_NAME_LENGTH = 80
 
-export function isOutsidePath(relativePath: string): boolean {
-  return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
-}
-
 export function sanitizeFolderName(folderName: string): string {
   let sanitized = folderName.replace(/[/\\]/g, '_')
   sanitized = sanitized.replace(new RegExp(String.fromCharCode(0), 'g'), '')
