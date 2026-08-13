@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Skeleton } from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -40,7 +40,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HeaderNavbar from './HeaderNavbar'
-import NotesEditor from './NotesEditor'
+import NotesEditor, { NotesEditorLoading } from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')
@@ -57,17 +57,6 @@ const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
 }
 
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
-
-function NotesEditorLoading({ label }: { label: string }) {
-  return (
-    <div role="status" aria-live="polite" className="space-y-3 p-4">
-      <span className="sr-only">{label}</span>
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-2/3" />
-    </div>
-  )
-}
 
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
