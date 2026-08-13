@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
         "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
+        "mentionOnlyHint": "開啟後，機器人只會回覆 @提及。關閉後可接收所有群組訊息（需要 QQ 開放平台的「接收所有訊息」權限）。",
+        "mentionOnlyLabel": "僅 @提及",
         "title": "QQ",
         "whoamiTip": "💡 提示：傳送 /whoami 給機器人即可取得正確格式的對話 ID。"
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} 個頻道",
+          "channels_count_other": "{{count}} 個頻道",
+          "channels_empty": "不會變更任何頻道。",
+          "channels_title": "將變更為無工作目錄的頻道",
           "content": "刪除此工作資料夾也會刪除其下所有任務。只會移除資料庫記錄，磁碟上的實際資料夾不會被刪除。",
+          "disk_preserved": "磁碟上的資料夾及其中檔案不會被刪除。",
           "error": {
             "failed": "刪除工作目錄失敗"
           },
+          "more_count_one": "…以及另外 {{count}} 個項目",
+          "more_count_other": "…以及另外 {{count}} 個項目",
+          "preview": "刪除「{{name}}」會移除其工作階段，並將相關頻道與排程任務變更為無工作目錄。此操作無法復原。",
+          "preview_failed": "無法載入刪除影響，因此目前無法刪除此工作目錄",
+          "preview_loading": "正在載入刪除影響…",
+          "sessions_count_one": "{{count}} 個工作階段",
+          "sessions_count_other": "{{count}} 個工作階段",
+          "sessions_empty": "不會刪除任何工作階段。",
+          "sessions_title": "將被刪除的工作階段",
+          "tasks_count_one": "{{count}} 個排程任務",
+          "tasks_count_other": "{{count}} 個排程任務",
+          "tasks_empty": "不會變更任何排程任務。",
+          "tasks_title": "將變更為無工作目錄的排程任務",
           "title": "刪除工作目錄",
           "trigger": "刪除工作目錄"
         },
@@ -958,7 +978,6 @@
       "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
-      "pending": "等待確認",
       "pendingBadge": "待確認",
       "permissionExpired": "權限請求已過期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要提升的權限。",
@@ -1572,18 +1591,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agent",
-          "files": "檔案",
+          "resources": "檔案與資料夾",
           "skills": "技能"
         },
         "description": "從檔案、Agent 或技能中選擇",
+        "load_failed": "無法載入工作區資源",
         "loading": "載入中...",
-        "no_file_found": {
-          "description": "目前工作區沒有可搜尋的檔案",
-          "label": "找不到檔案"
-        },
         "no_items_found": {
           "description": "沒有可用的檔案、Agent 或技能",
           "label": "未找到項目"
+        },
+        "no_resources_found": {
+          "description": "目前工作區中沒有可搜尋的檔案或資料夾",
+          "label": "找不到資源"
         },
         "title": "檔案與工作階段"
       },
@@ -2552,6 +2572,7 @@
       "ocr": "OCR 識別引擎未初始化，請檢查 OCR 設定",
       "parse": "AI 回傳了無效的回應，請重試或切換模型",
       "payload": "請求內容過大，請減少檔案或文字大小",
+      "permission": "提供者拒絕了此要求。請檢查錯誤詳細資料、帳號方案、API 金鑰權限，或你對此資源的存取權限",
       "proxy": "代理或 SSL 憑證錯誤，請檢查代理和網路設定",
       "quota": "帳戶額度已用完，請儲值或更換供應商",
       "rate_limit": "請求過於頻繁，請稍等片刻再試，或更換為更高速率的模型",
@@ -2576,6 +2597,7 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
+    "image_unreadable_for_non_vision_model": "所選模型不支援圖片，且 Cherry Studio 無法從附件中擷取可讀文字。請選擇支援視覺的模型，或移除圖片後再試一次。",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
@@ -3224,7 +3246,6 @@
       "updated_at": "更新於 {{time}}"
     },
     "name_required": "知識庫名稱為必填欄位",
-    "not_set": "未設定",
     "provider_not_found": "未找到供應商",
     "rag": {
       "chunk_overlap": "重疊大小",
@@ -3239,12 +3260,13 @@
       "chunking": "分段",
       "default_separator": "自動（推薦）",
       "document_count": "Top K",
-      "download_local_embedding": "下載本機模型",
       "download_local_embedding_failed": "本機嵌入模型下載失敗",
+      "download_local_model": "下載本機模型",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
       "file_processing": "檔案處理",
       "file_processing_hint": "匯入檔案時會自動進行預處理；選擇合適的處理供應商，可改善檔案解析品質。",
+      "file_processing_none": "不使用",
       "hints": {
         "chunk_overlap": "相鄰文件片段之間保留的重疊 Token 數，有助於減少語意中斷。",
         "chunk_separator": "切分文字所用的分隔符號（跳脫形式）。開啟智慧分段時作為額外切分點；關閉後僅按此分隔符號切分。",
@@ -3258,6 +3280,8 @@
       },
       "processor": "處理供應商",
       "processor_not_configured": "未設定",
+      "processor_not_downloaded": "尚未下載",
+      "processor_unreachable": "服務未執行",
       "rerank_disabled": "不使用",
       "rerank_model": "重新排序模型",
       "reset_action": "還原預設",
@@ -4063,6 +4087,14 @@
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或 Token"
       },
+      "stream_admission": {
+        "execution_changed": "回應在重試開始前已變更。請再試一次。",
+        "execution_not_ready": "此回應仍在生成中，暫時無法重試。",
+        "model_already_in_live_group": "此模型已在目前作用中的回覆群組中生成。",
+        "single_model_required": "請選擇一個模型加入目前作用中的回覆群組。",
+        "target_not_in_live_group": "所選回應已不在目前作用中的回覆群組中。請再試一次。",
+        "topic_busy": "此對話仍在生成中。請等待完成後再試一次。"
+      },
       "table": {
         "invalid": "無法取得有效的表格資料"
       },
@@ -4077,7 +4109,8 @@
         "content": "是否刪除此群組中的所有助理回覆？使用者的提問與後續訊息將會保留。",
         "title": "刪除群組回覆"
       },
-      "retry_failed": "重試出錯的訊息"
+      "retry_failed": "重試出錯的訊息",
+      "retry_skipped_same_model": "已略過 {{count}} 個額外失敗回覆，因為「全部重試」每個模型最多只會啟動一次重試。"
     },
     "ignore": {
       "knowledge": {
@@ -4509,27 +4542,27 @@
     },
     "pinned": "已固定",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "新增價格級距",
+      "cache_fallback_help": "將快取價格留空可使用此級距的輸入價格；輸入 0 表示免費。",
       "cache_read": "快取讀取價格",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "快取寫入價格",
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "{{field}}，級距 {{index}}",
       "input": "輸入價格",
       "million_tokens": "百萬 Token",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "起始輸入 Token 數",
+      "min_input_tokens_help": "包含邊界值；必須大於前一個級距。",
       "output": "輸出價格",
       "price": "價格",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "移除價格級距 {{index}}",
+      "tier": "級距 {{index}}",
+      "tier_from": "從 {{boundary}} 個輸入 Token 起（含）",
+      "use_input_price": "使用輸入價格",
+      "validation_min_input_tokens": "請輸入正整數。",
+      "validation_min_input_tokens_order": "此級距必須從前一個級距之後開始。",
+      "validation_price": "請輸入大於或等於 0 的價格。"
     },
     "reasoning": "推理",
     "rerank_model": "重新排序模型",
@@ -4681,8 +4714,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字型設定",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "換行模式",
+        "line_breaks_description": "將單一換行呈現為新行（Obsidian 風格）。停用時，換行會摺疊為空格，直到空白行分隔段落。",
         "serif_font": "襯線字型",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便在檔案內導覽",
@@ -5450,7 +5483,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "回到頂部",
     "commands": {
       "blockMath": {
         "description": "插入數學公式",
@@ -6727,6 +6760,10 @@
       "installingHint": "首次安裝可能需要下載執行環境，耗時數分鐘",
       "invalidTool": "工具名稱或識別碼無效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本機嵌入與 OCR 推論。",
+          "label": "硬體加速"
+        },
         "cancel": "取消",
         "description": "在本機執行的模型，下載後即可離線使用，無需 API Key。",
         "download": "下載",
@@ -7034,6 +7071,7 @@
       },
       "command": "指令",
       "config_description": "設定 MCP（Model Context Protocol）伺服器",
+      "copyLogs": "複製日誌",
       "customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",
       "deleteError": "刪除伺服器失敗",
       "deleteServer": "刪除伺服器",
@@ -7087,6 +7125,7 @@
       },
       "logoUrl": "標誌 URL",
       "logs": "記錄",
+      "logsHint": "MCP 伺服器程序的日誌",
       "longRunning": "長時間運作模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務；收到進度通知時會重設逾時計時器，並將最大逾時時間延長至 10 分鐘",
       "marketplaces": "市場",
@@ -8318,6 +8357,10 @@
           "doc2x": {
             "description": "進階檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "完全在此裝置上將 PDF 轉換為 Markdown。具有文字圖層的文件會直接解析；掃描文件則會改用本機 OCR 模型。",
+            "name": "本機文件"
           },
           "local_paddleocr": {
             "description": "在處理程序內執行的 PaddleOCR（PP-OCRv6 中型模型），可完全離線使用，無需 API Key。辨識作業會在背景執行緒中進行，不會阻塞使用者介面。首次使用前，請先在「環境相依套件」下載模型（約 140 MB）。",
