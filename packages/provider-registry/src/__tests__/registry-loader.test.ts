@@ -115,6 +115,18 @@ describe('RegistryLoader override index — prefixed id resolves to its own size
     expect(loader.findOverride('nvidia', 'gpt-oss-20b')?.apiModelId).toBe('openai/gpt-oss-20b')
     expect(loader.findOverride('nvidia', 'openai/gpt-oss-120b')?.modelId).toBe('gpt-oss-120b')
   })
+
+  it('returns null when the requested size has no override', () => {
+    const loader = newLoader(rows)
+
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss-9b')).toBeNull()
+  })
+
+  it('keeps the family-key fallback for ids without a parameter size', () => {
+    const loader = newLoader(rows)
+
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss')?.modelId).toBe('gpt-oss-120b')
+  })
 })
 
 describe('RegistryLoader.findModel — registry-tag (colon) size/quant ids', () => {
@@ -155,11 +167,29 @@ describe('RegistryLoader.findModel — size-preserving catalog matches', () => {
 
     expect(loader.findModel('qwen3.5-9b')?.id).toBe('qwen3-5-9b')
     expect(loader.findModel('qwen3.5-27b')?.id).toBe('qwen3-5-27b')
+    expect(loader.findModel('nvidia/gpt-oss-20b')?.id).toBe('gpt-oss-20b')
   })
 
-  it('falls back to the family key when no size-specific catalog row exists', () => {
+  it('returns null when no size-specific catalog row exists', () => {
     const loader = modelLoader([model('qwen3-5')])
 
-    expect(loader.findModel('qwen3.5-999b')?.id).toBe('qwen3-5')
+    expect(loader.findModel('qwen3.5-999b')).toBeNull()
+  })
+
+  it('keeps the family-key fallback for ids without a parameter size', () => {
+    const loader = modelLoader([model('qwen3-5-27b')])
+
+    expect(loader.findModel('qwen3.5')?.id).toBe('qwen3-5-27b')
+  })
+})
+
+describe('RegistryLoader.findModel — explicit size misses', () => {
+  it.each([
+    ['qwen3.5-9b', 'qwen3-5-27b'],
+    ['nvidia/gpt-oss-20b', 'gpt-oss-120b']
+  ])('returns null for %s rather than the indexed %s sibling', (modelId, siblingId) => {
+    const loader = modelLoader([model(siblingId)])
+
+    expect(loader.findModel(modelId)).toBeNull()
   })
 })

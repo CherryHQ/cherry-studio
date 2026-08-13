@@ -51,7 +51,7 @@ import { defineRoute } from '../define'
  */
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
-  type: z.literal('claude-code'),
+  type: AgentEntitySchema.shape.type,
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.

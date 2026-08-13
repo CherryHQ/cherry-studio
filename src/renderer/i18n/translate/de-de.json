@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Erstellt oder überschreibt Dateien",
           "label": "Schreiben"
+        },
+        "bash": {
+          "description": "Shell-Befehle ausführen",
+          "label": "Shell-Befehle ausführen"
+        },
+        "edit": {
+          "description": "Dateien bearbeiten",
+          "label": "Dateien bearbeiten"
+        },
+        "find": {
+          "description": "Dateien suchen",
+          "label": "Dateien suchen"
+        },
+        "grep": {
+          "description": "Dateiinhalt durchsuchen",
+          "label": "Dateiinhalt durchsuchen"
+        },
+        "ls": {
+          "description": "Verzeichnisinhalt auflisten",
+          "label": "Verzeichnisinhalt auflisten"
+        },
+        "read": {
+          "description": "Dateien lesen",
+          "label": "Dateien lesen"
+        },
+        "write": {
+          "description": "Dateien schreiben",
+          "label": "Dateien schreiben"
         }
       }
     },
@@ -1153,6 +1181,11 @@
       "startSuccess": "API-Server erfolgreich gestartet",
       "stopError": "API-Server stoppen fehlgeschlagen:",
       "stopSuccess": "API-Server erfolgreich gestoppt"
+    },
+    "required": {
+      "confirm": "Aktivieren",
+      "description": "Das Modell dieses Agenten muss über das lokale API-Gateway von Cherry Studio gebrückt werden. Das Aktivieren startet das Gateway auch automatisch bei zukünftigen Starts; Sie können es in den Einstellungen wieder deaktivieren.",
+      "title": "API-Gateway aktivieren?"
     },
     "status": {
       "running": "Läuft",
@@ -2497,6 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "Dieses Modell muss über das lokale API-Gateway von Cherry Studio gebrückt werden, das derzeit deaktiviert ist. Aktivieren Sie es, um diesen Agenten auszuführen.",
     "availableProviders": "Verfügbare Anbieter",
     "availableTools": "Verfügbare Tools",
     "backup": {
@@ -2883,6 +2917,13 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "GPUStack"
+  },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Benutzerhandbuch",
+    "star": "GitHub-Star",
+    "title": "Hilfe",
+    "whats_new": "Neuigkeiten"
   },
   "history": {
     "continue_chat": "Chat fortsetzen",
@@ -3447,6 +3488,18 @@
             "hint": "Aufgabenzerlegung und Planung",
             "label": "Plan-Modell (optional)"
           },
+          "runtime": {
+            "immutable_hint": "Kann nach der Erstellung nicht geändert werden",
+            "label": "Laufzeitmodus",
+            "option": {
+              "claude_code": "Erweitert: Claude Agent",
+              "pi": "Schnell: Pi"
+            },
+            "selected": {
+              "claude_code": "Erweitert",
+              "pi": "Schnell"
+            }
+          },
           "small_model": {
             "hint": "Leichtgewichtige Überprüfungen und Formatierung",
             "label": "Kleines Modell (optional)"
@@ -3549,7 +3602,7 @@
             "hint": "Antwortlänge von Caps, wenn aktiviert"
           },
           "max_tool_calls": {
-            "hint": "Begrenzt Tool-Call-Schleifen, wenn aktiviert"
+            "hint": "Begrenzt bei Aktivierung die Anzahl der Tool-Aufruf-Runden; andernfalls gilt das Standardlimit von {{count}} Runden"
           },
           "model": {
             "hint": "Überschreibt das globale Standardmodell für diesen Assistenten"
@@ -3854,10 +3907,17 @@
     "skill_marketplace": {
       "empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
       "empty_title": "Nach Fähigkeiten suchen",
+      "github_empty_description": "Fügen Sie einen Link zu einer SKILL.md-Datei einer Fähigkeit ein, z. B. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Von GitHub installieren",
+      "github_url_invalid": "Fügen Sie einen GitHub-Link ein, der mit SKILL.md endet",
+      "github_url_label": "GitHub-SKILL.md-URL",
+      "github_url_placeholder": "GitHub-Link, endend mit /SKILL.md",
       "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
       "no_results_title": "Keine Fähigkeiten gefunden",
       "search_failed_description": "Suche fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      "search_label": "Fähigkeiten suchen",
       "search_placeholder": "Suchkompetenzen...",
+      "source_label": "Fähigkeitsquelle",
       "title": "Online-Skill-Suche"
     },
     "sort": {
@@ -3884,13 +3944,6 @@
       "placeholder": "Neuer Tag-Name..."
     },
     "tag_sync_failed": "Synchronisierung der Tags fehlgeschlagen",
-    "time_ago": {
-      "days": "vor {{count}} Tag(en)",
-      "hours": "{{count}} Stunde(n) her",
-      "just_now": "Gerade eben",
-      "minutes": "vor {{count}} Minute(n)",
-      "months": "vor {{count}} Monat/Monaten"
-    },
     "title": "Bibliothek",
     "toolbar": {
       "add_group_placeholder": "Gruppenname...",
@@ -4815,7 +4868,7 @@
     },
     "installed_at": "OpenClaw installiert unter",
     "migration": {
-      "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
+      "description": "In PATH wurde eine externe OpenClaw-Installation erkannt, aber Cherry Studio verwendet seine verwaltete OpenClaw-Binärdatei. Installieren Sie die verwaltete Version, um fortzufahren.",
       "install_button": "OpenClaw neu installieren",
       "title": "OpenClaw benötigt ein Update"
     },
@@ -5940,7 +5993,7 @@
           "title": "Diagnosepaket"
         },
         "errors": {
-          "busy": "Ein anderes Diagnosepaket wird bereits exportiert",
+          "busy": "Ein anderer Diagnosevorgang wird bereits ausgeführt",
           "copy_failed": "Die Support-E-Mail-Adresse konnte nicht kopiert werden",
           "destination_conflict": "Der ausgewählte Speicherort steht in Konflikt mit den Diagnosedaten. Wählen Sie einen anderen Ordner.",
           "email_client_failed": "Es konnte kein E-Mail-Programm geöffnet werden. Sie können stattdessen die Support-E-Mail-Adresse kopieren.",
@@ -5989,6 +6042,48 @@
           "title": "Diagnosepaket exportiert"
         },
         "unknown": "Unbekannt",
+        "upload": {
+          "actions": {
+            "consent_upload": "Zustimmen und hochladen",
+            "open_form": "Formular öffnen",
+            "uploading": "Wird hochgeladen..."
+          },
+          "dialog": {
+            "description": "Erstellen Sie ein Diagnosepaket und senden Sie es anonym an das Cherry-Studio-Team.",
+            "title": "Diagnosepaket hochladen"
+          },
+          "errors": {
+            "open_form_failed": "Das Feedback-Formular konnte nicht geöffnet werden",
+            "upload_failed": "Das Diagnosepaket konnte nicht erstellt oder gespeichert werden"
+          },
+          "manual": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert und das anonyme Formular geöffnet. Wählen Sie dort die gespeicherte Datei aus, um die Übermittlung abzuschließen.",
+            "title": "Manuelles Hochladen erforderlich"
+          },
+          "privacy": {
+            "description": "Das Paket enthält immer App- und Geräteinformationen. Ausgewählte Protokolle und detaillierte Aufzeichnungen können Ihre Eingaben, Dateispeicherorte, Anfrage- und Antwortinhalte sowie Informationen zu Dienstverbindungen enthalten. Es wird anonym an ein privates Feishu-Formular gesendet und ist auf {{size}} begrenzt. Mit einem Klick auf „Zustimmen und hochladen“ stimmen Sie der Erstellung und Übermittlung dieses Pakets zu.",
+            "title": "Datenschutzhinweis"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Der Anhang konnte nicht automatisch hochgeladen werden.",
+            "form_changed": "Die Struktur des Feedback-Formulars hat sich geändert und konnte nicht sicher überprüft werden.",
+            "form_unavailable": "Das Feedback-Formular ist derzeit nicht verfügbar.",
+            "network_failed": "Die Netzwerkanfrage konnte nicht abgeschlossen werden.",
+            "submission_rejected": "Das Feedback-Formular hat die Übermittlung abgelehnt."
+          },
+          "success": {
+            "description": "Dateigröße {{size}} · {{included}} Dateien erfasst · {{omitted}} Dateien nicht erfasst",
+            "title": "Diagnosepaket hochgeladen"
+          },
+          "unknown": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert, aber die Serverantwort wurde unterbrochen. Die Übermittlung war möglicherweise bereits erfolgreich. Prüfen Sie dies, bevor Sie das Formular öffnen, um eine doppelte Übermittlung zu vermeiden.",
+            "title": "Übermittlung möglicherweise erfolgreich"
+          },
+          "unknown_without_copy": {
+            "description": "Die Serverantwort wurde unterbrochen und die Diagnose-ZIP-Datei konnte nicht lokal gespeichert werden. Starten Sie den Upload nicht erneut, da dasselbe Feedback sonst doppelt gesendet werden könnte.",
+            "title": "Übermittlung möglicherweise erfolgreich, aber keine lokale Kopie gespeichert"
+          }
+        },
         "warning": "Einige Diagnoseinformationen waren nicht verfügbar. Das exportierte Paket ist möglicherweise unvollständig."
       },
       "downloading": "Update wird heruntergeladen...",
@@ -5997,24 +6092,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatte mit Cherry Support, um Hilfe zu erhalten oder Feedback zu teilen.",
-          "title": "Verwenden Sie Agent"
+          "description": "Chatten Sie mit dem integrierten Cherry-Support-Agenten, um Hilfe zu Cherry Studio zu erhalten oder Feedback zu geben.",
+          "title": "Cherry Support fragen"
         },
-        "agent_error": "Cherry Support für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+        "agent_error": "Cherry Support konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Prüfen Sie die aktuellen Diagnoseinformationen und laden Sie sie anschließend in einem Schritt anonym hoch.",
+          "title": "Diagnosepaket hochladen"
+        },
         "dialog": {
           "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
           "title": "Wählen Sie einen Feedback-Kanal"
         },
         "github": {
           "description": "Erstellen Sie einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "error": "GitHub Issues konnten nicht geöffnet werden. Bitte versuchen Sie es erneut.",
           "title": "GitHub Issue"
         },
         "recommended": "Empfohlen",
-        "survey": {
-          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
-          "title": "Feedback-Umfrage"
-        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -6766,7 +6862,7 @@
       "removeDefinitionOnlyDependents": "Installierte Tools hängen davon ab: {{dependents}}.",
       "removeError": "Fehler beim Entfernen des Tools",
       "removeErrorHint": "Der Bereinigungsbefehl ist fehlgeschlagen. Kopieren Sie das untenstehende Protokoll zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
-      "removeRuntimeConfirmMessage": "Sind Sie sicher, dass Sie „{{name}}“ entfernen möchten? Die Deinstallation dieser Laufzeitumgebung könnte davon abhängige npm- oder pip-Werkzeuge beschädigen.",
+      "removeRuntimeConfirmMessage": "\"{{name}}\" aus Cherry Studio entfernen? Cherry entfernt dabei nur die exakte, von mise verwaltete Kopie. System- und in der App integrierte Laufzeitumgebungen werden niemals verändert. Installierte npm- oder pip-Tools können die Entfernung blockieren, wenn sie von dieser Laufzeitumgebung abhängen.",
       "runtimeDependency": "Laufzeitumgebung",
       "runtimeDependencyHint": "Laufzeitumgebung für npm-/pip-Werkzeuge",
       "searchFailed": "Suche fehlgeschlagen; prüfen Sie die Protokolle",
@@ -7625,7 +7721,6 @@
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
         "label": "Thema-Benennung",
-        "model": "Namensmodell",
         "prompt": "Thema-Benennung-Prompt"
       },
       "translate_model": "Übersetzungsmodell",
@@ -7648,7 +7743,8 @@
       "assistant": "Assistenten-Nachrichten",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
-      "title": "Benachrichtigungen"
+      "title": "Benachrichtigungen",
+      "update": "App-Update"
     },
     "openai": {
       "service_tier": {
@@ -8820,7 +8916,7 @@
       "aborted": "Übersetzung abgebrochen"
     },
     "input": {
-      "placeholder": "Text, Textdatei, Bild (OCR unterstützt) können eingefügt oder gezogen werden"
+      "placeholder": "Text eingeben..."
     },
     "language": {
       "not_pair": "Quellsprache unterscheidet sich von eingestellter Sprache",

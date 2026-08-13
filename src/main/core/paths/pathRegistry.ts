@@ -143,6 +143,10 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
+    // pi resume tokens persist the pi session id, never a filesystem path.
+    'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
+    'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)

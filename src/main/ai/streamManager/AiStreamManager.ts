@@ -236,6 +236,14 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
 }
 
+function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {
+  for (let index = exec.buffer.length - 1; index >= 0; index--) {
+    const chunk = exec.buffer[index].chunk
+    if (chunk.type === 'tool-input-available' && chunk.toolCallId === toolCallId) return chunk
+  }
+  return undefined
+}
+
 /** The AI SDK `error` chunk carries only `error.message`, so rebuilding from it drops the
  *  `statusCode`/`responseBody` that classification and the error block need. Prefer the
  *  thrown error whenever it still carries them. */
@@ -1331,7 +1339,7 @@ export class AiStreamManager extends BaseService {
    * Clear a live runtime tool approval as soon as the user responds, before the
    * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
    */
-  resolveToolApproval(topicId: string, toolCallId: string): boolean {
+  resolveToolApproval(topicId: string, toolCallId: string, approved: boolean): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
 
@@ -1343,6 +1351,12 @@ export class AiStreamManager extends BaseService {
       stream.aggregate.setApprovalPending(exec.attemptId, toolCallId, false)
       exec.runtimeTiming.finishApproval({ toolCallId })
       changed = true
+      if (approved) {
+        // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part
+        // and lets a parallel batch surface its next approval before the tools execute.
+        const inputChunk = findBufferedToolInput(exec, toolCallId)
+        if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec.attemptId)
+      }
       if (pendingApprovals.size === 0) {
         this.transitionAttempt(stream.aggregate, exec, { type: 'approval-changed', pending: false })
         pendingApprovalFlipped = true
