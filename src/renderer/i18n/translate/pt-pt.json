@@ -3549,7 +3549,7 @@
             "hint": "Comprimento da resposta do Caps quando ativado"
           },
           "max_tool_calls": {
-            "hint": "Limita os loops de chamadas de ferramenta quando ativado"
+            "hint": "Limita as rodadas de chamadas de ferramentas quando ativado; caso contrário, usa o limite padrão de {{count}} rodadas"
           },
           "model": {
             "hint": "Substitui o modelo padrão global para este assistente"
@@ -4586,7 +4586,7 @@
       "success": "Nome da nota gerado com sucesso"
     },
     "characters": "caractere",
-    "collapse": "[minimizar]",
+    "collapse": "Recolher",
     "conflict": {
       "description": "Esta nota foi alterada fora do editor. Recarregue para carregar a versão mais recente (suas edições não guardadas serão descartadas) ou continue a editar.",
       "keep_draft": "Continue a editar",
@@ -4815,7 +4815,7 @@
     },
     "installed_at": "OpenClaw instalado em",
     "migration": {
-      "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
+      "description": "Foi detectada uma instalação externa do OpenClaw no PATH, mas o Cherry Studio usa seu próprio binário gerenciado do OpenClaw. Instale a versão gerenciada para continuar.",
       "install_button": "Reinstale o OpenClaw",
       "title": "OpenClaw Precisa de Atualização"
     },
@@ -6766,7 +6766,7 @@
       "removeDefinitionOnlyDependents": "Ferramentas instaladas dependem dela: {{dependents}}.",
       "removeError": "Falha ao remover ferramenta",
       "removeErrorHint": "O comando de limpeza falhou. Copie o log abaixo para solucionar problemas ou partilhe-o para obter ajuda.",
-      "removeRuntimeConfirmMessage": "Tem a certeza de que pretende remover \"{{name}}\"? A desinstalação deste runtime pode quebrar ferramentas npm ou pip que dependem dele.",
+      "removeRuntimeConfirmMessage": "Remover \"{{name}}\" do Cherry Studio? O Cherry limpará apenas a cópia exata gerenciada pelo mise. Os runtimes do sistema e os incluídos no aplicativo nunca são alterados. Ferramentas npm ou pip instaladas podem bloquear a remoção se dependerem deste runtime.",
       "runtimeDependency": "Tempo de execução",
       "runtimeDependencyHint": "Tempo de execução para ferramentas npm/pip",
       "searchFailed": "A pesquisa falhou; consulte os registos",
@@ -8820,7 +8820,7 @@
       "aborted": "Tradução interrompida"
     },
     "input": {
-      "placeholder": "Pode colar ou arrastar texto, ficheiros de texto ou imagens (com suporte a OCR)"
+      "placeholder": "Digite o texto..."
     },
     "language": {
       "not_pair": "O idioma de origem é diferente do idioma definido",
