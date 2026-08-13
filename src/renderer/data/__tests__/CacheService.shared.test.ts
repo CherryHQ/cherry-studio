@@ -10,7 +10,7 @@
  *    NOT notify subscribers; value changes and deletion tombstones do notify.
  *    Equality is judged against the raw physical entry, never TTL-aware.
  */
-import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL CacheService
@@ -24,6 +24,7 @@ const BASE = 1_000_000
 
 // JobManager's live progress key — the standing consumer of TTL'd entries.
 const KEY = 'jobs.progress.job-1' as const
+const STREAM_KEY = 'topic.stream.statuses.topic-1' as const
 
 let now: number
 
@@ -107,6 +108,32 @@ describe('getSharedSnapshot (pure physical read)', () => {
 })
 
 describe('inbound sync gating (fix A3)', () => {
+  it('keeps a live stream status update that arrives while the initial snapshot is in flight', async () => {
+    let resolveInitialSync!: (entries: Record<string, CacheEntry>) => void
+    getAllShared.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveInitialSync = resolve
+        })
+    )
+    const { service, inbound } = await createService()
+
+    const streamingStatus = {
+      status: 'streaming',
+      activeExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      awaitingApprovalAnchors: []
+    }
+    inbound({ type: 'shared', key: STREAM_KEY, value: streamingStatus })
+    resolveInitialSync({
+      [STREAM_KEY]: {
+        value: { status: 'pending', activeExecutions: [], awaitingApprovalAnchors: [] }
+      }
+    })
+    await vi.waitFor(() => expect(service.isSharedCacheReady()).toBe(true))
+
+    expect(service.getSharedSnapshot(STREAM_KEY)).toEqual(streamingStatus)
+  })
+
   it('deletion tombstone physically deletes and always notifies', async () => {
     const { service, inbound } = await createService()
     inbound({ type: 'shared', key: KEY, value: { progress: 100 } })
