@@ -17,6 +17,8 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionCreate.open': 'Open session',
         'message.tools.sessionCreate.sessionId': 'Session ID',
         'agent.session_delivery.status.delivering': 'Delivering',
+        'message.tools.cancelled': 'Cancelled',
+        'message.tools.error': 'Error',
         'common.copy': 'Copy',
         'common.copied': 'Copied'
       })[key] ?? key
@@ -104,6 +106,16 @@ describe('SessionCreateTool', () => {
     render(<Harness isStreaming input={{ title: 'Research pricing', message: 'Compare plans.' }} />)
 
     expect(screen.getByText('message.tools.sessionCreate.creating')).toBeInTheDocument()
+    expect(screen.queryByText('Started a new session')).toBeNull()
+  })
+
+  it.each([
+    { props: { hasError: true, status: 'error' as const }, label: 'Error' },
+    { props: { status: 'cancelled' as const }, label: 'Cancelled' }
+  ])('does not claim a failed or cancelled create succeeded', ({ props, label }) => {
+    render(<Harness {...props} input={{ title: 'Research pricing', message: 'Compare plans.' }} />)
+
+    expect(screen.getByText(label)).toBeInTheDocument()
     expect(screen.queryByText('Started a new session')).toBeNull()
   })
 })

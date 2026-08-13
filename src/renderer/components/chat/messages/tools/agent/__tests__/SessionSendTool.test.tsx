@@ -9,7 +9,9 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionCreate.untitled': 'Untitled session',
         'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to',
-        'message.tools.sessionSend.to': 'To'
+        'message.tools.sessionSend.to': 'To',
+        'message.tools.cancelled': 'Cancelled',
+        'message.tools.error': 'Error'
       })[key] ?? key
   })
 }))
@@ -88,5 +90,15 @@ describe('SessionSendTool', () => {
 
     expect(screen.getAllByText('Untitled session')).toHaveLength(2)
     expect(screen.queryByText('opaque-id')).toBeNull()
+  })
+
+  it.each([
+    { props: { hasError: true, status: 'error' as const }, label: 'Error' },
+    { props: { status: 'cancelled' as const }, label: 'Cancelled' }
+  ])('does not claim a failed or cancelled send succeeded', ({ props, label }) => {
+    render(<Harness {...props} input={{ message: 'Implement it.' }} />)
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText('Sent to')).toBeNull()
   })
 })

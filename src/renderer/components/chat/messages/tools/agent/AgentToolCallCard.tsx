@@ -70,10 +70,10 @@ export function AgentToolCallCard({
   const renderedItem =
     isCherrySessionTool &&
     (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
-      ? SessionCreateTool({ input, output, hasError, isStreaming })
+      ? SessionCreateTool({ input, output, hasError, isStreaming, status })
       : isCherrySessionTool &&
           (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
-        ? SessionSendTool({ input, output, hasError, isStreaming })
+        ? SessionSendTool({ input, output, hasError, isStreaming, status })
         : isValidAgentToolsType(toolName)
           ? renderTool(toolName, input ?? {}, output, hasError)
           : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME

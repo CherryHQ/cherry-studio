@@ -323,10 +323,10 @@ resubmission without a future idempotency key may create a distinct request.
 
 The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. Stable
 delivery/content markers carry an unpredictable per-materialization boundary and an explicit notice
-that only the metadata is host-authored while the body is untrusted. The body is normalized for
-invisible/full-width delimiter tricks, and literal `system-reminder` tags are defanged. The envelope
-is informational context, not authority: database metadata remains the source of truth, and model
-text that imitates another envelope never changes trusted routing fields.
+that only the metadata is host-authored while the body is untrusted. Literal `system-reminder` tags
+are defanged without otherwise rewriting model-authored Unicode content. The envelope is
+informational context, not authority: database metadata remains the source of truth, and the random
+boundary prevents model text that imitates an envelope from changing trusted routing fields.
 
 ## Starting the next runtime turn
 
@@ -542,9 +542,10 @@ start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueue
 the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
-write and `startRuntimeTurn` handoff; the resulting stream writes belong to
-`AiStreamManager`'s drain. This is distinct from the BaseService lifecycle pause and
-never touches service state. `AgentSessionDeliveryService` suppresses accepted-row kicks while a
+write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
+parts after their runtime entry closes. The resulting stream writes belong to `AiStreamManager`'s
+drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+`AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
 suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the

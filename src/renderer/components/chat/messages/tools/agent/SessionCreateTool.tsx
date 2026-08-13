@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
+import type { ToolStatus } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { getSessionDeliveryStatus } from './sessionDeliveryStatus'
@@ -33,12 +34,14 @@ export function SessionCreateTool({
   input,
   output,
   hasError = false,
-  isStreaming = false
+  isStreaming = false,
+  status
 }: {
   input?: ToolInput | Record<string, unknown>
   output?: ToolOutput
   hasError?: boolean
   isStreaming?: boolean
+  status?: ToolStatus
 }): ToolDisclosureItem {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
@@ -49,6 +52,13 @@ export function SessionCreateTool({
   const message = sessionInput.message?.trim()
   const deliveryStatus = getSessionDeliveryStatus(result?.delivery?.status, t)
   const errorText = hasError ? extractToolErrorText(output) : undefined
+  const actionLabel = isStreaming
+    ? t('message.tools.sessionCreate.creating')
+    : status === 'cancelled'
+      ? t('message.tools.cancelled')
+      : hasError || status === 'error'
+        ? t('message.tools.error')
+        : t('message.tools.sessionCreate.created')
 
   const copySessionId = () => {
     if (!result?.sessionId || !actions?.copyText) return
@@ -64,9 +74,7 @@ export function SessionCreateTool({
         <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-info-subtle text-info-subtle-foreground">
           <GitBranchPlus aria-hidden="true" size={13} strokeWidth={1.9} />
         </span>
-        <span className="shrink-0">
-          {isStreaming ? t('message.tools.sessionCreate.creating') : t('message.tools.sessionCreate.created')}
-        </span>
+        <span className="shrink-0">{actionLabel}</span>
         <span className="truncate text-foreground" title={title}>
           {title}
         </span>
