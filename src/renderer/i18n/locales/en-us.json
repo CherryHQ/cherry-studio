@@ -1093,6 +1093,10 @@
           "description": "Run shell commands",
           "label": "Run shell commands"
         },
+        "create_goal": {
+          "description": "Create a session goal to work toward",
+          "label": "Create goal"
+        },
         "edit": {
           "description": "Edit files",
           "label": "Edit files"
@@ -1100,6 +1104,10 @@
         "find": {
           "description": "Find files",
           "label": "Find files"
+        },
+        "get_goal": {
+          "description": "Read the current session goal",
+          "label": "Read goal"
         },
         "grep": {
           "description": "Search file contents",
@@ -1112,6 +1120,22 @@
         "read": {
           "description": "Read files",
           "label": "Read files"
+        },
+        "read_image": {
+          "description": "Read a PNG, JPEG, WebP, or GIF file with a vision-capable model",
+          "label": "Read image"
+        },
+        "skill": {
+          "description": "Load the full instructions of an enabled skill",
+          "label": "Load skill instructions"
+        },
+        "todo_write": {
+          "description": "Manage the task list",
+          "label": "Manage the task list"
+        },
+        "update_goal": {
+          "description": "Update the session goal status or objective",
+          "label": "Update goal"
         },
         "write": {
           "description": "Write files",
@@ -3493,10 +3517,12 @@
             "label": "Runtime mode",
             "option": {
               "claude_code": "Advanced: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Fast: Pi"
             },
             "selected": {
               "claude_code": "Advanced",
+              "dsh": "DeepSeek",
               "pi": "Fast"
             }
           },

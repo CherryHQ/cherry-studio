@@ -47,6 +47,10 @@ const AGENT_RUNTIME_SELECTED_LABELS: Record<AgentType, { labelKey: string; label
   pi: {
     labelKey: 'library.config.agent.field.runtime.selected.pi',
     labelFallback: 'Fast'
+  },
+  dsh: {
+    labelKey: 'library.config.agent.field.runtime.selected.dsh',
+    labelFallback: 'DeepSeek'
   }
 }
 

@@ -1093,6 +1093,10 @@
           "description": "シェルコマンドを実行",
           "label": "シェルコマンドを実行"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "ファイルを編集",
           "label": "ファイルを編集"
@@ -1100,6 +1104,10 @@
         "find": {
           "description": "ファイルを検索",
           "label": "ファイルを検索"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "ファイル内容を検索",
@@ -1112,6 +1120,22 @@
         "read": {
           "description": "ファイルを読み込む",
           "label": "ファイルを読み込む"
+        },
+        "read_image": {
+          "description": "画像認識対応モデルで PNG、JPEG、WebP、GIF ファイルを読み取ります",
+          "label": "画像を読み取る"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "ファイルを書き込む",
@@ -3493,10 +3517,12 @@
             "label": "実行モード",
             "option": {
               "claude_code": "高度：Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "高速：Pi"
             },
             "selected": {
               "claude_code": "高度",
+              "dsh": "[to be translated]:DeepSeek",
               "pi": "高速"
             }
           },

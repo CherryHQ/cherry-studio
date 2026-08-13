@@ -1093,6 +1093,10 @@
           "description": "Ejecutar comandos de shell",
           "label": "Ejecutar comandos de shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Editar archivos",
           "label": "Editar archivos"
@@ -1100,6 +1104,10 @@
         "find": {
           "description": "Buscar archivos",
           "label": "Buscar archivos"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Buscar contenido en archivos",
@@ -1112,6 +1120,22 @@
         "read": {
           "description": "Leer archivos",
           "label": "Leer archivos"
+        },
+        "read_image": {
+          "description": "Lee un archivo PNG, JPEG, WebP o GIF con un modelo con capacidad visual",
+          "label": "Leer imagen"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Escribir archivos",
@@ -3493,10 +3517,12 @@
             "label": "Modo de ejecución",
             "option": {
               "claude_code": "Avanzado: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rápido: Pi"
             },
             "selected": {
               "claude_code": "Avanzado",
+              "dsh": "[to be translated]:DeepSeek",
               "pi": "Rápido"
             }
           },

@@ -1093,6 +1093,10 @@
           "description": "執行 Shell 命令",
           "label": "執行 Shell 命令"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "編輯檔案",
           "label": "編輯檔案"
@@ -1100,6 +1104,10 @@
         "find": {
           "description": "尋找檔案",
           "label": "尋找檔案"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "搜尋檔案內容",
@@ -1112,6 +1120,22 @@
         "read": {
           "description": "讀取檔案",
           "label": "讀取檔案"
+        },
+        "read_image": {
+          "description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",
+          "label": "讀取圖片"
+        },
+        "skill": {
+          "description": "載入啟用技能的完整指令",
+          "label": "載入技能指令"
+        },
+        "todo_write": {
+          "description": "管理任務清單",
+          "label": "管理任務清單"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "寫入檔案",
@@ -3493,10 +3517,12 @@
             "label": "執行模式",
             "option": {
               "claude_code": "增強：Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "快速：Pi"
             },
             "selected": {
               "claude_code": "增強",
+              "dsh": "DeepSeek",
               "pi": "快速"
             }
           },

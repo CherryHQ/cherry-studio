@@ -1093,6 +1093,10 @@
           "description": "Εκτέλεση εντολών shell",
           "label": "Εκτέλεση εντολών shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Επεξεργασία αρχείων",
           "label": "Επεξεργασία αρχείων"
@@ -1100,6 +1104,10 @@
         "find": {
           "description": "Εύρεση αρχείων",
           "label": "Εύρεση αρχείων"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Αναζήτηση περιεχομένου αρχείων",
@@ -1112,6 +1120,22 @@
         "read": {
           "description": "Ανάγνωση αρχείων",
           "label": "Ανάγνωση αρχείων"
+        },
+        "read_image": {
+          "description": "Διαβάζει ένα αρχείο PNG, JPEG, WebP ή GIF με μοντέλο που υποστηρίζει όραση",
+          "label": "Ανάγνωση εικόνας"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Εγγραφή αρχείων",
@@ -3493,10 +3517,12 @@
             "label": "Λειτουργία εκτέλεσης",
             "option": {
               "claude_code": "Προηγμένο: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Γρήγορο: Pi"
             },
             "selected": {
               "claude_code": "Προηγμένο",
+              "dsh": "[to be translated]:DeepSeek",
               "pi": "Γρήγορο"
             }
           },
