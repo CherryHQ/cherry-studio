@@ -28,7 +28,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     skillIds: values.skillIds,
     configuration: {
       avatar: values.avatar,
-      permission_mode: values.permissionMode ?? 'bypassPermissions'
+      permission_mode: values.permissionMode ?? 'default'
     }
   }
 }

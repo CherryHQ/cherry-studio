@@ -43,4 +43,10 @@ describe('resource create DTO mapping', () => {
       }
     })
   })
+
+  it('falls back to the safe permission mode when the field is omitted', () => {
+    const command = buildCreateAgentCommand({ ...values, permissionMode: undefined })
+
+    expect(command.configuration).toEqual({ avatar: '🤖', permission_mode: 'default' })
+  })
 })
