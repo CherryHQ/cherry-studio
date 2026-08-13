@@ -3556,7 +3556,7 @@
             "hint": "有効にした場合のCaps応答の長さ"
           },
           "max_tool_calls": {
-            "hint": "有効にするとツール呼び出しのラウンド数を制限します。無効の場合は、デフォルトの上限である 20 ラウンドが使用されます"
+            "hint": "有効にするとツール呼び出しのラウンド数を制限します。無効の場合はデフォルトの{{count}}ラウンドの上限が使用されます"
           },
           "model": {
             "hint": "このアシスタントに対してグローバルなデフォルトモデルを上書きします"
@@ -4822,7 +4822,7 @@
     },
     "installed_at": "OpenClawのインストール先",
     "migration": {
-      "description": "npm経由でインストールされた古いバージョンのOpenClawが検出されました。最新の公式バージョンを入手するために、再インストールをお願いします。",
+      "description": "PATH 内に外部の OpenClaw インストールが検出されましたが、Cherry Studio は管理された OpenClaw バイナリを使用します。続行するには、管理バージョンをインストールしてください。",
       "install_button": "OpenClawを再インストール",
       "title": "OpenClawはアップデートが必要"
     },
@@ -6816,7 +6816,7 @@
       "removeDefinitionOnlyDependents": "インストール済みツールが依存しています: {{dependents}}。",
       "removeError": "ツールの削除に失敗しました",
       "removeErrorHint": "クリーンアップコマンドが失敗しました。トラブルシューティングのために、またはヘルプを求めるために以下のログをコピーしてください。",
-      "removeRuntimeConfirmMessage": "\"{{name}}\"を削除してもよろしいですか？このランタイムをアンインストールすると、それに依存するnpmまたはpipツールが動作しなくなる可能性があります。",
+      "removeRuntimeConfirmMessage": "\"{{name}}\" を Cherry Studio から削除しますか？Cherry が削除するのは mise が管理する該当のコピーのみです。システムおよびアプリ内蔵のランタイムが変更されることはありません。このランタイムに依存するインストール済みの npm や pip ツールがある場合、削除がブロックされることがあります。",
       "runtimeDependency": "ランタイム",
       "runtimeDependencyHint": "npm/pipツールのランタイム",
       "searchFailed": "検索に失敗しました。ログを確認してください",
@@ -8870,7 +8870,7 @@
       "aborted": "翻訳中止"
     },
     "input": {
-      "placeholder": "テキスト、テキストファイル、画像（OCR対応）を貼り付けたり、ドラッグして挿入したりできます"
+      "placeholder": "テキストを入力..."
     },
     "language": {
       "not_pair": "ソース言語が設定された言語と異なります",

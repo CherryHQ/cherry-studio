@@ -7114,7 +7114,7 @@
       },
       "fetch": {
         "button": "获取服务器",
-        "success": "服务器获取成功"
+        "success": "MCP 服务器获取成功"
       },
       "filter": {
         "allStatuses": "全部状态",

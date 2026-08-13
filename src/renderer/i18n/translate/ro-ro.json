@@ -3556,7 +3556,7 @@
             "hint": "Lungimea răspunsului Caps când este activată"
           },
           "max_tool_calls": {
-            "hint": "Limitează buclele de apeluri ale funcțiilor când este activat"
+            "hint": "Limitează numărul de runde de apeluri de instrumente când este activat; altfel se aplică limita implicită de {{count}} runde"
           },
           "model": {
             "hint": "Suprascrie modelul implicit global pentru acest asistent"
@@ -4822,7 +4822,7 @@
     },
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
+      "description": "A fost detectată o instalare externă OpenClaw în PATH, dar Cherry Studio folosește propriul binar OpenClaw gestionat. Instalați versiunea gestionată pentru a continua.",
       "install_button": "Reinstalați OpenClaw",
       "title": "OpenClaw necesită actualizare"
     },
@@ -8870,7 +8870,7 @@
       "aborted": "Traducere anulată"
     },
     "input": {
-      "placeholder": "Textul, fișierele text sau imaginile (cu suport OCR) pot fi lipite sau trase aici"
+      "placeholder": "Introduceți text..."
     },
     "language": {
       "not_pair": "Limba sursă este diferită de limba setată",

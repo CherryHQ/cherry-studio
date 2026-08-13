@@ -3556,7 +3556,7 @@
             "hint": "Longitud de respuesta de las mayúsculas cuando está habilitada"
           },
           "max_tool_calls": {
-            "hint": "Limita los bucles de llamadas a herramientas cuando está habilitado"
+            "hint": "Limita las rondas de llamadas a herramientas cuando está activado; de lo contrario, se usa el límite predeterminado de {{count}} rondas"
           },
           "model": {
             "hint": "Anula el modelo predeterminado global para este asistente"
@@ -4822,7 +4822,7 @@
     },
     "installed_at": "OpenClaw instalado en",
     "migration": {
-      "description": "Se ha detectado una versión desactualizada de OpenClaw instalada a través de npm. Por favor, reinstala para obtener la última versión oficial.",
+      "description": "Se detectó una instalación externa de OpenClaw en PATH, pero Cherry Studio usa su propio binario gestionado de OpenClaw. Instala la versión gestionada para continuar.",
       "install_button": "Reinstalar OpenClaw",
       "title": "OpenClaw Necesita Actualización"
     },
@@ -6816,7 +6816,7 @@
       "removeDefinitionOnlyDependents": "Las herramientas instaladas dependen de ello: {{dependents}}.",
       "removeError": "Error al eliminar la herramienta",
       "removeErrorHint": "El comando de limpieza falló. Copia el registro a continuación para solucionar problemas o compártelo para obtener ayuda.",
-      "removeRuntimeConfirmMessage": "¿Estás seguro de que quieres eliminar \"{{name}}\"? Desinstalar este runtime puede romper las herramientas npm o pip que dependen de él.",
+      "removeRuntimeConfirmMessage": "¿Quitar \"{{name}}\" de Cherry Studio? Cherry solo eliminará la copia exacta gestionada por mise. Los entornos de ejecución del sistema e integrados en la aplicación nunca se modifican. Las herramientas npm o pip instaladas pueden bloquear la eliminación si dependen de este entorno de ejecución.",
       "runtimeDependency": "Tiempo de ejecución",
       "runtimeDependencyHint": "Tiempo de ejecución para herramientas npm/pip",
       "searchFailed": "La búsqueda ha fallado; consulta los registros",
@@ -8870,7 +8870,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
+      "placeholder": "Introduce texto..."
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",
