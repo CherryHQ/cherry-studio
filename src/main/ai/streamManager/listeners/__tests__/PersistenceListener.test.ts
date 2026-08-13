@@ -355,16 +355,12 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('finalizes an empty successful placeholder instead of leaving it pending', async () => {
+  it('does not create an empty successful ordinary-chat reply', async () => {
     const listener = makeMessageServiceListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: { parts: [] },
-      status: 'success',
-      runtimeStats: undefined
-    })
+    expect(messageFinalizeMock).not.toHaveBeenCalled()
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 

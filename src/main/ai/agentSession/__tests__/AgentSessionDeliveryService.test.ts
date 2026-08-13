@@ -272,7 +272,6 @@ describe('AgentSessionDeliveryService', () => {
   it('retries idle placeholder repair after a transient DB failure', async () => {
     const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
     const failedAssistant = { ...assistant, status: 'error' }
-    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
     mocks.getMessage.mockReturnValueOnce(assistant).mockReturnValueOnce(assistant).mockReturnValueOnce(failedAssistant)
     mocks.markTerminalError.mockImplementationOnce(() => {
       throw new Error('database busy')
@@ -280,12 +279,15 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     const service = new AgentSessionDeliveryService()
     await service._doInit()
+    mocks.listRecoverable.mockImplementation((sessionId?: string) =>
+      sessionId === undefined || sessionId === 'target' ? [delivering] : []
+    )
 
     service.kick('target')
     await service.drainInFlight({ timeoutMs: 100 })
     expect(mocks.finalize).not.toHaveBeenCalled()
 
-    service.kick('target')
+    service.kick()
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.markTerminalError).toHaveBeenCalledTimes(2)
@@ -296,6 +298,22 @@ describe('AgentSessionDeliveryService', () => {
       assistantMessageId: 'assistant-1',
       outcome: 'failed'
     })
+  })
+
+  it('does not repair a pending placeholder while its stream still owns terminal persistence', async () => {
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(assistant)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(true)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).not.toHaveBeenCalled()
+    expect(mocks.finalize).not.toHaveBeenCalled()
   })
 
   it('ignores row-roll terminal events', async () => {
@@ -498,6 +516,9 @@ describe('AgentSessionDeliveryService', () => {
         retryable: true
       })
       mocks.listAccepted.mockImplementation((sessionId?: string) =>
+        sessionId === undefined || sessionId === 'target' ? [accepted] : []
+      )
+      mocks.listRecoverable.mockImplementation((sessionId?: string) =>
         sessionId === undefined || sessionId === 'target' ? [accepted] : []
       )
       mocks.validateDispatch.mockRejectedValue(workspaceError)

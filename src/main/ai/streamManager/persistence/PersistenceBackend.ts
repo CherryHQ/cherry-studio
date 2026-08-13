@@ -130,6 +130,9 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
+  /** True only when an empty successful response is itself a valid terminal result. */
+  readonly canPersistEmptySuccessTerminal?: boolean
+
   persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
   /**

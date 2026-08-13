@@ -871,7 +871,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const completedTurn = this.currentTurn(entry)
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
-      entry.runtimeState.execution.sourceTurn === completedTurn
+      entry.runtimeState.execution.sourceTurn === completedTurn &&
+      status === 'success'
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
       const executionOwnsTurn =

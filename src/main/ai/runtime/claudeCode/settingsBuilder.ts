@@ -106,6 +106,8 @@ import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolAppro
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const MIN_AUTO_COMPACT_WINDOW = 100_000
+const RETRYABLE_WORKSPACE_ERROR_CODES = new Set(['EBUSY', 'EIO', 'EMFILE', 'ENFILE', 'ENOSPC', 'ESTALE', 'ETIMEDOUT'])
+const workspacePathProbes = new Map<string, Promise<PathStatus>>()
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 /**
  * Slack between the SDK's local token estimate and the provider's own count.
@@ -708,7 +710,10 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
     await ensureAgentStorageDirectory(root, target)
   } catch (error) {
     logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
+    throw new AgentSessionWorkspaceError(
+      workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }),
+      isRetryableWorkspaceErrorCode((error as NodeJS.ErrnoException)?.code)
+    )
   }
 }
 
@@ -763,24 +768,36 @@ export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd:
   logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
   throw new AgentSessionWorkspaceError(
     workspacePathErrorMessage(cwd, status),
-    // ENOENT cannot distinguish deletion from an unmounted volume; fail closed until the
-    // platform provides a volume-availability event that can wake one exact delivery.
-    !status.ok && status.reason === 'inaccessible'
+    !status.ok && status.reason === 'inaccessible' && isRetryableWorkspaceErrorCode(status.code)
   )
 }
 
 async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
   // Node's stat is not abortable; the race bounds scheduler ownership even if the OS call lingers.
+  let probe = workspacePathProbes.get(cwd)
+  if (!probe) {
+    probe = getPathStatus(cwd).finally(() => {
+      if (workspacePathProbes.get(cwd) === probe) workspacePathProbes.delete(cwd)
+    })
+    workspacePathProbes.set(cwd, probe)
+  }
   let timeout: ReturnType<typeof setTimeout> | undefined
   const timeoutResult = new Promise<PathStatus>((resolve) => {
-    timeout = setTimeout(() => resolve({ ok: false, reason: 'inaccessible' }), WORKSPACE_PROBE_TIMEOUT_MS)
+    timeout = setTimeout(
+      () => resolve({ ok: false, reason: 'inaccessible', code: 'ETIMEDOUT' }),
+      WORKSPACE_PROBE_TIMEOUT_MS
+    )
     timeout.unref?.()
   })
   try {
-    return await Promise.race([getPathStatus(cwd), timeoutResult])
+    return await Promise.race([probe, timeoutResult])
   } finally {
     if (timeout) clearTimeout(timeout)
   }
+}
+
+function isRetryableWorkspaceErrorCode(code: string | undefined): boolean {
+  return code !== undefined && RETRYABLE_WORKSPACE_ERROR_CODES.has(code)
 }
 
 function workspacePathErrorMessage(path: string, status: PathStatus): string {

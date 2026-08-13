@@ -39,8 +39,9 @@ export function SessionSendTool({
   const { t } = useTranslation()
   const sessionInput = getInput(input)
   const result = parseSessionSendResult(output)
-  const targetSessionName =
-    result?.delivery?.receiverSnapshot?.sessionName?.trim() || t('message.tools.sessionCreate.untitled')
+  const targetSessionName = result
+    ? result.delivery?.receiverSnapshot?.sessionName?.trim() || t('message.tools.sessionCreate.untitled')
+    : undefined
   const targetAgentName = result?.delivery?.receiverSnapshot?.agentName?.trim()
   const targetLabel = [targetAgentName, targetSessionName].filter(Boolean).join(' / ')
   const message = sessionInput.message?.trim()
@@ -71,10 +72,14 @@ export function SessionSendTool({
             <Send aria-hidden="true" size={13} strokeWidth={2} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-foreground-tertiary text-xs">{t('message.tools.sessionSend.to')}</div>
-            <div className="truncate font-medium text-foreground text-sm" title={targetLabel}>
-              {targetLabel}
-            </div>
+            {targetLabel ? (
+              <>
+                <div className="text-foreground-tertiary text-xs">{t('message.tools.sessionSend.to')}</div>
+                <div className="truncate font-medium text-foreground text-sm" title={targetLabel}>
+                  {targetLabel}
+                </div>
+              </>
+            ) : null}
             {message ? (
               <div className="selectable mt-2 line-clamp-4 whitespace-pre-wrap break-words text-foreground text-sm leading-5">
                 {message}

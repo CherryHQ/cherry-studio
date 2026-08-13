@@ -4945,6 +4945,8 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
+    const onTurnTerminal = vi.fn()
+    service.onTurnTerminal(onTurnTerminal)
     // Drive the entry into a roll mid-turn: A1a closed at a steer boundary, post-steer chunks buffered,
     // and the continuation (A2) is about to open. This is the state `startContinuationTurn` runs against.
     setSteerTransition(
@@ -4971,6 +4973,12 @@ describe('AgentSessionRuntimeService', () => {
     )
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(onTurnTerminal).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assistantMessageId: baseTurnInput.assistantMessageId,
+      status: 'error',
+      boundary: 'turn'
+    })
   })
 
   describe('warm lease ownership (multi-window)', () => {

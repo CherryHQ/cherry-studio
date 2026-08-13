@@ -136,7 +136,7 @@ export class AgentSessionDeliveryService extends BaseService {
     if (this.isWriteQuiesced) {
       if (sessionId) this.suppressedSessionIds.add(sessionId)
       else {
-        for (const message of agentSessionMessageService.listAcceptedSessionDeliveries()) {
+        for (const message of agentSessionMessageService.listRecoverableSessionDeliveries()) {
           this.suppressedSessionIds.add(message.sessionId)
         }
       }
@@ -145,7 +145,7 @@ export class AgentSessionDeliveryService extends BaseService {
 
     if (!sessionId) {
       for (const targetSessionId of new Set(
-        agentSessionMessageService.listAcceptedSessionDeliveries().map((message) => message.sessionId)
+        agentSessionMessageService.listRecoverableSessionDeliveries().map((message) => message.sessionId)
       )) {
         this.kick(targetSessionId)
       }
@@ -508,7 +508,13 @@ export class AgentSessionDeliveryService extends BaseService {
       throw error
     }
     if (assistant.status === 'pending') {
-      if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) return true
+      const topicId = buildAgentSessionTopicId(sessionId)
+      if (
+        application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
+        application.get('AiStreamManager').hasLiveStream(topicId)
+      ) {
+        return true
+      }
       // The runtime is idle, so no writer can still complete this placeholder. Reuse the owning
       // persistence repair primitive; a transient DB failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)

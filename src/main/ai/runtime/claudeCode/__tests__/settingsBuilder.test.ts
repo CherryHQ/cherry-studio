@@ -218,6 +218,7 @@ const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
   disposeToolPolicySnapshot,
+  prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } = await import('../settingsBuilder')
 
@@ -2679,9 +2680,14 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('retries inaccessible workspace paths but fails missing paths and files permanently', async () => {
-      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible' })
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible', code: 'EIO' })
       await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
         retryable: true
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible', code: 'EACCES' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
       })
 
       mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
@@ -2695,16 +2701,55 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     })
 
+    it.each([
+      ['EIO', true],
+      ['EACCES', false]
+    ] as const)('classifies system-workspace %s failures by errno', async (code, retryable) => {
+      mocks.ensureAgentStorageDirectory.mockRejectedValueOnce(Object.assign(new Error(code), { code }))
+
+      await expect(
+        prepareClaudeCodeWorkspaceDirectory({
+          id: 'session-1',
+          workspace: { type: 'system', path: '/app/feature.agents.system_workspaces/session-1' }
+        } as never)
+      ).rejects.toMatchObject({ retryable })
+    })
+
     it('bounds a stalled workspace probe and classifies the timeout as retryable', async () => {
       vi.useFakeTimers()
       try {
         mocks.getPathStatus.mockReturnValueOnce(new Promise(() => undefined))
-        const validation = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')
+        const validation = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/stalled')
         const assertion = expect(validation).rejects.toMatchObject({ retryable: true })
 
         await vi.advanceTimersByTimeAsync(5_001)
 
         await assertion
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('shares one underlying path probe across repeated timeout windows', async () => {
+      vi.useFakeTimers()
+      try {
+        let resolveProbe!: (status: { ok: true; kind: 'directory' }) => void
+        mocks.getPathStatus.mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveProbe = resolve
+          })
+        )
+
+        const first = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/single-flight')
+        const firstAssertion = expect(first).rejects.toMatchObject({ retryable: true })
+        await vi.advanceTimersByTimeAsync(5_001)
+        await firstAssertion
+
+        const second = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/single-flight')
+        expect(mocks.getPathStatus).toHaveBeenCalledOnce()
+        resolveProbe({ ok: true, kind: 'directory' })
+
+        await expect(second).resolves.toBeUndefined()
       } finally {
         vi.useRealTimers()
       }

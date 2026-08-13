@@ -204,11 +204,12 @@ SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService
 state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
 provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
 shutting-down targets remain `accepted` until a known wake event. A temporarily inaccessible
-workspace also remains `accepted` instead of destroying durable intent; a missing path is a
-permanent routing error. Workspace probes are time-bounded so an unreachable mount cannot hold
-backup quiescing indefinitely. Filesystem
-availability has no reliable app event, so the lifecycle owner runs a low-frequency accepted-row
-sweep as a fallback in addition to ordinary terminal/idle/quiesce-release kicks. Permanent routing
+workspace also remains `accepted` instead of destroying durable intent; missing paths and permanent
+permission failures are routing errors. Workspace probes are time-bounded so an unreachable mount
+cannot hold backup quiescing indefinitely, and repeated checks share the same underlying non-abortable
+filesystem probe until it settles. Filesystem availability has no reliable app event, so the lifecycle
+owner runs a low-frequency recoverable-row sweep as a fallback in addition to ordinary
+terminal/idle/quiesce-release kicks. Permanent routing
 errors and unknown admission failures enter structured `failed` terminal state rather than retrying
 forever.
 
@@ -263,11 +264,11 @@ After commit
 
 Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
 as already completed, so a crash after terminal persistence but before or during finalization can
-rerun it without creating a second result. A backend with a pre-existing placeholder persists an
-empty terminal row when accumulation produced no final snapshot. If live terminal persistence
+rerun it without creating a second result. The Agent Session backend persists an empty terminal row when accumulation produced no final
+snapshot; ordinary chat keeps skipping an empty successful reply. If live terminal persistence
 throws, the Agent Session backend best-effort advances the placeholder from `pending` to `error`
-before the generic terminal event runs. If that repair also fails transiently, the next idle or
-fallback kick retries it once no runtime owns the placeholder. The runtime resume token remains
+before the generic terminal event runs. If that repair also fails transiently, the recoverable-row sweep retries it once neither the runtime
+nor a live stream owns the placeholder. The runtime resume token remains
 owned by the live CLI session rather than being cleared only in SQLite. Result dispatch remains
 outside the transaction.
 

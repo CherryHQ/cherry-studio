@@ -29,6 +29,7 @@ export interface AgentSessionMessageBackendOptions {
 export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
   readonly canPersistEmptyTerminal = true
+  readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {

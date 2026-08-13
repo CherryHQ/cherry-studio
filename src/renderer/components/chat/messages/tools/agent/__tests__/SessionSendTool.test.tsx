@@ -60,6 +60,7 @@ describe('SessionSendTool', () => {
 
     expect(screen.getByText('message.tools.sessionSend.sending')).toBeInTheDocument()
     expect(screen.queryByText('Sent to')).toBeNull()
+    expect(screen.queryByText('Untitled session')).toBeNull()
   })
 
   it('labels an untitled target without exposing its id', () => {
