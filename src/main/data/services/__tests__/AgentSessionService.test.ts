@@ -8,6 +8,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -407,6 +408,43 @@ describe('AgentSessionService', () => {
         created: false,
         deletedDuplicateSessionIds: []
       })
+    })
+
+    it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {
+      const retained = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      const duplicate = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 200 }).where(eq(agentSessionTable.id, retained.id))
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 100 }).where(eq(agentSessionTable.id, duplicate.id))
+      pinService.pin({ entityType: 'session', entityId: duplicate.id })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentSessionService.reuseOrCreatePlaceholder({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+
+      expect(result).toMatchObject({
+        session: { id: retained.id },
+        created: false,
+        deletedDuplicateSessionIds: [duplicate.id]
+      })
+      expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, duplicate.id))).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
   })
 

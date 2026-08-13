@@ -473,6 +473,7 @@ export class AgentSessionService {
       [...(result.created ? [result.session.id] : []), ...result.deletedDuplicateSessionIds],
       'membership'
     )
+    if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
     return {
       session: result.session,
       created: result.created,
