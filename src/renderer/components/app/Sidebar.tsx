@@ -6,6 +6,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -35,15 +36,7 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
-
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-
-function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
-}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -110,7 +103,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
-  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+  const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
   const openableMiniAppById = useMemo(() => {
     const appById = new Map<string, (typeof miniApps)[number]>()
     for (const app of miniApps) {

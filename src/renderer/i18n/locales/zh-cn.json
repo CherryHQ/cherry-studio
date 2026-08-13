@@ -981,7 +981,6 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待确认",
       "pendingBadge": "待确认",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
@@ -7699,7 +7698,8 @@
       "assistant": "助手消息",
       "backup": "备份",
       "knowledge_embed": "知识库",
-      "title": "通知"
+      "title": "通知",
+      "update": "应用更新"
     },
     "openai": {
       "service_tier": {

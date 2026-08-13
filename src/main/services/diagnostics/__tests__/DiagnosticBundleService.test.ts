@@ -1,4 +1,4 @@
-import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -118,11 +118,17 @@ describe('DiagnosticBundleService', () => {
     const oldLog = `${JSON.stringify({ message: 'old', timestamp: new Date(now - 2 * 86_400_000).toISOString() })}\n`
     await writeFile(path.join(logsDir, logFileName), `${oldLog}${recentLog}`)
 
-    const topicDir = path.join(tracesDir, 'topic:private')
+    // `:` and `*` exercise archive-name sanitisation but are unwriteable on Windows.
+    const isWin = process.platform === 'win32'
+    const topicDir = path.join(tracesDir, isWin ? 'topic-private' : 'topic:private')
     await mkdir(topicDir)
     const traceLine = `${JSON.stringify({ id: 'span', startTime: now - 2_000, value: 'raw trace' })}\n`
-    await writeFile(path.join(topicDir, 'trace*one'), traceLine)
-    await writeFile(path.join(crashDumpsDir, 'private-crash-name.dmp'), 'dump')
+    await writeFile(path.join(topicDir, isWin ? 'trace-one' : 'trace*one'), traceLine)
+    // The inventory filters by mtime against a range the service closes at its own Date.now(),
+    // which Windows can read a few ms behind the clock the filesystem stamped the file with.
+    const crashDumpPath = path.join(crashDumpsDir, 'private-crash-name.dmp')
+    await writeFile(crashDumpPath, 'dump')
+    await utimes(crashDumpPath, new Date(now - 1_000), new Date(now - 1_000))
 
     const service = new DiagnosticBundleService()
     const result = await service.exportBundle({ includeLogs: true, includeTraces: true, range: '24h' }, 'main-window')
