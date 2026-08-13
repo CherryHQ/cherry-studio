@@ -11,7 +11,7 @@ export async function ensureBundledGit(): Promise<string | null> {
 }
 
 /**
- * Resolve the bundled MinGit materialized from the signed app payload.
+ * Resolve the bundled MinGit materialized from the checksum-verified app payload.
  * Windows-only — other platforms have no bundled git package. Returns the path
  * to git.exe when present, or null (dev on non-Windows, or missing bundle).
  *

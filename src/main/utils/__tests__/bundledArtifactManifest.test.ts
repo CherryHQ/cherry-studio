@@ -120,7 +120,7 @@ describe('readBundledArtifactManifest', () => {
     expect(() => readBundledArtifactManifest('linux', 'x64')).toThrow(/Invalid bundled files artifact/)
   })
 
-  it('rejects a tree whose entrypoint is absent from its signed file inventory', () => {
+  it('rejects a tree whose entrypoint is absent from its declared file inventory', () => {
     writeManifest({
       schemaVersion: 1,
       platform: 'linux',

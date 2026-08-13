@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   cleanupOtherArtifactVersions: vi.fn<() => Promise<void>>(async () => undefined),
   isBundledFileReady: vi.fn(async () => false),
   materializeBundledFile: vi.fn<() => Promise<void>>(async () => undefined),
-  recoverStaleBundledArtifactPaths: vi.fn<() => Promise<void>>(async () => undefined),
+  withBundledArtifactLock: vi.fn(async (_destination: string, task: () => Promise<unknown>) => task()),
   packaged: true,
   readBundledArtifactManifest: vi.fn()
 }))
@@ -30,7 +30,7 @@ vi.mock('@main/utils/bundledArtifacts', () => ({
   cleanupOtherArtifactVersions: mocks.cleanupOtherArtifactVersions,
   isBundledFileReady: mocks.isBundledFileReady,
   materializeBundledFile: mocks.materializeBundledFile,
-  recoverStaleBundledArtifactPaths: mocks.recoverStaleBundledArtifactPaths
+  withBundledArtifactLock: mocks.withBundledArtifactLock
 }))
 
 vi.mock('@main/utils/bundledArtifactManifest', async (importOriginal) => ({
@@ -71,7 +71,6 @@ describe('ClaudeCodeBinaryService', () => {
     mocks.readBundledArtifactManifest.mockReturnValue(manifest)
     mocks.isBundledFileReady.mockResolvedValue(false)
     mocks.materializeBundledFile.mockResolvedValue(undefined)
-    mocks.recoverStaleBundledArtifactPaths.mockResolvedValue(undefined)
     mocks.cleanupOtherArtifactVersions.mockResolvedValue(undefined)
   })
 
@@ -102,7 +101,7 @@ describe('ClaudeCodeBinaryService', () => {
     await expect(service.ensureExecutable()).resolves.toBe('/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude')
 
     expect(mocks.materializeBundledFile).not.toHaveBeenCalled()
-    expect(mocks.recoverStaleBundledArtifactPaths).toHaveBeenCalledOnce()
+    expect(mocks.withBundledArtifactLock).toHaveBeenCalledOnce()
     expect(mocks.cleanupOtherArtifactVersions).toHaveBeenCalledOnce()
   })
 

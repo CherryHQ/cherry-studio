@@ -11,7 +11,7 @@ import {
   cleanupOtherArtifactVersions,
   isBundledFileReady,
   materializeBundledFile,
-  recoverStaleBundledArtifactPaths
+  withBundledArtifactLock
 } from '@main/utils/bundledArtifacts'
 import { app } from 'electron'
 
@@ -70,11 +70,11 @@ export class ClaudeCodeBinaryService {
     const root = application.getPath('feature.agents.claude.binary')
     const platformKey = bundledArtifactPlatformKey(manifest.platform, manifest.arch)
     const destination = path.join(root, artifact.version, platformKey, file.output)
-    await recoverStaleBundledArtifactPaths(destination)
-    if (!(await isBundledFileReady(file, destination, true))) {
+    await withBundledArtifactLock(destination, async () => {
+      if (await isBundledFileReady(file, destination)) return
       await materializeBundledFile(manifest, file, destination)
       logger.info('Extracted bundled Claude Code binary', { destination, version: artifact.version })
-    }
+    })
     await cleanupOtherArtifactVersions(root, artifact.version)
     this.readyPath = destination
     return destination

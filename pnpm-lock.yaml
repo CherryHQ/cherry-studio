@@ -166,6 +166,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
+      proper-lockfile:
+        specifier: 4.1.2
+        version: 4.1.2
       registry-js:
         specifier: 1.16.1
         version: 1.16.1

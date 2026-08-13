@@ -120,6 +120,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
+    "proper-lockfile": "4.1.2",
     "registry-js": "1.16.1",
     "selection-hook": "2.0.3",
     "sharp": "0.34.5",

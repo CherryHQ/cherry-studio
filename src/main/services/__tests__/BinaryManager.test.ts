@@ -17,7 +17,7 @@ const {
   mockMaterializeBundledFile,
   mockMaterializeBundledTree,
   mockPreferenceService,
-  mockRecoverStaleBundledArtifactPaths,
+  mockWithBundledArtifactLock,
   platformMock
 } = vi.hoisted(() => ({
   bundledManifestRef: { value: {} },
@@ -29,7 +29,7 @@ const {
   mockIsBundledTreeReady: vi.fn(async () => true),
   mockMaterializeBundledFile: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
   mockMaterializeBundledTree: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
-  mockRecoverStaleBundledArtifactPaths: vi.fn(async () => undefined),
+  mockWithBundledArtifactLock: vi.fn(async (_destination: string, task: () => Promise<unknown>) => task()),
   mockFs: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(),
@@ -85,7 +85,7 @@ vi.mock('@main/utils/bundledArtifacts', () => ({
   isBundledTreeReady: mockIsBundledTreeReady,
   materializeBundledFile: mockMaterializeBundledFile,
   materializeBundledTree: mockMaterializeBundledTree,
-  recoverStaleBundledArtifactPaths: mockRecoverStaleBundledArtifactPaths
+  withBundledArtifactLock: mockWithBundledArtifactLock
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -231,7 +231,7 @@ describe('BinaryManager', () => {
     mockIsBundledTreeReady.mockReset().mockResolvedValue(true)
     mockMaterializeBundledFile.mockReset().mockResolvedValue(undefined)
     mockMaterializeBundledTree.mockReset().mockResolvedValue(undefined)
-    mockRecoverStaleBundledArtifactPaths.mockReset().mockResolvedValue(undefined)
+    mockWithBundledArtifactLock.mockClear()
     mockCleanupOtherArtifactVersions.mockReset().mockResolvedValue(undefined)
     mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
@@ -3197,7 +3197,7 @@ describe('BinaryManager', () => {
       expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
     })
 
-    it('derives every runtime file from the signed manifest instead of a second binary list', async () => {
+    it('derives every runtime file from the bundled manifest instead of a second binary list', async () => {
       const service = new BinaryManager()
       bundledManifestRef.value = {
         schemaVersion: 1,

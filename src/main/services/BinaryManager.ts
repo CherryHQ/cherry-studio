@@ -19,7 +19,7 @@ import {
   isBundledTreeReady,
   materializeBundledFile,
   materializeBundledTree,
-  recoverStaleBundledArtifactPaths
+  withBundledArtifactLock
 } from '@main/utils/bundledArtifacts'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -147,7 +147,7 @@ function isPathWithin(root: string, candidate: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
-// Runtime ownership only. The signed manifest is authoritative for each
+// Runtime ownership only. The bundled checksum manifest is authoritative for each
 // artifact's executable set; `internal` keeps infrastructure out of UI probes.
 const BUNDLED_TOOLS = [{ name: 'mise', internal: true }, { name: 'bun' }, { name: 'uv' }, { name: 'rg' }] as const
 
@@ -701,10 +701,11 @@ export class BinaryManager extends BaseService {
         let changed = versionChanged
         for (const file of artifact.files) {
           const destination = path.join(binDir, file.output)
-          await recoverStaleBundledArtifactPaths(destination)
-          if (!versionChanged && (await isBundledFileReady(file, destination))) continue
-          await materializeBundledFile(manifest, file, destination)
-          changed = true
+          await withBundledArtifactLock(destination, async () => {
+            if (!versionChanged && (await isBundledFileReady(file, destination))) return
+            await materializeBundledFile(manifest, file, destination)
+            changed = true
+          })
         }
         if (changed) {
           await fsp.writeFile(versionFile, artifact.version)
@@ -743,11 +744,11 @@ export class BinaryManager extends BaseService {
 
     const root = application.getPath('feature.binary.mingit')
     const destination = path.join(root, artifact.version, bundledArtifactPlatformKey(manifest.platform, manifest.arch))
-    await recoverStaleBundledArtifactPaths(destination)
-    if (!(await isBundledTreeReady(artifact, destination))) {
+    await withBundledArtifactLock(destination, async () => {
+      if (await isBundledTreeReady(artifact, destination)) return
       await materializeBundledTree(manifest, artifact, destination)
       logger.info('Extracted bundled MinGit', { destination, version: artifact.version })
-    }
+    })
     await cleanupOtherArtifactVersions(root, artifact.version)
     return path.join(destination, entrypoint)
   }

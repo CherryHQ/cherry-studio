@@ -15,10 +15,13 @@ import {
   type BundledTreeArtifact,
   type BundledTreeFile
 } from '@main/utils/bundledArtifactManifest'
+import lockfile from 'proper-lockfile'
 import { extract } from 'tar'
 
 const logger = loggerService.withContext('BundledArtifacts')
 const TREE_MARKER_FILE = '.artifact.json'
+const LOCK_STALE_MS = 30_000
+const LOCK_UPDATE_MS = 10_000
 
 function hashingTransform(hash: crypto.Hash, onChunk?: (size: number) => void): Transform {
   return new Transform({
@@ -76,7 +79,7 @@ async function removeStalePath(filePath: string): Promise<void> {
   })
 }
 
-export async function recoverStaleBundledArtifactPaths(destination: string): Promise<void> {
+async function recoverStaleBundledArtifactPaths(destination: string): Promise<void> {
   const directory = path.dirname(destination)
   const basename = path.basename(destination)
   let entries: fs.Dirent[]
@@ -128,6 +131,22 @@ export async function recoverStaleBundledArtifactPaths(destination: string): Pro
   }
 }
 
+export async function withBundledArtifactLock<T>(destination: string, task: () => Promise<T>): Promise<T> {
+  await fsp.mkdir(path.dirname(destination), { recursive: true })
+  const release = await lockfile.lock(destination, {
+    realpath: false,
+    stale: LOCK_STALE_MS,
+    update: LOCK_UPDATE_MS,
+    retries: { retries: 60, factor: 1.2, minTimeout: 100, maxTimeout: 1_000, randomize: true }
+  })
+  try {
+    await recoverStaleBundledArtifactPaths(destination)
+    return await task()
+  } finally {
+    await release()
+  }
+}
+
 async function replacePath(stagingPath: string, destination: string): Promise<void> {
   const backupPath = `${destination}.old-${process.pid}-${randomUUID()}`
   let backupExists = false
@@ -159,16 +178,12 @@ async function replacePath(stagingPath: string, destination: string): Promise<vo
   }
 }
 
-export async function isBundledFileReady(
-  file: BundledArtifactFile,
-  destination: string,
-  verifyHash = false
-): Promise<boolean> {
+export async function isBundledFileReady(file: BundledArtifactFile, destination: string): Promise<boolean> {
   try {
     const stat = await fsp.stat(destination)
     if (!stat.isFile() || stat.size !== file.size) return false
     if (!isWin && (stat.mode & 0o777) !== file.mode) return false
-    return !verifyHash || (await sha256File(destination)) === file.sha256
+    return (await sha256File(destination)) === file.sha256
   } catch {
     return false
   }
@@ -293,7 +308,7 @@ export async function materializeBundledTree(
       )
     }
     if (!(await isBundledTreeContentReady(artifact.files, stagingPath))) {
-      throw new Error('Bundled tree does not match its signed file inventory')
+      throw new Error('Bundled tree does not match its declared file inventory')
     }
     await fsp.writeFile(path.join(stagingPath, TREE_MARKER_FILE), treeMarker(artifact), 'utf8')
     await replacePath(stagingPath, destination)

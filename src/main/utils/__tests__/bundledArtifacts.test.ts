@@ -35,7 +35,7 @@ import {
   isBundledTreeReady,
   materializeBundledFile,
   materializeBundledTree,
-  recoverStaleBundledArtifactPaths
+  withBundledArtifactLock
 } from '../bundledArtifacts'
 
 const tmpDirs: string[] = []
@@ -127,7 +127,7 @@ describe('materializeBundledFile', () => {
     await materializeBundledFile(makeManifest(), file, destination)
 
     expect(fs.readFileSync(destination)).toEqual(payload)
-    expect(await isBundledFileReady(file, destination, true)).toBe(true)
+    expect(await isBundledFileReady(file, destination)).toBe(true)
     if (process.platform !== 'win32') expect(fs.statSync(destination).mode & 0o777).toBe(0o755)
   })
 
@@ -150,10 +150,19 @@ describe('materializeBundledFile', () => {
     fs.writeFileSync(destination, payload)
     fs.chmodSync(destination, 0o644)
 
-    expect(await isBundledFileReady(file, destination, true)).toBe(false)
+    expect(await isBundledFileReady(file, destination)).toBe(false)
     await materializeBundledFile(makeManifest(), file, destination)
 
     expect(fs.statSync(destination).mode & 0o777).toBe(0o755)
+  })
+
+  it('rejects same-size cached content that no longer matches the manifest hash', async () => {
+    const file = writeFileArtifact(Buffer.from('trusted'))
+    const destination = path.join(makeTmpDir('bundled-file-tampered-'), 'tool')
+    fs.writeFileSync(destination, 'altered', 'utf8')
+    if (process.platform !== 'win32') fs.chmodSync(destination, 0o755)
+
+    expect(await isBundledFileReady(file, destination)).toBe(false)
   })
 
   it('does not publish a payload whose original hash is wrong and removes its temporary file', async () => {
@@ -244,7 +253,7 @@ describe('tree payloads and version cleanup', () => {
     expect(await isBundledTreeReady(artifact, destination)).toBe(false)
   })
 
-  it('rejects a marked cache containing a file absent from the signed inventory', async () => {
+  it('rejects a marked cache containing a file absent from the declared inventory', async () => {
     const artifact = await writeTreeArtifact()
     const destination = path.join(makeTmpDir('bundled-tree-extra-file-'), 'current')
     await materializeBundledTree(makeManifest({ mingit: artifact }), artifact, destination)
@@ -260,7 +269,7 @@ describe('tree payloads and version cleanup', () => {
     fs.writeFileSync(`${destination}.tmp-123-dead`, 'partial', 'utf8')
     fs.writeFileSync(`${destination}.old-123-dead`, 'previous', 'utf8')
 
-    await recoverStaleBundledArtifactPaths(destination)
+    await withBundledArtifactLock(destination, async () => undefined)
 
     expect(fs.readFileSync(destination, 'utf8')).toBe('current')
     expect(fs.readdirSync(directory)).toEqual(['tool'])
@@ -271,7 +280,7 @@ describe('tree payloads and version cleanup', () => {
     const destination = path.join(directory, 'tool')
     fs.writeFileSync(`${destination}.old-123-dead`, 'previous', 'utf8')
 
-    await recoverStaleBundledArtifactPaths(destination)
+    await withBundledArtifactLock(destination, async () => undefined)
 
     expect(fs.readFileSync(destination, 'utf8')).toBe('previous')
     expect(fs.readdirSync(directory)).toEqual(['tool'])
@@ -301,5 +310,43 @@ describe('tree payloads and version cleanup', () => {
 
     await expect(cleanupOtherArtifactVersions(root, 'current-version')).resolves.toBeUndefined()
     expect(fs.existsSync(oldVersion)).toBe(true)
+  })
+})
+
+describe('withBundledArtifactLock', () => {
+  it('prevents a concurrent profile from recovering an active staging path', async () => {
+    const directory = makeTmpDir('bundled-artifact-lock-')
+    const destination = path.join(directory, 'tool')
+    const stagingPath = `${destination}.tmp-${process.pid}-active`
+    let releaseFirst!: () => void
+    let markFirstEntered!: () => void
+    const firstEntered = new Promise<void>((resolve) => {
+      markFirstEntered = resolve
+    })
+    const firstCanFinish = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    const first = withBundledArtifactLock(destination, async () => {
+      fs.writeFileSync(stagingPath, 'partial', 'utf8')
+      markFirstEntered()
+      await firstCanFinish
+      expect(fs.existsSync(stagingPath)).toBe(true)
+      fs.rmSync(stagingPath)
+    })
+    await firstEntered
+
+    let secondEntered = false
+    const second = withBundledArtifactLock(destination, async () => {
+      secondEntered = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(secondEntered).toBe(false)
+    expect(fs.existsSync(stagingPath)).toBe(true)
+
+    releaseFirst()
+    await Promise.all([first, second])
+    expect(secondEntered).toBe(true)
   })
 })
