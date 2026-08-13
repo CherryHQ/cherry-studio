@@ -1291,10 +1291,13 @@ describe('AiStreamManager', () => {
       await Promise.resolve()
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(mgr.hasLiveStream('a')).toBe(false)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
 
       releasePersistence()
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
@@ -1314,6 +1317,7 @@ describe('AiStreamManager', () => {
 
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
     })
 
     it('flushes trace spans for completed chat topics', async () => {

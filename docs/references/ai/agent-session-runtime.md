@@ -267,8 +267,8 @@ as already completed, so a crash after terminal persistence but before or during
 rerun it without creating a second result. The Agent Session backend persists an empty terminal row when accumulation produced no final
 snapshot; ordinary chat keeps skipping an empty successful reply. If live terminal persistence
 throws, the Agent Session backend best-effort advances the placeholder from `pending` to `error`
-before the generic terminal event runs. If that repair also fails transiently, the recoverable-row sweep retries it once neither the runtime
-nor a live stream owns the placeholder. The runtime resume token remains
+before the generic terminal event runs. If that repair also fails transiently, the recoverable-row sweep retries it once neither the runtime,
+a live stream, nor terminal persistence owns the placeholder. The runtime resume token remains
 owned by the live CLI session rather than being cleared only in SQLite. Result dispatch remains
 outside the transaction.
 

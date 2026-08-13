@@ -11,6 +11,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { Disposable } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -23,11 +24,7 @@ const logger = loggerService.withContext('ChannelMessageHandler')
 
 class AgentSessionRunNotStartedError extends Error {
   constructor(readonly reason: 'busy' | 'session-invalid') {
-    super(
-      reason === 'busy'
-        ? 'The Agent Session is busy. Please try again shortly.'
-        : 'The Agent Session is no longer available.'
-    )
+    super(reason === 'busy' ? t('agent.session.run_status.busy') : t('agent.session.run_status.unavailable'))
     this.name = 'AgentSessionRunNotStartedError'
   }
 }

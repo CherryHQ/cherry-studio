@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   activateDispatch: vi.fn(),
   send: vi.fn(),
   hasLiveStream: vi.fn(),
+  hasTerminalPersistenceInFlight: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
   terminalListeners: new Set<(event: any) => void>(),
@@ -92,6 +93,7 @@ const manager = {
   isWriteQuiesced: false,
   withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
   hasLiveStream: mocks.hasLiveStream,
+  hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   send: mocks.send
 }
 const dbService = {
@@ -144,6 +146,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listAccepted.mockReturnValue([])
     mocks.listRecoverable.mockReturnValue([])
     mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getMessage.mockReturnValue(accepted)
@@ -300,12 +303,13 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
-  it('does not repair a pending placeholder while its stream still owns terminal persistence', async () => {
+  it('does not repair a pending placeholder while terminal persistence is in flight', async () => {
     const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
     mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
     mocks.getMessage.mockReturnValue(assistant)
     mocks.runtimeBusy.mockReturnValue(false)
-    mocks.hasLiveStream.mockReturnValue(true)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(true)
     const service = new AgentSessionDeliveryService()
     await service._doInit()
 
@@ -314,6 +318,19 @@ describe('AgentSessionDeliveryService', () => {
 
     expect(mocks.markTerminalError).not.toHaveBeenCalled()
     expect(mocks.finalize).not.toHaveBeenCalled()
+
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.getMessage.mockReturnValue({ ...assistant, status: 'success' })
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).not.toHaveBeenCalled()
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'success'
+    })
   })
 
   it('ignores row-roll terminal events', async () => {

@@ -234,9 +234,6 @@ export const useSessions = (
     enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
-  useDataChange('/agent-sessions', () => {
-    void refresh()
-  })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 

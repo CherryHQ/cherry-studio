@@ -509,14 +509,16 @@ export class AgentSessionDeliveryService extends BaseService {
     }
     if (assistant.status === 'pending') {
       const topicId = buildAgentSessionTopicId(sessionId)
+      const manager = application.get('AiStreamManager')
       if (
         application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
-        application.get('AiStreamManager').hasLiveStream(topicId)
+        manager.hasLiveStream(topicId) ||
+        manager.hasTerminalPersistenceInFlight(topicId)
       ) {
         return true
       }
-      // The runtime is idle, so no writer can still complete this placeholder. Reuse the owning
-      // persistence repair primitive; a transient DB failure is retried by the next idle/sweep kick.
+      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
+      // A transient repair failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
       if (assistant.status === 'pending') return true
