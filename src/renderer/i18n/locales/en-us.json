@@ -7299,11 +7299,16 @@
       },
       "progress": {
         "analyzing": "Analyzing document layout",
+        "checking_assets": "Checking PDF processing resources",
         "downloading_assets": "Downloading PDF processing resources...",
-        "generating": "Generating translated PDF",
+        "extracting_terms": "Extracting document terminology",
+        "loading_model": "Loading PDF processing model",
+        "parsing": "Parsing PDF document",
         "percent": "{{progress}}%",
-        "preparing": "Preparing document",
+        "preparing": "Initializing PDF translation",
+        "rendering": "Rendering translated PDF",
         "translating": "Translating content",
+        "typesetting": "Typesetting translated PDF",
         "value": "{{stage}}, stage {{stageProgress}}%, overall {{overallProgress}}%"
       },
       "ready": {

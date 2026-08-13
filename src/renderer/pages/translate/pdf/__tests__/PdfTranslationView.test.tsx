@@ -123,6 +123,7 @@ describe('PdfTranslationView', () => {
     await waitFor(() => expect(handle).not.toBeNull())
     act(() => handle!.start('zh-cn'))
     await waitFor(() => expect(mocks.progressHandler).not.toBeNull())
+    expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({
@@ -133,6 +134,19 @@ describe('PdfTranslationView', () => {
       })
     })
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'checking_assets',
+        stageProgress: 50,
+        overallProgress: 1
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.checking_assets' })).toHaveAttribute(
+      'aria-valuenow',
+      '1'
+    )
 
     act(() => {
       mocks.progressHandler?.({
@@ -155,7 +169,7 @@ describe('PdfTranslationView', () => {
         overallProgress: 10
       })
     })
-    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.preparing' })).toHaveAttribute(
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.parsing' })).toHaveAttribute(
       'aria-valuenow',
       '10'
     )
@@ -172,6 +186,19 @@ describe('PdfTranslationView', () => {
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.analyzing' })).toHaveAttribute(
       'aria-valuenow',
       '30'
+    )
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'extracting_terms',
+        stageProgress: 60,
+        overallProgress: 35
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.extracting_terms' })).toHaveAttribute(
+      'aria-valuenow',
+      '35'
     )
 
     act(() => {
@@ -201,11 +228,24 @@ describe('PdfTranslationView', () => {
         overallProgress: 60
       })
     })
-    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.generating' })).toHaveAttribute(
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.typesetting' })).toHaveAttribute(
       'aria-valuenow',
       '70'
     )
     expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '70')
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'rendering',
+        stageProgress: 90,
+        overallProgress: 90
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.rendering' })).toHaveAttribute(
+      'aria-valuenow',
+      '90'
+    )
 
     resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
@@ -247,7 +287,7 @@ describe('PdfTranslationView', () => {
       })
     })
 
-    expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument()
+    expect(screen.getByText('translate.pdf.progress.loading_model')).toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 

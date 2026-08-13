@@ -29,7 +29,6 @@ export interface PdfTranslationFile {
 }
 
 type PdfTranslationPhase = PdfTranslationStage | 'idle' | 'success' | 'error'
-type PdfTranslationUiStage = 'preparing' | 'downloading_assets' | 'analyzing' | 'translating' | 'generating'
 
 export interface PdfTranslationStatus {
   phase: PdfTranslationPhase
@@ -75,7 +74,7 @@ export interface PdfTranslationOutput {
 }
 
 interface PdfTranslationUiProgress {
-  stage: PdfTranslationUiStage
+  stage: PdfTranslationProgressStage
   stageProgress: number | null
   overallProgress: number
 }
@@ -94,37 +93,28 @@ type PdfTranslationResultState =
   | { type: 'error' }
   | { type: 'ready' }
 
-const getUiStage = (stage: PdfTranslationProgressStage): PdfTranslationUiStage => {
-  switch (stage) {
-    case 'checking_assets':
-    case 'loading_model':
-    case 'parsing':
-      return 'preparing'
-    case 'downloading_assets':
-      return 'downloading_assets'
-    case 'analyzing':
-    case 'extracting_terms':
-      return 'analyzing'
-    case 'translating':
-      return 'translating'
-    case 'typesetting':
-    case 'rendering':
-      return 'generating'
-  }
-}
-
-const getProgressLabel = (t: TFunction, stage: PdfTranslationUiStage): string => {
+const getProgressLabel = (t: TFunction, stage: 'preparing' | PdfTranslationProgressStage): string => {
   switch (stage) {
     case 'preparing':
       return t('translate.pdf.progress.preparing')
+    case 'checking_assets':
+      return t('translate.pdf.progress.checking_assets')
     case 'downloading_assets':
       return t('translate.pdf.progress.downloading_assets')
+    case 'loading_model':
+      return t('translate.pdf.progress.loading_model')
+    case 'parsing':
+      return t('translate.pdf.progress.parsing')
     case 'analyzing':
       return t('translate.pdf.progress.analyzing')
+    case 'extracting_terms':
+      return t('translate.pdf.progress.extracting_terms')
     case 'translating':
       return t('translate.pdf.progress.translating')
-    case 'generating':
-      return t('translate.pdf.progress.generating')
+    case 'typesetting':
+      return t('translate.pdf.progress.typesetting')
+    case 'rendering':
+      return t('translate.pdf.progress.rendering')
   }
 }
 
@@ -277,7 +267,7 @@ const PdfTranslationView = ({
     setPhase('translating')
     setProgress((current) => {
       if (current && overallProgress < current.overallProgress) return current
-      return { stage: getUiStage(stage), stageProgress, overallProgress }
+      return { stage, stageProgress, overallProgress }
     })
   })
 
