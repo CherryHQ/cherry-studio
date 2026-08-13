@@ -1568,10 +1568,7 @@ describe('ensureTranscriptAvailableForWorkspace', () => {
     await ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)
 
     expect(fsMocks.mkdir).toHaveBeenCalledWith(path.join(PROJECTS_ROOT, EXPECTED_DIR), { recursive: true })
-    expect(fsMocks.copyFile).toHaveBeenCalledWith(
-      candidateFile('old-encoded-dir'),
-      expectedFile()
-    )
+    expect(fsMocks.copyFile).toHaveBeenCalledWith(candidateFile('old-encoded-dir'), expectedFile())
   })
 
   it('leaves transcripts untouched when no project directory holds the session', async () => {

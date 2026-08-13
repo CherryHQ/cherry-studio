@@ -54,6 +54,7 @@ vi.mock('@logger', () => ({
 vi.mock('@application', () => ({ application: applicationMock }))
 
 vi.mock('electron', () => ({
+  app: { getPath: vi.fn(() => '') },
   BrowserWindow: { fromWebContents: vi.fn() },
   ipcMain: { on: vi.fn(), removeListener: vi.fn() },
   get nativeTheme() {

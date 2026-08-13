@@ -38,6 +38,7 @@ export {
 } from '@shared/data/migration/v2/types'
 
 // Migrators
+export { claudeProjectDirectoryName } from './migrators/agentsFilesystemMigration'
 export { getAllMigrators } from './migrators/migratorRegistry'
 
 // Window management
