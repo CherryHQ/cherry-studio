@@ -1,6 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { AGENT_SESSION_DELETE_MAX_IDS, type AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
   MockUseDataApiUtils,
@@ -660,26 +660,6 @@ describe('useSessions', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
     expect(deleted).toBe(response)
-  })
-
-  it('deletes more than the per-request limit in batches', async () => {
-    const ids = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS + 1 }, (_, index) => `session-${index}`)
-    const firstBatchIds = ids.slice(0, AGENT_SESSION_DELETE_MAX_IDS)
-    const secondBatchIds = ids.slice(AGENT_SESSION_DELETE_MAX_IDS)
-    const deleteTrigger = vi
-      .fn()
-      .mockResolvedValueOnce({ deletedIds: firstBatchIds })
-      .mockResolvedValueOnce({ deletedIds: secondBatchIds })
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions', deleteTrigger)
-
-    const { result } = renderHook(() => useSessions('agent-1'))
-    const deleted = await act(async () => result.current.deleteSessions(ids))
-
-    expect(deleteTrigger).toHaveBeenNthCalledWith(1, { query: { ids: firstBatchIds.join(',') } })
-    expect(deleteTrigger).toHaveBeenNthCalledWith(2, { query: { ids: secondBatchIds.join(',') } })
-    expect(mockCloseConversationTabs).toHaveBeenNthCalledWith(1, 'agents', firstBatchIds)
-    expect(mockCloseConversationTabs).toHaveBeenNthCalledWith(2, 'agents', secondBatchIds)
-    expect(deleted).toEqual({ deletedIds: ids })
   })
 
   it('returns the created session when refreshing the session list fails', async () => {

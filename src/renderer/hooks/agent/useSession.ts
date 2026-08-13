@@ -23,13 +23,12 @@ import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import {
-  AGENT_SESSION_DELETE_MAX_IDS,
-  type AgentSessionEntity,
-  type CreateAgentSessionDto,
-  type DeleteAgentSessionsResult,
-  type SetAgentSessionWorkspaceDto,
-  type UpdateAgentSessionDto
+import type {
+  AgentSessionEntity,
+  CreateAgentSessionDto,
+  DeleteAgentSessionsResult,
+  SetAgentSessionWorkspaceDto,
+  UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isEqual } from 'es-toolkit/compat'
@@ -337,20 +336,9 @@ export const useSessions = (
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        if (ids.length <= AGENT_SESSION_DELETE_MAX_IDS) {
-          const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
-          closeConversationTabs('agents', result.deletedIds)
-          return result
-        }
-
-        const deletedIds: string[] = []
-        for (let index = 0; index < ids.length; index += AGENT_SESSION_DELETE_MAX_IDS) {
-          const batch = ids.slice(index, index + AGENT_SESSION_DELETE_MAX_IDS)
-          const result = await deleteManyTrigger({ query: { ids: batch.join(',') } })
-          deletedIds.push(...result.deletedIds)
-          closeConversationTabs('agents', result.deletedIds)
-        }
-        return { deletedIds }
+        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        closeConversationTabs('agents', result.deletedIds)
+        return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
