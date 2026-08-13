@@ -7,8 +7,9 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
   setActiveNodeMock,
@@ -20,8 +21,9 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
@@ -36,8 +38,9 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     setActiveNode: setActiveNodeMock,
@@ -94,15 +97,28 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('rejects an invalid assistant id before calling the service', async () => {
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-a' },
+          body: { assistantId: 'assistant-b', order: { after: 'topic-b' } }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(moveMock).not.toHaveBeenCalled()
     })
   })
 

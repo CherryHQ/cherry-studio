@@ -1,7 +1,17 @@
+import { providerService } from '@main/data/services/ProviderService'
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { describe, expect, it } from 'vitest'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: {
+    getApiKeys: vi.fn(() => [] as ApiKeyEntry[])
+  }
+}))
+
+const getLlmProviderApiKeys = vi.mocked(providerService.getApiKeys)
 
 const preferenceValues: Record<string, unknown> = {
   'chat.web_search.max_results': 5,
@@ -29,6 +39,11 @@ const mockPreferenceReader = {
 }
 
 describe('webSearch config utils', () => {
+  beforeEach(() => {
+    getLlmProviderApiKeys.mockReset()
+    getLlmProviderApiKeys.mockReturnValue([])
+  })
+
   it('resolves all supported provider types from layered presets + overrides by default', async () => {
     const resolved = await getResolvedConfig(mockPreferenceReader)
     const providerIds = resolved.providers.map((provider) => provider.id)
@@ -211,6 +226,44 @@ describe('webSearch config utils', () => {
 
     const exaMcp = resolved.providers.find((provider) => provider.id === 'exa-mcp')
     expect(exaMcp?.apiKeys).toEqual(['shared-exa-key'])
+  })
+
+  it('authenticates zhipu web search with the zhipu model provider key', async () => {
+    // The web search settings page has no key input for zhipu; it sends users to model
+    // provider settings, so the key only ever exists on the model provider.
+    getLlmProviderApiKeys.mockReturnValue([{ id: 'entry-1', key: 'zhipu-llm-key', isEnabled: true }])
+
+    const provider = await getProviderById('zhipu', mockPreferenceReader)
+
+    expect(getLlmProviderApiKeys).toHaveBeenCalledWith('zhipu', { enabled: true })
+    expect(provider.apiKeys).toEqual(['zhipu-llm-key'])
+  })
+
+  it('keeps zhipu web search usable when no zhipu model provider row exists', async () => {
+    getLlmProviderApiKeys.mockImplementation(() => {
+      throw new Error('Provider not found: zhipu')
+    })
+
+    await expect(getProviderById('zhipu', mockPreferenceReader)).resolves.toMatchObject({
+      id: 'zhipu',
+      apiKeys: []
+    })
+  })
+
+  it('keeps zhipu web search own api keys over the model provider key', async () => {
+    getLlmProviderApiKeys.mockReturnValue([{ id: 'entry-1', key: 'zhipu-llm-key', isEnabled: true }])
+
+    const provider = await getProviderById('zhipu', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return { zhipu: { apiKeys: ['zhipu-websearch-key'] } } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.apiKeys).toEqual(['zhipu-websearch-key'])
   })
 
   it('resolves default providers by capability', async () => {

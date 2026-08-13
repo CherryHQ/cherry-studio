@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -60,6 +67,13 @@
       "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
       "status": "classified",
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
+    },
+    {
+      "targetKey": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "chat.web_search.default_search_keywords_provider",
@@ -215,6 +229,13 @@
       "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
     },
     {
+      "targetKey": "chat.context_settings.max_messages",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+    },
+    {
       "targetKey": "chat.context_settings.compress.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -227,13 +248,6 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
-    },
-    {
-      "targetKey": "topic.naming.model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -631,11 +645,45 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.prev (unified command system)"
+    },
+    {
       "targetKey": "menu.presentation_mode",
       "type": "PreferenceTypes.MenuPresentationMode",
       "defaultValue": "cherry",
       "status": "classified",
       "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "targetKey": "feature.notes.line_breaks",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
     }
   ]
 }

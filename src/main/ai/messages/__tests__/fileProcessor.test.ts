@@ -73,6 +73,29 @@ describe('materializeNativeFilePart — file:// inline', () => {
     expect(out?.url).toBe('https://example.com/a.png')
   })
 
+  it('sanitizes a bare-extension mediaType on a passthrough part (no disk read to overwrite)', async () => {
+    // The http(s)/data: passthrough path skips fsRead/FileManager, so a stale `.png`
+    // mediaType would survive and blow up the ai-sdk provider. The tail-end
+    // sanitize is the only guard covering it.
+    const out = await materializeNativeFilePart(
+      filePart({ url: 'https://example.com/a.png', mediaType: '.png', filename: 'a.png' })
+    )
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url).toBe('https://example.com/a.png')
+  })
+
+  it('preserves the ai-sdk `image/*` placeholder on a passthrough part with no discoverable extension', async () => {
+    // OpenAiMessageConverter / OpenAiResponsesMessageConverter / gatewayImageModel
+    // emit `image/*` when the remote URL carries no mime hint. Sanitize must let
+    // it through; downgrading to application/octet-stream would make the provider
+    // stop treating the file as an image.
+    const out = await materializeNativeFilePart(
+      filePart({ url: 'https://example.com/generate?id=abc', mediaType: 'image/*' })
+    )
+    expect(out?.mediaType).toBe('image/*')
+    expect(out?.url).toBe('https://example.com/generate?id=abc')
+  })
+
   it('drops a file:// part that cannot be read', async () => {
     const out = await materializeNativeFilePart(
       filePart({ url: `file://${path.join(tmpDir, 'nope.png')}`, mediaType: 'image/png' })

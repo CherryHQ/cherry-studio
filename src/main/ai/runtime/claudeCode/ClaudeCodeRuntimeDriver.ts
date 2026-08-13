@@ -52,6 +52,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import {
+  ApiGatewayNotRunningError,
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
@@ -396,6 +397,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
+    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -403,7 +406,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    )
+    ).catch((error) => {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    })
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -737,6 +745,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,

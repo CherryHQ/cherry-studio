@@ -1,6 +1,6 @@
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
-import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -501,7 +501,8 @@ function createApiTopic(overrides: Partial<ApiTopic> = {}) {
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
 }
 
@@ -515,7 +516,8 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
     messages: [],
     pinned: false,
     isNameManuallyEdited: false,
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
 }
 
@@ -609,7 +611,8 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
     mutate: source.mutate,
     pages: source.pages,
     refetch: source.refresh,
-    topics: items
+    topics: items,
+    ...deriveAssistantTopicsView(items)
   } as unknown as AssistantTopicsSource
 }
 

@@ -94,6 +94,29 @@ describe('RegistryLoader override index — exact apiModelId vs normalized colli
   })
 })
 
+describe('RegistryLoader override index — prefixed id resolves to its own size, not a same-family sibling', () => {
+  // `gpt-oss-20b` and `gpt-oss-120b` collapse to the SAME size-agnostic key (`gpt-oss`), and 120b is listed
+  // FIRST, so the first-wins size-agnostic index returns the 120b row for any id that misses the exact keys.
+  // A gateway that re-namespaces a model (`nvidia/gpt-oss-20b`) misses the exact override keys, so without
+  // a size-preserving fallback it lands on the 120b override — the wrong size's metadata and display name.
+  const rows = [
+    { providerId: 'nvidia', modelId: 'gpt-oss-120b', apiModelId: 'openai/gpt-oss-120b' },
+    { providerId: 'nvidia', modelId: 'gpt-oss-20b', apiModelId: 'openai/gpt-oss-20b' }
+  ]
+
+  it('a size-colliding prefixed id resolves to its own-size row', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss-20b')?.modelId).toBe('gpt-oss-20b')
+    expect(loader.findOverride('nvidia', 'nvidia/gpt-oss-120b')?.modelId).toBe('gpt-oss-120b')
+  })
+
+  it('exact canonical and apiModelId forms still resolve directly', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('nvidia', 'gpt-oss-20b')?.apiModelId).toBe('openai/gpt-oss-20b')
+    expect(loader.findOverride('nvidia', 'openai/gpt-oss-120b')?.modelId).toBe('gpt-oss-120b')
+  })
+})
+
 describe('RegistryLoader.findModel — registry-tag (colon) size/quant ids', () => {
   // `gpt-oss-20b` and `gpt-oss-120b` collapse to the SAME size-agnostic key (`gpt-oss`). `120b` is listed
   // FIRST, so the first-wins size-agnostic index would return `gpt-oss-120b` for a bare `gpt-oss` lookup —
@@ -116,5 +139,27 @@ describe('RegistryLoader.findModel — registry-tag (colon) size/quant ids', () 
   it('still resolves an exact catalog id (colon-less ids keep the existing path)', () => {
     const loader = modelLoader(models)
     expect(loader.findModel('gpt-oss-20b')?.id).toBe('gpt-oss-20b')
+  })
+})
+
+describe('RegistryLoader.findModel — size-preserving catalog matches', () => {
+  const realCatalogLoader = () =>
+    new RegistryLoader({
+      models: join(__dirname, '../../data/models.json'),
+      providers: join(__dirname, '../../data/providers.json'),
+      providerModels: join(__dirname, '../../data/provider-models.json')
+    })
+
+  it('maps version-spelled 9b ids to the 9b row instead of a same-family 27b row', () => {
+    const loader = realCatalogLoader()
+
+    expect(loader.findModel('qwen3.5-9b')?.id).toBe('qwen3-5-9b')
+    expect(loader.findModel('qwen3.5-27b')?.id).toBe('qwen3-5-27b')
+  })
+
+  it('falls back to the family key when no size-specific catalog row exists', () => {
+    const loader = modelLoader([model('qwen3-5')])
+
+    expect(loader.findModel('qwen3.5-999b')?.id).toBe('qwen3-5')
   })
 })

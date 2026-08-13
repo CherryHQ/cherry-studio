@@ -32,7 +32,6 @@ import {
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -51,6 +50,7 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
@@ -69,7 +69,19 @@ import {
   Workflow
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  lazy,
+  memo,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
@@ -90,6 +102,10 @@ const logger = loggerService.withContext('AgentRightPane')
 
 const FLOW_TAB_PREFIX = 'flow:'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+const TracePane = lazy(() =>
+  import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
+)
 
 function containsFile(root: TreeDirRoot | null): boolean {
   let found = false
@@ -149,6 +165,8 @@ interface AgentRightPaneMeta {
   workspaceId?: string
   workspacePath?: string
   workspaceType?: AgentWorkspaceType
+  /** Active model — supplies the context-usage denominator and guards against stale readings. */
+  model?: Model
 }
 
 interface AgentRightPaneRuntime {
@@ -360,6 +378,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  model,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -539,13 +558,15 @@ function AgentRightPaneStateProvider({
       conversationState,
       workspaceId,
       workspacePath,
-      workspaceType
+      workspaceType,
+      model
     }),
     [
       agentAvatar,
       agentId,
       agentName,
       conversationState,
+      model,
       sessionId,
       sessionName,
       traceId,
@@ -691,6 +712,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
+      lastActivityAt: FALLBACK_TIMESTAMP,
       createdAt: FALLBACK_TIMESTAMP,
       updatedAt: FALLBACK_TIMESTAMP,
       messages: []
@@ -1001,7 +1023,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1045,6 +1067,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
+        maxTokens={maxTokens}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
@@ -1056,7 +1079,11 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
 function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   if (!active) return null
   const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
-  return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
+  return (
+    <Suspense fallback={null}>
+      <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
+    </Suspense>
+  )
 }
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
@@ -1268,13 +1295,18 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <AgentContextUsageSummary usage={usage} percentage={percentage} isCompacting={isCompacting} />
+      <AgentContextUsageSummary
+        usage={usage}
+        percentage={percentage}
+        maxTokens={maxTokens}
+        isCompacting={isCompacting}
+      />
       <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>
   )

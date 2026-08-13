@@ -65,7 +65,7 @@ const getLocalEmbeddingStatusLabel = (status: LocalEmbeddingStatus, t: TFunction
     case 'unsupported':
       return t('settings.dependencies.localModels.unsupported')
     case 'not_downloaded':
-      return t('knowledge.rag.download_local_embedding')
+      return t('knowledge.rag.download_local_model')
     case 'downloading':
       return t('settings.dependencies.localModels.status.downloading')
   }

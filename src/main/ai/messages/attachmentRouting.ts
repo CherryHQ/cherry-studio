@@ -8,8 +8,8 @@
  *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
- *     unconfigured/failed) is forwarded as the native image instead, letting
- *     the provider decide what it can do with it.
+ *     unconfigured/failed) stops before the provider call with a user-facing
+ *     error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Every failure
@@ -36,10 +36,23 @@ import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import type { UIMessage } from 'ai'
 
+import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
+
+const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
+  "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again."
+
+class NonVisionImageOcrError extends Error {
+  readonly i18nKey = 'image_unreadable_for_non_vision_model'
+
+  constructor() {
+    super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
+    this.name = 'NonVisionImageOcrError'
+  }
+}
 
 /** Generate a unique model-facing handle, suffixing ` (2)`, ` (3)`, … until the
  *  *final* alias is free — so a generated suffix can't collide with a real name. */
@@ -78,8 +91,8 @@ export interface PrepareChatContext {
   nativeSupport: NativeFileSupport
   /** Whether the model can call `read_file` (controls the overflow pointer wording). */
   isToolCapable: boolean
-  /** Inline cap per file. */
-  cap: number
+  /** Shared token pool for inlined text. Absent → every file gets the flat page size. */
+  budget?: AttachmentBudget
   signal?: AbortSignal
 }
 
@@ -93,8 +106,7 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
 
 /**
  * OCR a non-vision image. Returns trimmed text, or `null` when OCR found no
- * text or is unavailable (unconfigured / failed) — the caller falls back to
- * forwarding the native image instead. Abort rethrows.
+ * text or is unavailable (unconfigured / failed). Abort rethrows.
  */
 async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise<string | null> {
   try {
@@ -102,7 +114,7 @@ async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise
     return text || null
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.warn('OCR unavailable or failed; forwarding the native image instead', { error })
+    logger.warn('OCR unavailable or failed for a non-vision model', { error })
     return null
   }
 }
@@ -151,7 +163,11 @@ function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 
   return undefined
 }
 
-async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareChatContext): Promise<T> {
+async function prepareChatMessage<T extends UIMessage>(
+  message: T,
+  ctx: PrepareChatContext,
+  pending: PendingInline[]
+): Promise<T> {
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
@@ -211,28 +227,22 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
         continue
       }
 
-      // Non-vision image → OCR text when it finds any; otherwise fall back to
-      // the native image so the provider can decide what it can do with it.
+      // Non-vision image → OCR text when it finds any. If OCR cannot produce
+      // text, stop before opening a provider request: sending the native image
+      // to a known non-vision model would only produce a deterministic API error.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
-        if (ocrText === null) {
-          if (!(await inlineNative(part))) {
-            logger.warn('Native image fallback failed; degrading to note', { messageId: message.id, displayName })
-            kept.push(noteOf(handle) as UIMessage['parts'][number])
-          }
-          continue
-        }
-        const text = `Attached file "${handle}":\n${capInlineText(handle, ocrText, ctx.isToolCapable, ctx.cap)}`
-        kept.push({ type: 'text', text } as UIMessage['parts'][number])
+        if (ocrText === null) throw new NonVisionImageOcrError()
+        defer(kept, pending, handle, ocrText)
         continue
       }
 
       // Non-native first-party attachment → inline its (capped) text.
       const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
-      const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
-      kept.push({ type: 'text', text } as UIMessage['parts'][number])
+      defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
+      if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle) as UIMessage['parts'][number])
     }
@@ -243,13 +253,45 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
 
 /**
  * Prepare chat messages for the model: native files stay inline, non-native
- * files become capped extracted text (a non-vision image with no OCR text
- * falls back to the native image). Single pass, applied to every model.
+ * files become capped extracted text. A non-vision image with no OCR text
+ * rejects before the provider call. Single pass, applied to every model.
  */
 export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   messages: T[],
-  ctx: Omit<PrepareChatContext, 'cap'> & { cap?: number }
+  ctx: PrepareChatContext
 ): Promise<T[]> {
-  const full: PrepareChatContext = { ...ctx, cap: ctx.cap ?? READ_FILE_PAGE_SIZE }
-  return Promise.all(messages.map((message) => prepareChatMessage(message, full)))
+  const pending: PendingInline[] = []
+  const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
+  applyInlineCaps(pending, ctx)
+  return prepared
+}
+
+/**
+ * A text inline whose cap is not known yet: capping needs every candidate's
+ * size, and those only exist once extraction has run across all messages.
+ */
+interface PendingInline {
+  parts: UIMessage['parts']
+  index: number
+  handle: string
+  body: string
+}
+
+function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
+  pending.push({ parts, index: parts.length, handle, body })
+  parts.push({ type: 'text', text: '' })
+}
+
+function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): void {
+  const caps = ctx.budget
+    ? allocateInlineCaps(
+        pending.map((entry) => entry.body),
+        ctx.budget
+      )
+    : pending.map(() => READ_FILE_PAGE_SIZE)
+
+  pending.forEach((entry, index) => {
+    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
+  })
 }

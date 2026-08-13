@@ -23,6 +23,7 @@ import { decryptToken } from './nutstore/NutstoreService'
 const logger = loggerService.withContext('AutoBackupService')
 
 const SCHEDULE_ID_PREFIX = 'auto-backup:'
+const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 
@@ -82,6 +83,11 @@ export class AutoBackupService extends BaseService {
   }
 
   protected override onInit(): void {
+    const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
+    for (const type of AUTO_BACKUP_TYPES) {
+      this.schedules[type].lastSyncTime = lastAttemptTimes[type]
+    }
+
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(
       preferenceService.subscribeMultipleChanges(Object.values(WATCHED_PREFERENCES).flat(), (key) => {
@@ -131,8 +137,17 @@ export class AutoBackupService extends BaseService {
   }
 
   recordManualBackupCompletion(type: AutoBackupType): void {
-    this.schedules[type].lastSyncTime = Date.now()
+    this.recordLastAttemptTime(type, Date.now())
     if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
+  }
+
+  private recordLastAttemptTime(type: AutoBackupType, timestamp: number): void {
+    this.schedules[type].lastSyncTime = timestamp
+    const cacheService = application.get('CacheService')
+    cacheService.setPersist(LAST_ATTEMPT_TIMES_KEY, {
+      ...cacheService.getPersist(LAST_ATTEMPT_TIMES_KEY),
+      [type]: timestamp
+    })
   }
 
   private restartSchedule(type: AutoBackupType, mode: ScheduleMode): void {
@@ -171,9 +186,7 @@ export class AutoBackupService extends BaseService {
       const lastSyncTime = this.schedules[type].lastSyncTime
       delay = lastSyncTime
         ? Math.max(INITIAL_DELAY_MS, lastSyncTime + settings.intervalMs - Date.now())
-        : type === 'nutstore'
-          ? settings.intervalMs
-          : INITIAL_DELAY_MS
+        : settings.intervalMs
     }
 
     application
@@ -227,7 +240,7 @@ export class AutoBackupService extends BaseService {
       }
 
       const timestamp = Date.now()
-      state.lastSyncTime = timestamp
+      this.recordLastAttemptTime(type, timestamp)
       state.retryCount = 0
       state.running = false
       if (cleanupError) {
@@ -248,6 +261,7 @@ export class AutoBackupService extends BaseService {
 
       if (error instanceof BackupOperationBusyError) {
         logger.debug('Another backup operation is running; automatic backup postponed', { type })
+        this.recordLastAttemptTime(type, Date.now())
         this.markStopped(type)
         this.scheduleNext(type, 'fromNow', generation)
         return
@@ -262,7 +276,7 @@ export class AutoBackupService extends BaseService {
       }
 
       const timestamp = Date.now()
-      state.lastSyncTime = timestamp
+      this.recordLastAttemptTime(type, timestamp)
       state.retryCount = 0
       state.running = false
       const errorMessage = error instanceof Error ? error.message : String(error)

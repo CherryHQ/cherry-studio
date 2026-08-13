@@ -30,7 +30,10 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
-import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import {
+  openResourceEditDialog,
+  ResourceEditDialogEventHost
+} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -58,11 +61,10 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -502,8 +504,7 @@ interface InnerProps {
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
-  const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
-  const { percentage, usage } = useAgentSessionContextUsage(sessionId, expectedModels)
+  const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
   if (percentage === null || !usage) return null
 
@@ -524,6 +525,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         <AgentContextUsageSummary
           usage={usage}
           percentage={percentage}
+          maxTokens={maxTokens}
           isCompacting={isCompacting}
           modelName={model?.name}
           showCategories={false}
@@ -542,21 +544,6 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       />
     </Tooltip>
   )
-}
-
-function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
-  if (!model) return undefined
-  const { providerId, modelId } = parseUniqueModelId(model.id)
-  const apiModelId = model.apiModelId ?? modelId
-  const candidates = [apiModelId, modelId]
-
-  try {
-    candidates.push(formatGatewayModelId(providerId, apiModelId))
-  } catch {
-    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
-  }
-
-  return candidates
 }
 
 type AgentComposerControlProps = Omit<
@@ -1690,6 +1677,7 @@ const AgentComposerInner = ({
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
+          sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
@@ -1838,6 +1826,7 @@ const MissingAgentHomeComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={() => undefined}
         placeholder={placeholderText}
+        sendMessageShortcut={sendMessageShortcut}
         sendDisabled
         sendBlockedReason={selectAgentMessage}
         isLoading={false}
