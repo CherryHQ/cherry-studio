@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApiKey from '../ApiKey'
@@ -57,33 +57,10 @@ describe('ApiKey', () => {
     })
   })
 
-  it('disables the check button for normal providers without an API key', () => {
-    render(
-      <ApiKey providerId="openai" apiKeyConnectivity={{ checking: false } as any} onOpenConnectionCheck={vi.fn()} />
-    )
+  it('keeps key management but removes the duplicate model-check entry', () => {
+    render(<ApiKey providerId="openai" />)
 
-    expect(screen.getByRole('button', { name: 'settings.provider.check' })).toBeDisabled()
-  })
-
-  it('allows the check button for no-key providers without an API key', () => {
-    const onOpenConnectionCheck = vi.fn()
-    useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama' }
-    })
-
-    render(
-      <ApiKey
-        providerId="ollama"
-        apiKeyConnectivity={{ checking: false } as any}
-        onOpenConnectionCheck={onOpenConnectionCheck}
-        requiresApiKey={false}
-      />
-    )
-
-    const checkButton = screen.getByRole('button', { name: 'settings.provider.check' })
-    expect(checkButton).not.toBeDisabled()
-
-    fireEvent.click(checkButton)
-    expect(onOpenConnectionCheck).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.provider.check' })).not.toBeInTheDocument()
   })
 })
