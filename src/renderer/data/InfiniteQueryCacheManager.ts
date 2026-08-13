@@ -110,6 +110,8 @@ export class InfiniteQueryCacheManager {
     const inactiveGroups = new LRUCache<string, CacheGroup>({
       max: CONVERSATION_HISTORY_RETENTION.maxInactiveGroups,
       maxSize: CONVERSATION_HISTORY_RETENTION.maxInactivePages,
+      // Resolve the clock per provider instead of using lru-cache's import-time snapshot.
+      perf: globalThis.performance,
       sizeCalculation: (group) => Math.max(1, group.pageKeys.size),
       ttl: CONVERSATION_HISTORY_RETENTION.idleTtlMs,
       ttlAutopurge: true,
