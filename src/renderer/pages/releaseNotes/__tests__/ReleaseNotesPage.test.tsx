@@ -84,11 +84,18 @@ describe('ReleaseNotesPage', () => {
     expect(mocks.ipcRequest).toHaveBeenCalledWith('app.updater.release_notes.get')
   })
 
-  it('prepends and expands newer release notes from the managed update service', async () => {
-    mocks.ipcRequest.mockResolvedValue({
-      releaseNotes: '<!--LANG:en-->Remote feature<!--LANG:zh-CN-->远端新功能<!--LANG:END-->',
-      version: '2.0.3'
-    })
+  it('merges and expands release history from the managed update service', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValue([
+      {
+        releaseNotes: '<!--LANG:en-->Remote feature<!--LANG:zh-CN-->远端新功能<!--LANG:END-->',
+        version: '2.0.3'
+      },
+      {
+        releaseNotes: '<!--LANG:en-->Remote current<!--LANG:zh-CN-->远端当前版本<!--LANG:END-->',
+        version: '2.0.2'
+      }
+    ])
 
     render(<ReleaseNotesPage />)
 
@@ -98,6 +105,9 @@ describe('ReleaseNotesPage', () => {
     expect(versionTriggers[0]).toHaveAttribute('aria-expanded', 'true')
     expect(versionTriggers[1]).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('中文功能')).not.toBeInTheDocument()
+
+    await user.click(versionTriggers[1])
+    expect(screen.getByText('远端当前版本')).toBeInTheDocument()
   })
 
   it('keeps bundled release history when the managed update service is unavailable', async () => {

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import { ipcApi } from '@renderer/ipc'
 import type { ReleaseNotesEntry } from '@shared/utils/releaseNotes'
-import { localizeReleaseNotes, mergeReleaseNotes } from '@shared/utils/releaseNotes'
+import { localizeReleaseNotes, mergeReleaseHistory, mergeReleaseNotes } from '@shared/utils/releaseNotes'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,31 +12,33 @@ const logger = loggerService.withContext('ReleaseNotesPage')
 export default function ReleaseNotesPage() {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
-  const [latestRelease, setLatestRelease] = useState<ReleaseNotesEntry | null>(null)
-  const [expandedVersions, setExpandedVersions] = useState<string[]>([__APP_RELEASE_VERSION__])
-  const bundledReleases = mergeReleaseNotes(
-    { releaseNotes: __APP_RELEASE_NOTES__, version: __APP_RELEASE_VERSION__ },
-    __APP_RELEASE_HISTORY__
+  const [bundledReleases] = useState(() =>
+    mergeReleaseNotes(
+      { releaseNotes: __APP_RELEASE_NOTES__, version: __APP_RELEASE_VERSION__ },
+      __APP_RELEASE_HISTORY__
+    )
   )
-  const releases = latestRelease ? mergeReleaseNotes(latestRelease, bundledReleases) : bundledReleases
+  const [remoteReleases, setRemoteReleases] = useState<ReleaseNotesEntry[] | null>(null)
+  const [expandedVersions, setExpandedVersions] = useState<string[]>([__APP_RELEASE_VERSION__])
+  const releases = remoteReleases ? mergeReleaseHistory(remoteReleases, bundledReleases) : bundledReleases
 
   useEffect(() => {
     let active = true
 
     void ipcApi
       .request('app.updater.release_notes.get')
-      .then((release) => {
-        if (!active || !release) return
+      .then((releaseHistory) => {
+        if (!active || !releaseHistory) return
 
-        setLatestRelease(release)
-        setExpandedVersions([release.version])
+        setRemoteReleases(releaseHistory)
+        setExpandedVersions([mergeReleaseHistory(releaseHistory, bundledReleases)[0].version])
       })
-      .catch((error) => logger.warn('Failed to fetch latest release notes', error as Error))
+      .catch((error) => logger.warn('Failed to fetch release history', error as Error))
 
     return () => {
       active = false
     }
-  }, [])
+  }, [bundledReleases])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">

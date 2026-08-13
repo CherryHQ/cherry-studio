@@ -9,16 +9,26 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
-import { hasMultiLanguageReleaseNotes, localizeReleaseNotes } from '@shared/utils/releaseNotes'
+import {
+  hasMultiLanguageReleaseNotes,
+  localizeReleaseNotes,
+  mergeReleaseHistory,
+  parseReleaseHistory,
+  type ReleaseNotesEntry
+} from '@shared/utils/releaseNotes'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
+
+const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
+const RELEASE_HISTORY_TIMEOUT_MS = 10_000
+const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
 function getUpdateHeaders(region: ReleaseRegion) {
   return {
@@ -196,7 +206,37 @@ export class AppUpdaterService extends BaseService {
     autoUpdater.disableDifferentialDownload = true
   }
 
-  public async getLatestReleaseNotes(): Promise<{ releaseNotes: string; version: string } | null> {
+  private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
+    try {
+      const { updateHeaders } = await this.getUpdateRequest()
+      const response = await net.fetch(RELEASE_HISTORY_URL, {
+        headers: updateHeaders,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(RELEASE_HISTORY_TIMEOUT_MS)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Release history request failed with HTTP ${response.status}`)
+      }
+
+      const contentLength = Number(response.headers.get('content-length'))
+      if (Number.isFinite(contentLength) && contentLength > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      const source = await response.text()
+      if (Buffer.byteLength(source, 'utf8') > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      return parseReleaseHistory(source)
+    } catch (error) {
+      logger.warn('Failed to fetch release history', error as Error)
+      return null
+    }
+  }
+
+  public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
     try {
       const { requestedChannel, updateHeaders } = await this.getUpdateRequest()
       const updater = new ReleaseNotesUpdater()
@@ -214,7 +254,6 @@ export class AppUpdaterService extends BaseService {
       }
 
       const releaseNotes = result.updateInfo.releaseNotes
-
       if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
         return null
       }
@@ -224,6 +263,16 @@ export class AppUpdaterService extends BaseService {
       logger.warn('Failed to fetch latest release notes', error as Error)
       return null
     }
+  }
+
+  public async getReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
+    const [history, latestRelease] = await Promise.all([this.fetchReleaseHistory(), this.getLatestReleaseNotes()])
+
+    if (!history) {
+      return latestRelease ? [latestRelease] : null
+    }
+
+    return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
   public cancelDownload() {

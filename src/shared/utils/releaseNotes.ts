@@ -1,3 +1,5 @@
+import { rcompare as compareSemverDescending } from 'semver'
+
 const RELEASE_NOTE_MARKERS = {
   english: '<!--LANG:en-->',
   chinese: '<!--LANG:zh-CN-->',
@@ -62,6 +64,16 @@ export function mergeReleaseNotes(
   history: readonly ReleaseNotesEntry[]
 ): ReleaseNotesEntry[] {
   return [current, ...history.filter(({ version }) => version !== current.version)]
+}
+
+export function mergeReleaseHistory(
+  preferred: readonly ReleaseNotesEntry[],
+  fallback: readonly ReleaseNotesEntry[]
+): ReleaseNotesEntry[] {
+  const preferredVersions = new Set(preferred.map(({ version }) => version))
+  return [...preferred, ...fallback.filter(({ version }) => !preferredVersions.has(version))].sort((left, right) =>
+    compareSemverDescending(left.version, right.version)
+  )
 }
 
 export function validateCurrentReleaseHistory(current: ReleaseNotesEntry, history: readonly ReleaseNotesEntry[]): void {
