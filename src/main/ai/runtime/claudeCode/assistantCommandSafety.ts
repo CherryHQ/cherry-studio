@@ -11,6 +11,8 @@ const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
 )
 const LARK_FORM_SUBMISSION_PATTERN =
   /(?:^|[\s;&|])(?:"[^"\r\n]*lark-cli"|'[^'\r\n]*lark-cli'|[^\s;&|]*lark-cli)\s+base\s+\+form-submit(?:\s|$)/i
+const GITHUB_ISSUE_CREATION_PATTERN =
+  /(?:^\s*|[;&|]\s*|\r?\n\s*)(?:"(?:[^"\r\n]*[\\/])?gh(?:\.exe)?"|'(?:[^'\r\n]*[\\/])?gh(?:\.exe)?'|(?:[^\s;&|]*[\\/])?gh(?:\.exe)?)\s+issue\s+create(?:\s|$)/i
 
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
@@ -70,6 +72,11 @@ export function detectDestructiveAssistantCommand(command: string): string | und
 export function isLarkFormSubmissionCommand(command: string): boolean {
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   return LARK_FORM_SUBMISSION_PATTERN.test(normalized)
+}
+
+export function isGitHubIssueCreationCommand(command: string): boolean {
+  const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
+  return GITHUB_ISSUE_CREATION_PATTERN.test(normalized)
 }
 
 export function isPermanentDeletionToolName(toolName: string): boolean {
