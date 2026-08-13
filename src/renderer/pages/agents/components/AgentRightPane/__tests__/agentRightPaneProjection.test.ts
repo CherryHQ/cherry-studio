@@ -310,7 +310,7 @@ describe('agent right pane projections', () => {
     const parts = [
       toolPart('agent-1', 'Agent', undefined, 'input-available', { description: 'Inspect renderer state' }),
       toolPart('task-1', 'Task', undefined, 'output-error', { name: 'Audit tests' }),
-      toolPart('artifacts-1', 'report_artifacts', undefined, 'output-available', {
+      toolPart('artifacts-1', 'mcp__cherry-tools__report_artifacts', undefined, 'output-available', {
         artifacts: [
           { path: 'docs/report.md', description: 'Summary report' },
           { path: 'docs/report.md', description: 'Updated summary report' },

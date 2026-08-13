@@ -69,6 +69,8 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
+  permissionMode: 'auto' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -150,7 +152,7 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
         avatar: createValues.avatar,
-        permission_mode: 'default'
+        permission_mode: 'auto'
       },
       description: createValues.description,
       instructions: createValues.prompt,

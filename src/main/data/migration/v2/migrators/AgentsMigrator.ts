@@ -236,6 +236,7 @@ export class AgentsMigrator extends BaseMigrator {
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
+    let skippedFilesystemTargetCount = 0
 
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -338,7 +339,7 @@ export class AgentsMigrator extends BaseMigrator {
       dropLegacySessionMessageStaging(ctx.db)
       const workspaceCopyStartedAt = performance.now()
       let reportedFileProgress = 65
-      await stageLegacyAgentFiles({
+      const filesystemResult = await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
@@ -357,6 +358,7 @@ export class AgentsMigrator extends BaseMigrator {
           })
         }
       })
+      skippedFilesystemTargetCount = filesystemResult.skippedTargetCount
       logger.info('Agent migration phase completed', {
         phase: 'workspace-copy',
         agents: legacyAgentIds.length,
@@ -438,7 +440,17 @@ export class AgentsMigrator extends BaseMigrator {
     })
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts)
+      processedCount: getTotalAgentsRowCount(this.sourceCounts),
+      ...(skippedFilesystemTargetCount > 0
+        ? {
+            warningMessages: [
+              {
+                key: 'migration.completed.agent_files_skipped',
+                params: { count: skippedFilesystemTargetCount }
+              }
+            ]
+          }
+        : {})
     }
   }
 

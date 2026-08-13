@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
-  useDefaultModel: vi.fn()
+  useDefaultModel: vi.fn(),
+  agentModelFilter: vi.fn<(model: Model) => boolean>(() => true)
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -31,6 +32,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
     modelHook.useDefaultModel(options)
     return { defaultModel: modelHook.defaultModel }
   }
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => modelHook.agentModelFilter
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -66,6 +71,15 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill basic
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('agentType', 'pi')
+              form.setValue('name', 'My Resource')
+              form.setValue('modelId', 'provider::model')
+            }}>
+            fill pi basic
+          </button>
         </>
       )
     }
@@ -95,6 +109,8 @@ afterEach(() => {
   cleanup()
   modelHook.defaultModel = undefined
   modelHook.useDefaultModel.mockReset()
+  modelHook.agentModelFilter.mockReset()
+  modelHook.agentModelFilter.mockReturnValue(true)
 })
 
 describe('ResourceCreateWizard', () => {
@@ -136,6 +152,8 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       avatar: '💬',
       name: 'My Resource',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId: 'provider::default',
       description: '',
       prompt: '',
@@ -178,13 +196,12 @@ describe('ResourceCreateWizard', () => {
     const user = userEvent.setup()
     modelHook.defaultModel = makeModel()
     let defaultModelAllowed = true
-    const modelFilter = () => defaultModelAllowed
+    modelHook.agentModelFilter.mockImplementation(() => defaultModelAllowed)
     const props = {
       kind: 'agent' as const,
       open: true,
       onOpenChange: vi.fn(),
-      onSubmit: vi.fn(),
-      modelFilter
+      onSubmit: vi.fn()
     }
     const { rerender } = render(<ResourceCreateWizard {...props} />)
 
@@ -222,6 +239,8 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       avatar: '💬',
       name: 'My Resource',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId: 'provider::model',
       description: '',
       prompt: 'be helpful',
@@ -281,12 +300,28 @@ describe('ResourceCreateWizard', () => {
     expect(() => rerender(<ResourceCreateWizard {...props} kind="assistant" open={false} />)).not.toThrow()
   })
 
+  it('shows capability and knowledge steps for pi agents', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill pi basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+    expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: CREATE })).toBeInTheDocument()
+  })
+
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {
     modelHook.defaultModel = makeModel()
+    modelHook.agentModelFilter.mockReturnValue(false)
 
-    render(
-      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
-    )
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
@@ -294,9 +329,7 @@ describe('ResourceCreateWizard', () => {
   it('prefills the default model for agent kind when accepted by the model filter', async () => {
     modelHook.defaultModel = makeModel()
 
-    render(
-      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => true} />
-    )
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
