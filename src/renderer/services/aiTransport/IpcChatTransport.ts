@@ -42,7 +42,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             trigger: 'regenerate-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId ?? '',
-            mentionedModelIds: mergedBody.mentionedModels,
             executionTargets: mergedBody.executionTargets,
             turnOptions: mergedBody.turnOptions
           }
@@ -51,7 +50,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             topicId,
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
-            mentionedModelIds: mergedBody.mentionedModels,
             executionTargets: mergedBody.executionTargets,
             turnOptions: mergedBody.turnOptions
           }

@@ -16,6 +16,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
+import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
@@ -75,7 +76,7 @@ interface Params {
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
-  seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
   scrollToBottom: () => void
   startNewContextBlocked: boolean
   assistant?: Assistant
@@ -309,6 +310,57 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error('Cannot regenerate without an execution target')
       }
 
+      const [executionTarget] = executionTargets
+      const targetModelId =
+        target?.role === 'assistant'
+          ? resolveUniqueModelId(target.metadata?.modelId, target.metadata?.messageSnapshot?.model)
+          : undefined
+      const targetStatus = target?.metadata?.status
+      const isFailedAssistant =
+        target?.role === 'assistant' &&
+        targetStatus !== 'pending' &&
+        (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+      const canRetryInPlace =
+        isFailedAssistant &&
+        parentAnchorId !== undefined &&
+        executionTargets.length === 1 &&
+        executionTarget.modelId === targetModelId
+
+      if (canRetryInPlace) {
+        const ack = await ipcApi.request('ai.stream.open', {
+          trigger: 'regenerate-message',
+          topicId: topic.id,
+          parentAnchorId,
+          retryMessageId: target.id,
+          executionTargets
+        })
+        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
+        return
+      }
+
+      // The message toolbar's @ picker is an explicit request to add the selected model to this
+      // reply group. Main decides atomically whether the group is still live: live groups append a
+      // new execution without moving activeNodeId; settled groups use the ordinary regenerate path.
+      if (target?.role === 'assistant' && parentAnchorId && options?.modelId) {
+        const ack = await ipcApi.request('ai.stream.open', {
+          trigger: 'regenerate-message',
+          topicId: topic.id,
+          parentAnchorId,
+          appendToLiveGroupMessageId: target.id,
+          executionTargets
+        })
+        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
+        return
+      }
+
       // PR 3: hydrate `useChat.state.messages` with the current DB-fresh
       // snapshot synchronously, right before the AI SDK's regenerate uses it
       // to splice the new branch. The old `useEffect`-driven sync in
@@ -327,7 +379,7 @@ export function useChatWriteActions(params: Params): Result {
       })
       await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
@@ -374,7 +426,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [])
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id]
   )
@@ -408,7 +463,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [])
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )

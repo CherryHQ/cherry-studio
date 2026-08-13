@@ -1,3 +1,4 @@
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
 import { aiRequestSchemas } from '../ai'
@@ -58,6 +59,59 @@ describe('ai.stream.open IPC schema', () => {
         targetMode: 'current-stream'
       }).success
     ).toBe(false)
+  })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        executionTargets: [{ modelId: 'openai::gpt-4o', turnOptions: {} }]
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        executionTargets: [{ modelId: 'anthropic::claude-sonnet', turnOptions: {} }]
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects duplicate execution targets before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        executionTargets: [
+          { modelId: 'openai::gpt-4o', turnOptions: {} },
+          { modelId: 'openai::gpt-4o', turnOptions: { reasoningEffort: 'high' } }
+        ]
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
   })
 })
 
