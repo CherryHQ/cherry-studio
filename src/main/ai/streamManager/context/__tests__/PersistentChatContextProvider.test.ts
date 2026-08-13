@@ -595,7 +595,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
-        parentAnchorId: userMessageId!,
+        parentAnchorId: userMessageId,
         executionTargets: [
           { modelId: MODEL_A, turnOptions: { reasoningEffort: 'minimal' } },
           { modelId: MODEL_B, turnOptions: { reasoningEffort: 'high', fastMode: true } }
