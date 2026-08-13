@@ -14,24 +14,21 @@ import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import {
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport, SSEClientTransportOptions, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions,
+  StreamableHTTPClientTransportOptions,
   StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-// Import notification schemas from MCP SDK
-import {
+import type {
   CancelledNotificationSchema,
-  type GetPromptResult,
+  GetPromptResult,
   LoggingMessageNotificationSchema,
-  type Progress,
+  Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -57,6 +54,50 @@ import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
+
+type McpClientSdk = {
+  Client: typeof Client
+  SSEClientTransport: typeof SSEClientTransport
+  SseError: typeof SseError
+  StdioClientTransport: typeof StdioClientTransport
+  StreamableHTTPClientTransport: typeof StreamableHTTPClientTransport
+  StreamableHTTPError: typeof StreamableHTTPError
+  InMemoryTransport: typeof InMemoryTransport
+  CancelledNotificationSchema: typeof CancelledNotificationSchema
+  LoggingMessageNotificationSchema: typeof LoggingMessageNotificationSchema
+  PromptListChangedNotificationSchema: typeof PromptListChangedNotificationSchema
+  ResourceListChangedNotificationSchema: typeof ResourceListChangedNotificationSchema
+  ResourceUpdatedNotificationSchema: typeof ResourceUpdatedNotificationSchema
+  ToolListChangedNotificationSchema: typeof ToolListChangedNotificationSchema
+}
+
+let mcpClientSdkPromise: Promise<McpClientSdk> | undefined
+
+function loadMcpClientSdk(): Promise<McpClientSdk> {
+  mcpClientSdkPromise ??= Promise.all([
+    import('@modelcontextprotocol/sdk/client/index.js'),
+    import('@modelcontextprotocol/sdk/client/sse.js'),
+    import('@modelcontextprotocol/sdk/client/stdio.js'),
+    import('@modelcontextprotocol/sdk/client/streamableHttp'),
+    import('@modelcontextprotocol/sdk/inMemory'),
+    import('@modelcontextprotocol/sdk/types.js')
+  ]).then(([client, sse, stdio, streamableHttp, inMemory, types]) => ({
+    Client: client.Client,
+    SSEClientTransport: sse.SSEClientTransport,
+    SseError: sse.SseError,
+    StdioClientTransport: stdio.StdioClientTransport,
+    StreamableHTTPClientTransport: streamableHttp.StreamableHTTPClientTransport,
+    StreamableHTTPError: streamableHttp.StreamableHTTPError,
+    InMemoryTransport: inMemory.InMemoryTransport,
+    CancelledNotificationSchema: types.CancelledNotificationSchema,
+    LoggingMessageNotificationSchema: types.LoggingMessageNotificationSchema,
+    PromptListChangedNotificationSchema: types.PromptListChangedNotificationSchema,
+    ResourceListChangedNotificationSchema: types.ResourceListChangedNotificationSchema,
+    ResourceUpdatedNotificationSchema: types.ResourceUpdatedNotificationSchema,
+    ToolListChangedNotificationSchema: types.ToolListChangedNotificationSchema
+  }))
+  return mcpClientSdkPromise
+}
 
 function buildStdioEnvironment(
   loginShellEnv: Record<string, string>,
@@ -177,9 +218,9 @@ function getTransportCandidates(server: McpServer): McpServerType[] | null {
 // Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
 // streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
 // instead of being masked by a confusing fallback failure.
-function isTransportFallbackError(error: unknown): boolean {
-  if (error instanceof SseError) return error.code === 405
-  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
+function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
+  if (error instanceof sdk.SseError) return error.code === 405
+  if (error instanceof sdk.StreamableHTTPError) return error.code === 405 || error.code === 404
   return false
 }
 
@@ -446,8 +487,9 @@ export class McpRuntimeService extends BaseService {
     // Create a promise for the initialization process
     const initPromise = (async () => {
       try {
+        const sdk = await loadMcpClientSdk()
         // Create new client instance for each connection
-        const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
+        const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
         let args = [...(server.args || [])]
 
@@ -487,14 +529,14 @@ export class McpRuntimeService extends BaseService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
+            return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
           if (isInMemoryBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
-            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+            const [clientTransport, serverTransport] = sdk.InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
-            const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
+            const inMemoryServer = await createInMemoryMcpServer(server.name, args, server.env || {})
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
@@ -520,7 +562,7 @@ export class McpRuntimeService extends BaseService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
+              return new sdk.StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (urlBasedType === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -533,7 +575,7 @@ export class McpRuntimeService extends BaseService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl), options)
+              return new sdk.SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -694,7 +736,7 @@ export class McpRuntimeService extends BaseService {
               })
             }
 
-            const stdioTransport = new StdioClientTransport(transportOptions)
+            const stdioTransport = new sdk.StdioClientTransport(transportOptions)
             const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
             stdioTransport.stderr?.on('data', (data: Buffer) => {
               const msg = stderrDecoder.decode(data, { stream: true })
@@ -813,7 +855,7 @@ export class McpRuntimeService extends BaseService {
               lastError = error
               // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
               // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-              if (!candidates || !isTransportFallbackError(error)) {
+              if (!candidates || !isTransportFallbackError(error, sdk)) {
                 break
               }
               // No alternative transport left to try.
@@ -854,7 +896,7 @@ export class McpRuntimeService extends BaseService {
           this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
+          this.setupNotificationHandlers(client, server, sdk)
 
           // Clear existing cache to ensure fresh data
           this.clearServerCache(server)
@@ -894,45 +936,45 @@ export class McpRuntimeService extends BaseService {
   /**
    * Set up notification handlers for MCP client
    */
-  private setupNotificationHandlers(client: Client, server: McpServer) {
+  private setupNotificationHandlers(client: Client, server: McpServer, sdk: McpClientSdk) {
     const serverKey = this.getServerKey(server)
     const cacheService = application.get('CacheService')
 
     try {
       // Set up tools list changed notification handler
-      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
         this._onToolListChanged.fire({ serverId: server.id })
       })
 
       // Set up resources list changed notification handler
-      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceListChangedNotificationSchema, async () => {
         logger.debug(`Resources list changed for server: ${server.name}`)
         // Clear resources cache
         cacheService.delete(`mcp:list_resources:${serverKey}`)
       })
 
       // Set up prompts list changed notification handler
-      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.PromptListChangedNotificationSchema, async () => {
         logger.debug(`Prompts list changed for server: ${server.name}`)
         // Clear prompts cache
         cacheService.delete(`mcp:list_prompts:${serverKey}`)
       })
 
       // Set up resource updated notification handler
-      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceUpdatedNotificationSchema, async () => {
         logger.debug(`Resource updated for server: ${server.name}`)
         // Clear resource-specific caches
         this.clearResourceCaches(serverKey)
       })
 
       // Set up cancelled notification handler
-      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
+      client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
         logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
       })
 
       // Set up logging message notification handler
-      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
+      client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
         const message = safeSerialize(notification.params.data) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)

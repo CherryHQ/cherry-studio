@@ -399,6 +399,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    pinService.notifyPurged()
 
     logger.info('Deleted topic', { id })
   }
@@ -407,6 +408,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -667,6 +669,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 

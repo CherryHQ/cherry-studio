@@ -506,12 +506,14 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
         { endpoint: '/topics/:id', entityIds: ['topic-1'] },
         { endpoint: '/topics/latest' }
       ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
