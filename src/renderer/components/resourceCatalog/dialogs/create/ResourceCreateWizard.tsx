@@ -46,7 +46,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: []
+    skillIds: [],
+    permissionMode: kind === 'agent' ? 'bypassPermissions' : 'default'
   }
 }
 
@@ -249,7 +250,7 @@ export function ResourceCreateWizard({
     if (!values.modelId) return
     form.clearErrors('root')
     try {
-      await onSubmit({
+      const createValues: ResourceCreateWizardValues = {
         avatar: values.avatar,
         name: values.name.trim(),
         modelId: values.modelId,
@@ -257,7 +258,8 @@ export function ResourceCreateWizard({
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
         skillIds: values.skillIds
-      })
+      }
+      await onSubmit(kind === 'agent' ? { ...createValues, permissionMode: values.permissionMode } : createValues)
     } catch (error) {
       const message =
         error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')

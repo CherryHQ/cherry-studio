@@ -51,7 +51,8 @@ function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
       modelId,
       prompt: '',
       knowledgeBaseIds: [],
-      skillIds: []
+      skillIds: [],
+      permissionMode: 'bypassPermissions'
     }
   })
 

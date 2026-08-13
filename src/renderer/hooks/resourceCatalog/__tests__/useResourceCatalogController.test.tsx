@@ -75,7 +75,8 @@ const createValues = {
   modelId: 'provider:model' as UniqueModelId,
   name: 'New resource',
   prompt: 'Stay focused',
-  skillIds: ['skill-1']
+  skillIds: ['skill-1'],
+  permissionMode: 'plan' as const
 }
 
 const assistantResource = {
@@ -150,7 +151,7 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
         avatar: createValues.avatar,
-        permission_mode: 'default'
+        permission_mode: 'plan'
       },
       description: createValues.description,
       instructions: createValues.prompt,

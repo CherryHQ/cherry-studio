@@ -96,7 +96,8 @@ function Harness({
       modelId,
       prompt,
       knowledgeBaseIds: [],
-      skillIds: []
+      skillIds: [],
+      permissionMode: 'bypassPermissions'
     }
   })
 

@@ -13,7 +13,8 @@ const wizardValues = {
   description: 'desc',
   prompt: 'Agent instructions',
   knowledgeBaseIds: ['kb-1'],
-  skillIds: ['skill-a', 'skill-b']
+  skillIds: ['skill-a', 'skill-b'],
+  permissionMode: 'plan'
 }
 
 vi.mock('@logger', () => ({
@@ -70,7 +71,7 @@ describe('AgentCreateDialog', () => {
         instructions: 'Agent instructions',
         knowledgeBaseIds: ['kb-1'],
         skillIds: ['skill-a', 'skill-b'],
-        configuration: { avatar: '🤖', permission_mode: 'default' }
+        configuration: { avatar: '🤖', permission_mode: 'plan' }
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))

@@ -1,5 +1,5 @@
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -21,6 +21,8 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
+  /** Agent-only; Assistant creation ignores this field. */
+  permissionMode?: AgentPermissionMode
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'

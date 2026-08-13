@@ -10,7 +10,8 @@ const values: ResourceCreateValues = {
   description: 'Investigates a topic',
   prompt: 'Use cited sources',
   knowledgeBaseIds: ['kb-1'],
-  skillIds: ['skill-1']
+  skillIds: ['skill-1'],
+  permissionMode: 'plan'
 }
 
 describe('resource create DTO mapping', () => {
@@ -38,7 +39,7 @@ describe('resource create DTO mapping', () => {
       skillIds: ['skill-1'],
       configuration: {
         avatar: '🤖',
-        permission_mode: 'default'
+        permission_mode: 'plan'
       }
     })
   })

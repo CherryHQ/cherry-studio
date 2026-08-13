@@ -88,7 +88,8 @@ function CapabilityStepHarness() {
       modelId: null,
       prompt: '',
       knowledgeBaseIds: [],
-      skillIds: []
+      skillIds: [],
+      permissionMode: 'bypassPermissions'
     }
   })
 

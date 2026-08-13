@@ -1,4 +1,5 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 export type ResourceCreateWizardKind = 'assistant' | 'agent'
@@ -21,6 +22,7 @@ export type ResourceCreateWizardFormValues = {
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]
+  permissionMode: AgentPermissionMode
 }
 
 /**

@@ -82,7 +82,13 @@ vi.mock('../steps/KnowledgeStep', () => ({
   KnowledgeStep: () => <div data-testid="knowledge-step" />
 }))
 vi.mock('../steps/CapabilityStep', () => ({
-  CapabilityStep: () => <div data-testid="capability-step" />
+  CapabilityStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
+    <div data-testid="capability-step">
+      <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
+        select plan permission
+      </button>
+    </div>
+  )
 }))
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
@@ -265,6 +271,30 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
     expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
+  })
+
+  it('submits the permission mode selected for a new agent', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select plan permission' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      avatar: '🤖',
+      name: 'My Resource',
+      modelId: 'provider::model',
+      description: '',
+      prompt: '',
+      knowledgeBaseIds: [],
+      skillIds: [],
+      permissionMode: 'plan'
+    })
   })
 
   it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {

@@ -130,7 +130,8 @@ describe('EditDialogShared', () => {
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],
-          skillIds: []
+          skillIds: [],
+          permissionMode: 'bypassPermissions'
         }
       })
 
@@ -166,7 +167,8 @@ describe('EditDialogShared', () => {
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],
-          skillIds: []
+          skillIds: [],
+          permissionMode: 'bypassPermissions'
         }
       })
 
@@ -198,7 +200,8 @@ describe('EditDialogShared', () => {
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],
-          skillIds: []
+          skillIds: [],
+          permissionMode: 'bypassPermissions'
         }
       })
 
