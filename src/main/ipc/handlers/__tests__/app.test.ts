@@ -52,6 +52,7 @@ import { appHandlers } from '../app'
 
 const appUpdaterService = {
   checkForUpdates: vi.fn(),
+  getLatestReleaseNotes: vi.fn(),
   quitAndInstall: vi.fn()
 }
 const preferenceService = {
@@ -135,6 +136,16 @@ describe('appHandlers', () => {
 
     expect(appUpdaterService.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('gets release notes through AppUpdaterService', async () => {
+    const release = { releaseNotes: 'New features', version: '1.1.0' }
+    appUpdaterService.getLatestReleaseNotes.mockResolvedValue(release)
+
+    const result = await appHandlers['app.updater.release_notes.get'](undefined, ctx)
+
+    expect(appUpdaterService.getLatestReleaseNotes).toHaveBeenCalledOnce()
+    expect(result).toEqual(release)
   })
 
   it('quit_and_install delegates to AppUpdaterService and resolves void', async () => {

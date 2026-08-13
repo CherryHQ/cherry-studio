@@ -14,7 +14,7 @@ import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { autoUpdater } from 'electron-updater'
+import { AppUpdater, autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
@@ -29,6 +29,20 @@ function getUpdateHeaders(region: ReleaseRegion) {
     'App-Version': `v${app.getVersion()}`,
     OS: process.platform,
     'X-Region': region
+  }
+}
+
+class ReleaseNotesUpdater extends AppUpdater {
+  constructor() {
+    super(undefined)
+  }
+
+  protected doDownloadUpdate(): Promise<string[]> {
+    return Promise.reject(new Error('Release-notes updater cannot download updates'))
+  }
+
+  quitAndInstall(): never {
+    throw new Error('Release-notes updater cannot install updates')
   }
 }
 
@@ -147,7 +161,7 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
 
-  private async configureUpdaterForCheck() {
+  private async getUpdateRequest() {
     const currentVersion = app.getVersion()
     const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan
@@ -158,6 +172,14 @@ export class AppUpdaterService extends BaseService {
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
 
     const updateHeaders = getUpdateHeaders(region)
+
+    return { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders }
+  }
+
+  private async configureUpdaterForCheck() {
+    const { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders } =
+      await this.getUpdateRequest()
+
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       ...updateHeaders
@@ -172,6 +194,36 @@ export class AppUpdaterService extends BaseService {
     autoUpdater.allowDowngrade = false
     // Keep differential downloads disabled for the current release artifacts.
     autoUpdater.disableDifferentialDownload = true
+  }
+
+  public async getLatestReleaseNotes(): Promise<{ releaseNotes: string; version: string } | null> {
+    try {
+      const { requestedChannel, updateHeaders } = await this.getUpdateRequest()
+      const updater = new ReleaseNotesUpdater()
+      updater.logger = logger as Logger
+      updater.forceDevUpdateConfig = !app.isPackaged
+      updater.autoDownload = false
+      updater.autoInstallOnAppQuit = false
+      updater.requestHeaders = updateHeaders
+      updater.channel = requestedChannel
+      updater.allowDowngrade = false
+
+      const result = await updater.checkForUpdates()
+      if (!result?.isUpdateAvailable) {
+        return null
+      }
+
+      const releaseNotes = result.updateInfo.releaseNotes
+
+      if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
+        return null
+      }
+
+      return { releaseNotes, version: result.updateInfo.version }
+    } catch (error) {
+      logger.warn('Failed to fetch latest release notes', error as Error)
+      return null
+    }
   }
 
   public cancelDownload() {

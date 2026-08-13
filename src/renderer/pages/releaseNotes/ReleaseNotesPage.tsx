@@ -1,15 +1,42 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, PageHeader, Scrollbar } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
+import { ipcApi } from '@renderer/ipc'
+import type { ReleaseNotesEntry } from '@shared/utils/releaseNotes'
 import { localizeReleaseNotes, mergeReleaseNotes } from '@shared/utils/releaseNotes'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('ReleaseNotesPage')
 
 export default function ReleaseNotesPage() {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
-  const releases = mergeReleaseNotes(
+  const [latestRelease, setLatestRelease] = useState<ReleaseNotesEntry | null>(null)
+  const [expandedVersions, setExpandedVersions] = useState<string[]>([__APP_RELEASE_VERSION__])
+  const bundledReleases = mergeReleaseNotes(
     { releaseNotes: __APP_RELEASE_NOTES__, version: __APP_RELEASE_VERSION__ },
     __APP_RELEASE_HISTORY__
   )
+  const releases = latestRelease ? mergeReleaseNotes(latestRelease, bundledReleases) : bundledReleases
+
+  useEffect(() => {
+    let active = true
+
+    void ipcApi
+      .request('app.updater.release_notes.get')
+      .then((release) => {
+        if (!active || !release) return
+
+        setLatestRelease(release)
+        setExpandedVersions([release.version])
+      })
+      .catch((error) => logger.warn('Failed to fetch latest release notes', error as Error))
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -17,11 +44,11 @@ export default function ReleaseNotesPage() {
         bordered
         className="mb-0"
         title={t('settings.about.releases.title')}
-        action={<span className="text-foreground-tertiary text-xs">v{__APP_RELEASE_VERSION__}</span>}
+        action={<span className="text-foreground-tertiary text-xs">v{releases[0].version}</span>}
       />
       <Scrollbar className="min-h-0 flex-1 overflow-x-hidden">
         <main className="mx-auto w-full min-w-0 max-w-3xl px-6 py-6">
-          <Accordion type="multiple" defaultValue={[__APP_RELEASE_VERSION__]} className="min-w-0">
+          <Accordion type="multiple" value={expandedVersions} onValueChange={setExpandedVersions} className="min-w-0">
             {releases.map(({ releaseNotes, version }) => (
               <AccordionItem key={version} value={version} className="min-w-0 border-border-subtle first:border-t-0">
                 <AccordionTrigger className="min-w-0 py-3 focus-visible:bg-transparent focus-visible:[&>span]:underline focus-visible:[&>span]:underline-offset-4">

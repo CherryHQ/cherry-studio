@@ -1,7 +1,9 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { trackAppUpdateMock } = vi.hoisted(() => ({
+const { releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } = vi.hoisted(() => ({
+  releaseNotesCheckMock: vi.fn(),
+  releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
   trackAppUpdateMock: vi.fn()
 }))
 
@@ -64,27 +66,47 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    logger: null,
-    forceDevUpdateConfig: false,
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    requestHeaders: {},
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    checkForUpdates: vi.fn(),
-    downloadUpdate: vi.fn(),
-    quitAndInstall: vi.fn(),
-    channel: '',
-    allowDowngrade: false,
-    disableDifferentialDownload: false,
-    currentVersion: '1.0.0'
-  },
-  Logger: vi.fn(),
-  NsisUpdater: vi.fn(),
-  AppUpdater: vi.fn()
-}))
+vi.mock('electron-updater', () => {
+  class MockAppUpdater {
+    allowDowngrade = false
+    autoDownload = true
+    autoInstallOnAppQuit = true
+    channel = ''
+    forceDevUpdateConfig = false
+    logger: unknown = null
+    requestHeaders: Record<string, string> = {}
+
+    constructor(public options?: unknown) {
+      releaseNotesUpdaterInstances.push(this as unknown as Record<string, unknown>)
+    }
+
+    checkForUpdates() {
+      return releaseNotesCheckMock()
+    }
+  }
+
+  return {
+    autoUpdater: {
+      logger: null,
+      forceDevUpdateConfig: false,
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      requestHeaders: {},
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      checkForUpdates: vi.fn(),
+      downloadUpdate: vi.fn(),
+      quitAndInstall: vi.fn(),
+      channel: '',
+      allowDowngrade: false,
+      disableDifferentialDownload: false,
+      currentVersion: '1.0.0'
+    },
+    Logger: vi.fn(),
+    NsisUpdater: vi.fn(),
+    AppUpdater: MockAppUpdater
+  }
+})
 
 import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
@@ -107,6 +129,8 @@ describe('AppUpdaterService', () => {
     vi.mocked(app.getVersion).mockReturnValue('1.0.0')
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
+    releaseNotesCheckMock.mockReset()
+    releaseNotesUpdaterInstances.length = 0
     autoUpdater.requestHeaders = {}
     autoUpdater.channel = ''
     autoUpdater.allowDowngrade = false
@@ -190,6 +214,51 @@ describe('AppUpdaterService', () => {
       await appUpdater.checkForUpdates()
 
       expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+    })
+
+    it('fetches newer release notes through an isolated updater without downloading', async () => {
+      vi.mocked(regionService.getCountry).mockResolvedValue('CN')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { releaseNotes: 'Remote notes', version: '1.1.0' }
+      })
+
+      await expect(appUpdater.getLatestReleaseNotes()).resolves.toEqual({
+        releaseNotes: 'Remote notes',
+        version: '1.1.0'
+      })
+
+      expect(releaseNotesUpdaterInstances).toHaveLength(1)
+      expect(releaseNotesUpdaterInstances[0]).toMatchObject({
+        allowDowngrade: false,
+        autoDownload: false,
+        autoInstallOnAppQuit: false,
+        channel: UpgradeChannel.RC,
+        forceDevUpdateConfig: false,
+        options: undefined,
+        requestHeaders: {
+          'App-Version': 'v1.0.0',
+          'X-Region': 'cn'
+        }
+      })
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+    })
+
+    it('does not return notes for the current or an older release', async () => {
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: false,
+        updateInfo: { releaseNotes: 'Older notes', version: '0.9.0' }
+      })
+
+      await expect(appUpdater.getLatestReleaseNotes()).resolves.toBeNull()
+    })
+
+    it('falls back to bundled notes when the release-notes request fails', async () => {
+      releaseNotesCheckMock.mockRejectedValue(new Error('offline'))
+
+      await expect(appUpdater.getLatestReleaseNotes()).resolves.toBeNull()
     })
   })
 
