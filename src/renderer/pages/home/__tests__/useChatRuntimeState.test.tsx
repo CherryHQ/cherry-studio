@@ -1,3 +1,4 @@
+import type * as ConversationTurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import type { UseConversationTurnControllerOptions } from '@renderer/hooks/useConversationTurnController'
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
@@ -81,7 +82,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/hooks/useConversationTurnController')>()
+  const actual = await importOriginal<typeof ConversationTurnControllerModule>()
 
   return {
     ...actual,
