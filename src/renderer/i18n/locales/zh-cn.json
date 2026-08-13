@@ -5998,10 +5998,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "与 Cherry 支持对话，获取使用帮助或提交反馈。",
+          "description": "与产品反馈对话，获取使用帮助或提交反馈。",
           "title": "使用 Agent 提交"
         },
-        "agent_error": "无法为反馈打开 Cherry 支持，请重试。",
+        "agent_error": "无法打开产品反馈，请重试。",
         "button": "反馈",
         "dialog": {
           "description": "选择一种方式反馈问题，帮助我们把 Cherry Studio 做得更好。",

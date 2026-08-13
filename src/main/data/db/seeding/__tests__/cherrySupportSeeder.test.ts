@@ -72,8 +72,21 @@ describe('CherrySupportSeeder', () => {
     new CherrySupportSeeder().run(dbh.db)
 
     expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toHaveLength(1)
-    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].name).toBe('Cherry 支持')
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].name).toBe('产品反馈')
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+  })
+
+  it('updates the previous stock Chinese name without replacing a custom name', () => {
+    new CherrySupportSeeder().run(dbh.db)
+    dbh.db.update(agentTable).set({ name: 'Cherry 支持' }).where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID)).run()
+
+    new CherrySupportSeeder().run(dbh.db)
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].name).toBe('产品反馈')
+
+    dbh.db.update(agentTable).set({ name: '我的反馈助手' }).where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID)).run()
+    new CherrySupportSeeder().run(dbh.db)
+
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].name).toBe('我的反馈助手')
   })
 
   it('claims an active reserved ID in place without replacing data or creating another session', () => {

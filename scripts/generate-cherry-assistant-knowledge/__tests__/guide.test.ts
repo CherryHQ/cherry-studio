@@ -236,7 +236,7 @@ describe('Cherry Assistant guide', () => {
 
     expect(generated).toEqual(
       expect.objectContaining({
-        name: { 'en-US': 'Cherry Support', 'zh-CN': 'Cherry 支持' },
+        name: { 'en-US': 'Cherry Support', 'zh-CN': '产品反馈' },
         configuration: expect.objectContaining({
           avatar: '🧰',
           permission_mode: 'acceptEdits',
@@ -250,6 +250,7 @@ describe('Cherry Assistant guide', () => {
     expect(generated.instructions['en-US']).toContain('Focus exclusively on helping users')
     expect(generated.instructions['en-US']).toContain('direct the user to Cherry Assistant')
     expect(generated.instructions['zh-CN']).toContain('只专注于帮助用户')
+    expect(generated.instructions['zh-CN']).toContain('自我介绍为产品反馈')
     expect(generated).not.toHaveProperty('_generated_note')
     expect(generated).toEqual(Object.fromEntries(Object.entries(template).filter(([key]) => !key.startsWith('_'))))
   })

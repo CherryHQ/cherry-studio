@@ -11,7 +11,7 @@ import type { DbType, ISeeder } from '../../types'
 const CHERRY_SUPPORT_SEED = {
   name: {
     default: 'Cherry Support',
-    zh: 'Cherry 支持'
+    zh: '产品反馈'
   },
   configuration: {
     avatar: '🧰',
@@ -27,7 +27,7 @@ export class CherrySupportSeeder implements ISeeder {
   readonly name = 'cherrySupport'
   readonly description = 'Insert the builtin Cherry Support agent in every agent library'
   readonly executionPolicy = 'run-on-change' as const
-  readonly version = '2'
+  readonly version = '3'
 
   run(db: DbType): void {
     db.transaction((tx) => {
@@ -36,7 +36,12 @@ export class CherrySupportSeeder implements ISeeder {
       const existing = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.SUPPORT, {
         includeDeleted: true
       })
-      if (existing) return
+      if (existing) {
+        if (existing.name === 'Cherry 支持') {
+          agentService.updateAgentTx(tx, existing.id, { name: CHERRY_SUPPORT_SEED.name.zh })
+        }
+        return
+      }
 
       const assistant = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.ASSISTANT)
       const agentId = CHERRY_SUPPORT_AGENT_ID
