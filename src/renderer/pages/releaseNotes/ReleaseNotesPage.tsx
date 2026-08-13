@@ -23,8 +23,8 @@ export default function ReleaseNotesPage() {
         <main className="mx-auto w-full min-w-0 max-w-3xl px-6 py-6">
           <Accordion type="multiple" defaultValue={[__APP_RELEASE_VERSION__]} className="min-w-0">
             {releases.map(({ releaseNotes, version }) => (
-              <AccordionItem key={version} value={version} className="min-w-0 border-border-subtle">
-                <AccordionTrigger className="min-w-0 py-3">
+              <AccordionItem key={version} value={version} className="min-w-0 border-border-subtle first:border-t-0">
+                <AccordionTrigger className="min-w-0 py-3 focus-visible:bg-transparent focus-visible:[&>span]:underline focus-visible:[&>span]:underline-offset-4">
                   <span className="min-w-0 [overflow-wrap:anywhere]">v{version}</span>
                 </AccordionTrigger>
                 <AccordionContent className="min-w-0 overflow-hidden pb-5">
