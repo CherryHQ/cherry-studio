@@ -58,21 +58,17 @@ export function AgentContextUsageSummary({
     ? (usage?.categories.filter((category) => category.tokens > 0 && !HIDDEN_CATEGORY_NAMES.has(category.name)) ?? [])
     : []
 
-  // Normalize shares so they sum to exactly 100%. Each visible category gets
-  // Math.floor(x) and the last one absorbs the remainder; avoids the
-  // independent-rounding pitfall (e.g. 12.2 + 1.6 + 88.1 → 12 + 2 + 88 = 102).
-  // The denominator is the full used-context window (usage.totalTokens) so
-  // visible-only shares still reflect the user's actual "used" budget —
-  // window-filler rows (Free space, Autocompact buffer) are deliberately
-  // hidden from the breakdown, not subtracted from the base.
+  // Show per-category shares against the full context window.
+  // Each category displays (category.tokens / totalTokens) * 100.
+  // No normalization — hidden categories (Free space, Autocompact buffer)
+  // are not part of the breakdown, so visible shares sum to <100% which
+  // is correct and intentional.
   const visibleCategoryDetails = useMemo(() => {
     if (!usage || usage.totalTokens <= 0 || visibleCategories.length === 0) return []
     const total = usage.totalTokens
-    const raw = visibleCategories.map((c) => Math.floor((c.tokens / total) * 100))
-    const remainder = 100 - raw.slice(0, -1).reduce((s, x) => s + x, 0)
-    return visibleCategories.map((c, i) => ({
+    return visibleCategories.map((c) => ({
       ...c,
-      share: i === visibleCategories.length - 1 ? Math.max(0, remainder) : raw[i]
+      share: Math.round((c.tokens / total) * 100)
     }))
   }, [usage, visibleCategories])
 
