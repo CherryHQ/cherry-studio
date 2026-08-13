@@ -5,6 +5,7 @@
  */
 
 import { loggerService } from '@logger'
+import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -147,34 +148,54 @@ export async function dispatchStreamRequest(
       ?.filter((message) => message.role === 'assistant')
       .map((message) => message.id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
-  const fallbackPlaceholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-  const placeholderIds = reservedAssistantIds.length > 0 ? reservedAssistantIds : fallbackPlaceholderIds
 
-  // Multi-model topics are persistent-only with a placeholder per model, so the
-  // filtered list must stay aligned with `executionIds`. Fail fast if a future
-  // multi-model provider ever returns a model without a messageId — silently
-  // dropping it would desync the renderer's per-execution bubble join.
-  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
+  // Multi-model topics are persistent-only with a placeholder per model. Keep
+  // those reservations aligned with the executions the manager will launch.
+  if (prepared.models.length > 1 && reservedAssistantIds.length !== prepared.models.length) {
     throw new Error(
-      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
+      `Multi-model dispatch produced ${reservedAssistantIds.length} assistant reservations for ${prepared.models.length} models (topicId=${prepared.topicId})`
     )
   }
+
+  // Async preparation may outlive the stream it planned to append to. Re-check
+  // liveness once at the synchronous handoff and degrade to a fresh turn when
+  // the original stream has settled.
+  const preparedChange = prepared.liveExecutionChange
+  const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
+  let preserveActiveNode = prepared.preserveActiveNode
+  if (preparedChange?.mode === 'append' && !canAppendToLiveStream && preparedChange.activateFallback) {
+    const fallbackActiveNodeId = reservedAssistantIds.at(-1)
+    if (!fallbackActiveNodeId) {
+      throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
+    }
+    topicService.setActiveNode(prepared.topicId, fallbackActiveNodeId)
+    preserveActiveNode = false
+  }
+  const liveExecutionChange =
+    preparedChange?.mode === 'replace'
+      ? preparedChange
+      : preparedChange?.mode === 'append' && canAppendToLiveStream
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: preparedChange.groupAnchorMessageId,
+            parentAnchorId: preparedChange.parentAnchorId,
+            siblingsGroupId: preparedChange.siblingsGroupId
+          }
+        : undefined
 
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
+    liveExecutionChange,
     lifecycle: prepared.lifecycle
   })
 
   return {
     mode: result.mode,
-    executionIds: prepared.isMultiModel ? result.executionIds : undefined,
-    userMessageId: prepared.userMessageId,
-    reservedMessages: prepared.reservedMessages,
-    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
+    activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
+    preserveActiveNode,
+    reservedMessages: prepared.reservedMessages
   }
 }

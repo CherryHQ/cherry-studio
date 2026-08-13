@@ -6,6 +6,37 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — conversation activity semantics
+
+Shared by Topic and Agent Session message persistence. It identifies
+conversation-bearing roles and real assistant completion transitions so both
+domains apply the same activity semantics. `topic.lastActivityAt` and
+`agent_session.lastActivityAt` are monotonic high-water marks: once an activity
+happens, later deletion or metadata maintenance does not erase that history.
+The following operations advance the high-water mark:
+
+| Operation | Changes `lastActivityAt` |
+| --- | --- |
+| Create a Topic or Agent Session | Yes; initialized from container `createdAt` |
+| Create or fill a user message | Yes |
+| Create an assistant placeholder | Yes |
+| Complete, pause, or fail a pending assistant response | Yes |
+| Persist a tool-approval decision | Yes |
+| Complete a later continuation segment on the same assistant row | Yes |
+| Delete a content message | No |
+| Duplicate a Topic | Yes; initialized from the new Topic creation |
+| Persist a temporary Topic | Preserves the temporary Topic's activity time |
+| Rename, pin, reorder, navigate, edit metadata, or update message projections | No |
+| Boot-time `pending → error` crash reconciliation | No |
+| Create/update a system or virtual-root row | No |
+
+For an existing-v2 schema upgrade, the SQLite migration initializes each
+container directly from user creation times and the best available assistant
+completion proxy `max(createdAt, updatedAt)`; pending assistant rows contribute
+their creation time. The v1 ChatMigrator and AgentsMigrator derive the same
+container-level value while importing. Empty containers fall back to their own
+`createdAt` in both paths.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.
