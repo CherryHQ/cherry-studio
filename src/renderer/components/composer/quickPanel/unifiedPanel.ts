@@ -241,6 +241,24 @@ function createUnifiedPanelActionOptions(options: {
   }
 }
 
+// Entering a submenu from an input-triggered panel must not carry the parent's residual query
+// (e.g. `/permission` → Permission Mode would otherwise search submenu items for "permission" and
+// show "No results"). Mirror the KnowledgeBase/MCP behavior: delete the leftover query text and let
+// the submenu open as a fresh button-triggered panel. Returns true when the query was cleared.
+function clearInputQueryForSubmenu(
+  inputAdapter: QuickPanelInputAdapter | undefined,
+  queryAnchor: number | undefined,
+  triggerInfo: QuickPanelTriggerInfo | undefined
+): boolean {
+  if (!inputAdapter || triggerInfo?.type !== 'input' || queryAnchor === undefined) return false
+  const text = inputAdapter.getText()
+  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+  if (cursorOffset <= queryAnchor) return false
+  inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  inputAdapter.focus()
+  return true
+}
+
 function createUnifiedPanelListItem(
   launcher: ComposerToolLauncher,
   options: {
@@ -272,13 +290,14 @@ function createUnifiedPanelListItem(
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
 
       if (children.length > 0) {
+        const inputQueryCleared = clearInputQueryForSubmenu(options.inputAdapter, queryAnchor, triggerInfo)
         openUnifiedPanelSubmenu(launcher, {
           ...options,
           ancestorLauncherIds: nextAncestorLauncherIds,
           parentPanel,
-          queryAnchor,
-          searchText,
-          triggerInfo
+          queryAnchor: inputQueryCleared ? undefined : queryAnchor,
+          searchText: inputQueryCleared ? undefined : searchText,
+          triggerInfo: inputQueryCleared ? { type: 'button' as const } : triggerInfo
         })
         return
       }
@@ -370,7 +389,8 @@ function openUnifiedPanelSubmenu(
     symbol: launcher.id,
     parentPanel: options.parentPanel,
     queryAnchor: options.queryAnchor,
-    triggerInfo: options.triggerInfo ?? { type: 'button' }
+    triggerInfo: options.triggerInfo ?? { type: 'button' },
+    trackInputQuery: true
   })
 }
 

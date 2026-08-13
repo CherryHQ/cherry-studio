@@ -1125,7 +1125,8 @@ const AgentComposerInner = ({
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: triggerInfo ?? { type: 'button' },
+          trackInputQuery: true
         })
       }
     }
