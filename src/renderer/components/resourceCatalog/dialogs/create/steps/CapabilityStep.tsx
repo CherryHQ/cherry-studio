@@ -1,3 +1,4 @@
+import { PermissionModeSelect } from '@renderer/components/PermissionModeSelect'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import type { UseFormReturn } from 'react-hook-form'
@@ -24,18 +25,31 @@ type CapabilityStepProps = {
 export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
   const { t } = useTranslation()
   const skillIds = form.watch('skillIds')
+  const permissionMode = form.watch('permissionMode')
   useReconcileSkillsOnOpen(true)
   const { skills, loading } = useInstalledSkills()
 
   return (
-    <SkillCatalogPicker
-      mode="create"
-      skills={skills}
-      loading={loading}
-      selectedIds={skillIds}
-      onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
-      emptyLabel={t('library.config.dialogs.create.capability.no_skills')}
-      portalContainer={portalContainer}
-    />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 border-border-subtle border-b pb-4">
+        <span className="font-normal text-muted-foreground text-sm">
+          {t('library.config.agent.field.permission_mode.label')}
+        </span>
+        <PermissionModeSelect
+          value={permissionMode}
+          onValueChange={(value) => form.setValue('permissionMode', value, { shouldDirty: true })}
+          portalContainer={portalContainer}
+        />
+      </div>
+      <SkillCatalogPicker
+        mode="create"
+        skills={skills}
+        loading={loading}
+        selectedIds={skillIds}
+        onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
+        emptyLabel={t('library.config.dialogs.create.capability.no_skills')}
+        portalContainer={portalContainer}
+      />
+    </div>
   )
 }

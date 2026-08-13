@@ -97,6 +97,7 @@ function CapabilityStepHarness() {
     <>
       <CapabilityStep form={form} portalContainer={null} />
       <output data-testid="skill-ids">{form.watch('skillIds').join(',')}</output>
+      <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </>
   )
 }
@@ -125,6 +126,17 @@ describe('CapabilityStep', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
+  })
+
+  it('starts with full access and writes a selected permission mode', async () => {
+    const user = userEvent.setup()
+    render(<CapabilityStepHarness />)
+
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('bypassPermissions')
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.field.permission_mode.label' }))
+    await user.click(await screen.findByRole('button', { name: /agent.settings.tooling.permissionMode.plan.title/ }))
+
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('plan')
   })
 
   it('shows builtin skills pre-checked and locked, and never adds them to skillIds', async () => {

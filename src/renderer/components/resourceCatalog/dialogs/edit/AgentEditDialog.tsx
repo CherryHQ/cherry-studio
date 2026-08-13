@@ -6,17 +6,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Switch,
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import { PermissionModeSelect } from '@renderer/components/PermissionModeSelect'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -28,7 +23,7 @@ import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/us
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { permissionModeCards } from '@renderer/utils/agent'
+import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -48,7 +43,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { ToolCase, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
@@ -615,8 +610,6 @@ function PermissionModeField({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
   const { t } = useTranslation()
-  const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
-  const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
     <FormField
@@ -627,32 +620,11 @@ function PermissionModeField({
           <FormLabel className={editDialogFormRowLabelClassName}>
             {t('library.config.agent.field.permission_mode.label')}
           </FormLabel>
-          <Select value={field.value || 'default'} onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
-            <FormControl>
-              <SelectTrigger
-                className="h-9 w-full rounded-md"
-                aria-label={t('library.config.agent.field.permission_mode.label')}>
-                {/* Own children so the trigger stays one line: the items below are two. */}
-                <SelectValue>
-                  {selectedPermissionModeCard && (
-                    <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
-                      {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent portalContainer={portalContainer}>
-              {permissionModeCards.map((card) => (
-                <SelectItem key={card.mode} value={card.mode}>
-                  <div className="flex items-center gap-2">
-                    <PermissionModeIcon mode={card.mode} size={16} />
-                    <PermissionModeOptionLabel card={card} t={t} />
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PermissionModeSelect
+            value={normalizePermissionMode(field.value)}
+            onValueChange={(value) => patchAgentForm({ permissionMode: value })}
+            portalContainer={portalContainer}
+          />
           <FormMessage className="col-start-2" />
         </FormItem>
       )}
