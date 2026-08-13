@@ -15,6 +15,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -94,7 +95,6 @@ export function AgentResourceList({
     isPinsLoading,
     isValidating,
     error: sessionsError,
-    deleteSessions,
     reload
   } = agentSessionsSource
   const {
@@ -107,6 +107,9 @@ export function AgentResourceList({
   const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
@@ -213,10 +216,9 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role === 'assistant'
-      const sessionIds = deleteTasksOnly
-        ? sessions.filter((session) => session.agentId === agentId).map((session) => session.id)
-        : []
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
+      )
 
       setDeletingAgentId(agentId)
       try {
@@ -233,7 +235,8 @@ export function AgentResourceList({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
           const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
@@ -257,12 +260,11 @@ export function AgentResourceList({
       agents,
       closeConversationTabs,
       deleteAgent,
-      deleteSessions,
+      deleteAgentSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
       reload,
-      sessions,
       t
     ]
   )
@@ -270,7 +272,9 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
-      const deleteTasksOnly = agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
+      )
 
       return [
         buildResolvedResourceEntityMenuAction({
