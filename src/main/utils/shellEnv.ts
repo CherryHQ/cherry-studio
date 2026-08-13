@@ -295,10 +295,14 @@ const SHELL_ENV_LAST_GOOD_KEY = 'system.shell_env.last_good'
 const SHELL_ENV_TTL_MS = 5 * 60_000
 
 let inflight: Promise<Record<string, string>> | null = null
-// Wall clock at which `inflight` began resolving, or Infinity while it is still
-// queued behind an earlier capture -- it is then guaranteed to start later than
-// any caller deciding right now whether to join it.
-let inflightStartedAt = 0
+// Captures that have begun, counted rather than timestamped: a caller and a
+// capture that fall in the same millisecond must still order, and a clock can
+// only report them as simultaneous.
+let capturesStarted = 0
+// Index of `inflight`, or Infinity while it is still queued behind an earlier
+// capture -- it is then guaranteed to start later than any caller deciding right
+// now whether to join it.
+let inflightCapture = 0
 
 function readProcessEnv(): Record<string, string> {
   const env: Record<string, string> = {}
@@ -331,9 +335,9 @@ async function captureShellEnv(): Promise<Record<string, string>> {
 
 /**
  * Run a capture, collapsing callers onto as few spawns as the freshness they ask
- * for allows. `notBefore` is the wall clock a capture must have started at or
- * after to satisfy the caller: `0` accepts any capture, `Date.now()` accepts
- * only one that observed the world after this call.
+ * for allows. `minCapture` is the lowest capture index that satisfies the
+ * caller: `0` accepts any capture, `capturesStarted + 1` accepts only one that
+ * begins after this call.
  *
  * Resolving the login shell can be slow or hang (misconfigured profiles), so a
  * capture that cannot be joined is queued behind the running one rather than
@@ -341,15 +345,15 @@ async function captureShellEnv(): Promise<Record<string, string>> {
  * While queued it satisfies every caller, so a burst still costs one extra
  * capture, not one per caller.
  */
-function loadShellEnv(notBefore = 0): Promise<Record<string, string>> {
-  if (inflight && inflightStartedAt >= notBefore) {
+function loadShellEnv(minCapture = 0): Promise<Record<string, string>> {
+  if (inflight && inflightCapture >= minCapture) {
     return inflight
   }
 
   const previous = inflight
-  inflightStartedAt = Number.POSITIVE_INFINITY
+  inflightCapture = Number.POSITIVE_INFINITY
   const start = () => {
-    inflightStartedAt = Date.now()
+    inflightCapture = ++capturesStarted
     return captureShellEnv()
   }
   // captureShellEnv never rejects, so the chain and `inflight` always settle.
@@ -383,7 +387,7 @@ function loadShellEnv(notBefore = 0): Promise<Record<string, string>> {
  */
 export async function getRawShellEnv(options?: { fresh?: boolean }): Promise<Record<string, string>> {
   if (options?.fresh) {
-    return { ...(await loadShellEnv(Date.now())) }
+    return { ...(await loadShellEnv(capturesStarted + 1)) }
   }
 
   const cache = application.get('CacheService')

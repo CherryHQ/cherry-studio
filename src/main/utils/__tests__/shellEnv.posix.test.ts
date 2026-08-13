@@ -81,6 +81,8 @@ const flush = () => vi.advanceTimersByTimeAsync(0)
 const TTL_MS = 5 * 60_000
 
 describe('shellEnv – POSIX capture cache', () => {
+  const savedEnv = process.env
+
   beforeEach(() => {
     vi.clearAllMocks()
     // clearAllMocks keeps queued mockImplementationOnce entries — an unconsumed
@@ -88,13 +90,16 @@ describe('shellEnv – POSIX capture cache', () => {
     vi.mocked(spawn).mockReset()
     MockMainCacheServiceUtils.resetMocks()
     vi.useFakeTimers()
-    process.env.SHELL = '/bin/zsh'
-    process.env.HOME = '/home/test'
-    // Distinct from every captured PATH, so a degraded fallback is recognizable.
-    process.env.PATH = '/degraded/fallback'
+    process.env = {
+      SHELL: '/bin/zsh',
+      HOME: '/home/test',
+      // Distinct from every captured PATH, so a degraded fallback is recognizable.
+      PATH: '/degraded/fallback'
+    }
   })
 
   afterEach(() => {
+    process.env = savedEnv
     vi.useRealTimers()
   })
 
@@ -153,9 +158,10 @@ describe('shellEnv – POSIX capture cache', () => {
 
   it('does not adopt an in-flight capture that started before a fresh read', async () => {
     // A read starts a capture, then the user installs a tool while it is running.
+    // No clock advance: a capture and a caller in the same millisecond must
+    // still order, so the running capture is not eligible for the refresh.
     const preInstall = mockPendingLoginShell('/usr/bin')
     const reader = getShellEnv()
-    vi.advanceTimersByTime(1_000)
 
     // BinaryManager refreshes after the install; it must observe the new PATH.
     const refresh = refreshShellEnv()
@@ -170,7 +176,6 @@ describe('shellEnv – POSIX capture cache', () => {
   it('shares one queued capture across a burst of fresh reads', async () => {
     const running = mockPendingLoginShell('/usr/bin')
     const reader = getShellEnv()
-    vi.advanceTimersByTime(1_000)
 
     // Three activations land while the first capture is still running. The
     // queued capture starts after all of them, so one re-capture serves them all.
