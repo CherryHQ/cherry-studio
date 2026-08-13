@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
@@ -40,6 +40,7 @@ function makeProvider(overrides: Partial<Provider>): Provider {
   return {
     id: 'p',
     name: 'P',
+    apiFeatures: DEFAULT_API_FEATURES,
     ...overrides
   } as Provider
 }
@@ -117,7 +118,7 @@ describe('buildPiProviderInjection', () => {
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
     expect(injection.providerConfig.api).toBe('openai-completions')
-    expect(injection.providerConfig.baseUrl).toBe('https://api.deepseek.com')
+    expect(injection.providerConfig.baseUrl).toBe('https://api.deepseek.com/v1')
     expect(injection.modelId).toBe('deepseek-chat')
   })
 
@@ -138,7 +139,58 @@ describe('buildPiProviderInjection', () => {
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
     expect(injection.providerConfig.api).toBe('google-generative-ai')
-    expect(injection.providerConfig.baseUrl).toBe('https://generativelanguage.googleapis.com')
+    expect(injection.providerConfig.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
+  })
+
+  it.each([
+    ['openai-chat-completions', 'openai-completions', 'https://open.cherryin.net/v1'],
+    ['openai-responses', 'openai-responses', 'https://open.cherryin.net/v1'],
+    ['google-generate-content', 'google-generative-ai', 'https://open.cherryin.net/v1beta'],
+    ['anthropic-messages', 'anthropic-messages', 'https://open.cherryin.net']
+  ] as const)('formats the CherryIN %s base URL for pi', (endpointType, expectedApi, expectedBaseUrl) => {
+    const provider = makeProvider({
+      id: 'cherryin',
+      name: 'CherryIN',
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: {
+        [endpointType]: { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
+      }
+    })
+    const model = makeModel({ endpointTypes: [endpointType] })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe(expectedApi)
+    expect(injection.providerConfig.baseUrl).toBe(expectedBaseUrl)
+  })
+
+  it.each([
+    ['openai-chat-completions', 'openai-completions'],
+    ['openai-responses', 'openai-responses']
+  ] as const)('maps the provider developer-role capability for %s', (endpointType, expectedApi) => {
+    const endpointConfigs = {
+      [endpointType]: { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
+    }
+    const model = makeModel({ endpointTypes: [endpointType], capabilities: ['reasoning'] })
+
+    const unsupported = buildPiProviderInjection(
+      makeProvider({ defaultChatEndpoint: endpointType, endpointConfigs }),
+      model,
+      REAL_KEY
+    )
+    const supported = buildPiProviderInjection(
+      makeProvider({
+        defaultChatEndpoint: endpointType,
+        endpointConfigs,
+        apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true }
+      }),
+      model,
+      REAL_KEY
+    )
+
+    expect(unsupported.providerConfig.api).toBe(expectedApi)
+    expect(unsupported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: false })
+    expect(supported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: true })
   })
 
   it('maps Azure OpenAI through its responses endpoint (non-4-family)', () => {
@@ -353,6 +405,7 @@ function stubGrokCliServices(): void {
     id: 'grok-cli',
     name: 'Grok CLI',
     authMethods: ['oauth'],
+    apiFeatures: DEFAULT_API_FEATURES,
     defaultChatEndpoint: 'openai-responses',
     endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
   })

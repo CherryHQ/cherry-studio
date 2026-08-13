@@ -26,6 +26,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -152,7 +153,7 @@ export function buildPiProviderInjection(
   const transportAdapter = getProviderTransportAdapter(provider.id)
   if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
-  const { baseUrl } = resolvedEndpoint
+  const baseUrl = formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api)
 
@@ -191,6 +192,22 @@ export function buildPiProviderInjection(
     ...(api === 'azure-openai-responses' && provider.settings?.apiVersion?.trim()
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})
+  }
+}
+
+function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
+  switch (api) {
+    case 'openai-completions':
+    case 'openai-responses':
+      return formatApiHost(baseUrl)
+    case 'google-generative-ai':
+      return formatApiHost(baseUrl, true, 'v1beta')
+    case 'anthropic-messages':
+      // Anthropic's SDK appends `/v1/messages` itself; unlike the AI SDK adapter,
+      // pi needs the gateway root rather than a versioned API prefix.
+      return withoutTrailingApiVersion(formatApiHost(baseUrl, false))
+    case 'azure-openai-responses':
+      return formatApiHost(baseUrl, false)
   }
 }
 
@@ -294,6 +311,11 @@ function buildPiModelConfig(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: model.contextWindow,
     maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
+    // Cherry's provider capability is the source of truth; pi otherwise infers
+    // developer-role support from the endpoint URL.
+    ...(api === 'openai-completions' || api === 'openai-responses'
+      ? { compat: { supportsDeveloperRole: provider.apiFeatures.developerRole } }
+      : {}),
     // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
     // thinkingLevelMap intentionally omitted: Cherry does not wire pi
