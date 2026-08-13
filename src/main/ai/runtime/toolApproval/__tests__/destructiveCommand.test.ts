@@ -24,6 +24,7 @@ describe('detectDestructiveCommand', () => {
     'docker system prune -a',
     'npm publish',
     'git restore .',
+    'git restore --staged --worktree .',
     'git checkout .',
     'truncate -s 0 important.txt',
     'cat ~/.ssh/config',
@@ -52,8 +53,20 @@ describe('detectDestructiveCommand', () => {
     'launchctl list',
     'crontab -l',
     'npm publish --dry-run',
+    'systemctl list-units',
+    'systemctl list-unit-files',
+    'systemctl is-system-running',
+    'launchctl print system/com.example.service',
+    'service --status-all',
     'git checkout feature/new-branch',
-    'mv old.txt new.txt'
+    // Unstaging keeps the edits on disk, so it is recoverable.
+    'git restore --staged file.ts',
+    'mv old.txt new.txt',
+    // The home directory is only a target when it is used as a path; mentioning the variable is not.
+    'echo $HOME',
+    "rg '\\$HOME' src",
+    "grep -R '${HOME}' docs",
+    'printf \'%s\\n\' "$HOME"'
   ])('lets %s through', (command) => {
     expect(detectDestructiveCommand(command)).toBeNull()
   })

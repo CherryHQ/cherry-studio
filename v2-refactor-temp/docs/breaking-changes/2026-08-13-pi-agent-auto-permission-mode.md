@@ -21,7 +21,7 @@ Advanced (Claude Agent) agents are unchanged.
 
 ## Why this matters to the user
 
-A new Fast agent interrupts far less than before while still stopping at the operations that cannot be undone.
+A new Fast agent interrupts far less than before, stopping when it recognizes a risky operation.
 Users who had picked "Full Access" on a Fast agent will notice it has become genuinely unattended — nothing is
 held back any more.
 

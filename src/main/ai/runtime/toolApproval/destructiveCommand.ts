@@ -17,8 +17,10 @@
 /** Prefixes that delegate to the real command behind them. */
 const WRAPPERS = new Set(['time', 'nohup', 'env', 'command', 'exec', 'builtin', 'xargs'])
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish'])
-/** Service-manager subcommands that only report state. */
-const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list|show|is-active|is-enabled|cat|-l)(?:\s|$)/
+/** Service-manager subcommands that only report state (`list-units`, `is-system-running`, …). */
+const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list[\w-]*|show|is-[\w-]+|cat|print|-l|--status-all)(?:\s|$)/
+/** `git restore --staged` only unstages; adding `--worktree` makes it discard edits again. */
+const GIT_RESTORE_UNSTAGE_ONLY = /\s--staged\b/
 
 interface Stage {
   /** The resolved command word, lowercased and stripped of any path (`/bin/rm` → `rm`). */
@@ -49,11 +51,15 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
   {
     // History rewrites and working-tree wipes discard uncommitted or unpushed work. `restore` and a
     // path-form `checkout` are the ones an agent reaches for most and they are just as final.
-    test: (s) =>
-      s.command === 'git' &&
-      /\s(?:clean\b.*\s-[a-zA-Z]*[fx]|reset\s+--hard|restore\b|checkout\s+(?:--\s|\.(?:\s|$))|push\b.*--force)/.test(
+    test: (s) => {
+      if (s.command !== 'git') return false
+      if (/\srestore\b/.test(s.text)) {
+        return !GIT_RESTORE_UNSTAGE_ONLY.test(s.text) || /\s--worktree\b/.test(s.text)
+      }
+      return /\s(?:clean\b.*\s-[a-zA-Z]*[fx]|reset\s+--hard|checkout\s+(?:--\s|\.(?:\s|$))|push\b.*--force)/.test(
         s.text
-      ),
+      )
+    },
     reason: 'destructive git operation'
   },
   {
@@ -92,7 +98,9 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
     // Bash is opaque to the workspace containment check that gates the file tools, so a command that
     // names the user's home explicitly is the one shape worth intercepting: `cat ~/.ssh/config`,
     // `sed -i ~/.zshrc`, `>> $HOME/.config/…`. It catches the common case, not every escape.
-    test: (s) => /(?:^|[\s'"=<>|])(?:~\/|\$HOME\b|\$\{HOME\})/.test(s.text),
+    // The trailing slash is what separates a path from a mention — `echo $HOME` and `rg '\$HOME' src`
+    // read or print the variable and have no business being interrupted.
+    test: (s) => /(?:^|[\s'"=<>|])(?:~|\$HOME|\$\{HOME\})\//.test(s.text),
     reason: 'command reaching into the home directory'
   },
   {

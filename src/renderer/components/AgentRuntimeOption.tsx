@@ -87,7 +87,10 @@ export function AgentRuntimeTiles({
             variant="outline"
             className={cn(
               'w-full cursor-pointer rounded-xl font-normal hover:bg-accent/50',
-              'has-[[data-slot=radio-group-item]:focus-visible]:border-primary',
+              // Focus needs its own signal: the selected card is already `border-primary`, so
+              // reusing the border would make tabbing onto it invisible.
+              'has-[[data-slot=radio-group-item]:focus-visible]:bg-accent',
+              'has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset',
               selected && 'border-primary bg-accent/50'
             )}>
             <Label htmlFor={optionId}>
