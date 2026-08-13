@@ -85,6 +85,20 @@ describe('resolvePiApi', () => {
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
   })
 
+  it('uses a cloned gateway per-model route before an unsupported provider default', () => {
+    const provider = makeProvider({
+      id: 'custom-aihubmix',
+      presetProviderId: 'aihubmix',
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: {
+        'ollama-chat': { adapterFamily: 'ollama' },
+        'anthropic-messages': { adapterFamily: 'anthropic' }
+      }
+    })
+
+    expect(resolvePiApi(provider, makeModel({ apiModelId: 'claude-sonnet-4' }))).toBe('anthropic-messages')
+  })
+
   it('rejects an external-CLI provider (claude-code) even on a pi-speakable endpoint', () => {
     const provider = makeProvider({
       id: 'claude-code',

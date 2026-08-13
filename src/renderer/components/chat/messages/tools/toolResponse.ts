@@ -17,6 +17,9 @@ export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 const CHERRY_AGENT_TRANSPORTS = new Set<string>(Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport))
+const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
+  AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
+)
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
@@ -114,6 +117,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
+  if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'

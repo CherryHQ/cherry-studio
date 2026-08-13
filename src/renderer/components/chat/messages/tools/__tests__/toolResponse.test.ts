@@ -268,7 +268,7 @@ describe('toolResponse adapter', () => {
 
     const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('done')
-    expect(response?.tool.type).toBe('builtin')
+    expect(response?.tool.type).toBe('provider')
     expect(response?.tool.name).toBe('bash')
   })
 

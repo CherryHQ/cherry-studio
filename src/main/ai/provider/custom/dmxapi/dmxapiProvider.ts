@@ -11,11 +11,11 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
-import { resolveDmxapiChatFamily } from './dmxapiRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
