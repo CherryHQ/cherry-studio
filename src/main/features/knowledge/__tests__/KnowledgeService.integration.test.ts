@@ -134,7 +134,7 @@ describe('KnowledgeService integration', () => {
     ])
   })
 
-  it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
+  it('restores a failed base and coalesces reindex while its restored root is still indexing', async () => {
     const service = new KnowledgeService()
 
     const { base: restoredBase, skippedMissingSourceCount } = await service.restoreBase({
@@ -197,9 +197,14 @@ describe('KnowledgeService integration', () => {
       .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
     expect(sourceChildRows).toHaveLength(1)
 
-    await expect(service.reindexItems(restoredBase.id, [restoredItems[0].id])).rejects.toMatchObject({
-      message: 'Cannot reindex knowledge item until the entire subtree is completed or failed'
-    })
+    listMock.mockResolvedValue([
+      {
+        type: 'knowledge.index-documents',
+        input: { baseId: restoredBase.id, itemId: restoredItems[0].id }
+      }
+    ] as never)
+
+    await expect(service.reindexItems(restoredBase.id, [restoredItems[0].id])).resolves.toBeUndefined()
     expect(enqueueMock).toHaveBeenCalledTimes(1)
 
     const ungroupedRestoredItems = await dbh.db

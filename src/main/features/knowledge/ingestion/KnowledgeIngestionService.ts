@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -37,6 +38,7 @@ import {
 } from '../pathStorage'
 import { planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
+import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
@@ -59,6 +61,12 @@ const logger = loggerService.withContext('Knowledge:IngestionService')
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+const REINDEX_ACTIVE_JOB_TYPES = [
+  'knowledge.prepare-root',
+  'knowledge.index-documents',
+  'knowledge.check-file-processing-result',
+  'knowledge.reindex-subtree'
+] as const
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
 /**
@@ -226,20 +234,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return
     }
 
-    await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    await this.assertSubtreeSourcesCanReindex(baseId, rootItemIds)
 
-    knowledgeBaseService.getById(baseId)
-    const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
-    const jobManager = application.get('JobManager')
-    jobManager.enqueue(
-      'knowledge.reindex-subtree',
-      { baseId, rootItemIds },
-      {
-        idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
-        queue: knowledgeQueueName(knowledgeBaseId)
+    await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      // Coalesce only when durable work covers the subtree. A processing item with no active job
+      // still reaches the status guard so an actually stranded item is not silently hidden.
+      const rootsWithoutActiveWork = await this.getRootsWithoutActiveWork(baseId, rootItemIds)
+      if (rootsWithoutActiveWork.length === 0) {
+        return
       }
-    )
+
+      this.assertSubtreeStatusesCanReindex(baseId, rootsWithoutActiveWork)
+      this.enqueueReindexItems(baseId, rootsWithoutActiveWork)
+    })
   }
 
   /**
@@ -260,16 +267,22 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     if (rootItemIds.length > 0) {
       assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
-      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+      await this.assertSubtreeSourcesCanReindex(baseId, rootItemIds)
     }
 
-    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+    return await this.knowledgeLockManager.runExclusive(baseId, () => {
+      if (rootItemIds.length > 0) {
+        this.assertSubtreeStatusesCanReindex(baseId, rootItemIds)
+      }
 
-    if (rootItemIds.length > 0) {
-      await this.reindexItems(baseId, rootItemIds)
-    }
+      const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
 
-    return updatedBase
+      if (rootItemIds.length > 0) {
+        this.enqueueReindexItems(baseId, rootItemIds)
+      }
+
+      return updatedBase
+    })
   }
 
   async scheduleItem(
@@ -469,7 +482,70 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
   }
 
-  private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
+  private enqueueReindexItems(baseId: string, rootItemIds: string[]): void {
+    knowledgeBaseService.getById(baseId)
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
+    application.get('JobManager').enqueue(
+      'knowledge.reindex-subtree',
+      { baseId, rootItemIds },
+      {
+        idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
+        queue: knowledgeQueueName(knowledgeBaseId)
+      }
+    )
+  }
+
+  private async getRootsWithoutActiveWork(baseId: string, rootItemIds: string[]): Promise<string[]> {
+    const activeJobs = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      status: [...ACTIVE_JOB_STATUSES],
+      type: [...REINDEX_ACTIVE_JOB_TYPES]
+    })
+    const activeRootItemIds = new Set<string>()
+
+    for (const job of activeJobs) {
+      const narrowed = narrowKnowledgeJobInput(job)
+      if (!narrowed || narrowed.input.baseId !== baseId) {
+        continue
+      }
+      if ('itemId' in narrowed.input) {
+        activeRootItemIds.add(narrowed.input.itemId)
+      } else if (narrowed.type === 'knowledge.reindex-subtree') {
+        narrowed.input.rootItemIds.forEach((itemId) => activeRootItemIds.add(itemId))
+      }
+    }
+
+    if (activeRootItemIds.size === 0) {
+      return rootItemIds
+    }
+
+    const activeItemIds = new Set(
+      knowledgeItemService
+        .getSubtreeItems(baseId, [...activeRootItemIds], { includeRoots: true })
+        .map((item) => item.id)
+    )
+    return rootItemIds.filter((rootItemId) => {
+      const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
+      const subtreeItemById = new Map(subtreeItems.map((item) => [item.id, item]))
+      const coveredItemIds = new Set<string>()
+
+      for (const item of subtreeItems) {
+        if (!activeItemIds.has(item.id)) continue
+        coveredItemIds.add(item.id)
+        let parentId = item.groupId
+        while (parentId && subtreeItemById.has(parentId)) {
+          coveredItemIds.add(parentId)
+          parentId = subtreeItemById.get(parentId)?.groupId ?? null
+        }
+      }
+
+      if (coveredItemIds.size === 0) return true
+      return subtreeItems.some((item) => !REINDEX_ALLOWED_STATUSES.has(item.status) && !coveredItemIds.has(item.id))
+    })
+  }
+
+  private async assertSubtreeSourcesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
     // rootItemIds comes from getOutermostSelectedItemIds, which guarantees the roots are mutually
     // non-descendant (disjoint subtrees), so one batched query's union equals the per-root sum.
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
@@ -496,14 +572,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     })
 
-    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
-    for (const item of subtreeItems) {
-      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
-        continue
-      }
-      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
-    }
-
     if (missingSourceItemIds.length > 0) {
       throw DataApiErrorFactory.validation(
         {
@@ -521,10 +589,17 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
       )
     }
+  }
 
-    if (blockingStatusCounts.size === 0) {
-      return
+  private assertSubtreeStatusesCanReindex(baseId: string, rootItemIds: string[]): void {
+    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+    for (const item of subtreeItems) {
+      if (REINDEX_ALLOWED_STATUSES.has(item.status)) continue
+      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
     }
+
+    if (blockingStatusCounts.size === 0) return
 
     const statusSummary = [...blockingStatusCounts.entries()]
       .sort(([left], [right]) => left.localeCompare(right))

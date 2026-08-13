@@ -66,7 +66,7 @@ export function createReindexSubtreeJobHandler(
         const rootItems = subtreeResult.items
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
-        // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
+        // Admission already rejected roots whose source is gone, but the
         // source can vanish between admission and acquiring this lock. Re-check right before the delete:
         // a root that can no longer rebuild keeps its existing vectors (stays completed/searchable)
         // instead of being wiped with nothing to re-read from.

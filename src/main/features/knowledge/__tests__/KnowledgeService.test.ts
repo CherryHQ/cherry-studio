@@ -1134,6 +1134,37 @@ describe('KnowledgeService', () => {
       expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
     })
 
+    it('does not commit the model when a concurrent delete changes subtree status during source admission', async () => {
+      const service = new KnowledgeService()
+      const sourceProbe = createDeferred<'readable'>()
+      let status: KnowledgeItemOf<'file'>['status'] = 'completed'
+      const rootItem = () => createFileItem('file-1', 'kb-1', '/docs/source.pdf', status)
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([rootItem()])
+      knowledgeItemGetSubtreeItemsMock.mockImplementation(
+        (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+          options.includeRoots ? [rootItem()] : []
+      )
+      probeKnowledgeFileMock.mockReturnValue(sourceProbe.promise)
+      knowledgeItemSetSubtreeStatusTxMock.mockImplementation(() => {
+        status = 'deleting'
+        return ['file-1']
+      })
+
+      const enabling = service
+        .enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      await vi.waitFor(() => expect(probeKnowledgeFileMock).toHaveBeenCalledOnce())
+      await service.deleteItems('kb-1', ['file-1'])
+      sourceProbe.resolve('readable')
+
+      expect(await enabling).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
     it('rejects a backfill when a root item source no longer exists, without committing the model', async () => {
       const service = new KnowledgeService()
       const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
@@ -1794,6 +1825,49 @@ describe('KnowledgeService', () => {
 
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('coalesces a two-item reindex request into the active indexing work for both items', async () => {
+    const service = new KnowledgeService()
+    const processingItems = [
+      createNoteItem('note-1', 'kb-1', null, 'processing'),
+      createNoteItem('note-2', 'kb-1', null, 'processing')
+    ]
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? processingItems.filter((item) => rootIds.includes(item.id)) : []
+    )
+    listMock.mockResolvedValue([
+      { type: 'knowledge.index-documents', input: { baseId: 'kb-1', itemId: 'note-1' } },
+      { type: 'knowledge.index-documents', input: { baseId: 'kb-1', itemId: 'note-2' } }
+    ] as never)
+
+    await expect(service.reindexItems('kb-1', ['note-1', 'note-2'])).resolves.toBeUndefined()
+
+    expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+  })
+
+  it('does not hide a stranded processing item when its sibling still has active indexing work', async () => {
+    const service = new KnowledgeService()
+    const root = createDirectoryItem('dir-1', null, 'processing')
+    const activeChild = createNoteItem('note-1', 'kb-1', 'dir-1', 'processing')
+    const strandedChild = createNoteItem('note-2', 'kb-1', 'dir-1', 'processing')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        if (!options.includeRoots) return []
+        if (rootIds.includes('dir-1')) return [root, activeChild, strandedChild]
+        return [activeChild]
+      }
+    )
+    listMock.mockResolvedValue([
+      { type: 'knowledge.index-documents', input: { baseId: 'kb-1', itemId: 'note-1' } }
+    ] as never)
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('rejects reindex of a directory whose source folder no longer exists, without deleting its vectors', async () => {

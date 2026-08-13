@@ -74,9 +74,9 @@ export async function classifyKnowledgeItemSource(
 
 /**
  * Whether a knowledge item can rebuild from a still-readable source. Gates reindex both at admission
- * (`KnowledgeIngestionService.assertSubtreesCanReindex`) and inside the reindex job's mutation lock right
- * before the delete — a vanished or unverifiable source must never wipe vectors with nothing to
- * rebuild from. Admission additionally distinguishes the two via {@link classifyKnowledgeItemSource}.
+ * (`KnowledgeIngestionService.assertSubtreeSourcesCanReindex`) and inside the reindex job's mutation
+ * lock right before the delete — a vanished or unverifiable source must never wipe vectors with
+ * nothing to rebuild from. Admission additionally distinguishes the two via {@link classifyKnowledgeItemSource}.
  */
 export async function canKnowledgeItemRebuildSource(baseId: string, item: KnowledgeItem): Promise<boolean> {
   return (await classifyKnowledgeItemSource(baseId, item)) === 'rebuildable'
