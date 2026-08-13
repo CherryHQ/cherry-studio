@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -78,7 +78,7 @@
     "bench:aicore": "vitest bench --run --project aiCore",
     "bench:shared": "vitest bench --run --project shared",
     "docs:check-links": "tsx scripts/check-doc-links.ts",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e \"process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})\"",
     "claude": "dotenv -e .env -- claude",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
     "db:migrations:check": "drizzle-kit check --config ./migrations/sqlite-drizzle.config.ts",
