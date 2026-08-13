@@ -622,6 +622,7 @@ export class AgentSessionService {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
     publishTaskReadModelChanges(taskScheduleIds)
     this.notifyReadModelChange([id], 'membership')
+    pinService.notifyPurged()
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -654,6 +655,7 @@ export class AgentSessionService {
 
     publishTaskReadModelChanges(result.taskScheduleIds)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -670,6 +672,7 @@ export class AgentSessionService {
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -699,6 +702,7 @@ export class AgentSessionService {
 
     publishTaskReadModelChanges(result.taskScheduleIds)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
