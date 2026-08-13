@@ -792,6 +792,81 @@ describe('TopicService', () => {
       expect(await getOrderedIds()).toEqual(['t2', 't1', 't3'])
     })
 
+    async function seedMoveTopics(anchorOrderKey = 'a1') {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0' },
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: anchorOrderKey }
+      ])
+    }
+
+    it('moves a topic owner and order together', async () => {
+      await seedMoveTopics()
+
+      const movedTopic = topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })
+
+      expect(movedTopic).toMatchObject({ id: 'move-a', assistantId: 'asst-b' })
+      expect(topicService.getById('move-a').assistantId).toBe('asst-b')
+      expect(await getOrderedIds()).toEqual(['move-b', 'move-a'])
+    })
+
+    it('rolls back the owner and order when applying the order fails', async () => {
+      await seedMoveTopics('invalid-order-key')
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a move to a missing assistant without changing the topic', async () => {
+      await seedMoveTopics()
+
+      expect(() =>
+        topicService.move('move-a', { assistantId: 'missing-assistant', order: { after: 'move-b' } })
+      ).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
+    it('rejects an anchor owned by another assistant without changing the topic', async () => {
+      await seedMoveTopics()
+      await dbh.db.insert(topicTable).values({
+        id: 'move-c',
+        name: 'C',
+        assistantId: 'asst-a',
+        orderKey: 'a2'
+      })
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-c' } })).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
+    it('rejects a self-referencing anchor without changing the topic', async () => {
+      await seedMoveTopics()
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-a' } })).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
     it("moves a topic to the head with position: 'first'", async () => {
       await seedThree()
       topicService.reorder('t3', { position: 'first' })
