@@ -468,6 +468,48 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
   })
 
+  it('serializes commands after earlier messages in the same conversation', async () => {
+    const adapter = createMockAdapter()
+    let releaseStream!: () => void
+    let markStreamStarted!: () => void
+    const streamStarted = new Promise<void>((resolve) => (markStreamStarted = resolve))
+
+    mockStartAgentSessionRun.mockImplementationOnce(
+      async ({ listeners }: { listeners: Array<{ onDone: (result: { status: string }) => void | Promise<void> }> }) => {
+        markStreamStarted()
+        await new Promise<void>((resolve) => (releaseStream = resolve))
+        for (const listener of listeners) await listener.onDone({ status: 'success' })
+      }
+    )
+
+    const message = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      conversationKind: 'direct',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Use the current session'
+    })
+    const command = channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      conversationKind: 'direct',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+
+    await streamStarted
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).not.toHaveBeenCalledWith('chat-1', 'New session created.', expect.anything())
+
+    releaseStream()
+    await Promise.all([message, command])
+
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', {
+      replyToMessageId: undefined
+    })
+  })
+
   it('handleCommand /help sends help text with agent info', async () => {
     const adapter = createMockAdapter()
     vi.mocked(agentService.getAgent).mockReturnValueOnce({

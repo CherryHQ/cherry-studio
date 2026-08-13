@@ -271,6 +271,45 @@ describe('ChannelMessageHandler write quiesce', () => {
     hold.dispose()
   })
 
+  it('drainInFlight waits for a command queued behind an active conversation turn', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    let finishTurn!: () => Promise<void>
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }) => {
+      finishTurn = async () => {
+        for (const listener of listeners) await listener.onDone({ status: 'success' })
+      }
+    })
+
+    const turn = handler.handleIncoming(adapter, msg('Hi'))
+    await vi.advanceTimersByTimeAsync(8500)
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+
+    const command = handler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      conversationKind: 'direct',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+    const hold = handler.pause()
+    let drained = false
+    const drain = handler.drainInFlight({ timeoutMs: 1000 }).then((result) => {
+      drained = true
+      return result
+    })
+
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    expect(pendingAdmissionCount(handler)).toBe(1)
+
+    await finishTurn()
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
+    await Promise.all([turn, command])
+    expect(pendingAdmissionCount(handler)).toBe(0)
+    hold.dispose()
+  })
+
   it('an early-return processIncoming still settles its admission (backstop onAdmitted)', async () => {
     const adapter = createMockAdapter()
     // Orphan session: agentId === null makes processIncoming bail before startAgentSessionRun.

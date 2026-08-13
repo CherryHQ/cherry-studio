@@ -61,10 +61,10 @@ export class ChannelMessageHandler {
   private readonly activeAbortControllers = new Map<string, AbortController>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
-  /** Flushed batches whose agent-turn admission hasn't landed yet — `drainInFlight`'s wait-set.
-   *  Resolved (idempotently) once `startAgentSessionRun` returned/threw, or on any
-   *  `processIncoming` early return; NOT held open for the full turn (post-admission stream
-   *  writes are AiStreamManager's drain). Entries self-remove on resolve. */
+  /** Queued work whose write admission hasn't landed yet — `drainInFlight`'s wait-set.
+   *  Resolved (idempotently) once a turn is admitted, a command write completes, or processing
+   *  exits early; NOT held open for the full turn (post-admission stream writes are
+   *  AiStreamManager's drain). Entries self-remove on resolve. */
   private readonly pendingAdmissions = new Map<string, Promise<void>>()
   private admissionSeq = 0
 
@@ -107,7 +107,7 @@ export class ChannelMessageHandler {
   }
 
   /**
-   * Await the flushed batches' turn admissions, bounded by timeoutMs. Never rejects. A single
+   * Await queued work admissions, bounded by timeoutMs. Never rejects. A single
    * snapshot suffices (unlike the AI writers' fixed-point drains): intake is gated and pause()
    * already flushed every buffer synchronously, so the admission set can only shrink.
    *
@@ -132,7 +132,7 @@ export class ChannelMessageHandler {
       ])
       if (winner === 'done') return { stragglerIds: [] }
       const stragglerIds = snapshot.filter(([id]) => this.pendingAdmissions.has(id)).map(([id]) => id)
-      logger.warn('drainInFlight timed out with unadmitted flushed batches', {
+      logger.warn('drainInFlight timed out with unadmitted channel work', {
         timeoutMs: opts.timeoutMs,
         stragglerIds
       })
@@ -149,7 +149,12 @@ export class ChannelMessageHandler {
       work.push({ id: batchKey, summary: `buffered=${batch.messages.length}` })
     }
     for (const admissionId of this.pendingAdmissions.keys()) {
-      work.push({ id: admissionId, summary: 'flushed batch awaiting turn admission' })
+      work.push({
+        id: admissionId,
+        summary: admissionId.startsWith('command:')
+          ? 'queued command awaiting write admission'
+          : 'flushed batch awaiting turn admission'
+      })
     }
     return work
   }
@@ -477,6 +482,45 @@ export class ChannelMessageHandler {
       })
       return
     }
+
+    // Preserve transport arrival order: messages received before a command must finish before
+    // `/new` rotates the session or `/compact` starts another turn for the same conversation.
+    for (const [batchKey, batch] of this.pendingBatches) {
+      if (
+        batch.adapter.agentId === adapter.agentId &&
+        batch.adapter.channelId === adapter.channelId &&
+        batch.messages[0]?.chatId === command.chatId
+      ) {
+        clearTimeout(batch.timer)
+        this.flushBatch(batchKey)
+      }
+    }
+
+    const queueKey = `${adapter.agentId}:${adapter.channelId}:${command.chatId}`
+    const admissionId = `command:${queueKey}#${++this.admissionSeq}`
+    let admit!: () => void
+    const admission = new Promise<void>((resolve) => {
+      admit = resolve
+    })
+    this.pendingAdmissions.set(admissionId, admission)
+    void admission.then(() => this.pendingAdmissions.delete(admissionId))
+
+    const previous = this.chatQueues.get(queueKey) ?? Promise.resolve()
+    const current = previous.then(() => this.processCommand(adapter, command, admit))
+    const settled = current.finally(() => {
+      if (this.chatQueues.get(queueKey) === settled) {
+        this.chatQueues.delete(queueKey)
+      }
+    })
+    this.chatQueues.set(queueKey, settled)
+    return settled
+  }
+
+  private async processCommand(
+    adapter: ChannelAdapter,
+    command: ChannelCommandEvent,
+    onAdmitted: () => void
+  ): Promise<void> {
     const { agentId } = adapter
     const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
     try {
@@ -493,6 +537,7 @@ export class ChannelMessageHandler {
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
+          onAdmitted()
           await adapter.sendMessage(command.chatId, 'New session created.', replyOpts)
           break
         }
@@ -520,7 +565,8 @@ export class ChannelMessageHandler {
               abortController,
               adapter,
               command.chatId,
-              command.messageId
+              command.messageId,
+              onAdmitted
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
             // delivered any non-empty output; only send an explicit fallback when compact
@@ -534,6 +580,7 @@ export class ChannelMessageHandler {
           break
         }
         case 'help': {
+          onAdmitted()
           const agent = agentService.getAgent(agentId)
           const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
@@ -551,6 +598,7 @@ export class ChannelMessageHandler {
           break
         }
         case 'whoami': {
+          onAdmitted()
           await adapter.sendMessage(
             command.chatId,
             [
@@ -579,6 +627,8 @@ export class ChannelMessageHandler {
             error: sendErr instanceof Error ? sendErr.message : String(sendErr)
           })
         })
+    } finally {
+      onAdmitted()
     }
   }
 

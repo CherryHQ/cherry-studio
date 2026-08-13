@@ -142,6 +142,7 @@ class FeishuAdapter extends ChannelAdapter {
         requireMention: true,
         respondToMentionAll: false
       },
+      safety: { batch: { text: { delayMs: 0 } } },
       outbound: { textChunkLimit: FEISHU_MAX_LENGTH },
       wsConfig: { pingTimeout: FEISHU_PING_TIMEOUT_SECONDS }
     })

@@ -151,6 +151,7 @@ describe('FeishuAdapter', () => {
       domain: 1,
       source: 'cherry-studio',
       policy: { dmMode: 'open', requireMention: true, respondToMentionAll: false },
+      safety: { batch: { text: { delayMs: 0 } } },
       outbound: { textChunkLimit: 4000 },
       wsConfig: { pingTimeout: 10 }
     })
