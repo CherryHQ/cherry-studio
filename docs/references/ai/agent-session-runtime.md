@@ -32,11 +32,11 @@ queue, and `resume` handling are driver internals.
 
 `src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
 
-The common materializer owns both content and ordering for:
+The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
 1. instruction precedence when an Agent System Prompt exists;
 2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
-3. runtime-supplied root workspace instructions;
+3. runtime-supplied root workspace instructions when the SDK exposes them to the materializer;
 4. variable-resolved Agent System Prompt text and its authority wrapper;
 5. context required when `system.md` replaces a native base;
 6. linked-channel security policy;
@@ -52,7 +52,7 @@ Runtime adapters own only native mechanics:
 |---|---|
 | `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps native to the `claude_code` preset; pi leaves `systemPromptOverride` unset. Both pass custom content as the SDK base override. |
 | Common append text and block order | Claude uses the preset's `append`; pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude's `AgentsMdLoader` supplies root text and hooks load nested scopes; pi's `DefaultResourceLoader` supplies its native project-context section. |
+| Workspace instruction authority | Claude's `AgentsMdLoader` supplies root text and hooks load nested scopes; pi's `DefaultResourceLoader` supplies its native project-context section after the common append. Physical placement may differ, while the common precedence contract keeps semantic authority identical. |
 | Enabled managed skill content | Claude injects its plugin/config representation; pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Claude's preset owns cwd/git context and receives an explicit cwd block only when a custom base replaces it; pi's native builder always appends date and cwd. |
 | Coding/runtime handbook and native tool snippets | Owned by the Claude Code or pi base prompt, never copied into the common materializer. |

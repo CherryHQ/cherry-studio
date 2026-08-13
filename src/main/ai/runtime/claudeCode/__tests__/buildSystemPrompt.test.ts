@@ -399,19 +399,22 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(result).not.toContain('Non-negotiable Cherry Assistant contract')
   })
 
-  it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
-    mockLoadBuiltinAgentDefinition
-      .mockReturnValueOnce({ instructions: 'English bundled instructions' })
-      .mockReturnValueOnce({ instructions: '中文内置指令' })
-    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+  it.each(['', '   '])(
+    'uses the bundled template when DB instructions are blank and resolves it on every build: %j',
+    async (instructions) => {
+      mockLoadBuiltinAgentDefinition
+        .mockReturnValueOnce({ instructions: 'English bundled instructions' })
+        .mockReturnValueOnce({ instructions: '中文内置指令' })
+      const agent = makeAgent({ instructions, configuration: { builtin_role: 'assistant' } as never })
 
-    const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+      const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+      const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(promptText(en)).toContain('English bundled instructions')
-    expect(promptText(zh)).toContain('中文内置指令')
-    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
-  })
+      expect(promptText(en)).toContain('English bundled instructions')
+      expect(promptText(zh)).toContain('中文内置指令')
+      expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('initializes persona and memory resources in agent data on every build', async () => {
     const agent = makeAgent({

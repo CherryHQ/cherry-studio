@@ -82,7 +82,7 @@ export async function buildAgentRuntimePrompt({
   const isAssistant = builtinRole === 'assistant'
   let instructions = agent.instructions
 
-  if (builtinRole && !instructions) {
+  if (builtinRole && !instructions?.trim()) {
     instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
     if (!instructions && isAssistant) {
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
