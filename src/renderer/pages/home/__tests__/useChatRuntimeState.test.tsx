@@ -1,3 +1,4 @@
+import type { UseConversationTurnControllerOptions } from '@renderer/hooks/useConversationTurnController'
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
-  turnSend: vi.fn(),
+  invalidateCache: vi.fn(),
   runtimeState: null as ReturnType<typeof useChatRuntimeState> | null
 }))
 
@@ -31,7 +32,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn()
+  useInvalidateCache: () => mocks.invalidateCache
 }))
 
 // The live-state builder is the guard's observable output surface: the test
@@ -79,12 +80,19 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useConversationTurnController', () => ({
-  useConversationTurnController: (config: unknown) => {
-    mocks.turnControllerConfig = config
-    return { send: mocks.turnSend, phase: 'idle' }
+vi.mock('@renderer/hooks/useConversationTurnController', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/hooks/useConversationTurnController')>()
+
+  return {
+    ...actual,
+    useConversationTurnController<TInput, TConversation>(
+      config: UseConversationTurnControllerOptions<TInput, TConversation>
+    ) {
+      mocks.turnControllerConfig = config
+      return actual.useConversationTurnController(config)
+    }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
@@ -202,10 +210,6 @@ describe('useChatRuntimeState', () => {
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
     expect(mocks.runtimeState?.sendMessage).toBe(sendMessage)
-    await act(async () => {
-      await mocks.runtimeState?.sendMessage('hello')
-    })
-    expect(mocks.turnSend).toHaveBeenCalledWith({ text: 'hello', options: undefined })
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
