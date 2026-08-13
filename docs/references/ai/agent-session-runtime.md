@@ -312,7 +312,8 @@ into pi resource loading rather than widening the `no*` flags wholesale.
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
 the runtime from that captured provider, model, enabled-key set, skill paths,
-MCP rows, and linked channel, then captures those facts again before publishing the connection.
+MCP rows, and linked channel, then captures those facts again before publishing
+the connection.
 If the signatures differ, startup fails closed and cleans up the connection's
 generation-scoped provider registration. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache

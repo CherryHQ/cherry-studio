@@ -145,8 +145,8 @@ export function buildPathRegistry() {
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
     // pi resume tokens persist the pi session id, never a filesystem path.
-    'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; exported as PI_CODING_AGENT_DIR
-    'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // <root>/sessions; matches pi's getSessionsDir() default
+    'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
+    'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)

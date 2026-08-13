@@ -34,7 +34,7 @@ bottom of this document — read them.
 
 2. **Add the capability descriptor** in
    `src/shared/ai/agentRuntimeCapabilities.ts`. This single entry drives all
-   generic renderer behavior — the runtime selector option and hint, the
+   generic renderer behavior — the runtime selector option, the
    permission-mode choices, whether the edit dialog shows model tiers / Soul /
    MCP / skills, the create-dialog defaults, builtin slash commands, the model
    picker filter, the transport tag, and the builtin-tools catalog:
@@ -56,8 +56,7 @@ bottom of this document — read them.
      approval default, and derive everything else from it.
 
 3. **Add i18n keys** in `src/renderer/i18n/locales/{en-us,zh-cn,zh-tw}.json`:
-   the runtime option label (`labelKey`), the capability-limit hint
-   (`hintKey`, if any), and `agent.tools.builtin.<id>.*` entries for each
+   the runtime option label (`labelKey`) and `agent.tools.builtin.<id>.*` entries for each
    builtin tool. `pnpm i18n:sync` scaffolds missing keys.
 
 ## Step 2 — main-process driver package
@@ -167,7 +166,7 @@ These are the choices nothing enforces:
 - `pnpm test` — includes the registry-pairing and descriptor-invariant tests.
 - `pnpm typecheck:node && pnpm typecheck:web`
 - `pnpm build:check` before committing (covers i18n and doc links).
-- Manual smoke: create an agent of the new type (selector shows the label and
-  hint), open a session, run a turn with a mutating tool (approval prompt
+- Manual smoke: create an agent of the new type (selector shows the label),
+  open a session, run a turn with a mutating tool (approval prompt
   appears), send a mid-turn follow-up (steers or queues per your `redirect`
   support), restart the app and resume the session.
