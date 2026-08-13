@@ -384,7 +384,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
   if (summary.status === 'running') {
     return (
       <span className="flex items-center gap-1.5 text-info">
-        <Loader2 aria-hidden className="size-3 motion-safe:animate-spin" />
+        <Loader2 aria-hidden className="size-3 text-info motion-safe:animate-spin" />
         {t('agent.tasks.runSummary.running')}
       </span>
     )
@@ -394,7 +394,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-success">
-        <CircleCheck aria-hidden className="size-3" />
+        <CircleCheck aria-hidden className="size-3 text-success" />
         {t('agent.tasks.runSummary.completed', { time })}
       </span>
     )
@@ -402,7 +402,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
   if (summary.status === 'failed') {
     return (
       <span className="flex items-center gap-1.5 text-error">
-        <CircleX aria-hidden className="size-3" />
+        <CircleX aria-hidden className="size-3 text-error" />
         {t('agent.tasks.runSummary.failed', { time })}
       </span>
     )
