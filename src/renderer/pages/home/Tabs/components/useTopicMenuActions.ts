@@ -22,10 +22,12 @@ import {
   executeTopicMenuAction,
   resolveTopicMenuActions,
   type TopicActionContext,
+  type TopicDeleteMode,
   type TopicExportMenuOptions
 } from './topicContextMenuActions'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicDeleteHandler = (topic: Topic, mode: TopicDeleteMode) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
@@ -35,7 +37,7 @@ export interface TopicMenuActionOptions {
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler

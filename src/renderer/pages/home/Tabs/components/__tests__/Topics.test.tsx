@@ -280,6 +280,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
       if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
+      if (key === 'common.archive') return 'Archive'
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.more') return 'More'
       if (key === 'common.open_in_new_tab') return 'Open in new tab'
@@ -926,6 +927,7 @@ describe('Topics', () => {
       'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
+      'Archive',
       'Delete'
     ])
     expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
@@ -1104,7 +1106,7 @@ describe('Topics', () => {
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await confirmOptions?.onOk?.()
 
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a', { permanent: true }))
   })
 
   it('requires a second inline click before deleting a topic', async () => {
@@ -1124,7 +1126,7 @@ describe('Topics', () => {
       fireEvent.click(deleteButton)
     })
 
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c', { permanent: false }))
   })
 
   it('selects the same assistant neighbouring topic after deleting the active topic in the right panel', async () => {
@@ -1184,7 +1186,9 @@ describe('Topics', () => {
       fireEvent.click(deleteButton)
     })
 
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+    await vi.waitFor(() =>
+      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second', { permanent: false })
+    )
     await vi.waitFor(() =>
       expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
     )
@@ -1240,7 +1244,9 @@ describe('Topics', () => {
       fireEvent.click(deleteButton)
     })
 
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
+    await vi.waitFor(() =>
+      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only', { permanent: false })
+    )
     expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })

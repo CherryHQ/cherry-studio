@@ -22,6 +22,7 @@ import {
 } from '@renderer/pages/agents/components/useSessionMenuActions'
 import type {
   TopicActionContext,
+  TopicDeleteMode,
   TopicExportMenuOptions
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
 import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/topicsHelpers'
@@ -291,11 +292,11 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: RendererTopic) => {
+    async (topic: RendererTopic, mode: TopicDeleteMode = 'archive') => {
       if (topic.pinned) return
 
       try {
-        await deleteTopicById(topic.id)
+        await deleteTopicById(topic.id, { permanent: mode === 'permanent' })
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')

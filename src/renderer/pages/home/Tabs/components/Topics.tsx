@@ -66,7 +66,7 @@ import {
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
-import type { TopicExportMenuOptions } from './topicContextMenuActions'
+import type { TopicDeleteMode, TopicExportMenuOptions } from './topicContextMenuActions'
 import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,
@@ -426,7 +426,10 @@ export function Topics({
     [patchTopic]
   )
 
-  const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
+  const removeTopic = useCallback(
+    (topic: Topic, permanent?: boolean) => deleteTopicById(topic.id, { permanent }),
+    [deleteTopicById]
+  )
 
   const handleRenameTopic = useCallback(
     (topicId: string, name: string) => {
@@ -462,9 +465,9 @@ export function Topics({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: Topic) => {
+    async (topic: Topic, mode: TopicDeleteMode = 'archive') => {
       try {
-        await removeTopic(topic)
+        await removeTopic(topic, mode === 'permanent')
       } catch (err) {
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
@@ -1224,7 +1227,7 @@ interface TopicListBodyProps {
   onClearMessages: (topic: Topic) => void
   onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
   onDeleteClick: (topicId: string, event: MouseEvent) => void
-  onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeleteFromMenu: (topic: Topic, mode?: TopicDeleteMode) => Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>

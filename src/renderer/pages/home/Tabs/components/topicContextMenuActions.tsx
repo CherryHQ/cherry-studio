@@ -4,6 +4,7 @@ import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { Topic } from '@renderer/types/topic'
 import type { TFunction } from 'i18next'
 import {
+  Archive,
   BrushCleaning,
   Copy,
   Database,
@@ -36,6 +37,10 @@ export type TopicExportMenuOptions = Record<
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 
+/** 'archive' soft-deletes to the trash (recoverable); 'permanent' hard-deletes. */
+export type TopicDeleteMode = 'archive' | 'permanent'
+type TopicDeleteHandler = (topic: Topic, mode: TopicDeleteMode) => void | Promise<void>
+
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
   isActiveInCurrentTab: boolean
@@ -45,7 +50,7 @@ export interface TopicActionContext {
   onCopyImage: TopicMenuHandler
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -188,8 +193,13 @@ topicActionRegistry.registerCommand({
 })
 
 topicActionRegistry.registerCommand({
+  id: 'topic.archive',
+  run: ({ onDelete, topic }) => onDelete(topic, 'archive')
+})
+
+topicActionRegistry.registerCommand({
   id: 'topic.delete',
-  run: ({ onDelete, topic }) => onDelete(topic)
+  run: ({ onDelete, topic }) => onDelete(topic, 'permanent')
 })
 
 topicActionRegistry.registerAction({
@@ -385,6 +395,17 @@ topicActionRegistry.registerAction({
       surface: 'menu'
     }
   ]
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.archive',
+  commandId: 'topic.archive',
+  label: ({ t }) => t('common.archive'),
+  icon: () => <Archive size={14} />,
+  group: 'danger',
+  order: 89,
+  surface: 'menu',
+  availability: ({ topic, topicsLength }) => ({ visible: topicsLength > 1 && !topic.pinned })
 })
 
 topicActionRegistry.registerAction({

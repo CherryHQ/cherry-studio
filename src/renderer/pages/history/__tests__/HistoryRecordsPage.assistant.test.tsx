@@ -210,6 +210,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Conversation',
         'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
+        'common.archive': 'Archive',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
@@ -912,6 +913,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
+      'Archive',
       'Delete'
     ])
   })
@@ -980,7 +982,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -1122,7 +1124,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
   })
 
   it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
@@ -1157,7 +1159,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
   })
 
@@ -1220,7 +1222,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
@@ -1257,7 +1259,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 })
