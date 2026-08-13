@@ -65,9 +65,21 @@ const { fake } = vi.hoisted(() => {
       }
       branches.delete(key)
     },
+    cancelBranch(executionId: string, anchorMessageId?: string) {
+      const b = branches.get(keyOf(executionId, anchorMessageId))
+      if (b) b.closed = true
+      try {
+        b?.controller.error()
+      } catch {
+        /* already closed */
+      }
+    },
     onExecutionTerminal(cb: (id: string, t: ExecutionTerminal) => void) {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)
+    },
+    onBranchesRetired() {
+      return () => {}
     },
     onTopicStateChange() {
       return () => {}
@@ -119,6 +131,7 @@ const B = 'anthropic::claude' as UniqueModelId
 
 const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecution => ({
   executionId,
+  attemptId: 1,
   anchorMessageId
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
@@ -352,7 +365,7 @@ describe('useExecutionOverlay', () => {
     expect(renderCount).toBe(beforeFrameRenderCount + 1)
   })
 
-  it('flushes a terminal snapshot immediately instead of waiting for the next frame', async () => {
+  it('flushes a terminal snapshot immediately instead of waiting for the next commit', async () => {
     const frames = installControlledCommitTimers()
     const onFinish = vi.fn()
     const ui = [asst('anchor-a')]
@@ -390,13 +403,13 @@ describe('useExecutionOverlay', () => {
       await drainStreamMicrotasks()
     })
 
-    // acquire() flushes stalled pending frames synchronously, so the
+    // acquire() flushes stalled pending snapshots synchronously, so the
     // remounted consumer's first read already holds both halves.
     const second = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
     expect(textOf(second.result.current.overlay['anchor-a'])).toBe('before after')
   })
 
-  it('prevents a cancelled frame from restoring snapshots after a destructive clear', async () => {
+  it('prevents a cancelled commit from restoring snapshots after a destructive clear', async () => {
     const frames = installControlledCommitTimers()
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))

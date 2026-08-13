@@ -8,7 +8,7 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
-import { aiErrorDetail } from '@shared/ipc/errors/ai'
+import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
@@ -38,6 +38,8 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 export function getErrorMessage(error: unknown): string {
+  const admissionMessage = getAiStreamAdmissionMessage(error)
+  if (admissionMessage) return admissionMessage
   if (error instanceof Error && error.message) {
     return error.message
   } else {
@@ -46,8 +48,29 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
+  const admissionMessage = getAiStreamAdmissionMessage(error)
+  if (admissionMessage) return admissionMessage
   const msg = getErrorMessage(error)
   return `${prefix}: ${msg}`
+}
+
+function getAiStreamAdmissionMessage(error: unknown): string | undefined {
+  switch (aiStreamAdmissionReason(error)) {
+    case 'SINGLE_MODEL_REQUIRED':
+      return t('message.error.stream_admission.single_model_required')
+    case 'TARGET_NOT_IN_LIVE_GROUP':
+      return t('message.error.stream_admission.target_not_in_live_group')
+    case 'MODEL_ALREADY_IN_LIVE_GROUP':
+      return t('message.error.stream_admission.model_already_in_live_group')
+    case 'EXECUTION_NOT_READY':
+      return t('message.error.stream_admission.execution_not_ready')
+    case 'EXECUTION_CHANGED':
+      return t('message.error.stream_admission.execution_changed')
+    case 'TOPIC_BUSY':
+      return t('message.error.stream_admission.topic_busy')
+    default:
+      return undefined
+  }
 }
 
 export const isTimeoutError = (error: any): boolean => {
