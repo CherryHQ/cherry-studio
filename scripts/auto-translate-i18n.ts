@@ -7,14 +7,11 @@
  * variable, a component tag or a `$t()` reference is dropped and its placeholder kept, and the
  * run exits non-zero.
  *
- * Translation itself is one batched request per locale carrying the full key path, the zh-cn
- * reference, the glossary and style examples from the same namespaces. `--translator` picks who
- * answers it, and `--research` optionally prepends a tool-enabled Claude Agent SDK pass that reads
- * the codebase for what renders each key. The two are independent so their effects stay separable.
+ * Translation itself is one batched request per locale to an OpenAI-compatible endpoint, carrying
+ * the full key path, the zh-cn reference, the glossary and style examples from the same namespaces.
  *
- * Usage: pnpm i18n:translate [--locale <code>] [--translator endpoint|claude] [--research] [--dry-run]
+ * Usage: pnpm i18n:translate [--locale <code>] [--dry-run]
  */
-import { type Options, query } from '@anthropic-ai/claude-agent-sdk'
 import { OpenAI } from '@cherrystudio/openai'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -25,7 +22,6 @@ type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
 
 type PendingKey = { scope: string; key: string; english: string; zhCn?: string }
-type Brief = { key: string; uiRole: string; meaning: string; tone: string; lengthHint: string; usage: string }
 type StyleExample = { english: string; translation: string }
 type Target = {
   filePath: string
@@ -40,35 +36,13 @@ type Glossary = { doNotTranslate: string[]; terms: Record<string, Record<string,
 const MARKER = '[to be translated]'
 const ROOT = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
-const DIRECT_MODEL = process.env.TRANSLATION_MODEL ?? 'deepseek/deepseek-v4-flash'
-const DIRECT_BASE_URL = process.env.TRANSLATION_BASE_URL ?? 'https://api.ppinfra.com/openai/v1'
-const RESEARCH_MODEL = process.env.I18N_RESEARCH_MODEL ?? 'claude-sonnet-5'
-const CLAUDE_TRANSLATE_MODEL = process.env.I18N_TRANSLATE_MODEL ?? 'claude-sonnet-5'
+const MODEL = process.env.TRANSLATION_MODEL ?? 'deepseek/deepseek-v4-flash'
+const BASE_URL = process.env.TRANSLATION_BASE_URL ?? 'https://api.ppinfra.com/openai/v1'
 // 400 strings took 289s in batches of 50 and 118s in one batch of 200, with the same completeness.
 const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE ?? 200)
 const CONCURRENCY = 3
 
-const flagValue = (name: string, fallback: string) => {
-  const index = process.argv.indexOf(name)
-  return index === -1 ? fallback : process.argv[index + 1]
-}
-
-// Two independent switches, so "does research help?" can be measured without also changing model.
-const RESEARCH = process.argv.includes('--research') || process.env.I18N_RESEARCH === 'true'
-const TRANSLATOR = flagValue('--translator', process.env.I18N_TRANSLATOR ?? 'endpoint')
-if (TRANSLATOR !== 'endpoint' && TRANSLATOR !== 'claude') {
-  throw new Error(`unknown translator "${TRANSLATOR}", expected "endpoint" or "claude"`)
-}
-
-/**
- * Per-stage accounting. Research and translation are billed by different providers, so they are
- * reported separately rather than as one number that hides which stage the spend came from.
- */
-const stats = {
-  research: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 },
-  translate: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }
-}
-type Stage = keyof typeof stats
+const stats = { inputTokens: 0, outputTokens: 0, requests: 0 }
 
 // Renderer and main each own an independent catalog (locales/ + translate/); translate both.
 const CATALOGS = [
@@ -177,123 +151,9 @@ export const validate = (english: string, translation: string, doNotTranslate: s
   return null
 }
 
-// ----------------------------------------------------------------- agent calls
+// ---------------------------------------------------------------- translation
 
-const runQuery = async <T>(prompt: string, options: Options, stage: Stage): Promise<T> => {
-  for await (const message of query({ prompt, options })) {
-    if (message.type !== 'result') continue
-    stats[stage].requests += 1
-    stats[stage].costUsd += message.total_cost_usd ?? 0
-    stats[stage].inputTokens += message.usage?.input_tokens ?? 0
-    stats[stage].outputTokens += message.usage?.output_tokens ?? 0
-    if (message.subtype !== 'success') {
-      throw new Error(`agent run failed: ${message.subtype}`)
-    }
-    if (!message.structured_output) {
-      throw new Error('agent returned no structured output')
-    }
-    return message.structured_output as T
-  }
-  throw new Error('agent stream ended without a result')
-}
-
-const BRIEF_SCHEMA = {
-  type: 'object',
-  properties: {
-    briefs: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          key: { type: 'string' },
-          uiRole: { type: 'string', description: 'button | label | tooltip | modal title | toast | error | ...' },
-          meaning: { type: 'string', description: 'What the string tells the user, with ambiguous terms resolved' },
-          tone: { type: 'string' },
-          lengthHint: { type: 'string', description: 'tight | moderate | free' },
-          usage: { type: 'string', description: 'file:line of a real usage, or "not found"' }
-        },
-        required: ['key', 'uiRole', 'meaning', 'tone', 'lengthHint', 'usage']
-      }
-    }
-  },
-  required: ['briefs']
-}
-
-const RESEARCH_PROMPT = `You are researching UI strings in the Cherry Studio codebase (an Electron desktop AI client) so that translators can render them correctly in other languages.
-
-For each key below, find where it is used and describe what the string actually is in the product.
-
-- Renderer UI strings live under src/renderer, main-process strings under src/main.
-- Grep for the full key path. Keys appear as t('<key>'), i18n.t('<key>'), <Trans i18nKey="<key>">, or in props like titleKey / labelKey / messageKey.
-- Read enough of the surrounding code to tell which UI element renders the string (button, menu item, settings label, tooltip, modal title, toast, inline error, table header, empty state) and what the user is doing at that moment.
-- Sibling keys under the same namespace tell you which panel or flow the string belongs to.
-- If a key has no usage yet, say "not found" and infer from the key path and its siblings.
-
-lengthHint: "tight" for buttons, menu items and labels that sit in a fixed-width control; "moderate" for titles and short hints; "free" for descriptions and paragraphs.
-
-`
-
-const research = async (keys: PendingKey[]): Promise<Map<string, Brief>> => {
-  const batches: { scope: string; keys: PendingKey[] }[] = []
-  for (const scope of new Set(keys.map((key) => key.scope))) {
-    const scoped = keys.filter((key) => key.scope === scope)
-    for (let i = 0; i < scoped.length; i += BATCH_SIZE) {
-      batches.push({ scope, keys: scoped.slice(i, i + BATCH_SIZE) })
-    }
-  }
-
-  const briefs = new Map<string, Brief>()
-  const results = await mapPool(batches, CONCURRENCY, async ({ scope, keys: batch }) => {
-    const list = batch.map(({ key, english }) => `- ${key} = ${JSON.stringify(english)}`).join('\n')
-    const header = `These keys belong to the ${scope}-process catalog, so their usages are under src/${scope}.\n\nKeys to research:\n`
-    return runQuery<{ briefs: Brief[] }>(
-      RESEARCH_PROMPT + header + list,
-      {
-        model: RESEARCH_MODEL,
-        cwd: ROOT,
-        settingSources: [],
-        allowedTools: ['Grep', 'Glob', 'Read'],
-        permissionMode: 'dontAsk',
-        maxTurns: 80,
-        outputFormat: { type: 'json_schema', schema: BRIEF_SCHEMA }
-      },
-      'research'
-    )
-  })
-
-  for (const [index, result] of results.entries()) {
-    for (const brief of result.briefs ?? []) {
-      briefs.set(`${batches[index].scope}:${brief.key}`, brief)
-    }
-  }
-  return briefs
-}
-
-const TRANSLATION_SCHEMA = {
-  type: 'object',
-  properties: {
-    translations: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          key: { type: 'string' },
-          text: { type: 'string' }
-        },
-        required: ['key', 'text']
-      }
-    }
-  },
-  required: ['translations']
-}
-
-const translatePrompt = (
-  locale: string,
-  glossary: Glossary,
-  items: unknown[],
-  briefed: boolean,
-  style: StyleExample[]
-): string => {
+const translatePrompt = (locale: string, glossary: Glossary, items: unknown[], style: StyleExample[]): string => {
   const pins = Object.entries(glossary.terms)
     .map(([term, entry]) => {
       const pinned = entry[locale]
@@ -302,20 +162,16 @@ const translatePrompt = (
     })
     .join('\n')
 
-  const situation = briefed
-    ? 'Each string below comes with a brief describing where it appears in the UI — translate for that situation, not for the sentence in isolation.'
-    : 'Each string below comes with its full i18n key path, which tells you which screen and which kind of control it belongs to — translate for that situation, not for the sentence in isolation.'
-
   return `Translate Cherry Studio UI strings from English into ${LANGUAGE_NAMES[locale]}.
 
-Cherry Studio is a desktop AI chat client. ${situation}
+Cherry Studio is a desktop AI chat client. Each string below comes with its full i18n key path, which tells you which screen and which kind of control it belongs to — translate for that situation, not for the sentence in isolation.
 
 Rules:
 - Return only the translated string. No explanations, no bracketed notes, no quotes around the result.
 - Copy every {{variable}} through unchanged. Never translate or rename the text inside {{ }}, never drop one, and never substitute the value it stands for.
 - Copy every tag placeholder and $t(...) reference through unchanged, including named ones such as <provider>...</provider>, <link>...</link>, <strong>...</strong> and <INPUT>...</INPUT>. They wrap the text in a link or other component at runtime, so translate what is between the tags and never rename, reorder away or drop the tags themselves.
 - Keep these verbatim in Latin script: ${glossary.doNotTranslate.join(', ')}.
-- Keep button, menu and label strings roughly as short as the English, because they sit in fixed-width controls.${briefed ? ' Follow lengthHint when it says "tight".' : ''}
+- Keep button, menu and label strings roughly as short as the English, because they sit in fixed-width controls.
 - Use the established terminology below. Inflect it as the target language requires, but do not switch to a synonym.
 - zhCn is a human-reviewed translation of the same string. Use it to resolve ambiguity in the English; do not translate from it.
 - Match the register, politeness level and punctuation of the existing translations shown below. They come from this same catalog, so following them keeps the UI consistent.
@@ -328,53 +184,32 @@ ${JSON.stringify(items, null, 2)}
 `
 }
 
-const toTranslationMap = (translations: { key: string; text: string }[] | undefined) =>
-  new Map((translations ?? []).map(({ key, text }) => [key, text]))
-
-const translateViaAgent = async (locale: string, glossary: Glossary, items: unknown[], style: StyleExample[]) => {
-  const briefed = RESEARCH
-  const result = await runQuery<{ translations: { key: string; text: string }[] }>(
-    translatePrompt(locale, glossary, items, briefed, style),
-    {
-      model: CLAUDE_TRANSLATE_MODEL,
-      cwd: ROOT,
-      settingSources: [],
-      allowedTools: [],
-      permissionMode: 'dontAsk',
-      maxTurns: 2,
-      outputFormat: { type: 'json_schema', schema: TRANSLATION_SCHEMA }
-    },
-    'translate'
-  )
-  return toTranslationMap(result.translations)
-}
-
 let openai: OpenAI | undefined
-const translateViaEndpoint = async (locale: string, glossary: Glossary, items: unknown[], style: StyleExample[]) => {
-  openai ??= new OpenAI({ apiKey: process.env.TRANSLATION_API_KEY ?? '', baseURL: DIRECT_BASE_URL })
+const translateBatch = async (locale: string, glossary: Glossary, items: unknown[], style: StyleExample[]) => {
+  openai ??= new OpenAI({ apiKey: process.env.TRANSLATION_API_KEY ?? '', baseURL: BASE_URL })
 
   const completion = await openai.chat.completions.create({
-    model: DIRECT_MODEL,
+    model: MODEL,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: 'You are a software localisation expert. Reply with JSON only.' },
       {
         role: 'user',
-        content: `${translatePrompt(locale, glossary, items, RESEARCH, style)}
+        content: `${translatePrompt(locale, glossary, items, style)}
 Reply with a JSON object of the form {"translations":[{"key":"<the key exactly as given>","text":"<the translation>"}]}, one entry per string above.`
       }
     ]
   })
 
-  stats.translate.requests += 1
-  stats.translate.inputTokens += completion.usage?.prompt_tokens ?? 0
-  stats.translate.outputTokens += completion.usage?.completion_tokens ?? 0
+  stats.requests += 1
+  stats.inputTokens += completion.usage?.prompt_tokens ?? 0
+  stats.outputTokens += completion.usage?.completion_tokens ?? 0
 
   const content = completion.choices[0]?.message?.content
   if (!content) throw new Error('endpoint returned an empty reply')
   // A malformed reply must not fall through as "no translations" — that would silently pass validation.
   const parsed = JSON.parse(content) as { translations?: { key: string; text: string }[] }
-  return toTranslationMap(parsed.translations)
+  return new Map((parsed.translations ?? []).map(({ key, text }) => [key, text]))
 }
 
 // ------------------------------------------------------------------- pipeline
@@ -456,29 +291,17 @@ const collectTargets = (localeFilter?: string): Target[] => {
   return targets
 }
 
-const translateTarget = async (target: Target, briefs: Map<string, Brief>, glossary: Glossary) => {
+const translateTarget = async (target: Target, glossary: Glossary) => {
   const accepted: Record<string, string> = {}
   const rejected: { key: string; reason: string }[] = []
 
   for (let i = 0; i < target.pending.length; i += BATCH_SIZE) {
     const batch = target.pending.slice(i, i + BATCH_SIZE)
-    const items = batch.map(({ scope, key, english, zhCn }) => {
-      const brief = briefs.get(`${scope}:${key}`)
-      return {
-        key,
-        english,
-        ...(zhCn ? { zhCn } : {}),
-        ...(brief
-          ? { uiRole: brief.uiRole, meaning: brief.meaning, tone: brief.tone, lengthHint: brief.lengthHint }
-          : {})
-      }
-    })
+    const items = batch.map(({ key, english, zhCn }) => ({ key, english, ...(zhCn ? { zhCn } : {}) }))
 
     let translations: Map<string, string>
     try {
-      translations = await (TRANSLATOR === 'claude'
-        ? translateViaAgent(target.locale, glossary, items, target.style)
-        : translateViaEndpoint(target.locale, glossary, items, target.style))
+      translations = await translateBatch(target.locale, glossary, items, target.style)
     } catch (error) {
       for (const { key } of batch) {
         rejected.push({ key, reason: `translation request failed: ${(error as Error).message}` })
@@ -528,15 +351,9 @@ const main = async () => {
   console.log(`📊 ${totalPending} strings pending across ${targets.length} files (${uniqueKeys.size} unique keys)`)
 
   const startedAt = Date.now()
-  let briefs = new Map<string, Brief>()
-  if (RESEARCH) {
-    console.log(`🔍 Researching UI context with ${RESEARCH_MODEL}...`)
-    briefs = await research([...uniqueKeys.values()])
-    console.log(`📝 Got ${briefs.size}/${uniqueKeys.size} briefs.`)
-  }
-  console.log(`📝 Translating with ${TRANSLATOR === 'claude' ? CLAUDE_TRANSLATE_MODEL : DIRECT_MODEL}...`)
+  console.log(`📝 Translating with ${MODEL}...`)
 
-  const results = await mapPool(targets, CONCURRENCY, (target) => translateTarget(target, briefs, glossary))
+  const results = await mapPool(targets, CONCURRENCY, (target) => translateTarget(target, glossary))
 
   let rejectedTotal = 0
   for (const { target, accepted, rejected } of results) {
@@ -545,11 +362,7 @@ const main = async () => {
 
     if (dryRun) {
       console.log(`\n📁 ${label}`)
-      for (const [key, text] of Object.entries(accepted)) {
-        const brief = briefs.get(`${target.scope}:${key}`)
-        console.log(`  ✓ ${key} = ${text}`)
-        if (brief) console.log(`      ${brief.uiRole} · ${brief.lengthHint} · ${brief.usage}\n      ${brief.meaning}`)
-      }
+      for (const [key, text] of Object.entries(accepted)) console.log(`  ✓ ${key} = ${text}`)
     } else if (Object.keys(accepted).length > 0) {
       for (const [key, text] of Object.entries(accepted)) setAt(target.json, key, text)
       fs.writeFileSync(target.filePath, JSON.stringify(sortedObjectByKeys(target.json), null, 2) + '\n', 'utf-8')
@@ -562,22 +375,9 @@ const main = async () => {
   }
 
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
-  const line = (stage: Stage, who: string) => {
-    const s = stats[stage]
-    if (s.requests === 0) return null
-    const cost =
-      s.costUsd > 0
-        ? `, $${s.costUsd.toFixed(4)} (${who} billing)`
-        : ' (endpoint billing, cost not reported by the API)'
-    return `   ${stage}: ${s.requests} requests, ${s.inputTokens} in / ${s.outputTokens} out tokens${cost}`
-  }
-  console.log(`\n⏱️  research=${RESEARCH} translator=${TRANSLATOR}, batch=${BATCH_SIZE}, ${elapsed}s`)
-  for (const l of [
-    line('research', 'Claude SDK'),
-    line('translate', TRANSLATOR === 'claude' ? 'Claude SDK' : 'endpoint')
-  ]) {
-    if (l) console.log(l)
-  }
+  console.log(
+    `\n⏱️  ${elapsed}s, ${stats.requests} requests of up to ${BATCH_SIZE} strings, ${stats.inputTokens} in / ${stats.outputTokens} out tokens`
+  )
 
   if (rejectedTotal > 0) {
     console.error(`\n❌ ${rejectedTotal} strings failed validation and kept their placeholder. Re-run to retry them.`)
