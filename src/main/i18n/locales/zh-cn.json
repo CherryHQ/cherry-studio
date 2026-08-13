@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交"
       }
     },
     "session": {
