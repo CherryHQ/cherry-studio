@@ -4,6 +4,7 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { CirclePause } from 'lucide-react'
+import { toast } from '@renderer/services/toast'
 import {
   type ComponentType,
   type DragEvent as ReactDragEvent,
@@ -213,7 +214,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         <CirclePause size={20} />
       </button>
     ) : (
-      <SendMessageButton disabled={props.sendDisabled} sendMessage={() => void props.onSendDraft(getFallbackDraft())} />
+      <SendMessageButton disabled={props.sendDisabled} sendMessage={() => void props.onSendDraft(getFallbackDraft())} onDisabledClick={props.sendBlockedReason ? () => toast.error(props.sendBlockedReason) : undefined} />
     )
   const isCompact = props.compactWhenSingleLine && props.text.trim().length <= 1 && !props.isExpanded
   const inputbarElement = (
