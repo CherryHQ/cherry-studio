@@ -1,3 +1,4 @@
+---
 '@cherrystudio/ai-core': patch
 '@cherrystudio/ai-sdk-provider': patch
 ---
