@@ -49,6 +49,21 @@ export const APPROX_CHARS_PER_TOKEN = 3
  */
 export const MIN_IN_FLIGHT_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Share of the window the attachment budget may draw on after the output
+ * reservation. The headroom absorbs provider protocol framing and estimator
+ * error — the estimate is deliberately not a ledger.
+ */
+export const ATTACHMENT_INPUT_SAFETY_RATIO = 0.9
+
+/**
+ * Floor under `contextWindow − output reservation`. Catalogue data where
+ * `maxOutputTokens` meets or exceeds `contextWindow` is common (83 registry
+ * models), and an unfloored subtraction turns every window-relative budget
+ * non-positive — the shape of #18318.
+ */
+export const MIN_INPUT_ROOM_RATIO = 0.2
+
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
 /** Process-local credential proving that a gateway request originated inside Cherry. */
