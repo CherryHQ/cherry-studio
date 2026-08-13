@@ -18,13 +18,25 @@ interface Props {
  * come back on the next launch.
  */
 export function ApiGatewayRequiredDialog({ sessionId, messages, sendMessage }: Props) {
-  const { t } = useTranslation()
-  const { startApiGateway } = useApiGateway()
   const [open, setOpen] = useState(false)
 
   useIpcOn('api_gateway.required', (payload) => {
     if (payload.sessionId === sessionId) setOpen(true)
   })
+
+  // Every agent chat renders this, but the prompt is rare — keep the gateway preference and
+  // shared-cache subscriptions out of the common path until it actually fires.
+  if (!open) return null
+  return <GatewayPrompt messages={messages} sendMessage={sendMessage} onOpenChange={setOpen} />
+}
+
+function GatewayPrompt({
+  messages,
+  sendMessage,
+  onOpenChange
+}: Omit<Props, 'sessionId'> & { onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation()
+  const { startApiGateway } = useApiGateway()
 
   const handleConfirm = async () => {
     // `startApiGateway` toasts its own failure and returns false (e.g. the port is taken).
@@ -35,8 +47,8 @@ export function ApiGatewayRequiredDialog({ sessionId, messages, sendMessage }: P
 
   return (
     <ConfirmDialog
-      open={open}
-      onOpenChange={setOpen}
+      open
+      onOpenChange={onOpenChange}
       title={t('apiGateway.required.title')}
       description={t('apiGateway.required.description')}
       confirmText={t('apiGateway.required.confirm')}
