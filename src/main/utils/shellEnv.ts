@@ -281,7 +281,14 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
   })
 }
 
-let cachedEnv: Record<string, string> | null = null
+const SHELL_ENV_CACHE_KEY = 'system.shell_env'
+
+// How long a captured env stays usable before the next reader re-resolves it, so
+// a PATH changed after launch (newly installed tool) reaches spawned processes
+// without an app restart. Windows resolves it from a cheap registry read, so it
+// can re-read at will; POSIX spawns a login shell and pays that once a minute.
+const SHELL_ENV_TTL_MS = isWin ? 1_000 : 60_000
+
 let inflight: Promise<Record<string, string>> | null = null
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
@@ -312,7 +319,7 @@ function loadShellEnv(): Promise<Record<string, string>> {
   // is always populated and `inflight` always cleared.
   inflight = fetchShellEnv()
     .then((env) => {
-      cachedEnv = env
+      application.get('CacheService').set(SHELL_ENV_CACHE_KEY, env, SHELL_ENV_TTL_MS)
       return env
     })
     .finally(() => {
@@ -322,16 +329,16 @@ function loadShellEnv(): Promise<Record<string, string>> {
 }
 
 /**
- * Get the cached shell environment. If no cache exists yet, fetches it once.
- * This is a pure query -- it never invalidates the cache.
+ * Get the shell environment, re-resolving it once the cached capture expires.
+ * This is a pure query -- it never forces a refresh.
  *
  * Returns a shallow copy: callers routinely mutate the env they get back (e.g.
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
 export async function getRawShellEnv(): Promise<Record<string, string>> {
-  const env = cachedEnv ?? (await loadShellEnv())
-  return { ...env }
+  const cached = application.get('CacheService').get<Record<string, string>>(SHELL_ENV_CACHE_KEY)
+  return { ...(cached ?? (await loadShellEnv())) }
 }
 
 export async function getShellEnv(): Promise<Record<string, string>> {
@@ -364,6 +371,6 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     applyBinaryExecutionEnv(env)
     return env
   }
-  cachedEnv = null
+  application.get('CacheService').delete(SHELL_ENV_CACHE_KEY)
   return getShellEnv()
 }

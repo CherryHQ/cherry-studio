@@ -14,18 +14,19 @@ vi.mock('@main/core/platform', () => ({
   isPortable: false
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    getPath: (key: string) => {
-      if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
-      if (key === 'feature.binary.data') {
-        return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
-      }
-      if (key === 'sys.home') return 'C:\\Users\\test'
-      return `/mock/${key}`
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory()
+  mocked.application.getPath = vi.fn((key: string) => {
+    if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
+    if (key === 'feature.binary.data') {
+      return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
     }
-  }
-}))
+    if (key === 'sys.home') return 'C:\\Users\\test'
+    return `/mock/${key}`
+  })
+  return mocked
+})
 
 vi.mock('child_process')
 
@@ -49,6 +50,8 @@ vi.mock('../bundledGit', () => ({
 }))
 
 // Import AFTER mocks are registered so the module binds to mocked values.
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import { getBundledGitDir } from '../bundledGit'
 import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
@@ -90,6 +93,7 @@ describe('shellEnv – Windows registry PATH', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
 
     // Minimal process.env used by getWindowsEnvironment()
     process.env = {
@@ -258,6 +262,25 @@ describe('shellEnv – Windows registry PATH', () => {
     await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
 
     expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
+  })
+
+  // -- staleness ------------------------------------------------------------
+
+  it('picks up a PATH installed after launch without an explicit refresh', async () => {
+    vi.useFakeTimers()
+    try {
+      mockRegistryPaths({ system: 'C:\\Windows' })
+      await getShellEnv()
+
+      // User installs a tool (e.g. ffmpeg) and it lands in the system PATH.
+      mockRegistryPaths({ system: 'C:\\Windows;C:\\ffmpeg\\bin' })
+      vi.advanceTimersByTime(1_001)
+
+      const env = await getShellEnv()
+      expect(env.Path).toContain('C:\\ffmpeg\\bin')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // -- cache isolation ------------------------------------------------------
