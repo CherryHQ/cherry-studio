@@ -26,7 +26,7 @@ vi.mock('@application', () => ({
 
 vi.mock('@main/core/platform', () => ({ isLinux: false, isWin: false }))
 
-vi.mock('@main/services/bundledArtifacts', () => ({
+vi.mock('@main/utils/bundledArtifacts', () => ({
   cleanupOtherArtifactVersions: mocks.cleanupOtherArtifactVersions,
   isBundledFileReady: mocks.isBundledFileReady,
   materializeBundledFile: mocks.materializeBundledFile,

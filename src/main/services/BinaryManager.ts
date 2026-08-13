@@ -13,6 +13,14 @@ import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
+import {
+  cleanupOtherArtifactVersions,
+  isBundledFileReady,
+  isBundledTreeReady,
+  materializeBundledFile,
+  materializeBundledTree,
+  recoverStaleBundledArtifactPaths
+} from '@main/utils/bundledArtifacts'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -37,15 +45,6 @@ import type {
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
-
-import {
-  cleanupOtherArtifactVersions,
-  isBundledFileReady,
-  isBundledTreeReady,
-  materializeBundledFile,
-  materializeBundledTree,
-  recoverStaleBundledArtifactPaths
-} from './bundledArtifacts'
 
 const logger = loggerService.withContext('BinaryManager')
 

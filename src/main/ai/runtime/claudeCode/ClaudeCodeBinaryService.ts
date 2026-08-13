@@ -5,14 +5,14 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
+import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
 import {
   cleanupOtherArtifactVersions,
   isBundledFileReady,
   materializeBundledFile,
   recoverStaleBundledArtifactPaths
-} from '@main/services/bundledArtifacts'
-import { toAsarUnpackedPath } from '@main/utils/asar'
-import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
+} from '@main/utils/bundledArtifacts'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('ClaudeCodeBinaryService')

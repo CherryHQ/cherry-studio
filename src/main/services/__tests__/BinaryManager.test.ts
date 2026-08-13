@@ -77,7 +77,7 @@ vi.mock('@main/utils/bundledArtifactManifest', () => ({
   readBundledArtifactManifest: vi.fn(() => bundledManifestRef.value)
 }))
 
-vi.mock('../bundledArtifacts', () => ({
+vi.mock('@main/utils/bundledArtifacts', () => ({
   cleanupOtherArtifactVersions: mockCleanupOtherArtifactVersions,
   isBundledFileReady: mockIsBundledFileReady,
   isBundledTreeReady: mockIsBundledTreeReady,
