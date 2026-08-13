@@ -5,11 +5,21 @@ import { InfiniteQueryCacheManager } from '../InfiniteQueryCacheManager'
 
 const RELEASE_DELAY_MS = 1_000
 const IDLE_TTL_MS = 10 * 60_000
+const RETENTION_OPTIONS = {
+  idleTtlMs: IDLE_TTL_MS,
+  maxInactiveGroups: 4,
+  maxInactivePages: 12,
+  releaseDelayMs: RELEASE_DELAY_MS
+} as const
 
 type TestCache = Cache & Pick<Map<string, unknown>, 'has'>
 
 function createCache(): TestCache {
   return new Map<string, unknown>() as unknown as TestCache
+}
+
+function createManager(): InfiniteQueryCacheManager {
+  return new InfiniteQueryCacheManager(RETENTION_OPTIONS, globalThis.Date)
 }
 
 function seedGroup(manager: InfiniteQueryCacheManager, cache: TestCache, id: string, pageCount: number) {
@@ -45,7 +55,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('keeps a pending eviction from deleting a group acquired again', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 13)
     const finishRequest = manager.beginRequest(cache, group.groupKey, group.pageKeys[0])
@@ -63,7 +73,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('does not clear SWR entries when acquire removes a group from the inactive LRU', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 2)
 
@@ -77,7 +87,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('removes cursor pages replaced by the current page chain', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 2)
     const firstPageKey = group.pageKeys[0]
@@ -101,7 +111,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('waits for a replaced page request and the next page-chain sync before deleting it', () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 2)
     const [firstPageKey, oldCursorPageKey] = group.pageKeys
@@ -121,7 +131,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('removes a failed request key that never joined the page chain', () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 1)
     const failedPageKey = 'conversation:cursor:failed'
@@ -135,7 +145,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('keeps a group active until its final subscriber releases it', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 13)
     const releaseSecondSubscriber = manager.acquire(cache, group.groupKey)
@@ -150,7 +160,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('actively expires an inactive group without another cache access', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 2)
 
@@ -164,7 +174,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('waits for an in-flight request and one macrotask before deleting the group', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const group = seedGroup(manager, cache, 'conversation', 13)
     const finishRequest = manager.beginRequest(cache, group.groupKey, group.pageKeys[0])
@@ -182,7 +192,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('retains at most four inactive groups', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const groups = Array.from({ length: 5 }, (_, index) => seedGroup(manager, cache, `group-${index}`, 1))
 
@@ -194,7 +204,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('retains at most twelve page keys across inactive groups', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const cache = createCache()
     const groups = Array.from({ length: 3 }, (_, index) => seedGroup(manager, cache, `group-${index}`, 5))
 
@@ -206,7 +216,7 @@ describe('InfiniteQueryCacheManager', () => {
   })
 
   it('isolates identical group keys owned by different SWR providers', async () => {
-    const manager = new InfiniteQueryCacheManager()
+    const manager = createManager()
     const firstCache = createCache()
     const secondCache = createCache()
     const firstGroup = seedGroup(manager, firstCache, 'conversation', 13)

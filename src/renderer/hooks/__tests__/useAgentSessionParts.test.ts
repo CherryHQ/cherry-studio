@@ -14,7 +14,6 @@ const dataApiMocks = vi.hoisted(() => ({
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: dataApiMocks.useDataChange,
   useInfiniteFlatItems: dataApiMocks.useInfiniteFlatItems,
-  useInfiniteQuery: dataApiMocks.useInfiniteQuery,
   useMutation: dataApiMocks.useMutation
 }))
 vi.mock('../useConversationHistoryQuery', () => ({

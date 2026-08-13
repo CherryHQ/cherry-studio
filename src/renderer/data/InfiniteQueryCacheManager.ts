@@ -1,12 +1,16 @@
 import { LRUCache } from 'lru-cache'
 import type { Cache } from 'swr'
 
-const CONVERSATION_HISTORY_RETENTION = {
-  idleTtlMs: 10 * 60_000,
-  maxInactiveGroups: 4,
-  maxInactivePages: 12,
-  releaseDelayMs: 1_000
-} as const
+export interface InfiniteQueryRetentionOptions {
+  idleTtlMs: number
+  maxInactiveGroups: number
+  maxInactivePages: number
+  releaseDelayMs: number
+}
+
+interface RetentionClock {
+  now(): number
+}
 
 interface CacheGroup {
   currentPageKeys: Set<string>
@@ -30,6 +34,11 @@ interface ProviderState {
 /** Coordinates bounded retention for inactive SWR infinite-query cache groups. */
 export class InfiniteQueryCacheManager {
   private providers = new WeakMap<Cache, ProviderState>()
+
+  constructor(
+    private readonly options: InfiniteQueryRetentionOptions,
+    private readonly clock?: RetentionClock
+  ) {}
 
   acquire(cache: Cache, groupKey: string): () => void {
     const provider = this.getProvider(cache)
@@ -108,12 +117,11 @@ export class InfiniteQueryCacheManager {
     if (existing) return existing
 
     const inactiveGroups = new LRUCache<string, CacheGroup>({
-      max: CONVERSATION_HISTORY_RETENTION.maxInactiveGroups,
-      maxSize: CONVERSATION_HISTORY_RETENTION.maxInactivePages,
-      // Resolve the clock per provider instead of using lru-cache's import-time snapshot.
-      perf: globalThis.performance,
+      max: this.options.maxInactiveGroups,
+      maxSize: this.options.maxInactivePages,
+      perf: this.clock ?? globalThis.performance,
       sizeCalculation: (group) => Math.max(1, group.pageKeys.size),
-      ttl: CONVERSATION_HISTORY_RETENTION.idleTtlMs,
+      ttl: this.options.idleTtlMs,
       ttlAutopurge: true,
       dispose: (group, _groupKey, reason) => {
         const provider = this.providers.get(cache)
@@ -154,11 +162,11 @@ export class InfiniteQueryCacheManager {
       group.releaseTimer = undefined
       if (group.subscribers > 0 || group.generation !== generation) return
       this.addInactiveGroup(provider, group, generation)
-    }, CONVERSATION_HISTORY_RETENTION.releaseDelayMs)
+    }, this.options.releaseDelayMs)
   }
 
   private addInactiveGroup(provider: ProviderState, group: CacheGroup, generation: number): void {
-    if (group.pageKeys.size > CONVERSATION_HISTORY_RETENTION.maxInactivePages) {
+    if (group.pageKeys.size > this.options.maxInactivePages) {
       this.requestEviction(provider, group, generation)
       return
     }
@@ -220,5 +228,3 @@ export class InfiniteQueryCacheManager {
     group[timer] = undefined
   }
 }
-
-export const infiniteQueryCacheManager = new InfiniteQueryCacheManager()
