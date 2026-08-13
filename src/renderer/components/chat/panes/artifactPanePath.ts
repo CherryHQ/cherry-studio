@@ -67,10 +67,14 @@ export const resolveArtifactPaneFileSelection = (
   workspacePath: string | undefined,
   rawPath: string
 ): ArtifactPaneFileSelection | null => {
-  const normalized = normalizeTreePath(rawPath)
-  if (!normalized) return null
+  const normalizedRawPath = normalizeTreePath(rawPath)
+  if (!normalizedRawPath) return null
 
   const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  const normalized =
+    parsedWorkspacePath?.success && /^[A-Za-z]:[\\/]/.test(parsedWorkspacePath.data)
+      ? normalizedRawPath.replace(/^([A-Za-z]:)(?=[^/])/, '$1/')
+      : normalizedRawPath
   if (parsedWorkspacePath?.success) {
     const validWorkspacePath = parsedWorkspacePath.data
     const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)
