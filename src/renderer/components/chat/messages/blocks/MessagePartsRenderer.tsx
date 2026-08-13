@@ -15,6 +15,7 @@
  */
 
 import { loggerService } from '@logger'
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
@@ -44,7 +45,6 @@ import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
-import MessageVideo from '../frame/MessageVideo'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
@@ -89,6 +89,8 @@ const referenceCitationsCache = new WeakMap<
   ContentReference[],
   { citations: Citation[]; citationReferences?: CitationReferenceView[] }
 >()
+
+const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -617,7 +619,11 @@ function renderPart(
     case 'data-video': {
       const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
-      return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
+      return (
+        <React.Suspense key={partId} fallback={null}>
+          <MessageVideo url={rawData.url} filePath={rawData.filePath} />
+        </React.Suspense>
+      )
     }
 
     case 'data-retry': {
@@ -1516,14 +1522,16 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (
-    <MessagePartsRendererContent
-      collapseCompletedToolHistory={collapseCompletedToolHistory}
-      isActiveTurnProcessing={isActiveTurnProcessing}
-      isStreamLive={isStreamLive}
-      isTranslationOverlayActive={isTranslationOverlayActive}
-      message={message}
-      messageParts={messageParts}
-    />
+    <HtmlArtifactPopupHost>
+      <MessagePartsRendererContent
+        collapseCompletedToolHistory={collapseCompletedToolHistory}
+        isActiveTurnProcessing={isActiveTurnProcessing}
+        isStreamLive={isStreamLive}
+        isTranslationOverlayActive={isTranslationOverlayActive}
+        message={message}
+        messageParts={messageParts}
+      />
+    </HtmlArtifactPopupHost>
   )
 }
 

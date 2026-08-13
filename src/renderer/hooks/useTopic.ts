@@ -537,7 +537,7 @@ export function useTopicMutations() {
           try {
             await invalidate(refreshKeys)
           } catch (refreshErr) {
-            logger.error('Failed to refresh topics after partial topic move', { refreshErr, topicId })
+            logger.error('Failed to refresh topics after topic move error', { refreshErr, topicId })
           }
         }
         throw err

@@ -115,6 +115,16 @@ describe('PinService', () => {
 
       expect(result).toMatchObject({ entityType: 'agent', entityId: AGENT_ID })
     })
+
+    it('should publish agent session read-model effects for session pins', () => {
+      const result = pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/pins/:id', entityIds: [result.id] },
+        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+      ])
+    })
   })
 
   describe('unpin', () => {

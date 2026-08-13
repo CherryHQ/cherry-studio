@@ -361,8 +361,6 @@ describe('useTopicMutations', () => {
     const { result } = renderHook(() => useTopicMutations())
     const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
 
-    // `expect(act(...)).rejects` observes the rejection before moveTopic's catch block finishes,
-    // so catch the rethrow manually inside act and assert afterwards.
     let caught: unknown
     await act(async () => {
       try {

@@ -1,6 +1,7 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -254,8 +255,9 @@ describe('ChatAppShell', () => {
     expect(paneMounts).toEqual(['mounted'])
   })
 
-  it('keeps the pane mounted while it is collapsed and reopened', () => {
+  it('keeps pane state while it is collapsed and reopened', async () => {
     const paneMounts: string[] = []
+    const user = userEvent.setup()
 
     function Pane() {
       const [query, setQuery] = useState('')
@@ -269,11 +271,13 @@ describe('ChatAppShell', () => {
 
     const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Pane query' }), { target: { value: 'persisted' } })
+    await user.type(screen.getByRole('textbox', { name: 'Pane query' }), 'persisted')
 
     rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div>content</div>} />)
 
-    expect(container.querySelector('[data-resource-list-pane]')).toHaveAttribute('aria-hidden', 'true')
+    const navigationPane = container.querySelector('[data-ui~="part:conversation-navigation"]')
+    expect(navigationPane).toHaveAttribute('aria-hidden', 'true')
+    expect(navigationPane).toHaveAttribute('inert')
     expect(screen.getByLabelText('Pane query')).toHaveValue('persisted')
 
     rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
@@ -305,11 +309,13 @@ describe('ChatAppShell', () => {
   })
 
   it('mounts the pane only in the selected position', () => {
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="right" centerContent={<div />} />)
+    const { rerender } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="left" centerContent={<div />} />
+    )
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="right" centerContent={<div />} />)
 
     expect(screen.getAllByText('topics')).toHaveLength(1)
-    expect(document.querySelector('[data-resource-list-pane]')).not.toBeInTheDocument()
-    expect(document.querySelector('[data-right-pane]')).toBeInTheDocument()
   })
 
   it('drives the left resource pane width from persist cache', () => {

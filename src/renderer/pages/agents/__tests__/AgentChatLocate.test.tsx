@@ -364,6 +364,12 @@ describe('AgentChat locate pending message', () => {
         },
         file: {
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
+        },
+        // Replacing `window.api` wholesale drops the setup's IpcApi bridge, which `useIpcOn`
+        // subscribers in the tree call on mount.
+        ipcApi: {
+          request: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(() => () => {})
         }
       }
     })

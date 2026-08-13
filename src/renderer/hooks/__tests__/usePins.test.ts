@@ -1,5 +1,5 @@
 import type { Pin } from '@shared/data/types/pin'
-import { MockUseDataApiUtils, mockUseDataChange, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -107,15 +107,16 @@ describe('usePins', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: true, query: { entityType: 'model' } })
   })
 
-  it('refetches mounted pins when Main publishes a pin change', () => {
+  it('refetches mounted pins when another window changes pin data', () => {
     const refetch = wirePins([MODEL_PIN_A])
     wireMutations()
     renderHook(() => usePins('model'))
 
-    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
-    listener?.([{ endpoint: '/pins', kind: 'membership' }])
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    })
 
-    expect(refetch).toHaveBeenCalled()
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('disables the /pins query and toggle when enabled is false', async () => {

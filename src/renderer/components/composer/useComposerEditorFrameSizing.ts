@@ -8,6 +8,8 @@ import type {
 } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { getCompactComposerEditorMinHeight, getComposerEditorMinHeight } from './composerSizing'
+
 export const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
 export const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
 export const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
@@ -39,14 +41,6 @@ const COMPOSER_EDITOR_ELEMENT_STYLE = [
   'overflow-y: var(--composer-editor-overflow-y)',
   'height: var(--composer-editor-height)'
 ].join('; ')
-
-export function getComposerEditorMinHeight(fontSize: number) {
-  return Math.ceil(fontSize * 1.4 * 2 + 6)
-}
-
-export function getCompactComposerEditorMinHeight(fontSize: number) {
-  return Math.ceil(fontSize * 1.4 + 6)
-}
 
 function getViewportRelativeHeightPx(minHeight: number, viewportRatio: number) {
   return Math.max(minHeight, Math.round(window.innerHeight * viewportRatio))

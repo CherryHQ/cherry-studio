@@ -9,15 +9,14 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
-import { useSessionMutations } from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { AGENT_SESSION_DELETE_MAX_IDS } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -92,8 +91,7 @@ export function AgentResourceList({
     isStatsLoading: isSessionStatsLoading,
     statsError: sessionsError,
     refetchStats: reload,
-    loadLatestSession,
-    loadSessionIds
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -104,7 +102,9 @@ export function AgentResourceList({
   } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const deleteAgent = useDeleteAgent()
-  const { deleteSessions } = useSessionMutations()
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels']
+  })
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -208,7 +208,9 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
+      )
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
@@ -224,10 +226,8 @@ export function AgentResourceList({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          const sessionIds = await loadSessionIds(agentId)
-          for (let index = 0; index < sessionIds.length; index += AGENT_SESSION_DELETE_MAX_IDS) {
-            await deleteSessions(sessionIds.slice(index, index + AGENT_SESSION_DELETE_MAX_IDS))
-          }
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
           const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
@@ -251,9 +251,8 @@ export function AgentResourceList({
       agents,
       closeConversationTabs,
       deleteAgent,
-      deleteSessions,
+      deleteAgentSessions,
       deletingAgentId,
-      loadSessionIds,
       onActiveAgentDeleted,
       refetchAgents,
       reload,
@@ -264,7 +263,9 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
-      const deleteTasksOnly = agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
+      )
 
       return [
         buildResolvedResourceEntityMenuAction({

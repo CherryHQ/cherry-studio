@@ -16,7 +16,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -748,7 +748,7 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
         { endpoint: '/topics/:id', entityIds: ['topic-1'] },
@@ -1066,6 +1066,51 @@ describe('TopicService', () => {
 
       expect(topicService.getById('move-a').assistantId).toBe('asst-b')
       expect(await getOrderedIds()).toEqual(['move-b', 'move-a'])
+    })
+
+    it('rolls back owner and order when the order write fails', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0' },
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: 'a1' }
+      ])
+      notifyDataApiDataChangeMock.mockClear()
+      dbh.db.run(
+        sql.raw(`
+        CREATE TRIGGER fail_topic_order_update
+        BEFORE UPDATE OF order_key ON topic
+        WHEN NEW.id = 'move-a'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced topic order update failure');
+        END;
+      `)
+      )
+
+      try {
+        expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })).toThrow(
+          'forced topic order update failure'
+        )
+      } finally {
+        dbh.db.run(sql.raw('DROP TRIGGER IF EXISTS fail_topic_order_update'))
+      }
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
     it('rolls back owner changes when the move anchor is invalid', async () => {

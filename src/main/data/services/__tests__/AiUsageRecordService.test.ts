@@ -408,6 +408,41 @@ describe('AiUsageRecordService', () => {
     expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
   })
 
+  it('derives the tier selection input count from the complete input breakdown', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'tier-derived-input',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            inputTokenTiers: [
+              {
+                minInputTokens: 1_000,
+                inputPerMillionTokens: 10,
+                outputPerMillionTokens: 20,
+                cacheReadPerMillionTokens: 4,
+                cacheWritePerMillionTokens: 6
+              }
+            ],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { outputTokens: 100, noCacheTokens: 600, cacheReadTokens: 300, cacheWriteTokens: 100 }
+      })
+    )
+
+    const row = dbh.db
+      .select()
+      .from(aiUsageRecordTable)
+      .where(eq(aiUsageRecordTable.requestId, 'tier-derived-input'))
+      .get()
+    expect(row).toMatchObject({ costCurrency: 'USD', costSource: 'computed' })
+    expect(row?.cost).toBeCloseTo(0.0098)
+    expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
+  })
+
   it('does not guess the base rate when tiers exist but the all-in input count is missing', () => {
     aiUsageRecordService.recordInvocation(
       invocation({
@@ -573,6 +608,37 @@ describe('AiUsageRecordService', () => {
         '2026-07-28T00:00:00.000Z'
       )
     ).toBeNull()
+  })
+
+  it('inherits the sole explicit currency across partial tier rates', () => {
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          input: { perMillionTokens: 1, currency: 'CNY' },
+          output: { perMillionTokens: 2, currency: 'CNY' },
+          inputTokenTiers: [
+            {
+              minInputTokens: 1_000,
+              input: { perMillionTokens: 10 },
+              output: { perMillionTokens: 20 }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toEqual({
+      currency: 'CNY',
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          inputPerMillionTokens: 10,
+          outputPerMillionTokens: 20
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    })
   })
 
   it('captures immutable input-token tiers and rejects mixed tier currencies', () => {

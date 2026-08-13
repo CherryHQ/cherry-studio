@@ -1,6 +1,6 @@
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
-import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { type AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
