@@ -1054,11 +1054,13 @@ describe('AgentService', () => {
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       pinService.pin({ entityType: 'agent', entityId: id })
       const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+      notifyDataApiDataChangeMock.mockClear()
 
       agentService.deleteAgent(id)
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1104,7 +1106,7 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1115,6 +1117,8 @@ describe('AgentService', () => {
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
         { endpoint: '/agent-sessions/latest' }
       ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {

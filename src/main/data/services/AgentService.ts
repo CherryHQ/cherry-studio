@@ -796,6 +796,7 @@ export class AgentService {
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
       this._onAgentDeleted.fire({ agentId: id })
     }
+    if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return { deleted, deletedSessionIds }
   }
