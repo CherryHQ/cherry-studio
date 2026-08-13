@@ -81,15 +81,15 @@ The schedule-state badge uses one neutral treatment for all three values. It ide
 
 ### Schedule-state treatment
 
-The left icon block is the card's only chromatic status surface. It uses the paired subtle background and foreground roles from the existing semantic token families:
+The left icon block is the card's only chromatic status surface. It uses a schedule-specific Lucide icon together with the paired subtle background and foreground roles from the existing semantic token families:
 
-| Schedule state | Icon-block treatment |
-| --- | --- |
-| `active` | Info/blue subtle background and matching foreground icon |
-| `paused` | Warning/amber subtle background and matching foreground icon |
-| `completed` | Success/green subtle background and matching foreground icon |
+| Schedule state | Lucide icon | Icon-block treatment |
+| --- | --- | --- |
+| `active` | `CalendarClock` | Info/blue subtle background and matching foreground icon |
+| `paused` | `CalendarFold` | Warning/amber subtle background and matching foreground icon |
+| `completed` | `CalendarCheck2` | Success/green subtle background and matching foreground icon |
 
-The icon block and the adjacent neutral badge always represent the same schedule state. The badge keeps the state understandable without relying on color alone. The icon retains an explicit matching foreground class because repository-wide SVG styling must not override the intended semantic color.
+The icon block and the adjacent neutral badge always represent the same schedule state. The distinct icon shape and badge text keep the state understandable without relying on color alone. The icon retains an explicit matching foreground class because repository-wide SVG styling must not override the intended semantic color. These icons are decorative in the card because the adjacent badge exposes the same state as text, so they remain hidden from assistive technology.
 
 Schedule color never changes in response to execution results. For example, an active schedule whose latest run failed keeps the active blue icon block; its neutral right-side copy says `Last run failed`. This prevents schedule state and execution result from introducing competing blue, green, or red signals on one card.
 
@@ -156,6 +156,10 @@ Rejected. Repeating colored pills across the task list creates more visual noise
 
 Rejected after visual review. It makes an active schedule with a failed last run display blue on the left and red on the right, giving equal emphasis to two independent state systems. Keeping execution information neutral makes the schedule-state color stable and lets the result wording carry the secondary detail.
 
+### Use one calendar icon for every schedule state
+
+Rejected after visual review. Reusing `CalendarClock` for all three states makes the icon shape independent of its meaning and leaves color to do most of the recognition work. `CalendarClock`, `CalendarFold`, and `CalendarCheck2` preserve the calendar family while making active, paused, and completed schedules visually distinct.
+
 ## Error Handling and Edge Cases
 
 - A task with no runs omits the execution-result line and shows only its valid next-run time.
@@ -172,7 +176,7 @@ At the user's explicit request, implementation proceeds before the regression te
 
 1. Data-service tests using the real test database protect the projection rules: active-over-terminal precedence, newest-active selection, newest-terminal selection, state collapsing, and the no-run case.
 2. Agent-task handler tests protect read-model invalidation at execution start and settlement without testing generic JobManager internals.
-3. Renderer component tests protect the display matrix, schedule-state icon-block mapping, neutral execution treatment, schedule-state placement, next-run validity rule, and distinct history link.
+3. Renderer component tests protect the display matrix, exact schedule-state icon and color mapping, decorative icon semantics, neutral execution treatment, schedule-state placement, next-run validity rule, and distinct history link.
 4. Route/component tests protect `tab=history`, target-row reveal, and preservation of the default detail route for the rest of the card.
 5. Targeted tests run after each implementation area. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
 
@@ -181,6 +185,7 @@ At the user's explicit request, implementation proceeds before the regression te
 - A user viewing scheduled tasks can distinguish schedule state, current/latest execution result, and the next valid run time without opening task details.
 - A never-run task shows only its next valid run time; a running task shows both `Running` and its next valid run time.
 - Schedule state appears as a semantic subtle left icon block and as a neutral compact badge beside the task name, while the right side is reserved for neutral execution and scheduling information.
+- Active, paused, and completed icon blocks use `CalendarClock`, `CalendarFold`, and `CalendarCheck2`, respectively.
 - An active schedule retains its active blue icon block even when its latest execution failed; execution results never recolor the schedule-state surface.
 - The displayed state updates after automatic execution starts and settles without reopening the page.
 - Schedule state remains visible and is never replaced by execution state.
