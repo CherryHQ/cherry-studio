@@ -87,6 +87,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -99,7 +100,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
+  CalendarCheck2,
   CalendarClock,
+  CalendarFold,
   ChevronDown,
   ChevronRight,
   CircleCheck,
@@ -368,6 +371,43 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   return labels[status] ?? status
 }
 
+function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['status']) {
+  switch (status) {
+    case 'active':
+      return {
+        Icon: CalendarClock,
+        wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
+        iconClassName: 'text-info-subtle-foreground'
+      }
+    case 'paused':
+      return {
+        Icon: CalendarFold,
+        wrapperClassName: 'bg-warning-subtle text-warning-subtle-foreground',
+        iconClassName: 'text-warning-subtle-foreground'
+      }
+    case 'completed':
+      return {
+        Icon: CalendarCheck2,
+        wrapperClassName: 'bg-success-subtle text-success-subtle-foreground',
+        iconClassName: 'text-success-subtle-foreground'
+      }
+  }
+}
+
+const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({ status }) => {
+  const { Icon, wrapperClassName, iconClassName } = getTaskScheduleStatusIconPresentation(status)
+
+  return (
+    <div
+      className={cn(
+        'pointer-events-none relative z-1 flex size-10 shrink-0 items-center justify-center rounded-lg',
+        wrapperClassName
+      )}>
+      <Icon size={20} aria-hidden className={iconClassName} />
+    </div>
+  )
+}
+
 function formatTaskCardTime(value: string) {
   return new Date(value).toLocaleString(undefined, {
     month: 'numeric',
@@ -383,8 +423,8 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
 
   if (summary.status === 'running') {
     return (
-      <span className="flex items-center gap-1.5 text-info">
-        <Loader2 aria-hidden className="size-3 text-info motion-safe:animate-spin" />
+      <span className="flex items-center gap-1.5 text-foreground">
+        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
         {t('agent.tasks.runSummary.running')}
       </span>
     )
@@ -393,23 +433,23 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
   const time = formatTaskCardTime(summary.finishedAt ?? summary.startedAt)
   if (summary.status === 'completed') {
     return (
-      <span className="flex items-center gap-1.5 text-success">
-        <CircleCheck aria-hidden className="size-3 text-success" />
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleCheck aria-hidden className="size-3 text-foreground" />
         {t('agent.tasks.runSummary.completed', { time })}
       </span>
     )
   }
   if (summary.status === 'failed') {
     return (
-      <span className="flex items-center gap-1.5 text-error">
-        <CircleX aria-hidden className="size-3 text-error" />
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleX aria-hidden className="size-3 text-foreground" />
         {t('agent.tasks.runSummary.failed', { time })}
       </span>
     )
   }
   return (
-    <span className="flex items-center gap-1.5 text-muted-foreground">
-      <CircleStop aria-hidden className="size-3" />
+    <span className="flex items-center gap-1.5 text-foreground">
+      <CircleStop aria-hidden className="size-3 text-foreground" />
       {t('agent.tasks.runSummary.cancelled', { time })}
     </span>
   )
@@ -1725,9 +1765,7 @@ const TasksSettings: FC = () => {
                       className="absolute inset-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
                       <span className="sr-only">{task.name}</span>
                     </Link>
-                    <div className="pointer-events-none relative z-1 flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                      <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
-                    </div>
+                    <TaskScheduleStatusIcon status={task.status} />
                     <ItemContent className="pointer-events-none relative z-1 min-w-0">
                       <ItemTitle className="min-w-0 max-w-full">
                         <span className="truncate">{task.name}</span>
