@@ -4,6 +4,12 @@ import { join } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AgentsFilesystemMigrationModule from '../agentsFilesystemMigration'
+
+const { stageLegacyAgentFilesMock } = vi.hoisted(() => ({
+  stageLegacyAgentFilesMock: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({
@@ -24,6 +30,11 @@ vi.mock('@application', async () => {
     FileManager: { createInternalEntry: vi.fn(), getUrl: vi.fn() }
   } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
+})
+
+vi.mock('../agentsFilesystemMigration', async (importOriginal) => {
+  const original = await importOriginal<typeof AgentsFilesystemMigrationModule>()
+  return { ...original, stageLegacyAgentFiles: stageLegacyAgentFilesMock }
 })
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
@@ -89,6 +100,8 @@ describe('AgentsMigrator', () => {
   beforeEach(() => {
     migrator = new AgentsMigrator()
     vi.restoreAllMocks()
+    stageLegacyAgentFilesMock.mockReset()
+    stageLegacyAgentFilesMock.mockResolvedValue({ skippedTargetCount: 0 })
   })
 
   it('prepare skips cleanly when no legacy agents db exists', async () => {
@@ -171,7 +184,7 @@ describe('AgentsMigrator', () => {
     expect(result.itemCount).toBe(26)
   })
 
-  it('execute attaches the legacy db and imports every table without per-migrator FK toggling', async () => {
+  it('execute imports every table and reports skipped filesystem targets', async () => {
     const run = vi.fn().mockReturnValue(undefined)
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
@@ -203,6 +216,7 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
+    stageLegacyAgentFilesMock.mockResolvedValueOnce({ skippedTargetCount: 2 })
 
     await migrator.prepare(createMigrationContext())
     const db = withSynchronousTransaction({ run, select, update, all, delete: del, insert })
@@ -213,6 +227,12 @@ describe('AgentsMigrator', () => {
     // task-related sources are handled by the TS-loop). 45 - (5 scheduled
     // tasks + 6 run logs + 8 channel_task_subscriptions) = 26.
     expect(result.processedCount).toBe(26)
+    expect(result.warningMessages).toEqual([
+      {
+        key: 'migration.completed.agent_files_skipped',
+        params: { count: 2 }
+      }
+    ])
 
     const outer = getExecutedSql(run)
     // FK is managed globally by the engine (MigrationDbService sets foreign_keys = OFF once) — no per-migrator

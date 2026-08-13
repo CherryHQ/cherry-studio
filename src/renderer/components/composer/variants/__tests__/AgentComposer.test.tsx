@@ -616,7 +616,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         close edit dialog
       </button>
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   ResourceEditDialogEventHost: () => null,
   openResourceEditDialog: (target: any) => mocks.openResourceEditDialog(target)
 }))
@@ -2222,15 +2225,8 @@ describe('AgentComposer', () => {
       categories: [],
       totalTokens: 42,
       maxTokens: 100,
-      rawMaxTokens: 100,
       percentage: 42,
-      gridRows: [],
-      model: 'minimax:MiniMax-M3',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: false,
-      apiUsage: null
+      model: 'minimax:MiniMax-M3'
     })
     mocks.sessionLayout = 'time'
 
@@ -2267,15 +2263,8 @@ describe('AgentComposer', () => {
       categories: [],
       totalTokens: 24,
       maxTokens: 100,
-      rawMaxTokens: 100,
       percentage: 24,
-      gridRows: [],
-      model: 'openai:gpt-4o',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: false,
-      apiUsage: null
+      model: 'openai:gpt-4o'
     })
     view.rerender(
       <AgentComposer

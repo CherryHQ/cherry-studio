@@ -11,7 +11,7 @@
  */
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
@@ -19,6 +19,8 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
 const PAGE_SIZE = 50
 
@@ -76,20 +78,23 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
-  const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
-    params: { sessionId },
-    // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
-    query: { deferToolOutputs: true },
-    limit: PAGE_SIZE,
-    enabled,
-    swrOptions: {
-      keepPreviousData: false,
-      ...(!fetchOnMount && {
-        revalidateIfStale: false,
-        revalidateOnMount: false
-      })
+  const { pages, isLoading, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+    '/agent-sessions/:sessionId/messages',
+    {
+      params: { sessionId },
+      // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
+      query: { deferToolOutputs: true },
+      limit: PAGE_SIZE,
+      enabled,
+      swrOptions: {
+        keepPreviousData: false,
+        ...(!fetchOnMount && {
+          revalidateIfStale: false,
+          revalidateOnMount: false
+        })
+      }
     }
-  })
+  )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
@@ -106,9 +111,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // registration, bootstrap-notification drop). When a stream is live on this
   // session, force one re-fetch on mount so the pending bubble converges to the
   // latest persisted rows; live deltas keep flowing through the stream overlay.
-  const { isPending: isSessionStreamLive } = useTopicStreamStatus(
-    sessionId ? buildAgentSessionTopicId(sessionId) : ''
-  )
+  const { isPending: isSessionStreamLive } = useTopicStreamStatus(sessionId ? buildAgentSessionTopicId(sessionId) : '')
   const caughtUpOnMountRef = useRef(false)
   useEffect(() => {
     if (!enabled || caughtUpOnMountRef.current || !isSessionStreamLive) return

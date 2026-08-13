@@ -20,6 +20,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -209,7 +210,7 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('places newly created agents by default orderKey sort', async () => {
+    it('places newly created agents first by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
@@ -220,7 +221,7 @@ describe('AgentService', () => {
       })
 
       const { agents } = agentService.listAgents()
-      expect(agents.at(-1)?.id).toBe(created.id)
+      expect(agents[0]?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
@@ -291,6 +292,17 @@ describe('AgentService', () => {
       expect(activeBuiltinRows()).toHaveLength(1)
     })
 
+    it('keeps a newly created built-in assistant after existing agents', () => {
+      const ordinary = createAgentForTest({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+      const builtin = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
+    })
+
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
       const first = agentService.ensureBuiltinAgent(defaults)
       dbh.db
@@ -344,6 +356,46 @@ describe('AgentService', () => {
       })
 
       expect(assistant.model).toBeNull()
+    })
+
+    it('does not trust a Support role on an ordinary ID and restores the fixed identity in place', async () => {
+      await insertAgent({
+        id: 'ordinary-support',
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { builtin_role: 'support', avatar: 'U' }
+      })
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        deletedAt: Date.UTC(2026, 0, 1),
+        configuration: { avatar: 'S', max_turns: 7 }
+      })
+
+      const support = agentService.ensureBuiltinAgent({ ...defaults, builtinRole: 'support' })
+
+      expect(support).toMatchObject({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        configuration: { avatar: 'S', max_turns: 7, builtin_role: 'support' }
+      })
+      const [restoredRow] = dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID))
+        .all()
+      expect(restoredRow.deletedAt).toBeNull()
+      expect(agentService.getAgent('ordinary-support')).toMatchObject({
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { avatar: 'U' }
+      })
     })
   })
 
@@ -463,6 +515,12 @@ describe('AgentService', () => {
   })
 
   describe('builtin_role write protection', () => {
+    it('does not expose a legacy Support marker on an ordinary Agent', async () => {
+      await insertAgent({ id: 'legacy-support-read', configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      expect(agentService.getAgent('legacy-support-read')?.configuration).toEqual({ avatar: 'U' })
+    })
+
     it('rejects createAgent when configuration carries a builtin_role', async () => {
       const error = captureError(() =>
         createAgentForTest({
@@ -500,7 +558,9 @@ describe('AgentService', () => {
       const agentId = 'agent_builtin_change'
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' as never } })
+      )
       expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
       expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
     })
@@ -523,6 +583,18 @@ describe('AgentService', () => {
       })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
       expect(updated?.configuration?.avatar).toBe('🍒')
+    })
+
+    it('rejects preserving a legacy Support marker on a non-system ID', async () => {
+      const agentId = 'legacy-forged-support'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'support', avatar: 'changed' } })
+      )
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration).toEqual({ avatar: 'U' })
     })
   })
 
@@ -1492,6 +1564,23 @@ describe('AgentService', () => {
           id: 'agent_builtin_global_search',
           subtitle:
             'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
+    })
+
+    it('matches and displays Cherry Support through its localized fallback description', async () => {
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Cherry Support',
+        description: '',
+        configuration: { builtin_role: 'support' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: CHERRY_SUPPORT_AGENT_ID,
+          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
         })
       ])
     })

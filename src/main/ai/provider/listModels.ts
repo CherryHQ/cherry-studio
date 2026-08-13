@@ -23,7 +23,7 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
@@ -385,7 +385,10 @@ const copilotFetcher: ModelFetcher = {
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
+    // The servable-status document lives at /v1/config; the provider's chat base URL points at
+    // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
+    // host carries so the version below is always the one OVMS actually serves this on.
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
@@ -452,6 +455,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
+
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }

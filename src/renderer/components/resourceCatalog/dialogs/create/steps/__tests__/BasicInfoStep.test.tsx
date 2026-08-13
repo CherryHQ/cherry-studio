@@ -3,8 +3,9 @@ import { Form } from '@cherrystudio/ui'
 import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { BasicInfoStep } from '../BasicInfoStep'
@@ -42,12 +43,20 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
   }
 })
 
-function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
+function Harness({
+  modelId = null,
+  runtimeSelectable = false
+}: {
+  modelId?: UniqueModelId | null
+  runtimeSelectable?: boolean
+}) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
       name: '',
       description: '',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId,
       prompt: '',
       knowledgeBaseIds: [],
@@ -57,12 +66,19 @@ function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" />
+      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )
 }
 
 afterEach(cleanup)
+
+beforeAll(() => {
+  HTMLElement.prototype.hasPointerCapture = () => false
+  HTMLElement.prototype.setPointerCapture = () => {}
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
 
 beforeEach(() => {
   mockUseModelById.mockReset()
@@ -76,6 +92,41 @@ describe('BasicInfoStep', () => {
     await waitFor(() =>
       expect(screen.getByPlaceholderText('library.config.dialogs.create.name_placeholder')).toHaveFocus()
     )
+  })
+
+  it('uses the shared select control for immutable runtime choices without a pi-only hint', async () => {
+    const user = userEvent.setup()
+    render(<Harness runtimeSelectable />)
+
+    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
+    const runtimeSelect = screen.getByLabelText('library.config.agent.field.runtime.label')
+    expect(runtimeSelect).toHaveAttribute('role', 'combobox')
+    expect(runtimeSelect).toHaveTextContent('library.config.agent.field.runtime.selected.claude_code')
+    await user.click(runtimeSelect)
+    expect(
+      screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.claude_code' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' })).toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.default.title'
+    )
+  })
+
+  it('switches to the selected runtime permission default', async () => {
+    const user = userEvent.setup()
+    render(<Harness runtimeSelectable />)
+
+    await user.click(screen.getByLabelText('library.config.agent.field.runtime.label'))
+    await user.click(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' }))
+
+    expect(screen.getByLabelText('library.config.agent.field.runtime.label')).toHaveTextContent(
+      'library.config.agent.field.runtime.selected.pi'
+    )
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.acceptEdits.title'
+    )
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('acceptEdits')
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {

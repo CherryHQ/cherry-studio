@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Asesor integrado de Cherry Studio. Diagnosticar problemas, guiar operaciones, recopilar preguntas frecuentes, enviar errores/solicitudes de funciones y buscar/crear Habilidades"
+      },
+      "cherry_support": {
+        "description": "Agente de soporte oficial de Cherry Studio para configuración, diagnóstico, preguntas frecuentes y comentarios"
       }
     },
     "channels": {
@@ -1085,6 +1088,34 @@
         "Write": {
           "description": "Crea o sobrescribe archivos",
           "label": "Escribir"
+        },
+        "bash": {
+          "description": "Ejecutar comandos de shell",
+          "label": "Ejecutar comandos de shell"
+        },
+        "edit": {
+          "description": "Editar archivos",
+          "label": "Editar archivos"
+        },
+        "find": {
+          "description": "Buscar archivos",
+          "label": "Buscar archivos"
+        },
+        "grep": {
+          "description": "Buscar contenido en archivos",
+          "label": "Buscar contenido en archivos"
+        },
+        "ls": {
+          "description": "Listar contenido del directorio",
+          "label": "Listar contenido del directorio"
+        },
+        "read": {
+          "description": "Leer archivos",
+          "label": "Leer archivos"
+        },
+        "write": {
+          "description": "Escribir archivos",
+          "label": "Escribir archivos"
         }
       }
     },
@@ -1150,6 +1181,11 @@
       "startSuccess": "Servidor API iniciado exitosamente",
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
+    },
+    "required": {
+      "confirm": "Habilitar",
+      "description": "El modelo de este agente debe ser puenteado a través de la API Gateway local de Cherry Studio. Habilitarlo también inicia la puerta de enlace automáticamente en futuros lanzamientos; puede desactivarla nuevamente en Configuración.",
+      "title": "¿Habilitar la API Gateway?"
     },
     "status": {
       "running": "Ejecutándose",
@@ -2494,6 +2530,7 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
+    "api_gateway_required": "Este modelo debe ser puenteado a través de la API Gateway local de Cherry Studio, que actualmente está deshabilitada. Habilítela para ejecutar este agente.",
     "availableProviders": "Proveedores disponibles",
     "availableTools": "Herramientas disponibles",
     "backup": {
@@ -3444,6 +3481,18 @@
             "hint": "Descomposición y planificación de tareas",
             "label": "Modelo de plan (opcional)"
           },
+          "runtime": {
+            "immutable_hint": "No se puede cambiar después de la creación",
+            "label": "Modo de ejecución",
+            "option": {
+              "claude_code": "Avanzado: Claude Agent",
+              "pi": "Rápido: Pi"
+            },
+            "selected": {
+              "claude_code": "Avanzado",
+              "pi": "Rápido"
+            }
+          },
           "small_model": {
             "hint": "Verificaciones ligeras y formato",
             "label": "Modelo pequeño (opcional)"
@@ -3546,7 +3595,7 @@
             "hint": "Longitud de respuesta de las mayúsculas cuando está habilitada"
           },
           "max_tool_calls": {
-            "hint": "Limita los bucles de llamadas a herramientas cuando está habilitado"
+            "hint": "Limita las rondas de llamadas a herramientas cuando está activado; de lo contrario, se usa el límite predeterminado de {{count}} rondas"
           },
           "model": {
             "hint": "Anula el modelo predeterminado global para este asistente"
@@ -3851,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Busca en los registros en línea para encontrar habilidades instalables.",
       "empty_title": "Buscar habilidades",
+      "github_empty_description": "Pega un enlace al archivo SKILL.md de una habilidad, por ejemplo github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Instalar desde GitHub",
+      "github_url_invalid": "Pega un enlace de GitHub que termine con SKILL.md",
+      "github_url_label": "URL del SKILL.md en GitHub",
+      "github_url_placeholder": "Enlace de GitHub que termina en /SKILL.md",
       "no_results_description": "Prueba otra palabra clave o importa un archivo ZIP local o una carpeta.",
       "no_results_title": "No se encontraron habilidades",
       "search_failed_description": "La búsqueda falló. Por favor, inténtelo de nuevo más tarde.",
+      "search_label": "Buscar habilidades",
       "search_placeholder": "Buscar habilidades...",
+      "source_label": "Origen de la habilidad",
       "title": "Búsqueda de habilidades en línea"
     },
     "sort": {
@@ -3881,13 +3937,6 @@
       "placeholder": "Nuevo nombre de etiqueta..."
     },
     "tag_sync_failed": "Error al sincronizar etiquetas",
-    "time_ago": {
-      "days": "hace {{count}} día(s)",
-      "hours": "{{count}} hora(s) atrás",
-      "just_now": "Ahora mismo",
-      "minutes": "hace {{count}} minuto(s)",
-      "months": "hace {{count}} mes(es)"
-    },
     "title": "Biblioteca",
     "toolbar": {
       "add_group_placeholder": "Nombre del grupo...",
@@ -4812,7 +4861,7 @@
     },
     "installed_at": "OpenClaw instalado en",
     "migration": {
-      "description": "Se ha detectado una versión desactualizada de OpenClaw instalada a través de npm. Por favor, reinstala para obtener la última versión oficial.",
+      "description": "Se detectó una instalación externa de OpenClaw en PATH, pero Cherry Studio usa su propio binario gestionado de OpenClaw. Instala la versión gestionada para continuar.",
       "install_button": "Reinstalar OpenClaw",
       "title": "OpenClaw Necesita Actualización"
     },
@@ -5994,10 +6043,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatea con Cherry Assistant para compartir tus comentarios.",
+          "description": "Chatea con Cherry Support para obtener ayuda o compartir tus comentarios.",
           "title": "Usar Agente"
         },
-        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Inténtalo de nuevo.",
+        "agent_error": "No se puede abrir Cherry Support para enviar comentarios. Inténtalo de nuevo.",
         "button": "Enviar feedback",
         "dialog": {
           "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
@@ -6763,7 +6812,7 @@
       "removeDefinitionOnlyDependents": "Las herramientas instaladas dependen de ello: {{dependents}}.",
       "removeError": "Error al eliminar la herramienta",
       "removeErrorHint": "El comando de limpieza falló. Copia el registro a continuación para solucionar problemas o compártelo para obtener ayuda.",
-      "removeRuntimeConfirmMessage": "¿Estás seguro de que quieres eliminar \"{{name}}\"? Desinstalar este runtime puede romper las herramientas npm o pip que dependen de él.",
+      "removeRuntimeConfirmMessage": "¿Quitar \"{{name}}\" de Cherry Studio? Cherry solo eliminará la copia exacta gestionada por mise. Los entornos de ejecución del sistema e integrados en la aplicación nunca se modifican. Las herramientas npm o pip instaladas pueden bloquear la eliminación si dependen de este entorno de ejecución.",
       "runtimeDependency": "Tiempo de ejecución",
       "runtimeDependencyHint": "Tiempo de ejecución para herramientas npm/pip",
       "searchFailed": "La búsqueda ha fallado; consulta los registros",
@@ -7622,7 +7671,6 @@
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
-        "model": "Modelo de Denominación",
         "prompt": "Sugerencias para nombramiento de temas"
       },
       "translate_model": "Modelo de traducción",
@@ -7645,7 +7693,8 @@
       "assistant": "Mensaje del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
-      "title": "Notificaciones"
+      "title": "Notificaciones",
+      "update": "Actualización de la aplicación"
     },
     "openai": {
       "service_tier": {
@@ -8817,7 +8866,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
+      "placeholder": "Introduce texto..."
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

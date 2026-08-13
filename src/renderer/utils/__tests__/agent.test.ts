@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_AGENT_AVATAR, getAgentAvatar, getAgentDescriptionForDisplay } from '../agent'
+import { DEFAULT_AGENT_AVATAR, getAgentAvatar, getAgentDescriptionForDisplay, getPermissionModeCards } from '../agent'
 
 describe('agent utilities', () => {
   it('normalizes blank stored avatars to the default agent avatar', () => {
@@ -28,5 +28,31 @@ describe('agent utilities', () => {
         t as Parameters<typeof getAgentDescriptionForDisplay>[1]
       )
     ).toBe('User description')
+  })
+
+  it('uses the localized Cherry Support description', () => {
+    const t = (key: string) => `translated:${key}`
+    expect(
+      getAgentDescriptionForDisplay(
+        { description: '', configuration: { builtin_role: 'support' } },
+        t as Parameters<typeof getAgentDescriptionForDisplay>[1]
+      )
+    ).toBe('translated:agent.builtin.cherry_support.description')
+  })
+})
+
+describe('getPermissionModeCards', () => {
+  it('offers the full mode set (including plan and auto) for claude-code and unknown types', () => {
+    const modes = getPermissionModeCards('claude-code').map((card) => card.mode)
+    expect(modes).toContain('plan')
+    expect(modes).toContain('auto')
+    expect(getPermissionModeCards(undefined).map((c) => c.mode)).toContain('plan')
+  })
+
+  it('drops unsupported plan and classifier-driven auto modes for pi agents', () => {
+    const modes = getPermissionModeCards('pi').map((card) => card.mode)
+    expect(modes).not.toContain('plan')
+    expect(modes).not.toContain('auto')
+    expect(modes).toEqual(expect.arrayContaining(['default', 'acceptEdits', 'bypassPermissions']))
   })
 })

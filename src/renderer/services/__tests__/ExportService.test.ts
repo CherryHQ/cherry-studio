@@ -1,4 +1,4 @@
-// Import Message, MessageBlock, and necessary enums
+import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
@@ -10,6 +10,36 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
+
+const notionMocks = vi.hoisted(() => ({
+  moduleLoads: {
+    client: 0,
+    martian: 0,
+    helper: 0
+  },
+  createPage: vi.fn(),
+  markdownToBlocks: vi.fn((markdown: string) => [{ markdown }]),
+  appendBlocks: vi.fn()
+}))
+
+vi.mock('@notionhq/client', () => {
+  notionMocks.moduleLoads.client += 1
+  return {
+    Client: class {
+      pages = { create: notionMocks.createPage }
+    }
+  }
+})
+
+vi.mock('@tryfabric/martian', () => {
+  notionMocks.moduleLoads.martian += 1
+  return { markdownToBlocks: notionMocks.markdownToBlocks }
+})
+
+vi.mock('notion-helper', () => {
+  notionMocks.moduleLoads.helper += 1
+  return { appendBlocks: notionMocks.appendBlocks }
+})
 
 // Mock window.api
 beforeEach(() => {
@@ -117,6 +147,7 @@ import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import {
   exportMarkdownToObsidian,
+  exportMessageToNotion,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -268,6 +299,30 @@ beforeEach(() => {
 // --- Test Suites ---
 
 describe('ExportService', () => {
+  it('loads Notion dependencies only once when a Notion export starts', async () => {
+    const unloaded = { client: 0, martian: 0, helper: 0 }
+    const loaded = { client: 1, martian: 1, helper: 1 }
+
+    expect(notionMocks.moduleLoads).toEqual(unloaded)
+
+    const markdown = await messageToMarkdown(createExportView([{ type: 'text', text: 'Regular export' }]))
+
+    expect(markdown).toContain('Regular export')
+    expect(notionMocks.moduleLoads).toEqual(unloaded)
+
+    await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+    await preferenceService.set('data.integration.notion.database_id', 'database-id')
+    await preferenceService.set('data.integration.notion.page_name_key', 'Name')
+    notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+    notionMocks.appendBlocks.mockResolvedValue(undefined)
+
+    await expect(exportMessageToNotion('First', 'First export')).resolves.toBe(true)
+    expect(notionMocks.moduleLoads).toEqual(loaded)
+
+    await expect(exportMessageToNotion('Second', 'Second export')).resolves.toBe(true)
+    expect(notionMocks.moduleLoads).toEqual(loaded)
+  })
+
   describe('messageToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock

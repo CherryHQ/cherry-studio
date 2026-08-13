@@ -1,7 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   deleteMcpServer: vi.fn(),
   navigate: vi.fn(),
+  on: vi.fn<(event: string, callback: (log: McpServerLogEntry & { serverId: string }) => void) => () => void>(() =>
+    vi.fn()
+  ),
   request: vi.fn(),
   updateMcpServer: vi.fn()
 }))
@@ -42,7 +45,7 @@ vi.mock('@renderer/services/popup', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    on: vi.fn(() => vi.fn()),
+    on: mocks.on,
     request: mocks.request
   }
 }))
@@ -188,16 +191,32 @@ describe('McpSettings', () => {
     const user = userEvent.setup()
     const { container } = render(<McpSettings />)
 
+    expect(mocks.on).not.toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.get_logs', expect.anything())
+
     await user.click(screen.getByRole('radio', { name: 'Logs' }))
 
+    expect(mocks.on).toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
     expect(await screen.findByText('Server started')).toBeInTheDocument()
     expect(screen.getByText('Connection failed')).toBeInTheDocument()
+
+    const liveLog = {
+      serverId: currentServer.id,
+      timestamp: 1700000002000,
+      level: 'info' as const,
+      message: 'Live log'
+    }
+    const logListener = mocks.on.mock.calls.find(([event]) => event === 'mcp.server.log')?.[1]
+    act(() => {
+      logListener?.(liveLog)
+    })
+    expect(screen.getByText('Live log')).toBeInTheDocument()
 
     // `.selectable` is the maintained contract that opts the log list out of the
     // global `user-select: none` (src/renderer/assets/styles/index.css).
     expect(container.querySelector('.selectable')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Copy logs' }))
-    expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs(logs))
+    expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
   })
 })

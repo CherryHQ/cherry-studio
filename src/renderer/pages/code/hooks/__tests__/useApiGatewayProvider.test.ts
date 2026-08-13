@@ -12,16 +12,14 @@ const mocks = vi.hoisted(() => ({
     enabled: boolean
   },
   apiGatewayRunning: false,
-  startApiGateway: vi.fn<() => Promise<boolean>>(),
-  setApiGatewayEnabled: vi.fn()
+  startApiGateway: vi.fn<() => Promise<boolean>>()
 }))
 
 vi.mock('@renderer/hooks/useApiGateway', () => ({
   useApiGateway: () => ({
     apiGatewayConfig: mocks.apiGatewayConfig,
     apiGatewayRunning: mocks.apiGatewayRunning,
-    startApiGateway: mocks.startApiGateway,
-    setApiGatewayEnabled: mocks.setApiGatewayEnabled
+    startApiGateway: mocks.startApiGateway
   })
 }))
 
@@ -38,7 +36,6 @@ describe('useApiGatewayProvider.ensureReady', () => {
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-old', enabled: false }
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockReset()
-    mocks.setApiGatewayEnabled.mockReset()
     vi.mocked(preferenceService.get).mockReset()
   })
 

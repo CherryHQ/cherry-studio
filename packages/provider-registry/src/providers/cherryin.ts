@@ -25,7 +25,15 @@ const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
   effort: 'enabled'
 })
 
-const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
+const deepSeekModelOverrides = [
+  {
+    apiModelId: 'deepseek/deepseek-v3.2',
+    modelId: 'deepseek-v3-2',
+    reasoningContracts: {
+      'openai-chat-completions': { wire: deepSeekThinkingWire }
+    }
+  }
+] satisfies Array<Partial<ProviderModelOverride>>
 
 const qwenAudioCompatibilityOverrides = [
   {
@@ -134,13 +142,5 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [
-    ...deepSeekModels.map((modelId) => ({
-      modelId,
-      reasoningContracts: {
-        'openai-chat-completions': { wire: deepSeekThinkingWire }
-      }
-    })),
-    ...qwenAudioCompatibilityOverrides
-  ]
+  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
 })

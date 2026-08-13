@@ -9,7 +9,7 @@ import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { loadClaudeCodeSettingsBuilder } from '../../runtime/claudeCode'
+import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
@@ -101,8 +101,7 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch(async (error: unknown) => {
-    const { isAgentSessionWorkspaceError } = await loadClaudeCodeSettingsBuilder()
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
       return {
         blocked: {
