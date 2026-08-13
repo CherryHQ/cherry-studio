@@ -251,7 +251,7 @@ describe('TopicBranchPanel', () => {
     expect(mocks.refetchTree).toHaveBeenCalledOnce()
   })
 
-  it('sets the active branch to the latest leaf passing through the selected node', async () => {
+  it('sets the active branch without a redundant tree refetch', async () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
@@ -265,7 +265,10 @@ describe('TopicBranchPanel', () => {
       body: { nodeId: 'leaf-1' },
       params: { id: 'topic-1' }
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
+      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+    })
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -517,7 +520,7 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('deletes a persisted empty message from its context menu', async () => {
