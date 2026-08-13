@@ -39,7 +39,7 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
-const SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
+const CONFLICTING_SUPPORT_IDENTITY_MARKERS = ['You are Claude Code', "Anthropic's official CLI"] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
@@ -72,12 +72,13 @@ function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: Cherr
   return { conversation, system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined }
 }
 
-function isolateSupportSystemPrompt(params: MessageCreateParams): MessageCreateParams {
+function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
   if (!Array.isArray(params.system)) return params
-  const supportBlockIndex = params.system.findIndex(
-    (block) => block.type === 'text' && SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
+  const system = params.system.filter(
+    (block) =>
+      block.type !== 'text' || !CONFLICTING_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
   )
-  return supportBlockIndex > 0 ? { ...params, system: params.system.slice(supportBlockIndex) } : params
+  return system.length === params.system.length ? params : { ...params, system }
 }
 
 /**
@@ -187,10 +188,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalSupportRequest =
+    isInternalAnthropicAgentRequest &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalSupportRequest(config.requestHeaders)
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = isolateSupportSystemPrompt(params as MessageCreateParams)
+    const anthropicParams = isInternalSupportRequest
+      ? removeConflictingSupportIdentity(params as MessageCreateParams)
+      : (params as MessageCreateParams)
     effectiveParams = anthropicParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
 
@@ -224,7 +231,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
-  const { conversation, system } = extractSystemPrompt(convertedMessages)
+  const { conversation, system } = isInternalSupportRequest
+    ? extractSystemPrompt(convertedMessages)
+    : { conversation: convertedMessages, system: undefined }
   const messages = isInternalAnthropicAgentRequest ? appendInternalAgentContinuation(conversation) : conversation
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)

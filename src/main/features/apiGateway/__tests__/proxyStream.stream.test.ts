@@ -18,6 +18,7 @@ const {
   mockListModels,
   mockResolveAgentSessionUsage,
   mockIsInternalAgentRequest,
+  mockIsInternalSupportRequest,
   mockToUIMessages,
   mockToAiSdkTools,
   mockExtractStreamOptions,
@@ -32,6 +33,7 @@ const {
   mockListModels: vi.fn(),
   mockResolveAgentSessionUsage: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
+  mockIsInternalSupportRequest: vi.fn(),
   mockToUIMessages: vi.fn<(params: MessageCreateParams) => CherryUIMessage[]>(),
   mockToAiSdkTools: vi.fn(() => undefined),
   mockExtractStreamOptions: vi.fn(() => ({})),
@@ -52,6 +54,7 @@ vi.mock('@application', () => ({
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
               isInternalAgentRequest: mockIsInternalAgentRequest,
+              isInternalSupportRequest: mockIsInternalSupportRequest,
               getAgentSessionId: vi.fn(() => undefined)
             }
           : undefined
@@ -102,8 +105,15 @@ import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
 function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMessage[] {
   const messages: CherryUIMessage[] = []
 
-  if (typeof params.system === 'string') {
-    messages.push({ id: 'converted-system', role: 'system', parts: [{ type: 'text', text: params.system }] })
+  const systemText =
+    typeof params.system === 'string'
+      ? params.system
+      : params.system
+          ?.filter((block) => block.type === 'text')
+          .map((block) => block.text)
+          .join('\n')
+  if (systemText) {
+    messages.push({ id: 'converted-system', role: 'system', parts: [{ type: 'text', text: systemText }] })
   }
 
   params.messages.forEach((message, index) => {
@@ -157,6 +167,7 @@ beforeEach(() => {
   })
   mockResolveAgentSessionUsage.mockReturnValue(undefined)
   mockIsInternalAgentRequest.mockReturnValue(false)
+  mockIsInternalSupportRequest.mockReturnValue(false)
   mockToUIMessages.mockImplementation(convertMockAnthropicMessages)
 })
 
@@ -245,6 +256,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
   it('uses only the Cherry-owned system prompt for an internal Cherry Support request', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
     const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
     params.system = [
       { type: 'text', text: 'Runtime context' },
@@ -256,8 +268,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 
     const effectiveParams = mockToUIMessages.mock.calls[0][0]
     expect(effectiveParams.system).toEqual([
+      { type: 'text', text: 'Runtime context' },
       { type: 'text', text: 'You are Cherry Studio official built-in product support.' }
     ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'Runtime context\nYou are Cherry Studio official built-in product support.',
+        messages: expect.not.arrayContaining([expect.objectContaining({ role: 'system' })])
+      })
+    )
     expect(params.system).toHaveLength(3)
   })
 
@@ -273,6 +292,26 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     await processAndCaptureStreamMessages(params)
 
     expect(mockToUIMessages.mock.calls[0][0]).toBe(params)
+  })
+
+  it('does not infer Support identity from an untrusted system prompt marker', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'You are Claude Code.' },
+      { type: 'text', text: 'Cherry Studio official built-in product support.' }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0]).toBe(params)
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: undefined,
+        messages: expect.arrayContaining([expect.objectContaining({ role: 'system' })])
+      })
+    )
   })
 
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
@@ -725,7 +764,7 @@ describe('processMessage (streaming)', () => {
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
   })
 
-  it('passes caller instructions as the Agent system prompt instead of conversation history', async () => {
+  it('preserves public caller instructions in conversation history', async () => {
     useGatewayModel('claude-opus-5')
     const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
     params.system = 'You are Cherry Studio official product support.'
@@ -735,12 +774,35 @@ describe('processMessage (streaming)', () => {
 
     expect(mockStreamPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: 'You are Cherry Studio official product support.',
-        messages: [expect.objectContaining({ role: 'user' })]
+        system: undefined,
+        messages: [expect.objectContaining({ role: 'system' }), expect.objectContaining({ role: 'user' })]
       })
     )
-    expect(mockStreamPrompt.mock.calls[0][0].messages).not.toContainEqual(expect.objectContaining({ role: 'system' }))
 
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it('preserves interspersed system messages for public gateway requests', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai')
+    const converted = [
+      { id: 'system-1', role: 'system', parts: [{ type: 'text', text: 'Initial instructions' }] },
+      { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
+      { id: 'system-2', role: 'system', parts: [{ type: 'text', text: 'Updated instructions' }] },
+      { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'Second turn' }] }
+    ] as CherryUIMessage[]
+    mockToUIMessages.mockReturnValueOnce(converted)
+
+    const response = processMessage({
+      params: { model: 'openai:gpt-5', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai'
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ system: undefined, messages: converted }))
+
+    commit(captured.listener!)
     await captured.listener!.onDone({} as any)
     await response
   })
