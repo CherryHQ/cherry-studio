@@ -21,6 +21,7 @@ function makeModel(overrides: Partial<Model>): Model {
     providerId: 'p',
     name: 'M',
     capabilities: [],
+    contextWindow: 128_000,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,

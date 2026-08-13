@@ -28,6 +28,7 @@ import {
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
+  PiMissingContextWindowError,
   PiUnsupportedProviderError,
   resolvePiProviderInjection,
   resolvePiProviderInjectionFromSnapshot
@@ -49,6 +50,7 @@ function makeModel(overrides: Partial<Model>): Model {
     providerId: 'p',
     name: 'M',
     capabilities: [],
+    contextWindow: 128_000,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
@@ -250,6 +252,22 @@ describe('buildPiProviderInjection', () => {
     expect(JSON.stringify(injection.usageCapture)).not.toContain(REAL_KEY)
   })
 
+  it('uses the raw wire id when apiModelId is absent', () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      name: 'Anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4', apiModelId: undefined })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.modelId).toBe('claude-sonnet-4')
+    expect(injection.providerConfig.models?.[0]?.id).toBe('claude-sonnet-4')
+    expect(injection.usageCapture.frozenModels[0].aliases).toEqual(['anthropic::claude-sonnet-4', 'claude-sonnet-4'])
+  })
+
   it('derives image input support from capabilities', () => {
     const provider = makeProvider({
       id: 'openai',
@@ -271,6 +289,18 @@ describe('buildPiProviderInjection', () => {
     })
 
     expect(() => buildPiProviderInjection(provider, makeModel({}), '   ')).toThrow(PiMissingApiKeyError)
+  })
+
+  it('rejects a model whose context window is unknown', () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+
+    expect(() => buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)).toThrow(
+      PiMissingContextWindowError
+    )
   })
 
   it('throws PiUnsupportedProviderError for a provider with no pi mapping', () => {
@@ -330,7 +360,8 @@ function stubGrokCliServices(): void {
     id: 'grok-cli::grok-build',
     providerId: 'grok-cli',
     name: 'M',
-    capabilities: []
+    capabilities: [],
+    contextWindow: 128_000
   })
 }
 
@@ -343,7 +374,13 @@ describe('modelInjection service resolution', () => {
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
-    serviceMocks.getByKey.mockResolvedValue({ id: 'p::m', providerId: 'p', name: 'M', capabilities: [] })
+    serviceMocks.getByKey.mockResolvedValue({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: 128_000
+    })
     serviceMocks.getApiKeys.mockReturnValue([{ id: 'k1', key: 'sk-test', isEnabled: true }])
   })
 
@@ -363,6 +400,19 @@ describe('modelInjection service resolution', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
+  it('rejects an unknown context window before checking credentials', async () => {
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: undefined
+    })
+
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingContextWindowError)
+    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
   })
 
   it('validates app-managed OAuth through its live session', async () => {
@@ -388,7 +438,13 @@ describe('modelInjection service resolution', () => {
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
-    serviceMocks.getByKey.mockResolvedValue({ id: 'p::m', providerId: 'p', name: 'M', capabilities: [] })
+    serviceMocks.getByKey.mockResolvedValue({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: 128_000
+    })
     serviceMocks.resolveApiKey.mockReturnValue({
       value: 'sk-rotated',
       apiKeySelection: { attribution: 'matched', id: 'k1', masked: 'sk-****' }

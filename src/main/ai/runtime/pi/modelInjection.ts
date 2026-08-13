@@ -16,7 +16,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
   MODALITY,
@@ -26,6 +26,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -42,10 +43,8 @@ import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
  */
 export const PI_PLACEHOLDER_API_KEY = 'cherry-managed-runtime-key'
 
-// Fallbacks for models that omit these fields. pi requires numbers; Cherry
-// owns real accounting/limits elsewhere, so conservative defaults are fine.
-// simplification ceiling: thread real per-model limits if pi surfaces them.
-const DEFAULT_CONTEXT_WINDOW = 128_000
+// Pi uses maxTokens as a request output cap. Keep the existing conservative
+// default when Cherry has no more specific output limit.
 const DEFAULT_MAX_TOKENS = 8_192
 
 /** Thrown when the selected model's provider has no pi `api` mapping (plan D2). */
@@ -67,6 +66,17 @@ export class PiMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for pi agents`)
     this.name = 'PiMissingApiKeyError'
     this.providerId = providerId
+  }
+}
+
+/** Thrown when Pi cannot safely drive a model without its real compaction boundary. */
+export class PiMissingContextWindowError extends Error {
+  readonly modelId: string
+
+  constructor(modelId: string) {
+    super(`Model "${modelId}" has no context window configured; set it in model settings before using Pi`)
+    this.name = 'PiMissingContextWindowError'
+    this.modelId = modelId
   }
 }
 
@@ -135,6 +145,7 @@ export function buildPiProviderInjection(
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
+  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
   // Transport-adapter (app-managed-OAuth) providers authenticate per stream call
   // via the adapter; the connect-time `apiKey` is only the placeholder, so the
   // empty-key guard does not apply to them.
@@ -142,7 +153,7 @@ export function buildPiProviderInjection(
   if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
   const { baseUrl } = resolvedEndpoint
-  const modelId = model.apiModelId ?? model.id
+  const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api)
 
   const providerConfig: ProviderConfig = {
@@ -244,6 +255,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   ) {
     throw new PiUnsupportedProviderError(providerId)
   }
+  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
 
   // Transport-adapter providers validate the OAuth session (cheap `hasToken`),
   // not app-side keys; a signed-out provider is surfaced as a missing credential.
@@ -257,7 +269,12 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
-function buildPiModelConfig(provider: Provider, model: Model, id: string, api: PiApi): ProviderModelConfig {
+function buildPiModelConfig(
+  provider: Provider,
+  model: Model & { contextWindow: number },
+  id: string,
+  api: PiApi
+): ProviderModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
@@ -275,7 +292,7 @@ function buildPiModelConfig(provider: Provider, model: Model, id: string, api: P
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
     // leave zeros — pi's tracking is unused here.
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: model.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+    contextWindow: model.contextWindow,
     maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})

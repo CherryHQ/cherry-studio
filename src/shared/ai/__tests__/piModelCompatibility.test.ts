@@ -18,6 +18,7 @@ function makeModel(overrides: Partial<Model>): Model {
     providerId: 'p',
     name: 'M',
     capabilities: [],
+    contextWindow: 128_000,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
@@ -83,6 +84,15 @@ describe('resolvePiApi', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama' } }
     })
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
+  })
+
+  it('rejects a model whose context window is unknown', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
+    })
+
+    expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(false)
   })
 
   it('uses a cloned gateway per-model route before an unsupported provider default', () => {
