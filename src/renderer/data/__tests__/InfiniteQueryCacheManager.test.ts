@@ -28,7 +28,11 @@ function seedGroup(manager: InfiniteQueryCacheManager, cache: TestCache, id: str
 
 async function enterInactive() {
   await vi.advanceTimersByTimeAsync(RELEASE_DELAY_MS)
-  await vi.advanceTimersByTimeAsync(0)
+  await flushScheduledEviction()
+}
+
+async function flushScheduledEviction() {
+  await vi.advanceTimersByTimeAsync(1)
 }
 
 describe('InfiniteQueryCacheManager', () => {
@@ -52,7 +56,7 @@ describe('InfiniteQueryCacheManager', () => {
 
     manager.acquire(cache, group.groupKey)
     finishRequest()
-    await vi.advanceTimersByTimeAsync(0)
+    await flushScheduledEviction()
 
     expect(cache.has(group.groupKey)).toBe(true)
     expect(group.pageKeys.every((pageKey) => cache.has(pageKey))).toBe(true)
@@ -153,7 +157,7 @@ describe('InfiniteQueryCacheManager', () => {
     group.release()
     await enterInactive()
     await vi.advanceTimersByTimeAsync(IDLE_TTL_MS + 1)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushScheduledEviction()
 
     expect(cache.has(group.groupKey)).toBe(false)
     expect(group.pageKeys.every((pageKey) => !cache.has(pageKey))).toBe(true)
@@ -171,7 +175,7 @@ describe('InfiniteQueryCacheManager', () => {
 
     finishRequest()
     expect(cache.has(group.groupKey)).toBe(true)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushScheduledEviction()
 
     expect(cache.has(group.groupKey)).toBe(false)
     expect(group.pageKeys.every((pageKey) => !cache.has(pageKey))).toBe(true)
