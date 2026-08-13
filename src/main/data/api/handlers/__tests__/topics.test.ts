@@ -9,6 +9,7 @@ const {
   getByIdMock,
   getLatestActiveMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
   reuseOrCreatePlaceholderMock,
@@ -23,6 +24,7 @@ const {
   getByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
   reuseOrCreatePlaceholderMock: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('@data/services/TopicService', () => ({
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock,
@@ -124,6 +127,19 @@ describe('topicHandlers', () => {
         assistantId: null,
         excludeTopicId: 'topic-deleted'
       })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('rejects an invalid assistant id before calling the service', async () => {
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-a' },
+          body: { assistantId: 'assistant-b', order: { after: 'topic-b' } }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(moveMock).not.toHaveBeenCalled()
     })
   })
 

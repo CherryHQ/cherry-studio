@@ -17,6 +17,7 @@ import {
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
+  MoveTopicSchema,
   ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
@@ -69,6 +70,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     DELETE: async ({ params }) => {
       topicService.delete(params.id)
       return undefined
+    }
+  },
+
+  '/topics/:id/move': {
+    POST: async ({ params, body }) => {
+      const parsed = MoveTopicSchema.parse(body)
+      return topicService.move(params.id, parsed)
     }
   },
 
