@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -55,6 +56,7 @@ function rowToTopic(row: TopicRow): Topic {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -113,6 +115,17 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (topicIds.length === 0) return
+    const entityIds = [...new Set(topicIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind, entityIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/topics/:id', entityIds },
+      { endpoint: '/topics/latest' }
+    ])
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
@@ -131,27 +144,41 @@ export class TopicService {
   }
 
   /**
-   * The single most-recently-updated non-deleted topic across all assistants, or
+   * The single most-recently-active non-deleted topic across all assistants, or
    * `null` when the library is empty.
    *
    * First-entry restore resumes the last-touched conversation. It cannot read the
    * regular first page of `listByCursor` for this: that page is pinned-first then
-   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
-   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
+   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
+   * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
    */
-  getLatestUpdated(): Topic | null {
+  getLatestActive(): Topic | null {
     const db = application.get('DbService').getDb()
 
     const [row] = db
       .select()
       .from(topicTable)
       .where(isNull(topicTable.deletedAt))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
     return row ? rowToTopic(row) : null
+  }
+
+  /** Monotonically advance a topic's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({
+        lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${topicTable.updatedAt}, ${timestamp})`
+      })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   ensureTraceId(topicId: string): string {
@@ -181,13 +208,17 @@ export class TopicService {
     const messageService = getDataService('MessageService')
 
     const row = dbService.withWriteTx((tx) => {
+      const createdAt = Date.now()
       const topicRow = insertWithOrderKey(
         tx,
         topicTable,
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          activeNodeId: null
+          activeNodeId: null,
+          lastActivityAt: createdAt,
+          createdAt,
+          updatedAt: createdAt
         },
         {
           pkColumn: topicTable.id,
@@ -198,6 +229,7 @@ export class TopicService {
       messageService.createRootMessageTx(tx, topicRow.id)
       return topicRow
     })
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -257,6 +289,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
+    this.notifyReadModelChange([copiedTopic.id], 'membership')
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
@@ -302,6 +335,7 @@ export class TopicService {
 
       return rowToTopic(row)
     })
+    this.notifyReadModelChange([id], 'projection')
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
@@ -315,7 +349,8 @@ export class TopicService {
    */
   delete(id: string): void {
     const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted topic', { id })
   }
@@ -323,6 +358,7 @@ export class TopicService {
   deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -358,6 +394,17 @@ export class TopicService {
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: [nodeId]
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
+      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+    ])
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -527,12 +574,12 @@ export class TopicService {
         name: topicTable.name,
         assistantId: topicTable.assistantId,
         assistantName: assistantTable.name,
-        updatedAt: topicTable.updatedAt
+        lastActivityAt: topicTable.lastActivityAt
       })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(limit)
       .all()
 
@@ -541,7 +588,7 @@ export class TopicService {
       id: row.id,
       title: row.name,
       subtitle: row.assistantName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
     }))
   }
@@ -571,6 +618,7 @@ export class TopicService {
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+    this.notifyReadModelChange(deletedIds, 'membership')
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
