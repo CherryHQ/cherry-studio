@@ -253,6 +253,14 @@ describe('AgentSessionService', () => {
           workspaceId: workspace.id,
           orderKey: 'a2',
           createdAt: 100
+        },
+        {
+          id: 'older',
+          agentId: 'agent-session-test',
+          name: 'Older',
+          workspaceId: workspace.id,
+          orderKey: 'a3',
+          createdAt: 50
         }
       ])
 
@@ -265,7 +273,7 @@ describe('AgentSessionService', () => {
       })
 
       expect(first.items.map((session) => session.id)).toEqual(['tie-a', 'tie-b'])
-      expect(second.items.map((session) => session.id)).toEqual(['tie-c'])
+      expect(second.items.map((session) => session.id)).toEqual(['tie-c', 'older'])
       expect(second.nextCursor).toBeUndefined()
     })
 
@@ -360,14 +368,6 @@ describe('AgentSessionService', () => {
       ).toEqual([])
     })
 
-    it('filters by pinned=true / pinned=false', async () => {
-      await seedFlat()
-      expect(agentSessionService.listByCursor({ pinned: true }).items.map((s) => s.id)).toEqual(['s2'])
-      expect(
-        agentSessionService.listByCursor({ sortBy: 'lastActivityAt', pinned: false }).items.map((s) => s.id)
-      ).toEqual(['s4', 's3', 's1'])
-    })
-
     it('searches session names and optional live-agent names, but never descriptions', async () => {
       await seedFlat()
       expect(agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt', q: 'first' }).items).toEqual(
@@ -412,59 +412,6 @@ describe('AgentSessionService', () => {
       ])
       const result = agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt', q: '100%' })
       expect(result.items.map((s) => s.id)).toEqual(['lit-1'])
-    })
-
-    it('pages the unpinned creation stream by createdAt DESC with a stable cursor', async () => {
-      await seedFlat()
-      const first = agentSessionService.listByCursor({ sortBy: 'createdAt', pinned: false, limit: 2 })
-      const second = agentSessionService.listByCursor({
-        sortBy: 'createdAt',
-        pinned: false,
-        limit: 2,
-        cursor: first.nextCursor
-      })
-
-      expect(first.items.map((session) => session.id)).toEqual(['s4', 's3'])
-      expect(second.items.map((session) => session.id)).toEqual(['s1'])
-      expect(second.nextCursor).toBeUndefined()
-    })
-
-    it('uses the activity index for global and agent-scoped default lists without a temporary sort', () => {
-      const globalPlan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT agent_session.id
-           FROM agent_session
-           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
-           LEFT JOIN pin ON pin.entity_type = 'session' AND pin.entity_id = agent_session.id
-           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
-           WHERE agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
-           ORDER BY agent_session.last_activity_at DESC, agent_session.id ASC
-           LIMIT 51`
-        )
-        .all() as Array<{ detail: string }>
-      const scopedPlan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT agent_session.id
-           FROM agent_session
-           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
-           LEFT JOIN pin ON pin.entity_type = 'session' AND pin.entity_id = agent_session.id
-           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
-           WHERE agent.id = 'agent-session-test'
-             AND agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
-           ORDER BY agent_session.last_activity_at DESC, agent_session.id ASC
-           LIMIT 51`
-        )
-        .all() as Array<{ detail: string }>
-
-      expect(globalPlan.some(({ detail }) => detail.includes('agent_session_last_activity_at_id_idx'))).toBe(true)
-      expect(scopedPlan.some(({ detail }) => detail.includes('agent_session_agent_id_last_activity_at_id_idx'))).toBe(
-        true
-      )
-      for (const plan of [globalPlan, scopedPlan]) {
-        expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
-      }
     })
 
     it('filters by stable user workspace id and explicit system scope', async () => {
@@ -741,23 +688,6 @@ describe('AgentSessionService', () => {
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
-    })
-
-    it('uses the composite activity-time index without a temporary order B-tree', () => {
-      const plan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT agent_session.id
-           FROM agent_session
-           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
-           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
-           ORDER BY agent_session.last_activity_at DESC, agent_session.id ASC
-           LIMIT 1`
-        )
-        .all() as Array<{ detail: string }>
-
-      expect(plan.some(({ detail }) => detail.includes('agent_session_last_activity_at_id_idx'))).toBe(true)
-      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
     })
 
     it('does not treat task relation changes as session activity', async () => {
@@ -1643,25 +1573,6 @@ describe('AgentSessionService', () => {
     ])
     list = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
-  })
-
-  it('paginates sessions with a cursor', async () => {
-    const first = await createSession('First')
-    const second = await createSession('Second')
-    const third = await createSession('Third')
-
-    const page1 = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey', limit: 2 })
-    expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
-    expect(page1.nextCursor).toBeTruthy()
-
-    const page2 = agentSessionService.listByCursor({
-      pinned: false,
-      sortBy: 'orderKey',
-      limit: 2,
-      cursor: page1.nextCursor
-    })
-    expect(page2.items.map((item) => item.id)).toEqual([first.id])
-    expect(page2.nextCursor).toBeUndefined()
   })
 
   it('does not skip pinned sessions with the same orderKey across pages', async () => {

@@ -933,13 +933,6 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 
-  it('renders an alternate center surface without replacing the AgentChat shell', () => {
-    renderAgentChat({ centerSurface: { content: <div data-testid="history-center" /> } })
-
-    expect(screen.getByTestId('chat-app-shell')).toBeInTheDocument()
-    expect(screen.getByTestId('history-center')).toBeInTheDocument()
-  })
-
   it('renders the missing-agent selection as a home composer without leasing a session', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,

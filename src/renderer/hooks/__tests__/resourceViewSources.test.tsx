@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentSessionsSource, useAssistantTopicsSource } from '../resourceViewSources'
+import { useRawAgentSessionsSource, useRawAssistantTopicsSource } from '../resourceViewSources'
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -40,7 +40,7 @@ describe('resourceViewSources', () => {
 
   it('loads the exact reusable topic independently of list streams', async () => {
     mocks.get.mockResolvedValueOnce({ topic: null })
-    const { result } = renderHook(() => useAssistantTopicsSource())
+    const { result } = renderHook(() => useRawAssistantTopicsSource())
 
     await result.current.loadReusableTopic('assistant-a')
 
@@ -51,7 +51,7 @@ describe('resourceViewSources', () => {
 
   it('loads exact reusable sessions with an optional workspace scope', async () => {
     mocks.get.mockResolvedValueOnce({ sessions: [] })
-    const { result } = renderHook(() => useAgentSessionsSource())
+    const { result } = renderHook(() => useRawAgentSessionsSource())
 
     await result.current.loadReusableSessions('agent-a', 'system')
 

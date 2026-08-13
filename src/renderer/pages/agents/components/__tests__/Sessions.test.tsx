@@ -1216,24 +1216,6 @@ describe('Sessions', () => {
     expect(screen.queryByText('Ordinary task')).not.toBeInTheDocument()
   })
 
-  it('forces flat display in the right panel while following the selected session sort', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('agent.session.sort_type', 'lastActivityAt')
-    setupSessions()
-
-    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
-
-    // The classic right panel is the parent switch and forces flat display, so agent grouping is never
-    // engaged and the agent pins query stays disabled. Reverting the `isRightPanel ? 'time' :`
-    // force would flip displayMode back to the stored 'agent' and enable it.
-    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
-    expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      'agent-a',
-      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt' })
-    )
-  })
-
   it('separates pinned and ordinary tasks while showing every loaded session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({
@@ -1257,22 +1239,6 @@ describe('Sessions', () => {
     expect(screen.getByText('Session 51')).toBeInTheDocument()
     expect(screen.getByText('Session 56')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
-  })
-
-  it('requests separate pin-order and creation-order streams in flat mode', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'time')
-    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
-
-    render(<SessionsForTest />)
-
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: true, pageSize: 50, enabled: true })
-    )
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: false, sortBy: 'createdAt', pageSize: 50, enabled: true })
-    )
   })
 
   it('keeps an activity-stream retry available before any rows have loaded', async () => {

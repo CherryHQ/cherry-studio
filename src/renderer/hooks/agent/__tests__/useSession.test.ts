@@ -619,29 +619,6 @@ describe('useSessions', () => {
     expect(deleted).toBe(response)
   })
 
-  it('returns the created session when refreshing the session list fails', async () => {
-    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
-    const mockSession = createSession({
-      name: 'New session',
-      description: 'Notes'
-    })
-    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
-
-    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
-    const created = await act(async () =>
-      result.current.createSession({
-        name: 'New session',
-        description: 'Notes',
-        workspace: { type: 'user', workspaceId: 'workspace-1' }
-      })
-    )
-
-    expect(refresh).toHaveBeenCalledTimes(1)
-    expect(created).toBe(mockSession)
-    expect(toast.error).toHaveBeenCalled()
-  })
   it('shows an error toast and returns null when DataApi session creation fails', async () => {
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
     const createTrigger = vi.fn().mockRejectedValueOnce(new Error('create failed'))

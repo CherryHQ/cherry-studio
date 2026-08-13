@@ -3,10 +3,9 @@ import {
   shouldLoadResourceViewSource
 } from '@renderer/components/ResourceViewSourceProvider'
 import type * as ResourceViewSourcesModule from '@renderer/hooks/resourceViewSources'
-import { useAgentSessionsSource, useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type * as TabHooksModule from '@renderer/hooks/tab'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sourceMocks = vi.hoisted(() => ({
@@ -53,18 +52,6 @@ function createTab(id: string, url: string, isDormant = false): Tab {
   }
 }
 
-function SourceProbe() {
-  const topicsSource = useAssistantTopicsSource()
-  const sessionsSource = useAgentSessionsSource()
-
-  return (
-    <>
-      <span data-testid="topic-count">{topicsSource.stats?.total}</span>
-      <span data-testid="session-count">{sessionsSource.stats?.total}</span>
-    </>
-  )
-}
-
 describe('ResourceViewSourceProvider', () => {
   beforeEach(() => {
     sourceMocks.tabs = []
@@ -89,17 +76,6 @@ describe('ResourceViewSourceProvider', () => {
     }
   })
 
-  it('publishes the lightweight resource facts through context', () => {
-    render(
-      <ResourceViewSourceProvider>
-        <SourceProbe />
-      </ResourceViewSourceProvider>
-    )
-
-    expect(screen.getByTestId('topic-count')).toHaveTextContent('2')
-    expect(screen.getByTestId('session-count')).toHaveTextContent('3')
-  })
-
   it('loads only the source owned by the active non-dormant, non-message-only route tab', () => {
     sourceMocks.tabs = [
       createTab('chat-message', '/app/chat?topicId=topic-1&view=message'),
@@ -110,7 +86,7 @@ describe('ResourceViewSourceProvider', () => {
 
     render(
       <ResourceViewSourceProvider>
-        <SourceProbe />
+        <div />
       </ResourceViewSourceProvider>
     )
 

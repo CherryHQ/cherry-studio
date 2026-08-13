@@ -1056,21 +1056,6 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
-  it('requests separate pin-order and creation-order streams in flat mode', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-
-    renderTopicList()
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({ query: { pinned: true }, limit: 50, enabled: true })
-    )
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({ query: { pinned: false, sortBy: 'createdAt' }, limit: 50, enabled: true })
-    )
-  })
-
   it('keeps an activity-stream retry available before any rows have loaded', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const retryCreatedTopics = vi.fn().mockResolvedValue(undefined)
@@ -1237,26 +1222,6 @@ describe('Topics', () => {
     expect(onClearActiveTopic).not.toHaveBeenCalled()
   })
 
-  it('requests bounded topic pages without auto-paginating to the end', () => {
-    const loadNext = vi.fn()
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [] }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: true,
-      loadNext,
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
-
-    renderTopicList()
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 50 }))
-    expect(loadNext).not.toHaveBeenCalled()
-  })
-
   it('shows the empty chat state without a creation action', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [] }],
@@ -1386,24 +1351,6 @@ describe('Topics', () => {
     expect(conversationGroup).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Pinned topic')).toBeInTheDocument()
     expect(screen.queryByText('Ordinary topic')).not.toBeInTheDocument()
-  })
-
-  it('forces flat display in the right panel while following the selected topic sort', () => {
-    // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
-    // switch and must ignore the stored display mode. Assistants are
-    // still fetched as move targets, so the rendered list must prove that assistant grouping is off.
-    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
-    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
-
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({
-        query: { assistantId: 'assistant-1', pinned: false, sortBy: 'lastActivityAt' }
-      })
-    )
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {

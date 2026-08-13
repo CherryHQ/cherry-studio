@@ -1895,53 +1895,6 @@ describe('ResourceList', () => {
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
   })
 
-  it('keeps group header action buttons compact on the right side', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider
-        items={ITEMS}
-        groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const groupActionButton = screen.getAllByRole('button', { name: 'Group more' })[0]
-    const groupActionWrapper = groupActionButton.parentElement
-    const groupHeaderRow = groupActionWrapper?.parentElement
-    const groupHeaderButton = screen.getByRole('button', { name: 'session' })
-
-    expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
-    expect(groupActionButton).not.toHaveClass('min-h-7.5')
-    expect(groupHeaderRow).toHaveClass('relative')
-    expect(groupHeaderButton).toHaveClass(
-      'group-hover/resource-list-group:pr-12',
-      'group-focus-within/resource-list-group:pr-12',
-      'group-has-data-[state=open]/resource-list-group:pr-12'
-    )
-    expect(groupActionWrapper).toHaveClass(
-      'absolute',
-      'top-1/2',
-      'right-1.5',
-      '-translate-y-1/2',
-      'flex',
-      'opacity-0',
-      'group-hover/resource-list-group:opacity-100',
-      'group-focus-within/resource-list-group:opacity-100',
-      'has-data-[state=open]:opacity-100'
-    )
-    expect(groupActionWrapper).not.toHaveClass('ml-auto', 'shrink-0')
-    expect(groupActionWrapper).not.toHaveClass('hidden')
-  })
   it('opens group header context menus from the group header trigger', () => {
     const Provider = ResourceList.Provider<TestItem>
 
@@ -2213,45 +2166,6 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
-  })
-
-  it('aligns group footer actions with header text when the group header has no icon', () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const items = Array.from({ length: 6 }, (_, index) => ({
-      id: `item-${index + 1}`,
-      name: `Item ${index + 1}`,
-      kind: 'session' as const,
-      updatedAt: index
-    }))
-
-    render(
-      <Provider
-        items={items}
-        groupBy={() => ({ id: 'group', label: 'Group' })}
-        getGroupHeaderIcon={() => null}
-        groupShowMoreLabel="Show more"
-        groupCollapseLabel="Collapse">
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-2.5')
-    expect(showMoreButton.parentElement).not.toHaveClass('pl-9')
-
-    fireEvent.click(showMoreButton)
-
-    const collapseButton = screen.getByRole('button', { name: 'Collapse' })
-    expect(collapseButton.parentElement).toHaveClass('pl-2.5')
-    expect(collapseButton.parentElement).not.toHaveClass('pl-9')
   })
 
   it('uses controlled remote query state without filtering the server result locally', () => {

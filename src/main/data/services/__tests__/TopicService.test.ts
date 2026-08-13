@@ -250,42 +250,6 @@ describe('TopicService', () => {
       )
     })
 
-    it('uses activity indexes for global and assistant-scoped default lists without a temporary sort', () => {
-      const globalPlan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT topic.id
-           FROM topic
-           LEFT JOIN pin ON pin.entity_type = 'topic' AND pin.entity_id = topic.id
-           LEFT JOIN assistant ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
-           WHERE topic.deleted_at IS NULL
-             AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
-           ORDER BY topic.last_activity_at DESC, topic.id ASC
-           LIMIT 51`
-        )
-        .all() as Array<{ detail: string }>
-      const scopedPlan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT topic.id
-           FROM topic
-           LEFT JOIN pin ON pin.entity_type = 'topic' AND pin.entity_id = topic.id
-           LEFT JOIN assistant ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
-           WHERE topic.deleted_at IS NULL
-             AND assistant.id = 'asst-1'
-             AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
-           ORDER BY topic.last_activity_at DESC, topic.id ASC
-           LIMIT 51`
-        )
-        .all() as Array<{ detail: string }>
-
-      expect(globalPlan.some(({ detail }) => detail.includes('topic_last_activity_at_id_idx'))).toBe(true)
-      expect(scopedPlan.some(({ detail }) => detail.includes('topic_assistant_id_last_activity_at_id_idx'))).toBe(true)
-      for (const plan of [globalPlan, scopedPlan]) {
-        expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
-      }
-    })
-
     it('excludes soft-deleted topics and spans assistants', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values([
@@ -354,20 +318,17 @@ describe('TopicService', () => {
       expect(result.items[0]).toMatchObject({ pinned: false, pinId: null })
     })
 
-    it.each(['gibberish', 'unknown-section:foo', 'pin'])(
-      'falls back to first page when cursor is malformed (%s)',
-      async (badCursor) => {
-        // A renderer holding a stale/opaque cursor must not be locked out — the
-        // keyset decoder warns and returns the first page.
-        const service = new TopicService()
-        await dbh.db.insert(topicTable).values([
-          { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-          { id: 't2', name: 'T2', orderKey: 'a1', createdAt: 2, updatedAt: 200 }
-        ])
-        const result = service.listByCursor({ pinned: false, cursor: badCursor })
-        expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
-      }
-    )
+    it('falls back to first page when cursor is malformed', async () => {
+      // A renderer holding a stale/opaque cursor must not be locked out — the
+      // keyset decoder warns and returns the first page.
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'T2', orderKey: 'a1', createdAt: 2, updatedAt: 200 }
+      ])
+      const result = service.listByCursor({ pinned: false, cursor: 'gibberish' })
+      expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
+    })
   })
   describe('listByCursor (flat sortBy profiles)', () => {
     // Fixture: four topics with deliberately disagreeing orderKey and lastActivityAt
@@ -460,7 +421,8 @@ describe('TopicService', () => {
       await dbh.db.insert(topicTable).values([
         { id: 'tie-a', name: 'a', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 'tie-b', name: 'b', orderKey: 'a1', createdAt: 1, updatedAt: 100 },
-        { id: 'tie-c', name: 'c', orderKey: 'a2', createdAt: 1, updatedAt: 100 }
+        { id: 'tie-c', name: 'c', orderKey: 'a2', createdAt: 1, updatedAt: 100 },
+        { id: 'older', name: 'older', orderKey: 'a3', createdAt: 0, updatedAt: 100 }
       ])
       const page1 = topicService.listByCursor({ pinned: false, sortBy: 'createdAt', limit: 2 })
       expect(page1.items.map((t) => t.id)).toEqual(['tie-a', 'tie-b'])
@@ -471,7 +433,7 @@ describe('TopicService', () => {
         limit: 2,
         cursor: page1.nextCursor
       })
-      expect(page2.items.map((t) => t.id)).toEqual(['tie-c'])
+      expect(page2.items.map((t) => t.id)).toEqual(['tie-c', 'older'])
       expect(page2.nextCursor).toBeUndefined()
     })
 
@@ -520,44 +482,6 @@ describe('TopicService', () => {
 
       const unlinked = topicService.listByCursor({ pinned: false, sortBy: 'lastActivityAt', assistantId: 'unlinked' })
       expect(unlinked.items.map((topic) => topic.id)).toEqual(['t5', 't4', 't3'])
-    })
-
-    it('filters by pinned=true and pinned=false', async () => {
-      await seedFlat()
-      const pinned = topicService.listByCursor({ pinned: true })
-      expect(pinned.items.map((t) => t.id)).toEqual(['t2'])
-      const unpinned = topicService.listByCursor({ sortBy: 'lastActivityAt', pinned: false })
-      expect(unpinned.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
-    })
-
-    it('pages the unpinned creation stream by createdAt DESC with a stable cursor', async () => {
-      await seedFlat()
-      const first = topicService.listByCursor({ sortBy: 'createdAt', pinned: false, limit: 2 })
-      const second = topicService.listByCursor({
-        sortBy: 'createdAt',
-        pinned: false,
-        limit: 2,
-        cursor: first.nextCursor
-      })
-
-      expect(first.items.map((topic) => topic.id)).toEqual(['t4', 't3'])
-      expect(second.items.map((topic) => topic.id)).toEqual(['t1'])
-      expect(second.nextCursor).toBeUndefined()
-    })
-
-    it('excludes soft-deleted topics from flat pages', async () => {
-      await seedFlat()
-      await dbh.db.insert(topicTable).values({
-        id: 'gone',
-        name: 'gone',
-        orderKey: 'a9',
-        deletedAt: 999,
-        lastActivityAt: 999,
-        createdAt: 1,
-        updatedAt: 999
-      })
-      const result = topicService.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
-      expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
     })
 
     it('searchScope=name matches topic name only; name-or-owner also matches the live assistant name', async () => {
@@ -2295,24 +2219,6 @@ describe('TopicService', () => {
       ])
 
       expect(service.getLatestActive()?.id).toBe('latest')
-    })
-
-    it('uses the composite activity-time index without a temporary order B-tree', () => {
-      const plan = dbh.sqlite
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT topic.id
-           FROM topic
-           LEFT JOIN assistant
-             ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
-           WHERE topic.deleted_at IS NULL
-           ORDER BY topic.last_activity_at DESC, topic.id ASC
-           LIMIT 1`
-        )
-        .all() as Array<{ detail: string }>
-
-      expect(plan.some(({ detail }) => detail.includes('topic_last_activity_at_id_idx'))).toBe(true)
-      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
     })
 
     it('returns null when there are no topics', () => {

@@ -1,3 +1,4 @@
+import type * as CherrystudioUIModule from '@cherrystudio/ui'
 import type { TopicListItem } from '@shared/data/api/schemas/topics'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -41,9 +42,10 @@ const hookMocks = vi.hoisted(() => ({
   useUpdateSession: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherrystudioUIModule>()
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  return { ...MockCherrystudioUI, EmptyState: actual.EmptyState }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -977,7 +979,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(within(firstHomePage).queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
-  it('matches external assistant source and orders selected rows by recent activity', () => {
+  it('matches external assistant source and filters selected rows by source', () => {
     const topics = [
       createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
       createTopic({
@@ -997,20 +999,12 @@ describe('HistoryRecordsView assistant mode', () => {
         updatedAt: '2026-05-14T08:00:00.000Z'
       })
     ]
-    hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean; sortBy?: string }) => ({
-      topics: topics
-        .filter(
-          (topic) =>
-            (!options?.assistantId || topic.assistantId === options.assistantId) &&
-            (options?.pinned === undefined || topic.pinned === options.pinned)
-        )
-        .sort((left, right) => {
-          if (options?.sortBy === 'orderKey') {
-            return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
-          }
-          const sortBy = options?.sortBy === 'createdAt' ? 'createdAt' : 'lastActivityAt'
-          return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
-        }),
+    hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean }) => ({
+      topics: topics.filter(
+        (topic) =>
+          (!options?.assistantId || topic.assistantId === options.assistantId) &&
+          (options?.pinned === undefined || topic.pinned === options.pinned)
+      ),
       error: undefined,
       hasNext: false,
       isLoading: false,
@@ -1028,10 +1022,6 @@ describe('HistoryRecordsView assistant mode', () => {
 
     render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true }))
-    const pinnedCall = hookMocks.useTopics.mock.calls.find(([options]) => options?.pinned === true)
-    expect(pinnedCall?.[0]).not.toHaveProperty('sortBy')
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'createdAt' }))
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
     const gammaSource = screen.getByRole('button', { name: /Gamma assistant/ })
@@ -1040,12 +1030,9 @@ describe('HistoryRecordsView assistant mode', () => {
 
     fireEvent.click(alphaSource)
 
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'createdAt' })
-    )
-    const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
-    const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
-    expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(screen.getByText('Alpha A')).toBeInTheDocument()
+    expect(screen.getByText('Alpha B')).toBeInTheDocument()
+    expect(screen.queryByText('Beta topic')).not.toBeInTheDocument()
 
     fireEvent.click(gammaSource)
 

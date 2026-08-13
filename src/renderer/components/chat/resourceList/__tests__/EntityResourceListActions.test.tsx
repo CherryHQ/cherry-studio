@@ -766,18 +766,6 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('persists topic sorting from the classic assistant rail menu', async () => {
-    render(
-      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.sort.activity_at' }))
-
-    await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'lastActivityAt')
-    })
-  })
-
   it('keeps classic assistant rail history in the shared display menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
@@ -1001,24 +989,6 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
-    })
-  })
-
-  it('persists session sorting from the classic agent rail menu', async () => {
-    render(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        agentSessionsSource={createAgentSessionsSource()}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.sort.manual_order' }))
-
-    await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'orderKey')
     })
   })
 

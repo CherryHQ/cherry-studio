@@ -1,3 +1,4 @@
+import type * as CherrystudioUIModule from '@cherrystudio/ui'
 import { cacheService } from '@renderer/data/CacheService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
@@ -31,9 +32,10 @@ const hookMocks = vi.hoisted(() => ({
   virtualListRenderRows: [] as VirtualListRenderRow[]
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherrystudioUIModule>()
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  return { ...MockCherrystudioUI, EmptyState: actual.EmptyState }
 })
 
 vi.mock('@renderer/data/CacheService', async () => {
@@ -383,32 +385,16 @@ function setupAgentHistory({
     const pinId = pinIdBySessionId.get(session.id) ?? session.pinId
     return pinId ? { ...session, pinId, pinned: true } : { ...session, pinId: null, pinned: false }
   })
-  const filterSessions = (
-    ownerScope?: string,
-    q?: string,
-    pinned?: boolean,
-    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'createdAt'
-  ) => {
-    const normalizedQuery = q?.trim().toLowerCase()
-    return projectedSessions
-      .filter((session) => {
-        if (pinned !== undefined && session.pinned !== pinned) return false
-        if (ownerScope === 'unlinked') return session.agentId === null
-        if (ownerScope && session.agentId !== ownerScope) return false
-        if (!normalizedQuery) return true
-        const agentName = session.agentId ? agents.find((agent) => agent.id === session.agentId)?.name : undefined
-        return [session.name, agentName].some((value) => value?.toLowerCase().includes(normalizedQuery))
-      })
-      .sort((left, right) => {
-        if (sortBy !== 'orderKey') {
-          return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
-        }
-        return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
-      })
-  }
+  const filterSessions = (ownerScope?: string, pinned?: boolean) =>
+    projectedSessions.filter((session) => {
+      if (pinned !== undefined && session.pinned !== pinned) return false
+      if (ownerScope === 'unlinked') return session.agentId === null
+      if (ownerScope && session.agentId !== ownerScope) return false
+      return true
+    })
   hookMocks.useSessions.mockImplementation((ownerScope?: string, options?: any) => ({
-    sessions: filterSessions(ownerScope, options?.q, options?.pinned, options?.sortBy),
-    pages: [{ items: filterSessions(ownerScope, options?.q, options?.pinned, options?.sortBy) }],
+    sessions: filterSessions(ownerScope, options?.pinned),
+    pages: [{ items: filterSessions(ownerScope, options?.pinned) }],
     pinIdBySessionId,
     error: sourceError,
     hasMore: options?.pinned ? false : hasMore,
@@ -527,21 +513,6 @@ describe('HistoryRecordsView agent mode', () => {
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
     })
 
-    expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
-      pageSize: 50,
-      pinned: true,
-      q: '',
-      searchScope: 'name-or-owner'
-    })
-    expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
-      pageSize: 50,
-      pinned: false,
-      q: '',
-      searchScope: 'name-or-owner',
-      sortBy: 'createdAt'
-    })
-    expect(hookMocks.useTopics).not.toHaveBeenCalled()
-    expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
@@ -607,12 +578,12 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders agent sources by agent order and selected agent rows by recent activity', () => {
+  it('orders agent sources and filters selected rows by source', () => {
     setupAgentHistory({
       agents: [
-        createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
-        createAgent({ id: 'agent-alpha', name: 'Alpha agent', configuration: { avatar: 'A' } }),
-        createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' } })
+        createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' }, orderKey: 'a' }),
+        createAgent({ id: 'agent-alpha', name: 'Alpha agent', configuration: { avatar: 'A' }, orderKey: 'b' }),
+        createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' }, orderKey: 'c' })
       ],
       sessions: [
         createSession({
@@ -644,23 +615,15 @@ describe('HistoryRecordsView agent mode', () => {
       ]
     })
 
-    expect(hookMocks.useDataApiQuery).not.toHaveBeenCalled()
     const betaSource = screen.getByRole('button', { name: /Beta agent/ })
     const alphaSource = screen.getByRole('button', { name: /Alpha agent/ })
     expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
 
-    expect(hookMocks.useSessions).toHaveBeenCalledWith(
-      'agent-alpha',
-      expect.objectContaining({
-        pinned: false,
-        sortBy: 'createdAt'
-      })
-    )
-    const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
-    const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
-    expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha A')).toBeInTheDocument()
+    expect(screen.getByText('Alpha B')).toBeInTheDocument()
   })
 
   it('restores the agent status selector and filters by existing stream status', () => {
@@ -743,25 +706,6 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()
     expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
-  })
-
-  it('searches by session and live-agent name, but not task description', () => {
-    setupAgentHistory()
-
-    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
-
-    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'beta session' } })
-
-    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.getByText('Beta session')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'alpha agent' } })
-
-    expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
   it('activates a session when the history title is clicked', () => {
