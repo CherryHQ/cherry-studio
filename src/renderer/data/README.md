@@ -28,7 +28,7 @@ src/renderer/data/
 ```typescript
 // Data API
 import { useQuery, useMutation } from '@data/hooks/useDataApi'
-const { data } = useQuery('/topics', { query: { pinned: false } })
+const { data } = useQuery('/topics')
 const { trigger: createTopic } = useMutation('/topics', 'POST')
 
 // Preferences

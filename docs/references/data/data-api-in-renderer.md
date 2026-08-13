@@ -12,7 +12,7 @@ Fetch data with automatic caching and revalidation via SWR.
 import { useQuery } from '@data/hooks/useDataApi'
 
 // Basic usage
-const { data, isLoading, error } = useQuery('/topics', { query: { pinned: false } })
+const { data, isLoading, error } = useQuery('/topics')
 
 // With query parameters
 const { data: messages } = useQuery('/messages', {
@@ -26,7 +26,7 @@ const { data: topic } = useQuery('/topics/abc123')
 const { data } = useQuery('/topics', { enabled: !!topicId })
 
 // With refresh callback
-const { data, mutate, refetch } = useQuery('/topics', { query: { pinned: false } })
+const { data, mutate, refetch } = useQuery('/topics')
 // Refresh data
 refetch() // or await mutate()
 ```
@@ -56,7 +56,7 @@ await deleteTopic()
 
 // With auto-refresh of other queries
 const { trigger } = useMutation('POST', '/topics', {
-  refresh: ['/topics'], // Refresh these keys on success
+  refresh: ['/topics'],  // Refresh these keys on success
   onSuccess: (data) => logger.info('Created:', data)
 })
 ```
@@ -312,7 +312,7 @@ await dataApiService.delete('/topics/abc123')
 
 ```typescript
 function TopicList() {
-  const { data, isLoading, error } = useQuery('/topics', { query: { pinned: false } })
+  const { data, isLoading, error } = useQuery('/topics')
 
   if (isLoading) return <Loading />
   if (error) {
@@ -463,7 +463,7 @@ The API is fully typed based on schema definitions:
 
 ```typescript
 // Types are inferred from schema
-const { data } = useQuery('/topics', { query: { pinned: false } })
+const { data } = useQuery('/topics')
 // data is typed as PaginatedResponse<Topic>
 
 const { trigger } = useMutation('POST', '/topics')
