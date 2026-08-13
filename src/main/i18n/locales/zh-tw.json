@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。",
   "agent.builtin.cherry_support.description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋",
+  "agent.session.background_bash.output_truncated": "[輸出已截斷：已省略 {{omittedBytes}} 位元組]",
   "agent.session.new": "新任務",
   "agent.session.run_status.busy": "Agent 工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "Agent 工作階段已無法使用。",

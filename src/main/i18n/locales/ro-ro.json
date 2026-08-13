@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități",
   "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",
+  "agent.session.background_bash.output_truncated": "[ieșire trunchiată: {{omittedBytes}} octeți omiși]",
   "agent.session.new": "Sarcină nouă",
   "agent.session.run_status.busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
   "agent.session.run_status.unavailable": "Sesiunea Agent nu mai este disponibilă.",

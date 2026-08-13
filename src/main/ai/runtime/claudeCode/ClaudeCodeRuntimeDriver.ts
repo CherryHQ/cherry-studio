@@ -729,6 +729,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
+      this.teardownSession()
       this.eventQueue.close()
     }
   }
@@ -843,6 +844,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private teardownSession(): void {
     if (this.sessionTornDown) return
     this.sessionTornDown = true
+    this.adapter?.dispose()
     this.approvalEmitter?.dispose?.()
     this.steerHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)

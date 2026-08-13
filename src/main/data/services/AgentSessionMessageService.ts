@@ -54,8 +54,8 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
+import { type AgentTaskEventPartData, readCherryMeta } from '@shared/data/types/uiParts'
+import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -1721,6 +1721,33 @@ export class AgentSessionMessageService {
       }
     ])
     return saved
+  }
+
+  checkpointWorkflowTaskEvent(sessionId: string, messageId: string, event: AgentTaskEventPartData): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) return
+
+      const parts = existingRow.data.parts ?? []
+      const index = parts.findIndex(
+        (part) =>
+          isDataUIPart(part) &&
+          part.type === 'data-agent-task-event' &&
+          part.data.taskId === event.taskId &&
+          part.data.workflow !== undefined
+      )
+      const existingCheckpoint = index >= 0 && isDataUIPart(parts[index]) ? parts[index] : undefined
+      const checkpoint = {
+        type: 'data-agent-task-event',
+        id: existingCheckpoint?.id ?? `task-${event.taskId}-workflow-checkpoint`,
+        data: event
+      } as CherryMessagePart
+      const nextParts = index < 0 ? [...parts, checkpoint] : parts.with(index, checkpoint)
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...existingRow.data, parts: nextParts } })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+    })
   }
 
   /**

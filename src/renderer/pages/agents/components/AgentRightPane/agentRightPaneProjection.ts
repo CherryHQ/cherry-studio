@@ -15,8 +15,13 @@ import {
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
-import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import {
+  type AgentSessionBackgroundTasks,
+  type AgentSessionTaskEvents,
+  mergeAgentSessionTaskEvent
+} from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
@@ -68,15 +73,20 @@ export interface AgentRunTask {
   toolUseId?: string
   title: string
   status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
+  createdAt?: string
+  completedAt?: string
   activeText?: string
   /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
   taskType?: string
   subagentType?: string
   workflowName?: string
+  description?: string
   summary?: string
-  lastToolName?: string
-  outputFile?: string
   usage?: AgentTaskEventPartData['usage']
+  workflow?: AgentTaskEventPartData['workflow']
+  command?: string
+  output?: string
+  deferredOutput?: DeferredToolOutput
 }
 
 /** A final deliverable file the agent declared via the `report_artifacts` tool. */
@@ -94,8 +104,6 @@ export interface AgentArtifactFile {
 export interface AgentRunLiveness {
   /** Assistant message ids whose own turn is still pending. */
   activeMessageIds: ReadonlySet<string>
-  /** Task ids currently present in the runtime's background-task membership snapshot. */
-  liveBackgroundTaskIds: ReadonlySet<string>
 }
 
 export interface AgentRightPaneStatus {
@@ -141,6 +149,11 @@ function getToolPartOutput(part: CherryMessagePart): unknown {
   return output
 }
 
+function getToolPartErrorText(part: CherryMessagePart): string | undefined {
+  const errorText = (part as unknown as { errorText?: unknown }).errorText
+  return typeof errorText === 'string' ? errorText.trim() || undefined : undefined
+}
+
 function getToolNameFromPart(part: CherryMessagePart): string | undefined {
   if (!isToolUIPart(part)) return undefined
   const toolName = getToolName(part)
@@ -170,6 +183,17 @@ function textFromContent(value: unknown): string | undefined {
 
   const json = JSON.stringify(value, null, 2)
   return json === '{}' ? undefined : json
+}
+
+export function getBashOutputText(value: unknown): string | undefined {
+  if (!isRecord(value)) return textFromContent(value)
+
+  const hasStreams = typeof value.stdout === 'string' || typeof value.stderr === 'string'
+  if (!hasStreams) return textFromContent(value)
+
+  const stdout = typeof value.stdout === 'string' ? value.stdout.trim() : ''
+  const stderr = typeof value.stderr === 'string' ? value.stderr.trim() : ''
+  return [stdout, stderr].filter(Boolean).join('\n') || undefined
 }
 
 function getToolPromptText(part: CherryMessagePart | undefined): string | undefined {
@@ -479,42 +503,70 @@ function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined
 }
 
 const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
+const WORKFLOW_AGENT_ACTIVE_STATES = new Set(['active', 'in_progress', 'running'])
+
+function settleActiveWorkflowAgents(
+  workflow: NonNullable<AgentRunTask['workflow']>,
+  state: 'completed' | 'interrupted'
+): NonNullable<AgentRunTask['workflow']> {
+  let changed = false
+  const workflowProgress = workflow.workflowProgress.map((progress) => {
+    if (progress.type !== 'workflow_agent' || !WORKFLOW_AGENT_ACTIVE_STATES.has(progress.state.trim().toLowerCase())) {
+      return progress
+    }
+    changed = true
+    return { ...progress, state }
+  })
+
+  return changed ? { ...workflow, workflowProgress } : workflow
+}
 
 function applyAgentTaskEvent(
   runTaskMap: Map<string, AgentRunTask>,
+  taskEventMap: Map<string, AgentTaskEventPartData>,
   data: AgentTaskEventPartData,
   originMessageId?: string,
   originMessageIds?: Map<string, string>
 ): void {
   const existing = runTaskMap.get(data.taskId)
+  const mergedData = mergeAgentSessionTaskEvent(taskEventMap.get(data.taskId), data)
+  taskEventMap.set(data.taskId, mergedData)
   // A completion's summary is prose, not a name — it must never become the row title.
-  const title = existing?.title || data.title?.trim() || data.description?.trim()
+  const title = existing?.title || mergedData.title?.trim() || mergedData.description?.trim()
   if (!title) return
 
-  // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
-  // pre-completion event can apply after the completion did. A settled task never resurrects.
-  const incoming = data.status ?? existing?.status ?? 'pending'
-  const status =
-    existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
-      ? existing.status
-      : incoming
+  // The shared merge owns lifecycle ordering, including the strict enrichment whitelist for stale
+  // progress that arrives after the first terminal transition.
+  const status = mergedData.status ?? existing?.status ?? 'pending'
+  const createdAt = mergedData.createdAt ?? existing?.createdAt
+  const completedAt = mergedData.completedAt ?? existing?.completedAt
+  const workflowSnapshot = mergedData.workflow ?? existing?.workflow
+  const workflow =
+    workflowSnapshot && RUN_TASK_TERMINAL_STATUSES.has(status)
+      ? settleActiveWorkflowAgents(workflowSnapshot, status === 'completed' ? 'completed' : 'interrupted')
+      : workflowSnapshot
 
-  runTaskMap.set(data.taskId, {
-    id: data.taskId,
-    toolUseId: data.toolUseId ?? existing?.toolUseId,
+  runTaskMap.set(mergedData.taskId, {
+    id: mergedData.taskId,
+    toolUseId: mergedData.toolUseId ?? existing?.toolUseId,
     title,
-    activeText: data.activeText ?? data.description ?? existing?.activeText,
+    ...(createdAt ? { createdAt } : {}),
+    ...(completedAt ? { completedAt } : {}),
+    activeText: mergedData.activeText ?? mergedData.description ?? existing?.activeText,
     status,
-    taskType: data.taskType ?? existing?.taskType,
-    subagentType: data.subagentType ?? existing?.subagentType,
-    workflowName: data.workflowName ?? existing?.workflowName,
-    summary: data.summary ?? existing?.summary,
-    lastToolName: data.lastToolName ?? existing?.lastToolName,
-    outputFile: data.outputFile ?? existing?.outputFile,
-    usage: data.usage ?? existing?.usage
+    taskType: mergedData.taskType ?? existing?.taskType,
+    subagentType: mergedData.subagentType ?? existing?.subagentType,
+    workflowName: mergedData.workflowName ?? existing?.workflowName,
+    description: existing?.description ?? mergedData.description,
+    summary: mergedData.summary ?? existing?.summary,
+    usage: mergedData.usage ?? existing?.usage,
+    ...(workflow ? { workflow } : {}),
+    ...(existing?.command ? { command: existing.command } : {}),
+    ...(existing?.output ? { output: existing.output } : {}),
+    ...(existing?.deferredOutput ? { deferredOutput: existing.deferredOutput } : {})
   })
-  if (originMessageId && !originMessageIds?.has(data.taskId)) {
-    originMessageIds?.set(data.taskId, originMessageId)
+  if (originMessageId && !originMessageIds?.has(mergedData.taskId)) {
+    originMessageIds?.set(mergedData.taskId, originMessageId)
   }
 }
 
@@ -538,6 +590,8 @@ export function buildAgentRightPaneStatus(
    * background task's completion settles the row the transcript parts built.
    */
   lateTaskEvents: AgentSessionTaskEvents = {},
+  /** Authoritative membership snapshot for tasks currently detached from their spawning turn. */
+  backgroundTasks: AgentSessionBackgroundTasks = [],
   /** Omitted means "trust the events" — production always passes it. */
   liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
@@ -545,19 +599,22 @@ export function buildAgentRightPaneStatus(
   const taskMap = taskPlanState.tasks
   let todoSnapshotTasks: AgentStatusTask[] | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
+  const taskEventMap = new Map<string, AgentTaskEventPartData>()
   const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
+  const toolPartByCallId = new Map<string, CherryMessagePart>()
 
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
+        applyAgentTaskEvent(runTaskMap, taskEventMap, part.data, message.id, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
       const toolName = getToolNameFromPart(part)
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
+      if (fallbackId) toolPartByCallId.set(fallbackId, part)
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
       if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
@@ -582,24 +639,75 @@ export function buildAgentRightPaneStatus(
     })
   }
 
+  const aggregateTaskIds = new Set<string>()
+  for (const task of backgroundTasks) {
+    aggregateTaskIds.add(task.id)
+    const existing = runTaskMap.get(task.id)
+    if (existing) {
+      if ((!existing.toolUseId && task.toolCallId) || !existing.taskType) {
+        runTaskMap.set(task.id, {
+          ...existing,
+          ...(!existing.toolUseId && task.toolCallId ? { toolUseId: task.toolCallId } : {}),
+          ...(!existing.taskType ? { taskType: task.type } : {})
+        })
+      }
+      continue
+    }
+    runTaskMap.set(task.id, {
+      id: task.id,
+      ...(task.toolCallId ? { toolUseId: task.toolCallId } : {}),
+      title: task.description,
+      status: 'in_progress',
+      taskType: task.type
+    })
+  }
+
   for (const data of Object.values(lateTaskEvents)) {
-    applyAgentTaskEvent(runTaskMap, data)
+    applyAgentTaskEvent(runTaskMap, taskEventMap, data)
   }
 
   // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
   // app restart means it never will. Foreground liveness belongs to the originating assistant row,
-  // while background liveness comes only from the runtime's current background-task membership snapshot.
+  // while a detached task remains live only while the runtime aggregate still contains it.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
       if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
       const originMessageId = runTaskOriginMessageIds.get(id)
-      if (
-        (originMessageId && liveness.activeMessageIds.has(originMessageId)) ||
-        liveness.liveBackgroundTaskIds.has(id)
-      ) {
-        continue
-      }
-      runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
+      const originIsLive = Boolean(originMessageId && liveness.activeMessageIds.has(originMessageId))
+      const aggregateIsLive = aggregateTaskIds.has(id)
+      const isDetached = taskEventMap.get(id)?.isBackgrounded === true
+      const isLive = aggregateIsLive || (!isDetached && originIsLive)
+      if (isLive) continue
+      const workflow = task.workflow ? settleActiveWorkflowAgents(task.workflow, 'interrupted') : undefined
+      runTaskMap.set(id, {
+        ...task,
+        status: 'error',
+        activeText: undefined,
+        ...(workflow ? { workflow } : {})
+      })
+    }
+  }
+
+  for (const [id, task] of runTaskMap) {
+    if (!task.toolUseId) continue
+    const toolPart = toolPartByCallId.get(task.toolUseId)
+    if (!toolPart || getToolNameFromPart(toolPart) !== AgentToolsType.Bash) continue
+    const input = getToolPartInput(toolPart)
+    const command = isRecord(input) && typeof input.command === 'string' ? input.command.trim() || undefined : undefined
+    const toolOutput = getToolPartOutput(toolPart)
+    const outputValue =
+      toolOutput === undefined && getToolPartState(toolPart) === 'output-error'
+        ? getToolPartErrorText(toolPart)
+        : toolOutput
+    const deferredOutput = isDeferredToolOutput(outputValue) ? outputValue : undefined
+    const output = deferredOutput ? undefined : getBashOutputText(outputValue)
+    if (command || output || deferredOutput) {
+      runTaskMap.set(id, {
+        ...task,
+        ...(command ? { command } : {}),
+        ...(output ? { output } : {}),
+        ...(deferredOutput ? { deferredOutput } : {})
+      })
     }
   }
 
