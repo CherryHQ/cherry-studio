@@ -97,6 +97,8 @@
         "clientSecret": "Secret client",
         "clientSecretPlaceholder": "Entrez votre Client Secret QQ Bot",
         "description": "Recevoir et répondre aux messages via l'API officielle QQ Bot.",
+        "mentionOnlyHint": "Lorsque le bot est activé, il ne répond qu’aux mentions directes (@mention). Pour recevoir tous les messages du groupe, désactivez le bot ; cela nécessite l’autorisation “recevoir tous les messages” sur la plateforme QQ Open Platform.",
+        "mentionOnlyLabel": "[@Mentionner uniquement]",
         "title": "QQ",
         "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir votre ID de chat au bon format."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[{count}] chaines",
+          "channels_count_other": "[À traduire] : {{count}} chaînes",
+          "channels_empty": "Aucun canal ne sera modifié.",
+          "channels_title": "**[À traduire]** : Les canaux ont été configurés de telle manière qu’ils ne utilisent pas de dossier de travail.",
           "content": "La suppression de ce répertoire de travail supprimera également toutes les tâches qu’il contient. Seules les enregistrements de la base de données seront supprimés ; le dossier réel sur le disque ne sera pas supprimé.",
+          "disk_preserved": "Le fichier d’appartenance au dossier sur le disque, ainsi que les fichiers qui s’y trouvent, ne seront pas supprimés.",
           "error": {
             "failed": "Échec de la suppression du répertoire de travail"
           },
+          "more_count_one": "…et encore {{count}} articles.",
+          "more_count_other": "…et encore {{count}} articles.",
+          "preview": "[À traduire] : La suppression de „{{name}}“ supprime ses sessions ainsi que les canaux et tâches planifiées associés, et modifie leur référence vers un repertoire de travail non spécifié. Cette action est irréversible.",
+          "preview_failed": "L’impact de la suppression n’a pas pu être récupéré ; par conséquent, ce répertoire de travail ne peut pas encore être supprimé.",
+          "preview_loading": "[À traduire] : Chargement des informations sur l’impact de la suppression…",
+          "sessions_count_one": "[À traduire] : {{count}} session",
+          "sessions_count_other": "[to be translated] : {{count}} sessions",
+          "sessions_empty": "Aucune session ne sera supprimée.",
+          "sessions_title": "[Séances à supprimer]",
+          "tasks_count_one": "[À traduire] : {{count}} tâche planifiée",
+          "tasks_count_other": "[{count}} tâches planifiées",
+          "tasks_empty": "Aucune tâche prévue ne sera modifiée.",
+          "tasks_title": "[Tâches planifiées] Les tâches planifiées ont été modifiées de manière à ne pas utiliser de répertoire de travail (pas de dossier spécifique pour l'exécution des actions).",
           "title": "Supprimer le répertoire de travail",
           "trigger": "Supprimer le répertoire de travail"
         },
@@ -1543,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Fichiers",
+          "resources": "[À traduire] : Fichiers et dossiers",
           "skills": "Compétences"
         },
         "description": "Sélectionner parmi les fichiers, les agents ou les compétences",
+        "load_failed": "Échec à la chargement des ressources du espace de travail.",
         "loading": "Chargement...",
-        "no_file_found": {
-          "description": "Aucun fichier disponible dans les répertoires accessibles",
-          "label": "Aucun fichier trouvé"
-        },
         "no_items_found": {
           "description": "Aucun fichier, agent ou compétence disponible",
           "label": "Aucun élément trouvé"
+        },
+        "no_resources_found": {
+          "description": "Aucun fichier ni dossier pouvant être recherché dans l’espace de travail actuel.",
+          "label": "[Aucun ressource trouvé]"
         },
         "title": "Ressources"
       },
@@ -2523,6 +2544,7 @@
       "ocr": "Moteur OCR non initialisé, vérifiez les paramètres OCR",
       "parse": "L'IA a renvoyé une réponse invalide, veuillez réessayer ou changer de modèle",
       "payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
+      "permission": "Le fournisseur a refusé cette demande. Vérifiez les détails de l’erreur, le plan de votre compte, les autorisations relatives à votre clé API, ainsi que vos droits d’accès à cette ressource.",
       "proxy": "Erreur de proxy ou de certificat SSL, vérifiez les paramètres proxy et réseau",
       "quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
       "rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",
@@ -2547,6 +2569,7 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n’a pas pu extraire de texte lisible à partir du fichier attaché. Choisisz un modèle capable de traiter les images, ou supprimez l’image et essayez à nouveau.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3195,7 +3218,6 @@
       "updated_at": "Mis à jour {{time}}"
     },
     "name_required": "Le nom de la base de connaissances est requis",
-    "not_set": "Non défini",
     "provider_not_found": "Fournisseur introuvable",
     "rag": {
       "chunk_overlap": "Taille de chevauchement",
@@ -3210,12 +3232,13 @@
       "chunking": "Fragmentation",
       "default_separator": "Auto (recommandé)",
       "document_count": "Nombre de documents",
-      "download_local_embedding": "Télécharger le modèle local",
       "download_local_embedding_failed": "Échec du téléchargement du modèle d'embedding local",
+      "download_local_model": "[Tout à traduire] : Télécharger le modèle local.",
       "embedding_model": "Modèle d'embedding",
       "embedding_model_select": "Sélection de modèle",
       "file_processing": "Traitement de fichiers",
       "file_processing_hint": "Le traitement des fichiers s'exécute automatiquement lors de l'importation des documents. Choisir le bon fournisseur peut améliorer la qualité de l'analyse des documents.",
+      "file_processing_none": "[N' utilisez pas",
       "hints": {
         "chunk_overlap": "Nombre de jetons chevauchants conservés entre les segments adjacents afin de réduire les ruptures sémantiques.",
         "chunk_separator": "Délimiteur sur lequel le texte est découpé, sous forme échappée. Avec le découpage intelligent activé, il ajoute un point de rupture ; avec celui-ci désactivé, le texte est divisé uniquement par ce délimiteur.",
@@ -3229,6 +3252,8 @@
       },
       "processor": "Fournisseur de traitement",
       "processor_not_configured": "Non configuré",
+      "processor_not_downloaded": "[N’a pas été téléchargé]",
+      "processor_unreachable": "Le service n’est pas en cours d’exécution.",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
       "reset_action": "Restaurer les paramètres par défaut",
@@ -4026,6 +4051,14 @@
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
       },
+      "stream_admission": {
+        "execution_changed": "La réponse a changé avant le début de la tentative de réessaye. Veuillez essayer à nouveau.",
+        "execution_not_ready": "Cette réponse est encore en cours de génération et ne peut pas être réessayée pour l’instant.",
+        "model_already_in_live_group": "Ce modèle génère déjà des réponses au sein du groupe de discussion actif.",
+        "single_model_required": "Choisissez un modèle à ajouter au groupe de réponses actif.",
+        "target_not_in_live_group": "La réponse sélectionnée n’appartient plus au groupe de réponses actives. Veuillez essayer à nouveau.",
+        "topic_busy": "Cette conversation est encore en cours de génération. Attendez qu’elle se termine, puis essayez à nouveau."
+      },
       "table": {
         "invalid": "Impossible de récupérer des données de table valides"
       },
@@ -4040,7 +4073,8 @@
         "content": "Supprimer toutes les réponses de l’assistant de ce groupe ? La question de l’utilisateur et les messages suivants seront conservés.",
         "title": "Supprimer les réponses groupées"
       },
-      "retry_failed": "message d'erreur de nouvelle tentative"
+      "retry_failed": "message d'erreur de nouvelle tentative",
+      "retry_skipped_same_model": "[[to be translated]] : {{count}} autres réponses échouées ont été ignorées, car la fonction « Retry All » ne permet pas plus d'une tentative de réparation par modèle."
     },
     "ignore": {
       "knowledge": {
@@ -4472,27 +4506,27 @@
     },
     "pinned": "Épinglé",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "Ajouter un niveau de tarification.",
+      "cache_fallback_help": "[À traduire] : Laissez les prix affichés dans le cache vides pour utiliser le prix indiqué à ce niveau ; saisissez « 0 » pour indiquer que le service est gratuit.",
       "cache_read": "Prix de lecture du cache",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "**[À traduire] : Prix d'écriture dans le cache**",
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[à traduire] : {{champ}}, niveau {{index}}",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "[Ce texte doit être traduit] : Débute avec les tokens d’entrée.",
+      "min_input_tokens_help": "[[À traduire]] : Limite inclusif ; doit être supérieur au niveau précédent.",
       "output": "Prix de sortie",
       "price": "Prix",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "[À traduire] : Supprimer le niveau de tarif {{index}}.",
+      "tier": "Niveau {{index}}",
+      "tier_from": "À partir des tokens d’entrée situés à partir de {{boundary}} (y compris).",
+      "use_input_price": "Utiliser le prix de l’entrée (input price).",
+      "validation_min_input_tokens": "[Votre texte à traduire commence par :] Entrez un nombre entier positif.",
+      "validation_min_input_tokens_order": "Ce niveau doit commencer après le niveau précédent.",
+      "validation_price": "[Veuillez saisir un prix supérieur ou égal à 0.]"
     },
     "reasoning": "Raisonnement",
     "rerank_model": "Modèle de reranking",
@@ -4644,8 +4678,8 @@
         "font_size_medium": "Moyenne",
         "font_size_small": "petit",
         "font_title": "paramétrage des polices",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "Mode de saut de ligne",
+        "line_breaks_description": "Rendre un saut de ligne en une nouvelle ligne (au style Obsidian). Lorsque cette fonctionnalité est désactivée, les sauts de ligne sont remplacés par des espaces jusqu’à ce qu’une ligne vide sépare les paragraphes.",
         "serif_font": "police à empattements",
         "show_table_of_contents": "Afficher le plan du sommaire",
         "show_table_of_contents_description": "Afficher la barre latérale de la table des matières pour faciliter la navigation dans le document",
@@ -5413,7 +5447,7 @@
         "insertRowBefore": "Insérer en haut"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "Retour en haut",
     "commands": {
       "blockMath": {
         "description": "insérer des formules mathématiques",
@@ -6690,6 +6724,10 @@
       "installingHint": "La première installation peut télécharger un runtime et prendre quelques minutes",
       "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
+        "acceleration": {
+          "description": "Utilisez DirectML ou CoreML pour accélérer les opérations d’encrage localisé (embedding) ainsi que les inférences à partir des images (OCR – Optical Character Recognition).",
+          "label": "Accélération matérielle"
+        },
         "cancel": "Annuler",
         "description": "Les modèles qui s'exécutent localement sur votre appareil — téléchargez une fois, puis utilisez hors ligne sans clé API.",
         "download": "Télécharger",
@@ -6997,6 +7035,7 @@
       },
       "command": "Commande",
       "config_description": "Configurer le modèle du protocole de contexte du serveur",
+      "copyLogs": "[Copier les journaux (logs)]",
       "customRegistryPlaceholder": "Veuillez entrer l'adresse du registre privé, par exemple : https://npm.company.com",
       "deleteError": "Échec de la suppression du serveur",
       "deleteServer": "Supprimer le serveur",
@@ -7050,6 +7089,7 @@
       },
       "logoUrl": "URL du logo",
       "logs": "Journaux",
+      "logsHint": "[À traduire] : Journal des fichiers générés par le processus du serveur MCP",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
@@ -8160,10 +8200,12 @@
       "label": "Touche",
       "move_tab_to_first": "Déplacer l'onglet en premier",
       "new_topic": "Nouveau sujet",
+      "next_tab": "[Mot à traduire] : Dans l’onglet suivant…",
       "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
       "open_tab_in_new_window": "Ouvrir l'onglet dans une nouvelle fenêtre",
       "pin_tab": "Épingler/Désépingler l'onglet",
       "press_shortcut": "Appuyer sur raccourci clavier",
+      "prev_tab": "[Voir cette rubrique : Fiche précédente]",
       "print": "Imprimer",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
@@ -8279,6 +8321,10 @@
           "doc2x": {
             "description": "Moteur de restauration de fichiers avancé.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[À traduire] : Converte entièrement les PDFs en format Markdown sur cette machine. Les documents contenant une seule couche de texte sont interprétés directement ; les scanners se réfèrent alors au modèle de reconnaissance optique de caractères (OCR) local.",
+            "name": "[À traduire] : Document local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) fonctionnant en processus — entièrement hors ligne, sans clé API, avec une reconnaissance sur un thread en arrière-plan pour que l'interface utilisateur reste réactive. Téléchargez le modèle (~140 Mo) dans les dépendances d'environnement avant la première utilisation.",

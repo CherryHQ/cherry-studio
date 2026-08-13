@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
         "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
+        "mentionOnlyHint": "【待翻译内容】：  \n开启该功能后，机器人仅会对提及（@mention）的内容作出回复；关闭该功能后，机器人会接收所有群组消息（需在 QQ Open Platform 上获得“接收所有消息”的权限）。",
+        "mentionOnlyLabel": "@仅提及",
         "title": "QQ",
         "whoamiTip": "💡 提示：傳送 /whoami 給機器人即可取得正確格式的對話 ID。"
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[待翻译]：{{count}} 个频道",
+          "channels_count_other": "[待翻译]：{{count}} 个频道",
+          "channels_empty": "没有频道会被更改。",
+          "channels_title": "通道（channels）被设置为不使用工作目录（no work directory）。",
           "content": "刪除此工作資料夾也會刪除其下所有任務。只會移除資料庫記錄，磁碟上的實際資料夾不會被刪除。",
+          "disk_preserved": "磁盘上的文件夹及其文件不会被删除。",
           "error": {
             "failed": "刪除工作目錄失敗"
           },
+          "more_count_one": "…以及另外 {{count}} 件商品。",
+          "more_count_other": "…以及另外 {{count}} 件物品。",
+          "preview": "[待翻译]：删除 “{{name}}” 会清除其会话记录，并将相关频道和计划任务更改为使用空工作目录（即没有实际工作内容的目录）。此操作无法撤销。",
+          "preview_failed": "删除操作的影响数据无法被加载，因此目前还无法删除这个工作目录。",
+          "preview_loading": "正在加载删除操作的影响数据…",
+          "sessions_count_one": "[待翻译]：{{count}} 个会话",
+          "sessions_count_other": "[待翻译]：{{count}} 个会话",
+          "sessions_empty": "任何会话都不会被删除。",
+          "sessions_title": "[要翻译]：需要删除的会话",
+          "tasks_count_one": "[待翻译]：{{count}} 个已安排的任务",
+          "tasks_count_other": "[待翻译]：{{count}} 个已安排的任务",
+          "tasks_empty": "没有计划中的任务会被修改。",
+          "tasks_title": "已安排的作业被更改为不使用工作目录（即不在指定的工作目录中执行）。",
           "title": "刪除工作目錄",
           "trigger": "刪除工作目錄"
         },
@@ -1543,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agent",
-          "files": "檔案",
+          "resources": "文件与文件夹",
           "skills": "技能"
         },
         "description": "從檔案、Agent 或技能中選擇",
+        "load_failed": "[prompt incomplete]：未能加载工作区资源。",
         "loading": "載入中...",
-        "no_file_found": {
-          "description": "目前工作區沒有可搜尋的檔案",
-          "label": "找不到檔案"
-        },
         "no_items_found": {
           "description": "沒有可用的檔案、Agent 或技能",
           "label": "未找到項目"
+        },
+        "no_resources_found": {
+          "description": "[待翻译]：当前工作区中不存在可搜索的文件或文件夹。",
+          "label": "未找到任何资源。"
         },
         "title": "檔案與工作階段"
       },
@@ -2523,6 +2544,7 @@
       "ocr": "OCR 識別引擎未初始化，請檢查 OCR 設定",
       "parse": "AI 回傳了無效的回應，請重試或切換模型",
       "payload": "請求內容過大，請減少檔案或文字大小",
+      "permission": "供應商拒絕了此請求。請檢查錯誤詳情、您的賬戶計劃、API密鑰權限，或對該資源的访问權限。",
       "proxy": "代理或 SSL 憑證錯誤，請檢查代理和網路設定",
       "quota": "帳戶額度已用完，請儲值或更換供應商",
       "rate_limit": "請求過於頻繁，請稍等片刻再試，或更換為更高速率的模型",
@@ -2547,6 +2569,7 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
+    "image_unreadable_for_non_vision_model": "[待翻译]：所选模型不支持处理图片，Cherry Studio 也无法从附件中提取可读的文本。请选择一个具备图像处理能力的模型，或者删除图片后重新尝试。",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
@@ -3195,7 +3218,6 @@
       "updated_at": "更新於 {{time}}"
     },
     "name_required": "知識庫名稱為必填欄位",
-    "not_set": "未設定",
     "provider_not_found": "未找到供應商",
     "rag": {
       "chunk_overlap": "重疊大小",
@@ -3210,12 +3232,13 @@
       "chunking": "分段",
       "default_separator": "自動（推薦）",
       "document_count": "Top K",
-      "download_local_embedding": "下載本機模型",
       "download_local_embedding_failed": "本機嵌入模型下載失敗",
+      "download_local_model": "下载本地模型",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
       "file_processing": "檔案處理",
       "file_processing_hint": "匯入檔案時會自動進行預處理；選擇合適的處理供應商，可改善檔案解析品質。",
+      "file_processing_none": "[待翻译]：请不要使用。",
       "hints": {
         "chunk_overlap": "相鄰文件片段之間保留的重疊 Token 數，有助於減少語意中斷。",
         "chunk_separator": "切分文字所用的分隔符號（跳脫形式）。開啟智慧分段時作為額外切分點；關閉後僅按此分隔符號切分。",
@@ -3229,6 +3252,8 @@
       },
       "processor": "處理供應商",
       "processor_not_configured": "未設定",
+      "processor_not_downloaded": "未下载",
+      "processor_unreachable": "服務未運行。",
       "rerank_disabled": "不使用",
       "rerank_model": "重新排序模型",
       "reset_action": "還原預設",
@@ -4026,6 +4051,14 @@
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或 Token"
       },
+      "stream_admission": {
+        "execution_changed": "[待翻译]：在重试开始之前，响应结果已经发生了变化。请再试一次。",
+        "execution_not_ready": "此响应仍在生成中，目前无法再次尝试。",
+        "model_already_in_live_group": "該模型已經在活躍的回覆羣組中進行生成了。",
+        "single_model_required": "[待翻译]：选择一个模型添加到当前的回复组中。",
+        "target_not_in_live_group": "[待翻译]：所选答案已不再属于活跃的回复列表中。请重新尝试。",
+        "topic_busy": "这段对话仍在生成中。请稍等片刻，等对话完成后再尝试。"
+      },
       "table": {
         "invalid": "無法取得有效的表格資料"
       },
@@ -4040,7 +4073,8 @@
         "content": "是否刪除此群組中的所有助理回覆？使用者的提問與後續訊息將會保留。",
         "title": "刪除群組回覆"
       },
-      "retry_failed": "重試出錯的訊息"
+      "retry_failed": "重試出錯的訊息",
+      "retry_skipped_same_model": "因“Retry All”功能每个模型最多只允许重试一次，因此跳过了另外 {{count}} 个失败的回复。"
     },
     "ignore": {
       "knowledge": {
@@ -4472,27 +4506,27 @@
     },
     "pinned": "已固定",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "[待翻译]：添加价格等级",
+      "cache_fallback_help": "[待翻译]：将缓存价格留空以使用该等级的输入价格；输入 0 代表免费。",
       "cache_read": "快取讀取價格",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "缓存写入价格（Cache Write Price）",
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[待翻译]：{{field}}，等级 {{index}}",
       "input": "輸入價格",
       "million_tokens": "百萬 Token",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "[待翻译]：从输入的标记（即输入数据中的特定单元或元素）开始处理。",
+      "min_input_tokens_help": "[待翻译]：包容性的边界；必须大于前一层级的范围。",
       "output": "輸出價格",
       "price": "價格",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "[待翻译]：删除定价层级 {{index}}",
+      "tier": "[[to be translated]]：第 {{index}} 层",
+      "tier_from": "从 {{boundary}} 个输入令牌（包含边界令牌在内）开始",
+      "use_input_price": "使用输入价格",
+      "validation_min_input_tokens": "请输入一个正整数。",
+      "validation_min_input_tokens_order": "该层级必须在前一个层级结束后才开始。",
+      "validation_price": "[待翻译]：请输入一个大于或等于 0 的价格。"
     },
     "reasoning": "推理",
     "rerank_model": "重新排序模型",
@@ -4644,8 +4678,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字型設定",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "[待翻译]：换行模式",
+        "line_breaks_description": "[待翻译]：将单行换行显示为换行符（采用 Obsidian 风格）。当此功能被禁用时，所有换行符会合并为空格，直到出现空行才会分隔段落。",
         "serif_font": "襯線字型",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便在檔案內導覽",
@@ -5413,7 +5447,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "返回顶部",
     "commands": {
       "blockMath": {
         "description": "插入數學公式",
@@ -6690,6 +6724,10 @@
       "installingHint": "首次安裝可能需要下載執行環境，耗時數分鐘",
       "invalidTool": "工具名稱或識別碼無效",
       "localModels": {
+        "acceleration": {
+          "description": "[待翻译]：使用 DirectML 或 CoreML 来加速本地的嵌入运算和光学字符识别（OCR）推理过程。",
+          "label": "[待翻译]：硬件加速"
+        },
         "cancel": "取消",
         "description": "在本機執行的模型，下載後即可離線使用，無需 API Key。",
         "download": "下載",
@@ -6997,6 +7035,7 @@
       },
       "command": "指令",
       "config_description": "設定 MCP（Model Context Protocol）伺服器",
+      "copyLogs": "[待翻译]：复制日志",
       "customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",
       "deleteError": "刪除伺服器失敗",
       "deleteServer": "刪除伺服器",
@@ -7050,6 +7089,7 @@
       },
       "logoUrl": "標誌 URL",
       "logs": "記錄",
+      "logsHint": "来自 MCP 服务器进程的日志",
       "longRunning": "長時間運作模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務；收到進度通知時會重設逾時計時器，並將最大逾時時間延長至 10 分鐘",
       "marketplaces": "市場",
@@ -8281,6 +8321,10 @@
           "doc2x": {
             "description": "進階檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "**[to be translated]:** 可在该机器上将 PDF 文件完全转换为 Markdown 格式。包含文本内容的文档会直接被解析；对于需要扫描的文档，则会使用本地的 OCR（光学字符识别）模型进行处理。",
+            "name": "[待翻译]：本地文档"
           },
           "local_paddleocr": {
             "description": "在處理程序內執行的 PaddleOCR（PP-OCRv6 中型模型），可完全離線使用，無需 API Key。辨識作業會在背景執行緒中進行，不會阻塞使用者介面。首次使用前，請先在「環境相依套件」下載模型（約 140 MB）。",
