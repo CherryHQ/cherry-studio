@@ -80,7 +80,7 @@ export const t = (key: string, params?: Record<string, string | number>, languag
         return undefined
       }
     }
-    return typeof result === 'string' ? result : undefined
+    return typeof result === 'string' && !result.startsWith('[to be translated]') ? result : undefined
   }
 
   const value = resolve(getI18n(language).translation) ?? resolve(locales[defaultLanguage].translation)

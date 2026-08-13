@@ -107,6 +107,12 @@
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
   },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
+  },
   "openclaw": {
     "errors": {
       "binary_incompatible": "Tệp nhị phân OpenClaw mà Cherry Studio đang sử dụng không tương thích với cấu hình đã tạo. Hãy nâng cấp OpenClaw.{{details}}",
