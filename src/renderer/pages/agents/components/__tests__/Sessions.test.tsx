@@ -325,6 +325,24 @@ const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
 }))
 
+const agentSessionExportMocks = vi.hoisted(() => ({
+  copyAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+  moduleLoads: 0
+}))
+
+vi.mock('@renderer/services/agentSessionExport', () => {
+  agentSessionExportMocks.moduleLoads += 1
+
+  return {
+    agentSessionToMarkdown: vi.fn().mockResolvedValue('markdown'),
+    copyAgentSessionAsMarkdown: agentSessionExportMocks.copyAgentSessionAsMarkdown,
+    copyAgentSessionAsPlainText: vi.fn().mockResolvedValue(undefined),
+    exportAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+    getAgentSessionExportTitle: vi.fn((session: AgentSessionEntity) => session.name),
+    getAgentSessionMessagesForExport: vi.fn().mockResolvedValue([])
+  }
+})
+
 const createTopicStreamStatusMock = (
   overrides: {
     awaitingApprovalAnchors?: Array<{ executionId: string; anchorMessageId?: string }>
@@ -861,6 +879,30 @@ describe('Sessions', () => {
     vi.clearAllMocks()
     tabsContextMocks.openTab.mockClear()
     windowFrameMocks.mode = 'embedded'
+  })
+
+  it('loads agent session export code only when an export action runs', async () => {
+    expect(agentSessionExportMocks.moduleLoads).toBe(0)
+
+    render(<SessionsForTest />)
+
+    const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
+    expect(sessionRow).not.toBeNull()
+    fireEvent.contextMenu(sessionRow as HTMLElement)
+
+    const copyMarkdownItem = screen
+      .getAllByRole('menuitem', { name: 'Copy as Markdown' })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(copyMarkdownItem).toBeDefined()
+    fireEvent.click(copyMarkdownItem as HTMLElement)
+
+    await vi.waitFor(() => {
+      expect(agentSessionExportMocks.moduleLoads).toBe(1)
+      expect(agentSessionExportMocks.copyAgentSessionAsMarkdown).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'session-a' }),
+        expect.any(Object)
+      )
+    })
   })
 
   afterEach(() => {
