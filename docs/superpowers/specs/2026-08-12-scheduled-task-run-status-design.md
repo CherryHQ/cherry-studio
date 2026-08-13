@@ -176,9 +176,9 @@ At the user's explicit request, implementation proceeds before the regression te
 
 1. Data-service tests using the real test database protect the projection rules: active-over-terminal precedence, newest-active selection, newest-terminal selection, state collapsing, and the no-run case.
 2. Agent-task handler tests protect read-model invalidation at execution start and settlement without testing generic JobManager internals.
-3. Renderer component tests protect the display matrix, exact schedule-state icon and color mapping, decorative icon semantics, neutral execution treatment, schedule-state placement, next-run validity rule, and distinct history link.
+3. Renderer component tests protect the behavioral display matrix, schedule-state placement, next-run validity rule, and distinct history link. Exact icon, semantic color, and neutral execution treatments are visual contracts verified against the real Electron UI in both themes; they do not add DOM- or class-pinning component tests.
 4. Route/component tests protect `tab=history`, target-row reveal, and preservation of the default detail route for the rest of the card.
-5. Targeted tests run after each implementation area. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
+5. Targeted tests run after each implementation area. Before the original feature completes, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance. Subsequent renderer-only visual refinements use the closest formatter, linter, typecheck, component suite, and Electron verification instead of repeating the full repository suite.
 
 ## Success Criteria
 
