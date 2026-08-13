@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "ファイルを作成または上書きします",
           "label": "書け"
+        },
+        "bash": {
+          "description": "シェルコマンドを実行",
+          "label": "シェルコマンドを実行"
+        },
+        "edit": {
+          "description": "ファイルを編集",
+          "label": "ファイルを編集"
+        },
+        "find": {
+          "description": "ファイルを検索",
+          "label": "ファイルを検索"
+        },
+        "grep": {
+          "description": "ファイル内容を検索",
+          "label": "ファイル内容を検索"
+        },
+        "ls": {
+          "description": "ディレクトリ内容を一覧表示",
+          "label": "ディレクトリ内容を一覧表示"
+        },
+        "read": {
+          "description": "ファイルを読み込む",
+          "label": "ファイルを読み込む"
+        },
+        "write": {
+          "description": "ファイルを書き込む",
+          "label": "ファイルを書き込む"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "API サーバーが正常に停止されました"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "有効化",
+      "description": "このエージェントのモデルは、Cherry StudioのローカルAPIサーバーを通してブリッジする必要があります。有効にすると、以後の起動時にゲートウェイが自動的に開始されます。設定で再度オフにすることもできます。",
+      "title": "APIサーバーを有効にしますか？"
     },
     "status": {
       "running": "実行中",
@@ -2502,7 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "このモデルはCherry StudioのローカルAPIサーバーを通してブリッジする必要がありますが、現在は無効です。このエージェントを実行するには有効化してください。",
     "availableProviders": "利用可能なプロバイダー",
     "availableTools": "利用可能なツール",
     "backup": {
@@ -3872,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "オンラインのレジストリを検索して、インストール可能なスキルを見つけてください。",
       "empty_title": "スキルを検索",
+      "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "GitHubからインストール",
+      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_label": "GitHub SKILL.md URL",
+      "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",
       "no_results_title": "スキルが見つかりません",
       "search_failed_description": "検索に失敗しました。後でもう一度お試しください。",
+      "search_label": "スキルを検索",
       "search_placeholder": "検索スキル...",
+      "source_label": "スキルソース",
       "title": "オンラインスキル検索"
     },
     "sort": {
@@ -3902,13 +3937,6 @@
       "placeholder": "新しいタグ名..."
     },
     "tag_sync_failed": "タグの同期に失敗しました",
-    "time_ago": {
-      "days": "{{count}}日前",
-      "hours": "{{count}}時間前",
-      "just_now": "たった今",
-      "minutes": "{{count}}分前",
-      "months": "{{count}} か月前"
-    },
     "title": "図書館",
     "toolbar": {
       "add_group_placeholder": "グループ名...",
@@ -7665,7 +7693,8 @@
       "assistant": "アシスタントメッセージ",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
-      "title": "通知"
+      "title": "通知",
+      "update": "アプリ更新"
     },
     "openai": {
       "service_tier": {

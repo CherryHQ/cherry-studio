@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Cria ou sobrescreve ficheiros",
           "label": "Escreva"
+        },
+        "bash": {
+          "description": "Executar comandos do terminal",
+          "label": "Executar comandos do terminal"
+        },
+        "edit": {
+          "description": "Editar ficheiros",
+          "label": "Editar ficheiros"
+        },
+        "find": {
+          "description": "Procurar ficheiros",
+          "label": "Procurar ficheiros"
+        },
+        "grep": {
+          "description": "Pesquisar conteúdos de ficheiros",
+          "label": "Pesquisar conteúdos de ficheiros"
+        },
+        "ls": {
+          "description": "Listar conteúdos do diretório",
+          "label": "Listar conteúdos do diretório"
+        },
+        "read": {
+          "description": "Ler ficheiros",
+          "label": "Ler ficheiros"
+        },
+        "write": {
+          "description": "Escrever ficheiros",
+          "label": "Escrever ficheiros"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "Servidor API parado com sucesso"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Ativar",
+      "description": "O modelo deste agente deve ser ligado através da API Gateway local do Cherry Studio. Ativá-la também inicia a gateway automaticamente em inícios futuros; pode desativá-la novamente em Configurações.",
+      "title": "Ativar a API Gateway?"
     },
     "status": {
       "running": "A executar",
@@ -2502,7 +2530,7 @@
     "openai-response": "Resposta OpenAI"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Este modelo deve ser ligado através da API Gateway local do Cherry Studio, que atualmente está desativada. Ative-a para executar este agente.",
     "availableProviders": "Fornecedores disponíveis",
     "availableTools": "Ferramentas disponíveis",
     "backup": {
@@ -3872,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Pesquise em registos online para encontrar competências instaláveis.",
       "empty_title": "Pesquisar competências",
+      "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
+      "github_empty_title": "Instalar do GitHub",
+      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_label": "URL GitHub SKILL.md",
+      "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",
       "no_results_title": "Nenhuma competência encontrada",
       "search_failed_description": "A pesquisa falhou. Por favor, tente novamente mais tarde.",
+      "search_label": "Pesquisar skills",
       "search_placeholder": "Procurar competências...",
+      "source_label": "Origem da skill",
       "title": "Pesquisa de competências online"
     },
     "sort": {
@@ -3902,13 +3937,6 @@
       "placeholder": "Novo nome da tag..."
     },
     "tag_sync_failed": "Falha ao sincronizar etiquetas",
-    "time_ago": {
-      "days": "{{count}} dia(s) atrás",
-      "hours": "{{count}} hora(s) atrás",
-      "just_now": "Agora mesmo",
-      "minutes": "{{count}} minuto(s) atrás",
-      "months": "{{count}} mês(es) atrás"
-    },
     "title": "Biblioteca",
     "toolbar": {
       "add_group_placeholder": "Nome do grupo...",
@@ -7665,7 +7693,8 @@
       "assistant": "Mensagem do assistente",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
-      "title": "Notificações"
+      "title": "Notificações",
+      "update": "Atualização da Aplicação"
     },
     "openai": {
       "service_tier": {
