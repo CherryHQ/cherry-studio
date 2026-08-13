@@ -55,12 +55,39 @@ vi.mock('../app', async () => {
   const { createMcpRoutes } = await import('../routes/mcp')
   return {
     buildApp: ({ mcpSessions }: { mcpSessions: McpSessionStore }) =>
-      new Elysia({ adapter: node() }).use(createMcpRoutes(mcpSessions))
+      new Elysia({ adapter: node() }).use(createMcpRoutes(mcpSessions)).get(
+        // Stands in for a proxied completion (`proxyStream`): an active response that never
+        // ends on its own, which is what `server.close()` waits for indefinitely.
+        '/never-ends',
+        () =>
+          new Response(
+            new ReadableStream({
+              start: (controller) => controller.enqueue(new TextEncoder().encode(': open\n\n'))
+            }),
+            { headers: { 'content-type': 'text/event-stream' } }
+          )
+      )
   }
 })
 
+import type { Server as HttpServer } from 'http'
+
 import type { McpSessionStore } from '../McpSessionStore'
 import { ApiGateway } from '../server'
+
+const rawServer = (gateway: ApiGateway): HttpServer =>
+  (gateway as unknown as { serverInfo: { raw: { node: { server: HttpServer } } } }).serverInfo.raw.node.server
+
+const portOf = (gateway: ApiGateway): number => (rawServer(gateway).address() as { port: number }).port
+
+/** Open the endless stream and wait for its first chunk, so the response is live server-side. */
+const openEndlessStream = async (port: number): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+  const response = await fetch(`http://127.0.0.1:${port}/never-ends`)
+  expect(response.status).toBe(200)
+  const reader = response.body!.getReader()
+  await reader.read()
+  return reader
+}
 
 const SERVER = { id: 'server-1', name: 'filesystem', type: 'stdio', isActive: true }
 const INITIALIZE = {
@@ -84,10 +111,7 @@ describe('ApiGateway shutdown with a live MCP session', () => {
     gateway = new ApiGateway()
     await gateway.start()
 
-    const port = (
-      gateway as unknown as { serverInfo: { raw?: { node?: { server?: { address(): { port: number } } } } } }
-    ).serverInfo.raw!.node!.server!.address().port
-    const url = `http://127.0.0.1:${port}/mcps/server-1/mcp`
+    const url = `http://127.0.0.1:${portOf(gateway)}/mcps/server-1/mcp`
     const mcpHeaders = { 'content-type': 'application/json', accept: 'application/json, text/event-stream' }
 
     const init = await fetch(url, { method: 'POST', headers: mcpHeaders, body: JSON.stringify(INITIALIZE) })
@@ -112,4 +136,49 @@ describe('ApiGateway shutdown with a live MCP session', () => {
     void reader.cancel().catch(() => {})
     gateway = null
   }, 20_000)
+})
+
+describe('ApiGateway shutdown with a stuck plain HTTP response', () => {
+  let gateway: ApiGateway | null = null
+  /** A server whose sockets outlived `stop()` and must be released before the worker exits. */
+  let survivor: HttpServer | null = null
+
+  afterEach(async () => {
+    await gateway?.stop().catch(() => {})
+    gateway = null
+    survivor?.closeAllConnections()
+    survivor = null
+    vi.clearAllMocks()
+  })
+
+  it('stops while a non-MCP response is still streaming', async () => {
+    gateway = new ApiGateway()
+    await gateway.start()
+    const reader = await openEndlessStream(portOf(gateway))
+
+    const started = Date.now()
+    await gateway.stop()
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(gateway.isRunning()).toBe(false)
+    // The socket was destroyed, so the client is not left waiting on a stream nobody serves.
+    await expect(reader.read()).rejects.toThrow()
+    gateway = null
+  }, 30_000)
+
+  it('settles even when the server cannot force its connections closed', async () => {
+    gateway = new ApiGateway()
+    await gateway.start()
+    const http = rawServer(gateway)
+    // `closeAllConnections` is Node 18.2+; a test double or another adapter may not have it.
+    Object.defineProperty(http, 'closeAllConnections', { value: undefined, configurable: true })
+    const reader = await openEndlessStream(portOf(gateway))
+
+    await expect(gateway.stop()).resolves.toBeUndefined()
+    expect(gateway.isRunning()).toBe(false)
+
+    Reflect.deleteProperty(http, 'closeAllConnections')
+    survivor = http
+    void reader.cancel().catch(() => {})
+    gateway = null
+  }, 30_000)
 })
