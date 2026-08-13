@@ -12,17 +12,17 @@ export function getFeedbackIntentGuardCacheKey(tabId: string): string {
   return `agent-feedback-intent-${tabId}`
 }
 
-function createFeedbackComposerDraft(): AgentComposerLaunchOptions['initialDraft'] {
-  const skillToken = agentSkillToComposerToken(FEEDBACK_SKILL)
+function createFeedbackComposerDraft(skillDescription: string): AgentComposerLaunchOptions['initialDraft'] {
+  const skillToken = agentSkillToComposerToken({ ...FEEDBACK_SKILL, description: skillDescription })
   return {
     text: FEEDBACK_DRAFT_TEXT,
     tokens: [{ ...skillToken, index: 0, textOffset: 0 }]
   }
 }
 
-export function createFeedbackComposerLaunch(sessionId: string): FeedbackComposerLaunch {
+export function createFeedbackComposerLaunch(sessionId: string, skillDescription: string): FeedbackComposerLaunch {
   return {
     sessionId,
-    initialDraft: createFeedbackComposerDraft()
+    initialDraft: createFeedbackComposerDraft(skillDescription)
   }
 }

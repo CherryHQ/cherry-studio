@@ -45,6 +45,14 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps pi runtime state under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
+
+    expect(registry['feature.agents.pi.root']).toBe(piRoot)
+    expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')

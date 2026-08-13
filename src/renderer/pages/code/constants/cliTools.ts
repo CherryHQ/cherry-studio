@@ -5,12 +5,12 @@ import {
   GithubCopilotCli,
   KimiCli as KimiCode,
   OpenaiCodex,
-  Openclaw,
   OpenCode,
   PiCli,
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
+import { Openclaw } from '@cherrystudio/ui/icons/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
