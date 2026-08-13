@@ -157,146 +157,82 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.4 - New Features, Fixes, and Performance
+    Cherry Studio 2.0.5 - New Features, Fixes, and Performance
 
     ✨ New Features
-    - [Composer] Tool permission requests in Agent sessions can now be approved with Enter or denied with Esc
-    - [Context] Restored a "recent messages kept" context limit available globally in Settings → Model and per assistant, plus a new Context Management section exposing master switch, message limit, tool-output truncation threshold, auto-compress, and compression model
-    - [Web Search] Add Querit fetchUrls capability. Querit.ai offers 1,000 free API requests for new users
-    - [MCP Hub] MCP clients connecting to the local API gateway can now open a session to receive live tool-list updates and progress from long-running tools
-    - [MCP Hub] Restored the MCP-over-HTTP endpoints on the local API gateway so external tools can once again use Cherry Studio as a local MCP hub. Action required: clients written against the 1.9.x endpoints should stop unwrapping the `{ success, data }` envelope and stop relying on `Mcp-Session-Id` — the proxy is now stateless
-    - [Agent] Agent conversations can now mention accessible workspace folders with @
-    - [Agent] Add workspace deletion from the shared selector with an impact preview for sessions, agent channels, and scheduled tasks while preserving files on disk
-    - [Models] Add configurable model pricing tiers based on input token count, with separate input, output, cache-read, and cache-write rates for each tier
-    - [Shortcuts] Added configurable keyboard shortcuts for switching to the next or previous tab
-    - [QQ Bot] QQ channel bots can now receive all group messages (not just @mentions) when the per-channel "mention-only" toggle is off and the QQ Open Platform permission is enabled
-    - [Notes] Added a "Back to top" button for long notes, plus a new "Line Break Mode" setting that renders single line breaks as new lines (Obsidian-style) without modifying the source files
-    - [Local Model] Add DirectML (Windows) and CoreML (macOS) hardware acceleration for local models
-    - [Files] Enforce document input limits on file processing
-    - [Privacy] Agent sessions now run the bundled Claude Agent SDK with non-essential traffic disabled, so the bundled CLI no longer sends telemetry, error reports or background config fetches to Anthropic
+    - [Agent] Add pi (@earendil-works/pi-coding-agent) as a selectable agent runtime alongside Claude Code, letting agents use supported configured providers with managed skills, Soul mode (opt-in), MCP servers, tool approval, permission modes, mid-turn steering, manual /compact, resume, and compaction. Plan mode and plan/small-model tiers remain Claude-only
+    - [Skills] Skills can now be installed from a GitHub link to their SKILL.md file — pick "GitHub" in the online skill search, or hand an agent the link directly. The search source is now chosen from a dropdown instead of tabs, and skill detail timestamps follow the app language instead of the system locale
+    - [Support] Add the preinstalled Cherry Support Agent for Cherry Studio guidance, troubleshooting, FAQs, and feedback. Its initial model follows Cherry Assistant, and About > Feedback now opens Cherry Support
+    - [Updates] Added a notification setting to show a system notification when an app update is available (off by default)
 
     🐛 Bug Fixes
-    - [Web Search] Fix Zhipu web search failing with a missing API key error even after the Zhipu API key was configured in model provider settings
-    - [Rename] Fix Agent session, topic, and history record rename saving the raw pinyin instead of the Chinese title when confirming an IME candidate with Enter
-    - [Chat] Conversation recency now follows actual chat activity, so renaming, moving, reordering, or other metadata changes no longer make an older conversation appear recent
-    - [Workspace] Show the official Windows Terminal icon in the agent workspace open-in menu on Windows
-    - [Chat] Fix multi-model Retry, Retry All, and @ model replies so they target the correct live execution, stale retry state cannot reappear, and repeated replies from the same model remain visible in multi-model message groups
-    - [Knowledge Base] Prevent knowledge-base imports and migrations from producing overlong filenames when resolving name collisions
-    - [Errors] Chat and provider connection-check errors now show the service provider's own error message instead of bare HTTP status text, and an HTTP 403 is no longer reported as an invalid API key
-    - [OAuth] Fix Codex and Grok CLI OAuth sign-in so pending browser authorization can be canceled and immediately retried without stale callbacks or cancellation requests disrupting the new flow
-    - [Navigation] Fix navigation to /app/* routes (e.g. opening the feedback assistant) and to routes carrying query strings being blocked by the main-window route allowlist
-    - [CherryIN] CherryIN chat now blocks native audio attachments for Qwen models that do not support audio, preventing failed upstream requests
-    - [DeepSeek] Fix DeepSeek auto thinking mode sending an invalid thinking.type "auto" parameter that caused chat start to fail with an AI SDK type validation error
-    - [Prompt] Fix assistant/agent prompt preview collapsing multi-line system prompts into a single line
-    - [UI] Fix the close button of tall dialogs (e.g. the provider editor after expanding "more settings") becoming unclickable where it overlaps the window title bar
-    - [Web Search] Fix the built-in @cherry/fetch tool and web search page fetching failing with "HTTP error: 301" on URLs that redirect
-    - [Models] Fix model selector tag filters appearing cut off: the filter row now shows an edge fade when more tags are hidden, making horizontal overflow visible
-    - [Models] Fix long model names overlapping the capability icons in the model management drawer
-    - [Doubao] Fix Doubao model connection checks failing with "Invalid JSON response" when Ark omits output text annotations
-    - [OCR] Fix System OCR on Windows still failing for JPEG, GIF and WebP images: images are now transcoded to PNG before recognition
-    - [OCR] Fix System OCR on Windows failing on every JPEG image (WIC error 0x88982F07): the native engine now receives image bytes instead of a file path, which also fixes BMP/TIFF/GIF/WebP/HEIF inputs
-    - [Agent] Fix agent sessions on models whose catalog output cap equals their context window (such as DeepSeek V4 Pro) compacting repeatedly from 100K tokens on, and stop the context-usage readout from reporting the compaction budget as the model's context window
-    - [macOS] Hide the macOS Dock icon when minimizing to tray on close (and on launch-to-tray), restoring v1 behavior
-    - [Agent] Fix an issue where multiple tool permission requests in one reply could stall the conversation and require switching conversations to continue
-    - [Painting] Fix painting size controls and the parameter popover covering nearby content
-    - [Agent] Work agent sessions interrupted by an abnormal exit no longer resume the interrupted Claude Code execution. On restart their history is preserved and settled, and the next reply starts from a fresh runtime connection
-    - [Agent] Fix agent session streams rendering fragmented or duplicated reasoning blocks after reconnecting to a long-running turn (stream replay buffer overflow)
-    - [MCP] MCP server logs can now be selected and copied — added a "Copy logs" button to the MCP server logs tab
-    - [Agent] Scheduled tasks for the same agent can now run up to three jobs concurrently instead of always running sequentially
-    - [Agent] Prevent internal Claude Agent system reminders from appearing in conversations and newly persisted assistant messages
-    - [Painting] Fix long prompts pasted into Painting still appearing blank after the initial long-text paste fix
-    - [Agent] Fix the agent edit dialog trapping users after a failed save; a repeat explicit close now discards the unsaved change and exits
-    - [Bailian] Fix Bailian models failing with "Normal mode does not support web_extractor" when thinking is disabled: web search now works in non-thinking mode without the web extractor tool
-    - [Windows] Fix command discovery for bundled Git and user-installed tools located in Windows paths containing non-ASCII characters
-    - [Knowledge Base] Fix knowledge base lists not loading entries beyond the first 100 records
-    - [Assistant] Fix assistant edits that could fail and trap users in the edit dialog when legacy settings were present
-    - [Mini App] Reopening a mini app from the sidebar now switches to its existing tab instead of replacing the current tab
-    - [Topic Naming] Fix auto-generated conversation and agent-session titles: the naming request no longer carries the assistant's tool configuration, so auto-naming no longer fails when the assistant has web search enabled and the naming model cannot combine disabled thinking with a web tool
-    - [Code Viewer] Fix long unbreakable lines (base64, URLs, minified JSON) in chat code blocks and the trace call-chain detail view being clipped / not wrapping when auto-wrap is enabled. They now wrap correctly; disabling wrap still scrolls horizontally
-    - [Sidebar] Preserved collapsed assistant folders in the classic conversation sidebar when switching between Chat and Work
-    - [Backup] Fix automatic backups running again shortly after every app restart instead of respecting the configured interval
-    - [Shortcuts] Fix window-local zoom shortcuts being captured by Cherry Studio while it is unfocused
-    - [Agent] Fix Agent workspace file mentions so files in deeper nested folders can be found with @ search. Action required: when OCR cannot extract text from an image attached to a text-only model, Cherry Studio now stops before sending the request and asks you to choose a vision-capable model or remove the image
-    - [Migration] Fix "No tool output found for tool call" when continuing a conversation migrated from v1 that used MCP tools
-    - [Image Viewer] Fix rotation and flip not being baked into the saved image
-    - [Thinking Block] Fix the "Auto-collapse thinking content" setting having no effect when disabled — turning it off now keeps thinking blocks expanded
-    - [MCP] Fix npx/uv stdio MCP servers not resolving on Windows when launched via the system PATH
-    - [MCP] Propagate the stream abort signal into in-flight MCP tool calls, so aborting a reply reliably cancels running MCP tools
-    - [Models] Fix model sizes being lost when multiple models share the same family key
-    - [Settings] Disabling the system tray now also disables the quick assistant's tray-click launch option
+    - [Models] Fix a model re-listed under a provider prefix (e.g. nvidia/gpt-oss-20b) being displayed with the wrong name and size when the catalog has a differently-sized sibling
+    - [Models] Fix OpenVINO Model Server models not appearing in the model manager or "Get models" after a successful download
+    - [Models] Fix model availability checks for chat models also advertised with embedding endpoints, preventing false unavailable status and API Gateway rejection
+    - [Models] Fix image generation failing with "Missing modelDescriptor" for the DashScope models qwen-image-3.0 and qwen-image-3.0-pro
+    - [Models] Fix tiered model pricing so partially specified currencies are preserved and usage can still be priced when providers report an input-token breakdown without an aggregate input-token count
+    - [Models] Fix CherryIN model synchronization retaining four removed DeepSeek aliases, allowing stale entries to be cleaned instead of being treated as available models
+    - [Chat] Fix streamed replies becoming stuck when a chat tab is detached into a new window immediately after sending
+    - [Chat] Fix the chat composer changing width when switching conversations
+    - [Chat] Fix chat attachments with a malformed stored mediaType (e.g. a bare .png label instead of image/png) failing on every model with "file part media type .png" — the mediaType is now normalized before the provider request
+    - [Chat] Fix FileManager base64 image persistence for standard data URLs with media type parameters
+    - [Pins] Pin changes now stay synchronized across open windows, including pinned topic and agent-session ordering and pins removed by cascading deletes
+    - [Topics] Fix topic drag moves across assistants so ownership and ordering update atomically without leaving a partial move after an error
+    - [Topics] Topic naming now uses the Quick Assistant model and no longer has a separate model setting. Action required: review the Quick Assistant model selection if a different topic naming model was previously configured
+    - [Topics] Fix very long conversations (over ~1000 messages) failing to delete with "too many levels of trigger recursion" — deleting the topic or its assistant, and clearing the conversation, now work at any length
+    - [Sidebar] Collapsing and reopening the conversation navigation sidebar now preserves its list state
+    - [Search] Global search now keeps long message previews responsive by rendering only the visible messages
+    - [Artifacts] Fix Markdown artifact previews on Windows when generated file paths omit the slash after the drive letter
+    - [Agent] Newly created agents now appear at the top of the agent list by default
+    - [API Gateway] The API Gateway no longer starts on its own. It now starts only when enabled in Settings → API Gateway, so turning it off finally sticks across restarts. Agents whose model has to be bridged through the gateway ask before starting it, and resend the message once you accept
+    - [Migration] Fix V1-to-V2 migration failures caused by legacy model IDs containing route-reserved characters
+    - [Migration] Fix v1 files whose extension ended in a space or dot (e.g. ".exe ") becoming unreadable after migrating to v2 — opening, hashing or deleting them failed with a missing-file error
+    - [Migration] Fix agent migration skipping filesystem targets when workspaces overlap. Action required: after upgrading, review Agents reported with skipped filesystem targets and restore any missing identity, memory, or workspace files from the preserved v1 data
+    - [i18n] Fix translated UI strings that were wrong or out of date: the max tool-call rounds hint no longer omits or hard-codes the default round limit, the translation input placeholder no longer shows text meant for an older version of that field, and the OpenClaw migration and runtime removal messages now match what the app actually does. Affects German, Greek, Spanish, French, Japanese, Portuguese, Romanian, Russian, Vietnamese and both Chinese locales
+    - [i18n] Fix machine translations being written without validation, preventing damaged locale strings
+    - [Vertex AI] Fix Vertex AI Service Account requests when the official API host is configured explicitly
 
     ⚡ Performance
-    - [Chat] Fix renderer crashes ("app suddenly closes") during long fast streaming replies, caused by quadratic memory growth in stream handling and rendering. Very large streamed replies now render with bounded memory, and oversized single markdown blocks no longer fail to render
+    - [Memory] Reduced memory growth during long-running sessions by bounding retained tabs and Mini App WebViews and sharing assistant topic views
+    - [Memory] Fix renderer memory growth caused by inactive conversation history pages remaining in the SWR cache
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.4 - 新功能、修复与性能优化
+    Cherry Studio 2.0.5 - 新功能、修复与性能优化
 
     ✨ 新功能
-    - [输入框] Agent 会话中的工具权限请求现在可以用 Enter 同意、Esc 拒绝
-    - [上下文] 恢复"保留最近 N 条消息"的上下文限制，可在设置 → 模型中全局配置或按助手覆盖；并在设置 → 模型中新增"上下文管理"区域，暴露主开关、消息数量、工具输出截断阈值、自动压缩与压缩模型等参数
-    - [联网搜索] 新增 Querit fetchUrls 能力，Querit.ai 对新用户提供 1,000 次免费 API 请求
-    - [MCP 中心] 连接到本地 API 网关的 MCP 客户端现在可以打开会话，接收工具列表的实时更新和长耗时工具的进度回调
-    - [MCP 中心] 恢复本地 API 网关上的 MCP-over-HTTP 端点，外部工具可以再次将 Cherry Studio 作为本地 MCP 中心。需要采取行动：基于 1.9.x 端点的客户端应停止解包 `{ success, data }` 信封并不再依赖 `Mcp-Session-Id`，代理现在为无状态
-    - [Agent] Agent 对话现在可以用 @ 提及可访问的工作区文件夹
-    - [Agent] 新增从共享选择器中删除工作区的能力，并提供对会话、Agent 渠道和定时任务的影响预览，磁盘上的文件会被保留
-    - [模型] 新增基于输入 token 数量的可配置模型价格分层，每层支持独立的输入、输出、缓存读、缓存写费率
-    - [快捷键] 新增可在设置中自定义的标签页切换快捷键（下一个 / 上一个标签页）
-    - [QQ 机器人] QQ 频道机器人在关闭按频道"仅 @ 提及"开关且开通 QQ 开放平台权限后，现在可以接收所有群消息（而不仅是 @ 消息）
-    - [笔记] 为长笔记新增"回到顶部"按钮，并新增"换行模式"设置，可以将单换行渲染为换行（类 Obsidian 风格）而不修改源文件
-    - [本地模型] 新增 DirectML（Windows）和 CoreML（macOS）本地模型硬件加速
-    - [文件] 对文件处理强制执行文档输入限制
-    - [隐私] Agent 会话现在以禁用非必要流量方式运行捆绑的 Claude Agent SDK，捆绑 CLI 不再向 Anthropic 发送遥测、错误报告或后台配置拉取
+    - [Agent] 新增 pi（@earendil-works/pi-coding-agent）作为可选的 Agent 运行时，与 Claude Code 并列，让 Agent 可以使用已配置的受支持服务商，支持托管技能、Soul 模式（可选）、MCP 服务器、工具审批、权限模式、回合中干预、手动 /compact、恢复与压缩。计划模式以及 plan/small 模型层级仍仅限 Claude（Pi SDK 不支持）
+    - [技能] 现在可以通过 GitHub 链接安装技能的 SKILL.md 文件 —— 在在线技能搜索中选择"GitHub"，或直接把链接给到 Agent。搜索来源改为下拉选择而非标签页，技能详情的时间戳跟随应用语言而非系统区域设置
+    - [支持] 新增预装的 Cherry Support 助手，提供 Cherry Studio 使用指引、故障排查、常见问题与反馈。其初始模型跟随 Cherry Assistant，"关于 > 反馈"现在会打开 Cherry Support
+    - [更新] 新增通知设置，在应用有可用更新时显示系统通知（默认关闭）
 
     🐛 问题修复
-    - [联网搜索] 修复在模型服务商设置中配置了 Zhipu API Key 后，Zhipu 联网搜索仍报缺少 API Key 错误的问题
-    - [重命名] 修复 Agent 会话、话题和历史记录重命名时，按 Enter 确认输入法候选词会把原始拼音当作中文标题保存的问题
-    - [对话] 对话的最近活跃时间现在跟随实际的聊天行为，重命名、移动、排序等元数据变更不再让旧对话出现在最近列表中
-    - [工作区] 在 Windows 上 Agent 工作区的"打开方式"菜单显示官方 Windows Terminal 图标
-    - [对话] 修复多模型重试、全部重试和 @模型 回复指向错误的执行现场、陈旧重试状态会复现，以及同一模型的重复回复在多模型消息组中丢失的问题
-    - [知识库] 修复知识库导入和迁移在处理文件名冲突时生成超长文件名的问题
-    - [错误显示] 对话和服务商连接检查错误现在会显示服务商自己的错误信息，而不是裸的 HTTP 状态文本；HTTP 403 不再被报为无效 API Key
-    - [OAuth] 修复 Codex 和 Grok CLI 的 OAuth 登录：现在可以取消挂起的浏览器授权并立即重试，不会被陈旧回调或取消请求打断新流程
-    - [导航] 修复主窗口路由白名单拦截 /app/* 路由（如打开反馈助手）和带查询字符串的路由的问题，深链和应用内导航到这些路由现在可正常工作
-    - [CherryIN] CherryIN 对话现在会为不支持音频的 Qwen 模型屏蔽原生音频附件，避免上游请求失败
-    - [DeepSeek] 修复 DeepSeek auto thinking 模式发送了无效的 thinking.type "auto" 参数导致对话启动失败的问题（AI SDK 类型校验错误）
-    - [提示词] 修复助手/Agent 提示词预览把多行系统提示词折叠成一行的问题
-    - [界面] 修复高对话框（如展开"更多设置"后的服务商编辑器）的关闭按钮在与窗口标题栏重叠区域无法点击的问题
-    - [联网搜索] 修复内置 @cherry/fetch 工具和联网搜索页面抓取在 URL 重定向时报 "HTTP error: 301" 失败的问题
-    - [模型] 修复模型选择器标签筛选被截断的问题：当有更多标签被隐藏时，筛选行现在会出现边缘渐变以提示横向溢出
-    - [模型] 修复模型管理抽屉中长模型名与能力图标重叠的问题
-    - [豆包] 修复当 Ark 省略输出文本注释时，豆包模型连接检查报 "Invalid JSON response" 失败的问题
-    - [OCR] 修复 Windows 上系统 OCR 仍对 JPEG、GIF、WebP 图像失败的问题：原生引擎只能解码 PNG，现在会在识别前将图像转码为 PNG
-    - [OCR] 修复 Windows 上系统 OCR 对所有 JPEG 图像失败的问题（WIC 错误 0x88982F07）：原生引擎现在接收图像字节而非文件路径，同时修复了 BMP/TIFF/GIF/WebP/HEIF 输入
-    - [Agent] 修复模型的目录输出上限等于其上下文窗口（如 DeepSeek V4 Pro）时，Agent 会话从 100K 开始反复压缩的问题，并停止让上下文用量读数把压缩预算报告为模型上下文窗口
-    - [macOS] 在关闭到托盘和启动到托盘时隐藏 macOS Dock 图标，恢复 v1 行为
-    - [Agent] 修复单条回复中出现多个工具权限请求时可能导致对话卡住、必须切换会话才能继续的问题
-    - [绘画] 修复绘画尺寸控制和参数浮层遮挡附近内容的问题
-    - [Agent] 被异常退出打断的 Work Agent 会话不再恢复被中断的 Claude Code 执行。重启后历史保留且已稳定，下一条回复从新的运行时连接开始
-    - [Agent] 修复 Agent 会话在重连到一个长时间运行的回合后（流式回放缓冲区溢出）渲染出碎片化或重复推理块的问题
-    - [MCP] MCP 服务器日志现在可以选中并复制 —— 在 MCP 服务器日志页签新增了"复制日志"按钮
-    - [Agent] 同一 Agent 的定时任务现在最多可以并行运行三个作业，而不再总是串行执行
-    - [Agent] 阻止内部 Claude Agent 系统提醒出现在对话和新持久化的助手消息中
-    - [绘画] 修复长提示词粘贴到绘画后仍然显示空白的问题（在初次长文本粘贴修复之后）
-    - [Agent] 修复 Agent 编辑对话框在保存失败后困住用户的问题；再次显式关闭现在会丢弃未保存的更改并退出
-    - [百炼] 修复百炼模型在关闭思考时报 "Normal mode does not support web_extractor" 失败的问题：非思考模式下联网搜索现在会跳过 web_extractor 工具正常工作
-    - [Windows] 修复包含非 ASCII 字符的 Windows 路径下捆绑 Git 和用户已安装工具的命令发现问题
-    - [知识库] 修复知识库列表无法加载第 100 条之后记录的问题
-    - [助手] 修复存在遗留设置时助手编辑可能失败并把用户困在编辑对话框中的问题
-    - [小程序] 从侧边栏重新打开小程序现在会切换到它已有的标签页，而不是替换当前标签页
-    - [话题命名] 修复自动生成的对话和 Agent 会话标题：命名请求不再携带助手的工具配置（MCP 工具、联网搜索、知识库），因此当助手启用了联网搜索且命名模型无法将禁用思考与 web 工具组合时，自动命名不再失败
-    - [代码查看器] 修复对话代码块和追踪调用链详情中无法换行的长行（base64、URL、压缩 JSON）在开启自动换行时被裁剪的问题：现在可以正确换行；关闭换行时仍可横向滚动
-    - [侧边栏] 在经典对话侧边栏中，切换 Chat 和 Work 时保留助手分组的折叠状态
-    - [备份] 修复自动备份在每次应用重启后不久就再次运行、而不遵守配置间隔的问题
-    - [快捷键] 修复窗口级缩放快捷键在 Cherry Studio 未获焦点时仍被其捕获的问题
-    - [Agent] 修复 Agent 工作区文件提及，让更深层嵌套文件夹中的文件也能通过 @ 搜索找到。需要采取行动：当 OCR 无法从附加到纯文本模型的图像中提取文本时，Cherry Studio 现在会在发送请求前停止，并要求你选择支持视觉的模型或移除该图像
-    - [迁移] 修复从 v1 迁移且使用了 MCP 工具的对话在继续时报 "No tool output found for tool call" 的问题
-    - [图片查看器] 修复旋转和翻转未写入保存图像的问题
-    - [思考块] 修复"自动折叠思考内容"设置在禁用时无效的问题 —— 关闭后思考块会保持展开
-    - [MCP] 修复 Windows 上通过系统 PATH 启动 npx/uv stdio MCP 服务器时无法解析的问题
-    - [MCP] 将流式中止信号传递到正在执行中的 MCP 工具调用，中止回复时可以可靠地取消运行中的 MCP 工具
-    - [模型] 修复多个模型共享同一家族键时型号大小丢失的问题
-    - [设置] 关闭系统托盘现在也会同时关闭快捷助手的托盘点击启动选项
+    - [模型] 修复在服务商前缀下重新列出的模型（如 nvidia/gpt-oss-20b）在目录中存在不同尺寸的同族模型时显示错误名称和尺寸的问题
+    - [模型] 修复 OpenVINO Model Server 模型在下载成功后不出现在模型管理器或"获取模型"中的问题
+    - [模型] 修复同时被声明为嵌入端点的聊天模型可用性检查误判为不可用并被 API 网关拒绝的问题
+    - [模型] 修复 DashScope 的 qwen-image-3.0 和 qwen-image-3.0-pro 模型图像生成报 "Missing modelDescriptor" 失败的问题
+    - [模型] 修复分层模型定价在部分货币未指定时丢失、且服务商返回输入 token 明细而无汇总输入 token 数时无法计价的问题
+    - [模型] 修复 CherryIN 模型同步仍保留四个已移除的 DeepSeek 别名的问题，现在可以检测并清理陈旧条目，而不会被当作可用模型
+    - [对话] 修复在发送后立即将对话标签页分离到新窗口时流式回复卡住的问题
+    - [对话] 修复切换对话时输入框宽度变化的问题
+    - [对话] 修复存储的 mediaType 格式错误（如仅有 .png 标签而非 image/png）导致所有模型都报 "file part media type .png" 失败的问题 —— mediaType 现在会在请求前被规范化
+    - [对话] 修复带媒体类型参数的标准 data URL 的 base64 图片在 FileManager 中持久化失败的问题
+    - [置顶] 置顶变更现在在所有打开的窗口间保持同步，包括置顶话题与 Agent 会话的顺序，以及被级联删除移除的置顶
+    - [话题] 修复跨助手拖动话题的移动，所有权与顺序会原子更新，错误后不会留下部分移动
+    - [话题] 话题命名现在使用快捷助手模型，不再有单独的模型设置。需要采取行动：如果之前配置了不同的话题命名模型，请检查快捷助手的模型选择
+    - [话题] 修复超长对话（超过约 1000 条消息）删除时报 "too many levels of trigger recursion" 失败的问题 —— 删除话题或其助手、清空对话现在可在任意长度下正常工作
+    - [侧边栏] 折叠并重新展开对话导航侧边栏现在会保留其列表状态
+    - [搜索] 全局搜索现在只渲染可见消息，让长消息预览保持流畅
+    - [Artifact] 修复 Windows 上生成的文件路径缺少盘符后斜杠时 Markdown artifact 预览失败的问题
+    - [Agent] 新创建的 Agent 现在默认出现在 Agent 列表顶部
+    - [API 网关] API 网关不再自行启动。现在只有在"设置 → API 网关"中启用时才会启动，关闭后重启也能保持关闭。模型需要通过网关桥接的 Agent 会在启动前询问，接受后重新发送消息
+    - [迁移] 修复包含路由保留字符的遗留模型 ID 导致 V1 到 V2 迁移失败的问题
+    - [迁移] 修复扩展名以空格或点结尾的 v1 文件（如 ".exe "）迁移到 v2 后无法读取的问题 —— 打开、哈希或删除会报缺失文件错误
+    - [迁移] 修复工作区重叠时 Agent 迁移跳过文件系统目标的问题。需要采取行动：升级后，请检查被报告跳过文件系统目标的 Agent，并从保留的 v1 数据中恢复任何缺失的身份、记忆或工作区文件
+    - [国际化] 修复翻译错误或过时的界面字符串：最大工具调用轮次提示不再遗漏或硬编码默认轮次上限，翻译输入占位符不再显示旧版本字段文本，OpenClaw 迁移与运行时移除消息现在与实际行为一致。影响德语、希腊语、西班牙语、法语、日语、葡萄牙语、罗马尼亚语、俄语、越南语及两种中文
+    - [国际化] 修复机器翻译未经验证即写入的问题，防止损坏的语言字符串
+    - [Vertex AI] 修复显式配置官方 API 主机时 Vertex AI 服务账号请求失败的问题
 
     ⚡ 性能优化
-    - [对话] 修复在长时间快速流式回复期间因流处理和渲染中的二次内存增长导致的渲染进程崩溃（"应用突然关闭"）。超大流式回复现在以有界内存渲染，超大的单个 Markdown 块也不再渲染失败
+    - [内存] 通过限制保留的标签页和 Mini App WebView、共享助手话题视图，减少长时间运行会话的内存增长
+    - [内存] 修复非活动对话历史页面残留在 SWR 缓存中导致的渲染进程内存增长
     <!--LANG:END-->
