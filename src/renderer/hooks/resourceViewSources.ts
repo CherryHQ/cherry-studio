@@ -1,4 +1,6 @@
-import { createContext, use } from 'react'
+import { dataApiService } from '@data/DataApiService'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { createContext, use, useCallback } from 'react'
 
 import { useSessions } from './agent/useSession'
 import { useTopics } from './useTopic'
@@ -16,11 +18,46 @@ import { useTopics } from './useTopic'
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const listSource = useTopics({ loadAll: true, enabled })
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+    return result.topic
+  }, [])
+  const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
+    return dataApiService.post('/topics/reusable-placeholder', {
+      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
+    })
+  }, [])
+
+  return { ...listSource, loadLatestTopic, reuseOrCreateTopic }
 }
 
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const listSource = useSessions(undefined, {
+    loadAll: true,
+    pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
+    enabled
+  })
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+    return result.session
+  }, [])
+  const reuseOrCreateSession = useCallback(
+    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
+      return dataApiService.post('/agent-sessions/reusable-placeholders', {
+        body: { agentId, workspace, ...(excludeSessionId ? { excludeSessionId } : {}) }
+      })
+    },
+    []
+  )
+
+  return { ...listSource, loadLatestSession, reuseOrCreateSession }
 }
 
 type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
@@ -37,7 +74,14 @@ type RefreshError = { refreshError: RawAssistantTopicsSource['error'] }
 
 export type AssistantTopicsSource = Pick<
   RawAssistantTopicsSource,
-  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error' | 'refetch'
+  | 'topics'
+  | 'isLoadingAll'
+  | 'isFullyLoaded'
+  | 'isRefreshing'
+  | 'error'
+  | 'refetch'
+  | 'loadLatestTopic'
+  | 'reuseOrCreateTopic'
 > &
   RefreshError
 
@@ -58,6 +102,8 @@ export type AgentSessionsSource = Pick<
   | 'isFullyLoaded'
   | 'isLoadingAll'
   | 'isPinsLoading'
+  | 'loadLatestSession'
+  | 'reuseOrCreateSession'
 > &
   RefreshError
 

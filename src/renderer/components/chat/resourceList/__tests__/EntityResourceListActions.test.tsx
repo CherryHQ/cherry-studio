@@ -297,6 +297,8 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
     isLoadingMore: false,
     isPinsLoading: false,
     isValidating: false,
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    reuseOrCreateSession: vi.fn(),
     loadMore: vi.fn(),
     pinIdBySessionId: new Map(),
     reload: vi.fn(),
@@ -321,6 +323,8 @@ function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> =
     mutate: vi.fn(),
     pages: [],
     refetch: vi.fn(),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    reuseOrCreateTopic: vi.fn(),
     topics: assistantDataMocks.topics,
     ...overrides
   } as unknown as AssistantTopicsSource

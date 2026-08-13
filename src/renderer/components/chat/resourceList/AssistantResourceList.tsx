@@ -32,7 +32,6 @@ import {
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
@@ -57,7 +56,7 @@ type AssistantResourceListProps = {
   onSelectTopic: (topic: Topic) => void | boolean
   onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
   onSelectedAssistantClick?: () => void | Promise<void>
-  onCreateTopic: (assistantId: string | null) => void | Promise<void>
+  onCreateTopic: (assistantId: string | null) => Promise<Topic | null>
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -107,7 +106,8 @@ export function AssistantResourceList({
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     isRefreshing: isTopicsRefreshing,
-    error: topicsError
+    error: topicsError,
+    loadLatestTopic
   } = assistantTopicsSource
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
   const {
@@ -144,9 +144,27 @@ export function AssistantResourceList({
     topicsRef.current = topics
   }, [topics])
 
-  const handleCreateTopic = useCallback(
+  const createTopicForAssistant = useCallback(
     (assistantId: string) => onCreateTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId),
     [onCreateTopic]
+  )
+  const handleActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate assistant resource from classic-layout rail', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
+  const handleCreateTopic = useCallback(
+    async (assistantId: string) => {
+      try {
+        const topic = await createTopicForAssistant(assistantId)
+        if (topic) onSelectTopic(topic)
+      } catch (error) {
+        handleActivationError(error)
+      }
+    },
+    [createTopicForAssistant, handleActivationError, onSelectTopic]
   )
   const getAssistantEntityId = useCallback(
     (assistantId: string | null | undefined) =>
@@ -222,13 +240,16 @@ export function AssistantResourceList({
     t
   ])
 
-  const sortTopicsForEntity = useCallback(
-    (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
-    []
-  )
   const getTopicAssistantId = useCallback(
     (topic: Topic) => getAssistantEntityId(topic.assistantId),
     [getAssistantEntityId]
+  )
+  const loadLatestTopicForAssistant = useCallback(
+    async (assistantId: string) => {
+      const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
+      return topic ? mapApiTopicToRendererTopic(topic) : null
+    },
+    [loadLatestTopic]
   )
   const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
@@ -271,9 +292,10 @@ export function AssistantResourceList({
       !isTopicsFullyLoaded ||
       isTopicPinsLoading,
     isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError) || topicsError),
-    sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
-    onCreateResource: handleCreateTopic,
+    loadResourceForEntity: loadLatestTopicForAssistant,
+    onCreateResource: createTopicForAssistant,
+    onActivationError: handleActivationError,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
@@ -510,7 +532,7 @@ export function AssistantResourceList({
         collapsedState={collapsedGroupIds}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
+        onAdd={onAddAssistant ?? (() => handleCreateTopic(UNLINKED_ASSISTANT_ENTITY_ID))}
         headerActions={
           <TopicListOptionsMenu
             historyRecordsActive={historyRecordsActive}

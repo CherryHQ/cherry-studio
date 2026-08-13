@@ -78,13 +78,17 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
       isRefreshing: isBackgroundRefreshing,
       error: snapshot ? undefined : rawSource.error,
       refreshError: snapshot ? rawSource.error : undefined,
-      refetch: rawSource.refetch
+      refetch: rawSource.refetch,
+      loadLatestTopic: rawSource.loadLatestTopic,
+      reuseOrCreateTopic: rawSource.reuseOrCreateTopic
     }),
     [
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.error,
       rawSource.isLoadingAll,
+      rawSource.loadLatestTopic,
+      rawSource.reuseOrCreateTopic,
       rawSource.refetch,
       rawSource.topics,
       enabled,
@@ -150,6 +154,8 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       deleteSessions: rawSource.deleteSessions,
       reorderSession: rawSource.reorderSession,
       togglePin: rawSource.togglePin,
+      loadLatestSession: rawSource.loadLatestSession,
+      reuseOrCreateSession: rawSource.reuseOrCreateSession,
       isFullyLoaded: snapshot !== null,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isPinsLoading: isColdLoading && rawSource.isPinsLoading
@@ -167,6 +173,8 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       rawSource.isLoadingMore,
       rawSource.isPinsLoading,
       rawSource.isValidating,
+      rawSource.loadLatestSession,
+      rawSource.reuseOrCreateSession,
       rawSource.pinIdBySessionId,
       rawSource.reload,
       rawSource.reorderSession,
