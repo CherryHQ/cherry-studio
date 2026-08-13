@@ -320,6 +320,7 @@ export function Topics({
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
     topics: apiTopics,
+    orderSignature,
     isLoadingAll,
     isFullyLoaded,
     isRefreshing,
@@ -394,11 +395,8 @@ export function Topics({
     targetAssistantId: string | null
   } | null>(null)
   const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
+    () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
+    [orderSignature, topicPinnedIds]
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)

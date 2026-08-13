@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistente integrado do Cherry Studio. Diagnostique problemas, guie operações, recolha FAQs, envie bugs/pedidos de recursos e pesquise/crie Competências"
+      },
+      "cherry_support": {
+        "description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback"
       }
     },
     "channels": {
@@ -6000,10 +6003,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Converse com o Assistente Cherry para partilhar comentários.",
+          "description": "Converse com o Cherry Support para obter ajuda ou partilhar comentários.",
           "title": "Utilizar agente"
         },
-        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
+        "agent_error": "Não foi possível abrir o Cherry Support para feedback. Por favor, tente novamente.",
         "button": "Comentários",
         "dialog": {
           "description": "Escolha como partilhar feedback e ajude-nos a melhorar o Cherry Studio.",
