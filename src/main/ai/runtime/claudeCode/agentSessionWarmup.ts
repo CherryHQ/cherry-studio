@@ -26,6 +26,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import {
@@ -849,7 +850,7 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
  * the connection driver additionally turns this into a prompt offering to enable it.
  */
 export class ApiGatewayNotRunningError extends Error {
-  readonly i18nKey = 'api_gateway_required'
+  readonly i18nKey = API_GATEWAY_REQUIRED_I18N_KEY
   constructor() {
     super('API Gateway is not running')
     this.name = 'ApiGatewayNotRunningError'
