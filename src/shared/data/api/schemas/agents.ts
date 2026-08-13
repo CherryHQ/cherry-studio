@@ -39,6 +39,9 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
+export const AGENT_TYPES = ['claude-code', 'pi'] as const
+export const AgentTypeSchema = z.enum(AGENT_TYPES)
+export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
@@ -138,7 +141,7 @@ export const AGENT_MUTABLE_FIELDS = {
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  type: z.enum(['claude-code']),
+  type: AgentTypeSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */

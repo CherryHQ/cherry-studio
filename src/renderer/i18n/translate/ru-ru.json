@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Создает или перезаписывает файлы",
           "label": "Напишите"
+        },
+        "bash": {
+          "description": "Выполнять команды shell",
+          "label": "Выполнять команды shell"
+        },
+        "edit": {
+          "description": "Редактировать файлы",
+          "label": "Редактировать файлы"
+        },
+        "find": {
+          "description": "Искать файлы",
+          "label": "Искать файлы"
+        },
+        "grep": {
+          "description": "Искать содержимое файлов",
+          "label": "Искать содержимое файлов"
+        },
+        "ls": {
+          "description": "Просматривать содержимое каталога",
+          "label": "Просматривать содержимое каталога"
+        },
+        "read": {
+          "description": "Читать файлы",
+          "label": "Читать файлы"
+        },
+        "write": {
+          "description": "Записывать файлы",
+          "label": "Записывать файлы"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "API сервер успешно остановлен"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Включить",
+      "description": "Модель этого агента должна быть подключена через локальный API Gateway Cherry Studio. Включение также запускает шлюз автоматически при последующих запусках; его можно снова отключить в Настройках.",
+      "title": "Включить API Gateway?"
     },
     "status": {
       "running": "Работает",
@@ -2502,7 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Эта модель должна быть подключена через локальный API Gateway Cherry Studio, который сейчас отключён. Включите его для запуска этого агента.",
     "availableProviders": "Доступные провайдеры",
     "availableTools": "Доступные инструменты",
     "backup": {
@@ -3453,6 +3481,18 @@
             "hint": "Разложение задачи и планирование",
             "label": "Модель плана (необязательно)"
           },
+          "runtime": {
+            "immutable_hint": "Нельзя изменить после создания",
+            "label": "Режим выполнения",
+            "option": {
+              "claude_code": "Расширенный: Claude Agent",
+              "pi": "Быстрый: Pi"
+            },
+            "selected": {
+              "claude_code": "Расширенный",
+              "pi": "Быстрый"
+            }
+          },
           "small_model": {
             "hint": "Лёгкие проверки и форматирование",
             "label": "Маленькая модель (необязательно)"
@@ -3860,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Поищите в онлайн-реестрах навыки, которые можно установить.",
       "empty_title": "Поиск навыков",
+      "github_empty_description": "Вставьте ссылку на файл SKILL.md навыка, например github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Установить из GitHub",
+      "github_url_invalid": "Вставьте ссылку GitHub, оканчивающуюся на SKILL.md",
+      "github_url_label": "Ссылка GitHub на SKILL.md",
+      "github_url_placeholder": "Ссылка GitHub, оканчивающаяся на /SKILL.md",
       "no_results_description": "Попробуйте другое ключевое слово или импортируйте локальный ZIP-архив или папку.",
       "no_results_title": "Навыки не найдены",
       "search_failed_description": "Поиск не удался. Пожалуйста, попробуйте позже.",
+      "search_label": "Искать навыки",
       "search_placeholder": "Навыки поиска...",
+      "source_label": "Источник навыка",
       "title": "Поиск навыков онлайн"
     },
     "sort": {
@@ -3890,13 +3937,6 @@
       "placeholder": "Новое имя тега..."
     },
     "tag_sync_failed": "Не удалось синхронизировать теги",
-    "time_ago": {
-      "days": "{{count}} день(дня/дней) назад",
-      "hours": "{{count}} час(а/ов) назад",
-      "just_now": "Только что",
-      "minutes": "{{count}} минут(у/ы) назад",
-      "months": "{{count}} месяц(ев) назад"
-    },
     "title": "Библиотека",
     "toolbar": {
       "add_group_placeholder": "Название группы...",
@@ -7653,7 +7693,8 @@
       "assistant": "Сообщение ассистента",
       "backup": "Резервное сообщение",
       "knowledge_embed": "Сообщение базы знаний",
-      "title": "Уведомления"
+      "title": "Уведомления",
+      "update": "Обновление приложения"
     },
     "openai": {
       "service_tier": {

@@ -1,5 +1,5 @@
 /**
- * Inline-citation guidance for agent sessions, appended to the system prompt
+ * Runtime-neutral inline-citation guidance for agent sessions, appended to the system prompt
  * only for the lookup tools the agent can actually call (web unless the user
  * disabled both cherry-tools web lookups; kb only when the resolved knowledge
  * scope is non-empty — a static binding or a per-turn composer selection).
@@ -8,7 +8,7 @@
  * the renderer against the message's own tool results.
  */
 
-import { toCherryBuiltinRuntimeName } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { toCherryBuiltinRuntimeName } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,

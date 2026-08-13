@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Δημιουργεί ή αντικαθιστά αρχεία",
           "label": "Γράψε"
+        },
+        "bash": {
+          "description": "Εκτέλεση εντολών shell",
+          "label": "Εκτέλεση εντολών shell"
+        },
+        "edit": {
+          "description": "Επεξεργασία αρχείων",
+          "label": "Επεξεργασία αρχείων"
+        },
+        "find": {
+          "description": "Εύρεση αρχείων",
+          "label": "Εύρεση αρχείων"
+        },
+        "grep": {
+          "description": "Αναζήτηση περιεχομένου αρχείων",
+          "label": "Αναζήτηση περιεχομένου αρχείων"
+        },
+        "ls": {
+          "description": "Λίστα περιεχομένου καταλόγου",
+          "label": "Λίστα περιεχομένου καταλόγου"
+        },
+        "read": {
+          "description": "Ανάγνωση αρχείων",
+          "label": "Ανάγνωση αρχείων"
+        },
+        "write": {
+          "description": "Εγγραφή αρχείων",
+          "label": "Εγγραφή αρχείων"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Ενεργοποίηση",
+      "description": "Το μοντέλο αυτού του πράκτορα πρέπει να γεφυρωθεί μέσω του τοπικού Διακομιστή API του Cherry Studio. Η ενεργοποίησή του ξεκινά επίσης αυτόματα τον διακομιστή σε μελλοντικές εκκινήσεις· μπορείτε να τον απενεργοποιήσετε ξανά στις Ρυθμίσεις.",
+      "title": "Ενεργοποίηση του Διακομιστή API;"
     },
     "status": {
       "running": "Εκτελείται",
@@ -2502,7 +2530,7 @@
     "openai-response": "Απάντηση OpenAI"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Αυτό το μοντέλο πρέπει να γεφυρωθεί μέσω του τοπικού Διακομιστή API του Cherry Studio, ο οποίος είναι προς το παρόν απενεργοποιημένος. Ενεργοποιήστε τον για να εκτελέσετε αυτόν τον πράκτορα.",
     "availableProviders": "Διαθέσιμοι πάροχοι",
     "availableTools": "Διαθέσιμα εργαλεία",
     "backup": {
@@ -3453,6 +3481,18 @@
             "hint": "Αποσύνθεση εργασιών και προγραμματισμός",
             "label": "Μοντέλο σχεδίου (προαιρετικό)"
           },
+          "runtime": {
+            "immutable_hint": "Δεν μπορεί να αλλάξει μετά τη δημιουργία",
+            "label": "Λειτουργία εκτέλεσης",
+            "option": {
+              "claude_code": "Προηγμένο: Claude Agent",
+              "pi": "Γρήγορο: Pi"
+            },
+            "selected": {
+              "claude_code": "Προηγμένο",
+              "pi": "Γρήγορο"
+            }
+          },
           "small_model": {
             "hint": "Ελαφριοί έλεγχοι και μορφοποίηση",
             "label": "Μικρό μοντέλο (προαιρετικό)"
@@ -3860,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Αναζητήστε σε διαδικτυακά μητρώα για να βρείτε εγκαταστάσιμες δεξιότητες.",
       "empty_title": "Αναζήτηση δεξιοτήτων",
+      "github_empty_description": "Επικολλήστε έναν σύνδεσμο προς ένα αρχείο SKILL.md μιας ικανότητας, π.χ. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Εγκατάσταση από GitHub",
+      "github_url_invalid": "Επικολλήστε έναν σύνδεσμο GitHub που τελειώνει με SKILL.md",
+      "github_url_label": "URL SKILL.md GitHub",
+      "github_url_placeholder": "Σύνδεσμος GitHub που λήγει σε /SKILL.md",
       "no_results_description": "Δοκιμάστε μια άλλη λέξη-κλειδί ή εισαγάγετε ένα τοπικό αρχείο ZIP ή φάκελο.",
       "no_results_title": "Δεν βρέθηκαν δεξιότητες",
       "search_failed_description": "Η αναζήτηση απέτυχε. Παρακαλώ δοκιμάστε ξανά αργότερα.",
+      "search_label": "Αναζήτηση ικανοτήτων",
       "search_placeholder": "Αναζήτηση δεξιοτήτων...",
+      "source_label": "Πηγή ικανότητας",
       "title": "Αναζήτηση δεξιοτήτων online"
     },
     "sort": {
@@ -3890,13 +3937,6 @@
       "placeholder": "Νέο όνομα ετικέτας..."
     },
     "tag_sync_failed": "Αποτυχία συγχρονισμού ετικετών",
-    "time_ago": {
-      "days": "{{count}} ημέρα/ες πριν",
-      "hours": "{{count}} ώρα/ώρες πριν",
-      "just_now": "Μόλις τώρα",
-      "minutes": "{{count}} λεπτό(ά) πριν",
-      "months": "{{count}} μήνα/μήνες πριν"
-    },
     "title": "Βιβλιοθήκη",
     "toolbar": {
       "add_group_placeholder": "Όνομα ομάδας...",
@@ -7653,7 +7693,8 @@
       "assistant": "Μήνυμα βοηθού",
       "backup": "Δημιουργία αντιγράφου ασφαλείας",
       "knowledge_embed": "Βάση γνώσης",
-      "title": "Ειδοποιήσεις"
+      "title": "Ειδοποιήσεις",
+      "update": "Ενημέρωση Εφαρμογής"
     },
     "openai": {
       "service_tier": {

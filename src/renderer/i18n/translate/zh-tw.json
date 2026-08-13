@@ -674,7 +674,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "警告：所有工具都會在無核准情況下執行。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1089,6 +1089,34 @@
         "Write": {
           "description": "建立或覆寫檔案",
           "label": "寫入檔案"
+        },
+        "bash": {
+          "description": "執行 Shell 命令",
+          "label": "執行 Shell 命令"
+        },
+        "edit": {
+          "description": "編輯檔案",
+          "label": "編輯檔案"
+        },
+        "find": {
+          "description": "尋找檔案",
+          "label": "尋找檔案"
+        },
+        "grep": {
+          "description": "搜尋檔案內容",
+          "label": "搜尋檔案內容"
+        },
+        "ls": {
+          "description": "列出目錄內容",
+          "label": "列出目錄內容"
+        },
+        "read": {
+          "description": "讀取檔案",
+          "label": "讀取檔案"
+        },
+        "write": {
+          "description": "寫入檔案",
+          "label": "寫入檔案"
         }
       }
     },
@@ -1156,9 +1184,9 @@
       "stopSuccess": "API 閘道停止成功"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "啟用",
+      "description": "此智能體使用的模型必須透過 Cherry Studio 的本機 API Gateway 橋接。啟用後閘道會在之後啟動時自動執行；您隨時可以在設定中再次關閉。",
+      "title": "啟用 API Gateway？"
     },
     "status": {
       "running": "執行中",
@@ -2503,7 +2531,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "此模型必須透過 Cherry Studio 的本機 API Gateway 橋接，但閘道目前為停用狀態。請啟用它才能執行此智能體。",
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
@@ -3454,6 +3482,18 @@
             "hint": "任務分解與規劃",
             "label": "計畫模型"
           },
+          "runtime": {
+            "immutable_hint": "建立後不可切換",
+            "label": "執行模式",
+            "option": {
+              "claude_code": "增強：Claude Agent",
+              "pi": "快速：Pi"
+            },
+            "selected": {
+              "claude_code": "增強",
+              "pi": "快速"
+            }
+          },
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"
@@ -3861,10 +3901,17 @@
     "skill_marketplace": {
       "empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
       "empty_title": "搜尋技能",
+      "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "從 GitHub 安裝",
+      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_label": "GitHub SKILL.md 連結",
+      "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
       "no_results_title": "未找到技能",
       "search_failed_description": "搜尋失敗，請稍後再試。",
+      "search_label": "搜尋技能",
       "search_placeholder": "搜尋技能...",
+      "source_label": "技能來源",
       "title": "線上搜尋技能"
     },
     "sort": {
@@ -3891,13 +3938,6 @@
       "placeholder": "新標籤名稱..."
     },
     "tag_sync_failed": "同步標籤失敗",
-    "time_ago": {
-      "days": "{{count}} 天前",
-      "hours": "{{count}} 小時前",
-      "just_now": "剛才",
-      "minutes": "{{count}} 分鐘前",
-      "months": "{{count}} 個月前"
-    },
     "title": "資源庫",
     "toolbar": {
       "add_group_placeholder": "群組名稱...",
@@ -7654,7 +7694,8 @@
       "assistant": "助理訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知"
+      "title": "通知",
+      "update": "應用程式更新"
     },
     "openai": {
       "service_tier": {

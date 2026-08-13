@@ -90,6 +90,7 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
 
 allowBuilds:
+  '@google/genai': false
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true

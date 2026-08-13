@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Erstellt oder überschreibt Dateien",
           "label": "Schreiben"
+        },
+        "bash": {
+          "description": "Shell-Befehle ausführen",
+          "label": "Shell-Befehle ausführen"
+        },
+        "edit": {
+          "description": "Dateien bearbeiten",
+          "label": "Dateien bearbeiten"
+        },
+        "find": {
+          "description": "Dateien suchen",
+          "label": "Dateien suchen"
+        },
+        "grep": {
+          "description": "Dateiinhalt durchsuchen",
+          "label": "Dateiinhalt durchsuchen"
+        },
+        "ls": {
+          "description": "Verzeichnisinhalt auflisten",
+          "label": "Verzeichnisinhalt auflisten"
+        },
+        "read": {
+          "description": "Dateien lesen",
+          "label": "Dateien lesen"
+        },
+        "write": {
+          "description": "Dateien schreiben",
+          "label": "Dateien schreiben"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Aktivieren",
+      "description": "Das Modell dieses Agenten muss über das lokale API-Gateway von Cherry Studio gebrückt werden. Das Aktivieren startet das Gateway auch automatisch bei zukünftigen Starts; Sie können es in den Einstellungen wieder deaktivieren.",
+      "title": "API-Gateway aktivieren?"
     },
     "status": {
       "running": "Läuft",
@@ -2502,7 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Dieses Modell muss über das lokale API-Gateway von Cherry Studio gebrückt werden, das derzeit deaktiviert ist. Aktivieren Sie es, um diesen Agenten auszuführen.",
     "availableProviders": "Verfügbare Anbieter",
     "availableTools": "Verfügbare Tools",
     "backup": {
@@ -3453,6 +3481,18 @@
             "hint": "Aufgabenzerlegung und Planung",
             "label": "Plan-Modell (optional)"
           },
+          "runtime": {
+            "immutable_hint": "Kann nach der Erstellung nicht geändert werden",
+            "label": "Laufzeitmodus",
+            "option": {
+              "claude_code": "Erweitert: Claude Agent",
+              "pi": "Schnell: Pi"
+            },
+            "selected": {
+              "claude_code": "Erweitert",
+              "pi": "Schnell"
+            }
+          },
           "small_model": {
             "hint": "Leichtgewichtige Überprüfungen und Formatierung",
             "label": "Kleines Modell (optional)"
@@ -3860,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
       "empty_title": "Nach Fähigkeiten suchen",
+      "github_empty_description": "Fügen Sie einen Link zu einer SKILL.md-Datei einer Fähigkeit ein, z. B. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Von GitHub installieren",
+      "github_url_invalid": "Fügen Sie einen GitHub-Link ein, der mit SKILL.md endet",
+      "github_url_label": "GitHub-SKILL.md-URL",
+      "github_url_placeholder": "GitHub-Link, endend mit /SKILL.md",
       "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
       "no_results_title": "Keine Fähigkeiten gefunden",
       "search_failed_description": "Suche fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      "search_label": "Fähigkeiten suchen",
       "search_placeholder": "Suchkompetenzen...",
+      "source_label": "Fähigkeitsquelle",
       "title": "Online-Skill-Suche"
     },
     "sort": {
@@ -3890,13 +3937,6 @@
       "placeholder": "Neuer Tag-Name..."
     },
     "tag_sync_failed": "Synchronisierung der Tags fehlgeschlagen",
-    "time_ago": {
-      "days": "vor {{count}} Tag(en)",
-      "hours": "{{count}} Stunde(n) her",
-      "just_now": "Gerade eben",
-      "minutes": "vor {{count}} Minute(n)",
-      "months": "vor {{count}} Monat/Monaten"
-    },
     "title": "Bibliothek",
     "toolbar": {
       "add_group_placeholder": "Gruppenname...",
@@ -7653,7 +7693,8 @@
       "assistant": "Assistenten-Nachrichten",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
-      "title": "Benachrichtigungen"
+      "title": "Benachrichtigungen",
+      "update": "App-Update"
     },
     "openai": {
       "service_tier": {

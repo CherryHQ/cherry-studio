@@ -1088,6 +1088,34 @@
         "Write": {
           "description": "Crée ou écrase des fichiers",
           "label": "Écrire"
+        },
+        "bash": {
+          "description": "Exécuter des commandes shell",
+          "label": "Exécuter des commandes shell"
+        },
+        "edit": {
+          "description": "Modifier des fichiers",
+          "label": "Modifier des fichiers"
+        },
+        "find": {
+          "description": "Trouver des fichiers",
+          "label": "Trouver des fichiers"
+        },
+        "grep": {
+          "description": "Rechercher dans le contenu des fichiers",
+          "label": "Rechercher dans le contenu des fichiers"
+        },
+        "ls": {
+          "description": "Lister le contenu du répertoire",
+          "label": "Lister le contenu du répertoire"
+        },
+        "read": {
+          "description": "Lire des fichiers",
+          "label": "Lire des fichiers"
+        },
+        "write": {
+          "description": "Écrire des fichiers",
+          "label": "Écrire des fichiers"
         }
       }
     },
@@ -1155,9 +1183,9 @@
       "stopSuccess": "Serveur API arrêté avec succès"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Activer",
+      "description": "Le modèle de cet agent doit être relayé par le Serveur API local de Cherry Studio. L'activation démarre aussi automatiquement le serveur aux lancements futurs ; vous pourrez le désactiver à nouveau dans les Paramètres.",
+      "title": "Activer le Serveur API ?"
     },
     "status": {
       "running": "En cours d'exécution",
@@ -2502,7 +2530,7 @@
     "openai-response": "Réponse OpenAI"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Ce modèle doit être relayé par le Serveur API local de Cherry Studio, qui est actuellement désactivé. Activez-le pour exécuter cet agent.",
     "availableProviders": "Fournisseurs disponibles",
     "availableTools": "Outils disponibles",
     "backup": {
@@ -3453,6 +3481,18 @@
             "hint": "Décomposition et planification des tâches",
             "label": "Modèle de plan (optionnel)"
           },
+          "runtime": {
+            "immutable_hint": "Ne peut pas être modifié après la création",
+            "label": "Mode d’exécution",
+            "option": {
+              "claude_code": "Avancé : Claude Agent",
+              "pi": "Rapide : Pi"
+            },
+            "selected": {
+              "claude_code": "Avancé",
+              "pi": "Rapide"
+            }
+          },
           "small_model": {
             "hint": "Vérifications et formatage légers",
             "label": "Petit modèle (optionnel)"
@@ -3860,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Recherchez dans les registres en ligne pour trouver des compétences installables.",
       "empty_title": "Rechercher des compétences",
+      "github_empty_description": "Collez un lien vers le fichier SKILL.md d'une compétence, par exemple github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Installer depuis GitHub",
+      "github_url_invalid": "Collez un lien GitHub qui se termine par SKILL.md",
+      "github_url_label": "URL SKILL.md GitHub",
+      "github_url_placeholder": "Lien GitHub se terminant par /SKILL.md",
       "no_results_description": "Essayez un autre mot-clé ou importez un fichier ZIP local ou un répertoire.",
       "no_results_title": "Aucune compétence trouvée",
       "search_failed_description": "La recherche a échoué. Veuillez réessayer plus tard.",
+      "search_label": "Rechercher des compétences",
       "search_placeholder": "Compétences de recherche...",
+      "source_label": "Source de la compétence",
       "title": "Recherche de compétences en ligne"
     },
     "sort": {
@@ -3890,13 +3937,6 @@
       "placeholder": "Nouveau nom d'étiquette..."
     },
     "tag_sync_failed": "Échec de la synchronisation des étiquettes",
-    "time_ago": {
-      "days": "{{count}} jour(s)",
-      "hours": "{{count}} heure(s)",
-      "just_now": "À l'instant",
-      "minutes": "{{count}} minute(s)",
-      "months": "{{count}} mois"
-    },
     "title": "Bibliothèque",
     "toolbar": {
       "add_group_placeholder": "Nom du groupe...",
@@ -7653,7 +7693,8 @@
       "assistant": "Message de l'assistant",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "Mise à jour de l'application"
     },
     "openai": {
       "service_tier": {

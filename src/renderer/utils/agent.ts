@@ -1,6 +1,8 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import type { AgentConfiguration } from '@shared/data/types/agent'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
@@ -91,7 +93,14 @@ export const permissionModeCards: PermissionModeCard[] = [
     descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.warning')
     warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-    warningFallback: 'Use with caution — all tools will run without asking for approval.',
+    warningFallback: 'Use with caution — most tools run without approval; explicit safety blocks still apply.',
     dangerous: true
   }
 ]
+
+/** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
+export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
+  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
+  const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
+  return permissionModeCards.filter((card) => modes.has(card.mode))
+}
