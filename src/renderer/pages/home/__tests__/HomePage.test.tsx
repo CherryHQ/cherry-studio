@@ -594,6 +594,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
+    onSelectTopic,
     onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
@@ -601,9 +602,10 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
-    onCreateTopic?: (assistantId: string | null) => void | Promise<void>
+    onCreateTopic?: (assistantId: string | null) => Promise<Topic | null>
     onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
+    onSelectTopic?: (topic: Topic) => void | boolean
     onSelectedAssistantClick?: () => void | Promise<void>
   }) => {
     homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
@@ -622,7 +624,14 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
           Delete active assistant
         </button>
-        <button type="button" onClick={() => void onCreateTopic?.(null)}>
+        <button
+          type="button"
+          onClick={() =>
+            // Mirror the real list's contract: it activates the topic the page resolves.
+            void onCreateTopic?.(null).then((topic) => {
+              if (topic) onSelectTopic?.(topic)
+            })
+          }>
           Create default assistant topic
         </button>
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
