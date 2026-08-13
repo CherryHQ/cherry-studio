@@ -1,3 +1,5 @@
+import type * as NodePathModule from 'node:path'
+
 import { createMockApplication } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -292,11 +294,21 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
   vi.doMock('node:fs', () => ({ __esModule: true, default: fsMock, ...fsMock }))
 }
 
+// The in-memory filesystem above is keyed by POSIX literals, so the module under test
+// has to join them the same way regardless of host.
+function stubPath() {
+  vi.doMock('node:path', async () => {
+    const actual: typeof NodePathModule = await vi.importActual('node:path')
+    return { __esModule: true, default: actual.posix, ...actual.posix }
+  })
+}
+
 function stubAll(marker: DataResetMarker) {
   stubElectron()
   stubApplication()
   stubI18n()
   stubFs()
+  stubPath()
   if (marker) seedMarker(marker)
 }
 
