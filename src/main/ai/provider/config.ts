@@ -307,6 +307,12 @@ export async function resolveProviderAiSdkConfig(
           p.id === SystemProviderIds.ppio ||
           p.id === SystemProviderIds.silicon ||
           p.id === SystemProviderIds.doubao ||
+          // Custom OpenAI-compatible providers pointing at Volcengine Ark:
+          // any doubao-seedream-* model must use the doubao extension (POSTs JSON
+          // to /images/generations), not the generic /images/edits multipart path.
+          (/^doubao-seedream/i.test(model.apiModelId ?? model.id) &&
+            typeof p.apiHost === 'string' &&
+            /ark\.cn-beijing\.volces\.com/i.test(p.apiHost)) ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: withSelectedApiKey((ctx) => ({
