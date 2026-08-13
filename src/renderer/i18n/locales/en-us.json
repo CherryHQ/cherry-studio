@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
-    "tip": "This switch only controls system notifications when Cherry Studio is in the background. In-app completion cards are always enabled."
+    "tip": "This switch controls completion and response-request system notifications when Cherry Studio is in the background. In-app cards are always enabled."
   },
   "ocr": {
     "processing": "OCR processing..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "Provider not selected",
     "notification": {
-      "assistant": "Agent & Assistant Completion",
+      "assistant": "Agent & Assistant Notifications",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications"

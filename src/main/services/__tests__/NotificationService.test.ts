@@ -1,10 +1,12 @@
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
+import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentSessionGetById: vi.fn(),
+  agentApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   applicationGet: vi.fn(),
   broadcastToType: vi.fn(),
   completionListener: undefined as ((event: ConversationCompletedEvent) => void) | undefined,
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   preferenceGet: vi.fn(),
   send: vi.fn(),
   showMainWindow: vi.fn(),
+  streamApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   topicGetById: vi.fn()
 }))
 
@@ -36,6 +39,8 @@ vi.mock('@main/i18n', () => ({
     ({
       'agent.session.new': 'New task',
       'chat.conversation.new': 'New Chat',
+      'notification.action_required.agent': 'Agent needs your input',
+      'notification.action_required.assistant': 'Assistant needs your input',
       'notification.completion.agent': 'Agent task complete',
       'notification.completion.assistant': 'Assistant response complete'
     })[key] ?? key
@@ -81,6 +86,16 @@ function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): vo
   })
 }
 
+function emitApproval(overrides: Partial<ApprovalRequestedEvent> = {}, source: 'stream' | 'agent' = 'stream'): void {
+  const listener = source === 'stream' ? mocks.streamApprovalListener : mocks.agentApprovalListener
+  listener?.({
+    topicId: 'topic-1',
+    approvalId: 'approval-1',
+    requestedAt: 200,
+    ...overrides
+  })
+}
+
 describe('NotificationService', () => {
   let service: InstanceType<typeof NotificationService>
 
@@ -88,7 +103,9 @@ describe('NotificationService', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     mocks.electronNotifications.length = 0
+    mocks.agentApprovalListener = undefined
     mocks.completionListener = undefined
+    mocks.streamApprovalListener = undefined
     mocks.getWindowInfosByType.mockReturnValue([])
     mocks.preferenceGet.mockReturnValue(true)
     mocks.topicGetById.mockReturnValue({ name: 'Research notes' })
@@ -96,8 +113,20 @@ describe('NotificationService', () => {
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
+          onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
+            mocks.streamApprovalListener = listener
+            return { dispose: vi.fn() }
+          },
           onConversationCompleted: (listener: (event: ConversationCompletedEvent) => void) => {
             mocks.completionListener = listener
+            return { dispose: vi.fn() }
+          }
+        }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return {
+          onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
+            mocks.agentApprovalListener = listener
             return { dispose: vi.fn() }
           }
         }
@@ -132,29 +161,59 @@ describe('NotificationService', () => {
     emitCompletion()
 
     expect(mocks.send).toHaveBeenCalledOnce()
-    expect(mocks.send).toHaveBeenCalledWith('sub-1', 'notification.task_completed', {
-      turnId: 'turn-1',
-      target: { conversationType: 'assistant', conversationId: 'topic-1' },
+    expect(mocks.send).toHaveBeenCalledWith('sub-1', 'notification.conversation', {
+      id: 'task-completion:turn-1',
+      kind: 'task-completion',
+      type: 'success',
       title: 'Assistant response complete',
-      message: 'Research notes'
+      message: 'Research notes',
+      timestamp: 100,
+      actionKey: 'conversation.open',
+      meta: { conversationType: 'assistant', conversationId: 'topic-1' },
+      source: 'assistant'
     })
     expect(mocks.preferenceGet).not.toHaveBeenCalled()
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 
-  it('shows a main-owned Agent system notification and delegates its click to conversation navigation', () => {
+  it('sends a presentation-ready approval event to the focused full-chrome window', () => {
+    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+      type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+    )
+
+    emitApproval()
+
+    expect(mocks.send).toHaveBeenCalledWith('main-1', 'notification.conversation', {
+      id: 'approval-request:approval-1',
+      kind: 'approval-request',
+      type: 'warning',
+      title: 'Assistant needs your input',
+      message: 'Research notes',
+      timestamp: 200,
+      actionKey: 'conversation.open',
+      meta: { conversationType: 'assistant', conversationId: 'topic-1' },
+      source: 'assistant'
+    })
+    expect(mocks.preferenceGet).not.toHaveBeenCalled()
+    expect(mocks.electronNotifications).toHaveLength(0)
+  })
+
+  it('shows a main-owned Agent approval notification and delegates its click to conversation navigation', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
 
-    emitCompletion({
-      topicId: 'agent-session:session-1',
-      turnId: 'turn-agent'
-    })
+    emitApproval(
+      {
+        topicId: 'agent-session:session-1',
+        approvalId: 'approval-agent'
+      },
+      'agent'
+    )
 
     expect(mocks.electronNotifications).toHaveLength(1)
     expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Agent task complete',
+      title: 'Agent needs your input',
       body: 'Refactor project'
     })
 
@@ -178,7 +237,7 @@ describe('NotificationService', () => {
 
     expect(mocks.electronNotifications[0].options).toEqual({ title: 'Agent task complete', body: 'New task' })
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Failed to resolve completed conversation name',
+      'Failed to resolve conversation name for notification',
       expect.objectContaining({ target: { conversationType: 'agent', conversationId: 'missing' } })
     )
   })
@@ -188,7 +247,7 @@ describe('NotificationService', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
-    emitCompletion({ turnId: 'turn-disabled' })
+    emitApproval({ approvalId: 'approval-disabled' })
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 

@@ -2,11 +2,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
-import { TaskCompletionNotificationRuntime } from '@renderer/components/TaskCompletionNotificationRuntime'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
@@ -66,7 +66,7 @@ export function MainWindowContent(): React.ReactElement {
     <TabsProvider>
       {providerSetupStatus === 'pending' ? <OnboardingPage /> : <AppShell />}
       <MainWindowRuntime />
-      <TaskCompletionNotificationRuntime />
+      <ConversationNotificationRuntime />
       <PopupHost />
       <ToastHost />
       {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}

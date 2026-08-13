@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "{{type}} erfolgreich zur Wissensdatenbank hinzugefügt"
     },
-    "tip": "Dieser Schalter steuert nur Systembenachrichtigungen, wenn Cherry Studio im Hintergrund läuft. Abschlusskarten in der App sind immer aktiviert."
+    "tip": "Dieser Schalter steuert Systembenachrichtigungen für Abschlüsse und Antwortanforderungen, wenn Cherry Studio im Hintergrund läuft. In-App-Karten sind immer aktiviert."
   },
   "ocr": {
     "processing": "OCR wird verarbeitet..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "Kein Anbieter ausgewählt",
     "notification": {
-      "assistant": "Abschlussbenachrichtigungen für Agent und Assistent",
+      "assistant": "Agent- und Assistentenbenachrichtigungen",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen"

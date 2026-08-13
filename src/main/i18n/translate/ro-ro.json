@@ -117,6 +117,10 @@
     }
   },
   "notification": {
+    "action_required": {
+      "agent": "Agentul are nevoie de intervenția ta",
+      "assistant": "Asistentul are nevoie de intervenția ta"
+    },
     "completion": {
       "agent": "Sarcina agentului a fost finalizată",
       "assistant": "Răspunsul asistentului a fost finalizat"

@@ -117,6 +117,10 @@
     }
   },
   "notification": {
+    "action_required": {
+      "agent": "Agent cần phản hồi của bạn",
+      "assistant": "Trợ lý cần phản hồi của bạn"
+    },
     "completion": {
       "agent": "Nhiệm vụ của Agent đã hoàn tất",
       "assistant": "Phản hồi của Trợ lý đã hoàn tất"

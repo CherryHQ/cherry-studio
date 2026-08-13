@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
-    "tip": "Este interruptor solo controla las notificaciones del sistema cuando Cherry Studio está en segundo plano. Las tarjetas de finalización dentro de la aplicación siempre están activadas."
+    "tip": "Este interruptor controla las notificaciones del sistema de finalización y solicitud de respuesta cuando Cherry Studio está en segundo plano. Las tarjetas dentro de la aplicación siempre están activadas."
   },
   "ocr": {
     "processing": "Procesando OCR..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "No se ha seleccionado un proveedor",
     "notification": {
-      "assistant": "Notificaciones de finalización del agente y del asistente",
+      "assistant": "Notificaciones del agente y del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
       "title": "Notificaciones"

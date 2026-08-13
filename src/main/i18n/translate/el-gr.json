@@ -117,6 +117,10 @@
     }
   },
   "notification": {
+    "action_required": {
+      "agent": "Ο Agent χρειάζεται τη συμβολή σας",
+      "assistant": "Ο βοηθός χρειάζεται τη συμβολή σας"
+    },
     "completion": {
       "agent": "Η εργασία του Agent ολοκληρώθηκε",
       "assistant": "Η απάντηση του βοηθού ολοκληρώθηκε"

@@ -3,14 +3,15 @@ import { act, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TaskCompletionNotificationRuntime } from '../TaskCompletionNotificationRuntime'
+import { ConversationNotificationRuntime } from '../ConversationNotificationRuntime'
 
 const mocks = vi.hoisted(() => ({
   ipcHandlers: new Map<string, (payload: any) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve()),
   loggerError: vi.fn(),
   toastClose: vi.fn(),
-  toastSuccess: vi.fn()
+  toastSuccess: vi.fn(),
+  toastWarning: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -21,7 +22,7 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, handler: (payload: any) => void) => mocks.ipcHandlers.set(event, handler)
 }))
 vi.mock('@renderer/services/toast', () => ({
-  toast: { closeToast: mocks.toastClose, success: mocks.toastSuccess }
+  toast: { closeToast: mocks.toastClose, success: mocks.toastSuccess, warning: mocks.toastWarning }
 }))
 
 function tabsContext(activeTab?: TabsContextValue['activeTab']): TabsContextValue {
@@ -46,32 +47,37 @@ function tabsContext(activeTab?: TabsContextValue['activeTab']): TabsContextValu
 
 function renderRuntime(context: TabsContextValue): void {
   const wrapper = ({ children }: { children: ReactNode }) => <TabsContext value={context}>{children}</TabsContext>
-  render(<TaskCompletionNotificationRuntime />, { wrapper })
+  render(<ConversationNotificationRuntime />, { wrapper })
 }
 
-function completion(overrides: Record<string, unknown> = {}) {
+function conversationNotification(overrides: Record<string, unknown> = {}) {
   return {
-    turnId: 'turn-2',
-    target: { conversationType: 'assistant', conversationId: 'topic-2' },
+    id: 'task-completion:turn-2',
+    kind: 'task-completion',
+    type: 'success',
     title: 'Assistant response complete',
     message: 'Research notes',
+    timestamp: 100,
+    actionKey: 'conversation.open',
+    meta: { conversationType: 'assistant', conversationId: 'topic-2' },
+    source: 'assistant',
     ...overrides
   }
 }
 
-function emitCompletion(payload = completion()): void {
-  const handler = mocks.ipcHandlers.get('notification.task_completed')
-  if (!handler) throw new Error('Missing task-completion handler')
+function emitNotification(payload = conversationNotification()): void {
+  const handler = mocks.ipcHandlers.get('notification.conversation')
+  if (!handler) throw new Error('Missing conversation-notification handler')
   act(() => handler(payload))
 }
 
-describe('TaskCompletionNotificationRuntime', () => {
+describe('ConversationNotificationRuntime', () => {
   beforeEach(() => {
     mocks.ipcHandlers.clear()
     vi.clearAllMocks()
   })
 
-  it('suppresses the card when the completed conversation is already active', () => {
+  it('does not interrupt the user when the target conversation is already active', () => {
     renderRuntime(
       tabsContext({
         id: 'active',
@@ -81,29 +87,63 @@ describe('TaskCompletionNotificationRuntime', () => {
       })
     )
 
-    emitCompletion()
+    emitNotification(
+      conversationNotification({
+        id: 'approval-request:approval-1',
+        kind: 'approval-request',
+        type: 'warning'
+      })
+    )
 
-    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.toastWarning).not.toHaveBeenCalled()
   })
 
-  it('shows the main-prepared six-second card and delegates its click to navigation', () => {
+  it('shows completion as success and approval requests as warning', () => {
     renderRuntime(
       tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Current topic' })
     )
 
-    emitCompletion()
+    emitNotification()
+    emitNotification(
+      conversationNotification({
+        id: 'approval-request:approval-1',
+        kind: 'approval-request',
+        type: 'warning',
+        title: 'Assistant needs your input'
+      })
+    )
 
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'task-completion:turn-2',
         title: 'Assistant response complete',
-        description: 'Research notes',
         timeout: 6000
       })
     )
+    expect(mocks.toastWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'approval-request:approval-1',
+        title: 'Assistant needs your input',
+        timeout: 6000
+      })
+    )
+  })
 
-    void act(() => mocks.toastSuccess.mock.calls[0][0].onClick())
-    expect(mocks.toastClose).toHaveBeenCalledWith('task-completion:turn-2')
+  it('opens the target conversation when the user clicks the card', () => {
+    renderRuntime(
+      tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Current topic' })
+    )
+
+    emitNotification(
+      conversationNotification({
+        id: 'approval-request:approval-1',
+        kind: 'approval-request',
+        type: 'warning'
+      })
+    )
+
+    void act(() => mocks.toastWarning.mock.calls[0][0].onClick())
+    expect(mocks.toastClose).toHaveBeenCalledWith('approval-request:approval-1')
     expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
       target: { conversationType: 'assistant', conversationId: 'topic-2' },
       title: 'Research notes'

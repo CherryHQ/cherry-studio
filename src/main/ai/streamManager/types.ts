@@ -132,6 +132,8 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  /** Approval ids already published during this execution. */
+  publishedApprovalIds?: Set<string>
   error?: SerializedError
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */

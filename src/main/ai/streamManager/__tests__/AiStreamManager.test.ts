@@ -6,6 +6,7 @@ import type { SerializedError } from '@shared/types/error'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type {
@@ -234,12 +235,15 @@ function startSingle(
 
 describe('AiStreamManager', () => {
   let mgr: ReturnType<typeof createManager>
+  let approvalRequestedEvents: ApprovalRequestedEvent[]
   let conversationCompletedEvents: ConversationCompletedEvent[]
 
   beforeEach(() => {
     vi.useFakeTimers()
     mgr = createManager()
+    approvalRequestedEvents = []
     conversationCompletedEvents = []
+    mgr.onApprovalRequested((event) => approvalRequestedEvents.push(event))
     mgr.onConversationCompleted((event) => conversationCompletedEvents.push(event))
     vi.clearAllMocks()
     mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
@@ -286,6 +290,79 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
+    })
+  })
+
+  describe('approval notifications', () => {
+    it('publishes each persistent approval id once', () => {
+      vi.setSystemTime(1_000)
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'provider-a::model-a',
+        request: req('topic-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: true
+      })
+      const approvalChunk = {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-call-1'
+      } as UIMessageChunk
+
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tool-call-1',
+        output: 'approved'
+      } as UIMessageChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        ...approvalChunk,
+        approvalId: 'approval-2'
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([
+        { topicId: 'topic-1', approvalId: 'approval-1', requestedAt: 1_000 },
+        { topicId: 'topic-1', approvalId: 'approval-2', requestedAt: 1_000 }
+      ])
+    })
+
+    it('does not publish automatically approved tool execution', () => {
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'provider-a::model-a',
+        request: req('topic-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: true
+      })
+
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-1',
+        toolName: 'read_file',
+        input: {}
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([])
+    })
+
+    it('does not publish approval requests for temporary streams', () => {
+      startSingle(mgr, {
+        topicId: 'temporary-1',
+        modelId: 'provider-a::model-a',
+        request: req('temporary-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: false
+      })
+
+      mgr.onChunk('temporary-1', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-call-1'
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([])
     })
   })
 

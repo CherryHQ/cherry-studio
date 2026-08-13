@@ -4,23 +4,24 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
+import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
-  type Notification,
-  TASK_COMPLETION_NOTIFICATION_ACTION_KEY,
-  type TaskCompletionNotificationMeta
+  CONVERSATION_NOTIFICATION_ACTION_KEY,
+  type ConversationNotification,
+  type Notification
 } from '@shared/types/notification'
 import { Notification as ElectronNotification } from 'electron'
 
 const logger = loggerService.withContext('NotificationService')
 
-function isTaskCompletionMeta(meta: unknown): meta is TaskCompletionNotificationMeta {
+function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
   if (!meta || typeof meta !== 'object') return false
 
-  const candidate = meta as Partial<TaskCompletionNotificationMeta>
+  const candidate = meta as Partial<ConversationNavigationTarget>
   return (
     (candidate.conversationType === 'assistant' || candidate.conversationType === 'agent') &&
     typeof candidate.conversationId === 'string' &&
@@ -29,12 +30,18 @@ function isTaskCompletionMeta(meta: unknown): meta is TaskCompletionNotification
 }
 
 @Injectable('NotificationService')
-@DependsOn(['AiStreamManager', 'ConversationNavigationService'])
+@DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
   protected onInit(): void {
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
+    )
+    this.registerDisposable(
+      application.get('AiStreamManager').onApprovalRequested((event) => this.handleApprovalRequested(event))
+    )
+    this.registerDisposable(
+      application.get('AgentSessionRuntimeService').onApprovalRequested((event) => this.handleApprovalRequested(event))
     )
   }
 
@@ -45,14 +52,11 @@ export class NotificationService extends BaseService {
     })
 
     electronNotification.on('click', () => {
-      if (
-        notification.actionKey === TASK_COMPLETION_NOTIFICATION_ACTION_KEY &&
-        isTaskCompletionMeta(notification.meta)
-      ) {
+      if (notification.actionKey === CONVERSATION_NOTIFICATION_ACTION_KEY && isConversationTarget(notification.meta)) {
         void application
           .get('ConversationNavigationService')
           .focusOrOpen(notification.meta, notification.message)
-          .catch((error) => logger.error('Failed to open completed conversation', error as Error))
+          .catch((error) => logger.error('Failed to open conversation from notification', error as Error))
         return
       }
 
@@ -64,48 +68,68 @@ export class NotificationService extends BaseService {
   }
 
   private handleConversationCompleted({ topicId, turnId, completedAt }: ConversationCompletedEvent): void {
-    const windowManager = application.get('WindowManager')
-    const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
-    const subWindows = windowManager
-      .getWindowInfosByType(WindowType.SubWindow)
-      .filter((window) => window.isVisible || window.isFocused)
-    const fullChromeWindows = [...mainWindows, ...subWindows]
-    const focusedWindow = fullChromeWindows.find((window) => window.isFocused)
-
-    if (!focusedWindow) {
-      if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
-    }
-
-    const target: ConversationNavigationTarget = isAgentSessionTopic(topicId)
-      ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
-      : { conversationType: 'assistant', conversationId: topicId }
+    const target = this.resolveConversationTarget(topicId)
     const title =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
-    const message = this.resolveTaskTargetName(target)
-
-    if (focusedWindow) {
-      application.get('IpcApiService').send(focusedWindow.id, 'notification.task_completed', {
-        turnId,
-        target,
-        title,
-        message
-      })
-      return
-    }
-
-    void this.sendNotification({
+    this.deliverConversationNotification({
       id: `task-completion:${turnId}`,
+      kind: 'task-completion',
       type: 'success',
       title,
-      message,
+      message: this.resolveConversationName(target),
       timestamp: completedAt,
-      actionKey: TASK_COMPLETION_NOTIFICATION_ACTION_KEY,
+      actionKey: CONVERSATION_NOTIFICATION_ACTION_KEY,
       meta: target,
       source: 'assistant'
     })
   }
 
-  private resolveTaskTargetName(target: ConversationNavigationTarget): string {
+  private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
+    const target = this.resolveConversationTarget(topicId)
+    const title =
+      target.conversationType === 'agent'
+        ? t('notification.action_required.agent')
+        : t('notification.action_required.assistant')
+    this.deliverConversationNotification({
+      id: `approval-request:${approvalId}`,
+      kind: 'approval-request',
+      type: 'warning',
+      title,
+      message: this.resolveConversationName(target),
+      timestamp: requestedAt,
+      actionKey: CONVERSATION_NOTIFICATION_ACTION_KEY,
+      meta: target,
+      source: 'assistant'
+    })
+  }
+
+  private deliverConversationNotification(notification: ConversationNotification): void {
+    const focusedWindow = this.getFocusedFullChromeWindow()
+    if (focusedWindow) {
+      application.get('IpcApiService').send(focusedWindow.id, 'notification.conversation', notification)
+      return
+    }
+
+    if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
+    void this.sendNotification(notification)
+  }
+
+  private getFocusedFullChromeWindow() {
+    const windowManager = application.get('WindowManager')
+    const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
+    const subWindows = windowManager
+      .getWindowInfosByType(WindowType.SubWindow)
+      .filter((window) => window.isVisible || window.isFocused)
+    return [...mainWindows, ...subWindows].find((window) => window.isFocused)
+  }
+
+  private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
+    return isAgentSessionTopic(topicId)
+      ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
+      : { conversationType: 'assistant', conversationId: topicId }
+  }
+
+  private resolveConversationName(target: ConversationNavigationTarget): string {
     const fallback = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
 
     try {
@@ -115,7 +139,7 @@ export class NotificationService extends BaseService {
           : topicService.getById(target.conversationId).name
       return name.trim() || fallback
     } catch (error) {
-      logger.warn('Failed to resolve completed conversation name', { target, err: error })
+      logger.warn('Failed to resolve conversation name for notification', { target, err: error })
       return fallback
     }
   }

@@ -117,6 +117,10 @@
     }
   },
   "notification": {
+    "action_required": {
+      "agent": "El agente necesita tu intervención",
+      "assistant": "El asistente necesita tu intervención"
+    },
     "completion": {
       "agent": "Tarea del agente completada",
       "assistant": "Respuesta del asistente completada"

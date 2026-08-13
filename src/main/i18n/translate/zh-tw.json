@@ -117,6 +117,10 @@
     }
   },
   "notification": {
+    "action_required": {
+      "agent": "Agent 需要你的回應",
+      "assistant": "助手需要你的回應"
+    },
     "completion": {
       "agent": "Agent 任務已完成",
       "assistant": "助手回覆已完成"

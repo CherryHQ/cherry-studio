@@ -3,9 +3,7 @@ import type { ConversationNavigationTarget } from './navigation'
 export type NotificationType = 'progress' | 'success' | 'error' | 'warning' | 'info' | 'action'
 export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
 
-export const TASK_COMPLETION_NOTIFICATION_ACTION_KEY = 'task-completion.open'
-
-export type TaskCompletionNotificationMeta = ConversationNavigationTarget
+export const CONVERSATION_NOTIFICATION_ACTION_KEY = 'conversation.open'
 
 export interface Notification<T = any> {
   /** 通知唯一标识 */
@@ -32,3 +30,12 @@ export interface Notification<T = any> {
   /** 通知源 */
   source: NotificationSource
 }
+
+type ConversationNotificationBase = Notification<ConversationNavigationTarget> & {
+  meta: ConversationNavigationTarget
+  actionKey: typeof CONVERSATION_NOTIFICATION_ACTION_KEY
+}
+
+export type ConversationNotification =
+  | (ConversationNotificationBase & { kind: 'task-completion'; type: 'success' })
+  | (ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' })

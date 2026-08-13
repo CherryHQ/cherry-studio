@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "成功將 {{type}} 新增至知識庫"
     },
-    "tip": "此開關僅控制 Cherry Studio 在背景執行時的系統通知；應用程式內的完成卡片一律啟用。"
+    "tip": "此開關控制 Cherry Studio 在背景執行時的完成及回應請求系統通知；應用程式內的卡片一律啟用。"
   },
   "ocr": {
     "processing": "OCR 處理中..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "未選擇供應商",
     "notification": {
-      "assistant": "Agent 與助手完成通知",
+      "assistant": "Agent 與助手通知",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
       "title": "通知"

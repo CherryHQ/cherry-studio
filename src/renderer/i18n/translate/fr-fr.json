@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "{{type}} ajouté avec succès à la base de connaissances"
     },
-    "tip": "Ce bouton contrôle uniquement les notifications système lorsque Cherry Studio est en arrière-plan. Les cartes de fin de tâche dans l'application sont toujours activées."
+    "tip": "Ce bouton contrôle les notifications système de fin de tâche et de demande de réponse lorsque Cherry Studio est en arrière-plan. Les cartes dans l’application restent toujours activées."
   },
   "ocr": {
     "processing": "Traitement OCR en cours..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "Aucun fournisseur sélectionné",
     "notification": {
-      "assistant": "Notifications de fin de tâche de l'agent et de l'assistant",
+      "assistant": "Notifications de l’agent et de l’assistant",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
       "title": "Notifications"

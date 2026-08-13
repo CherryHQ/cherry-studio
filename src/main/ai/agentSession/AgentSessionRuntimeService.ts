@@ -7,7 +7,16 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -60,7 +69,7 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
-import type { InProcessUsageContext } from '../types'
+import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -292,6 +301,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -1266,6 +1277,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
     try {
@@ -2195,6 +2207,11 @@ export class AgentSessionRuntimeService extends BaseService {
         },
         { publishDataChange: true }
       )
+      this._onApprovalRequested.fire({
+        topicId: entry.topicId,
+        approvalId: request.approvalId,
+        requestedAt: Date.now()
+      })
     } catch (error) {
       logger.error('Failed to persist background tool approval request', {
         sessionId: entry.sessionId,

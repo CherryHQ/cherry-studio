@@ -4739,7 +4739,7 @@
       "error": "{{error}}",
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
-    "tip": "このスイッチは、Cherry Studio がバックグラウンドにあるときのシステム通知のみを制御します。アプリ内の完了カードは常に有効です。"
+    "tip": "このスイッチは、Cherry Studio がバックグラウンドにあるときの完了および応答要求のシステム通知を制御します。アプリ内カードは常に有効です。"
   },
   "ocr": {
     "processing": "OCR処理中..."
@@ -7642,7 +7642,7 @@
     },
     "no_provider_selected": "未選択のプロバイダー",
     "notification": {
-      "assistant": "Agent・アシスタントの完了通知",
+      "assistant": "Agent・アシスタントの通知",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知"

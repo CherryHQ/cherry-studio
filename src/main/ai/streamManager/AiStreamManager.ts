@@ -37,7 +37,13 @@ import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import type {
+  AiStreamRequest,
+  ApprovalRequestedEvent,
+  CallOverrides,
+  ContextOwner,
+  InProcessUsageContext
+} from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
@@ -300,6 +306,8 @@ const nullStreamListener: StreamListener = {
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
@@ -601,6 +609,7 @@ export class AiStreamManager extends BaseService {
   }
 
   protected onDestroy(): void {
+    this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
   }
 
@@ -1164,8 +1173,18 @@ export class AiStreamManager extends BaseService {
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
-      ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
+      const pendingApprovals = (exec.pendingApprovalToolCallIds ??= new Set())
+      pendingApprovals.add(chunk.toolCallId)
       exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
+      const publishedApprovals = (exec.publishedApprovalIds ??= new Set())
+      if (!publishedApprovals.has(chunk.approvalId) && stream.isPersistentConversation) {
+        publishedApprovals.add(chunk.approvalId)
+        this._onApprovalRequested.fire({
+          topicId,
+          approvalId: chunk.approvalId,
+          requestedAt: Date.now()
+        })
+      }
     } else if (
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
