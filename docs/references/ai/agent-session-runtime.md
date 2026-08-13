@@ -242,32 +242,31 @@ and must not silently trust executable or prompt resources from a workspace.
 Allowed in v1:
 
 - Cherry-owned pi home under `Data/Agents/.pi`: `application.getPath('feature.agents.pi.root')`,
-  exported to pi as `PI_CODING_AGENT_DIR`. This is not a prompt/skill import
-  surface in v1.
+  passed explicitly as `agentDir`. This is not a prompt/skill import surface.
 - Cherry-owned pi sessions: `application.getPath('feature.agents.pi.sessions')`,
-  exported as `PI_CODING_AGENT_SESSION_DIR`. The resume token is the pi session
-  id; reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
+  passed explicitly as `sessionDir`. The resume token is the pi session id;
+  reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
   directory can be relocated without invalidating stored tokens.
-- Cherry agent instructions from the agent record, via `systemPromptOverride`.
-  Soul-mode agents override with the assembled CherryClaw persona
-  (`PromptBuilder` — SOUL.md/USER.md/FACT.md + autonomy-tool guidance +
-  bootstrap) instead of the plain instructions, mirroring the claude driver.
+- Cherry's assembled agent prompt, injected through `systemPromptOverride` and
+  `appendSystemPromptOverride`. `PromptBuilder` reads workspace `system.md` and
+  the current agent data directory's `SOUL.md`, `USER.md`, and `memory/FACT.md`.
+  These files are a **connection-lifetime snapshot**: editing them deliberately
+  does not invalidate a warm connection or its provider prompt cache. Changes
+  apply when that connection is naturally rebuilt or the session is reopened.
 - Inline Cherry-owned extensions required for the integration: provider
   injection and tool approval/policy enforcement.
-- Soul-mode autonomy tools (`cron`/`notify`/`config`/`memory`) as pi
-  `customTools`, built from the runtime-neutral definitions in
-  `ai/agents/tools`. The approval gate auto-approves these Cherry-owned tools
-  in every permission mode (unattended heartbeat turns must not block on a
-  renderer prompt), but `disabledTools` still hard-blocks them. Soul is opt-in
-  for pi (create default off) since pi tools run at main-process privilege.
-- The agent's selected MCP servers (`agent.mcps`) bridged into `customTools` via
-  `piMcpToolAdapter`, proxying each call to `McpRuntimeService` (the same runtime
-  the claude SDK bridge uses). Unlike the soul tools these are third-party and
-  are NOT added to `autoApprovedTools` — the approval gate treats a namespaced
-  `mcp__…` tool like any other (prompts in default/acceptEdits, allowed in
-  bypassPermissions). The catalog is warmed once (`refreshTools`, `allSettled`)
-  so a cold cache after boot is not empty and a dead server neither blocks nor
-  fails session start.
+- The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
+  knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
+  MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
+  bridge. Every call therefore uses the same naming, metadata, abort, and error
+  translation path. The approval extension still distinguishes Cherry-owned
+  safe tools, Cherry tools that always require approval, and third-party MCP
+  tools; `disabledTools` hard-blocks every class.
+- New pi agents start in `acceptEdits`: reads and writes inside the selected
+  workspace and current agent data directory do not prompt repeatedly. Shell,
+  third-party MCP, Cherry approval-required mutations, external paths, and
+  symlink escapes remain gated. `bypassPermissions` does not override the
+  runtime-neutral Cherry approval-required policy.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
@@ -284,23 +283,22 @@ Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
 - User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
   skill folders such as `~/.agents/skills`.
-+- Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
-  `APPEND_SYSTEM.md`; the agent record is the only persona source in v1.
+- Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
+  `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
   `.pi/themes`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`.
 - Project `.agents/skills` discovered from the cwd ancestry.
 
 The implementation enforces this by creating pi `SettingsManager` with
 `projectTrusted: true` (the user-selected workspace is trusted, so its context
-files load — parity with the claude driver) and passing empty `systemPrompt` /
-`appendSystemPrompt` so pi does not discover **prompt** files from disk, then
-constructing `DefaultResourceLoader` with `noExtensions`, `noSkills`,
+files load — parity with the claude driver), then constructing
+`DefaultResourceLoader` with `noExtensions`, `noSkills`,
 `noPromptTemplates`, and `noThemes` — but `noContextFiles: false`, the one
-project-discovered surface pi is allowed. Inline extension factories still load
-because they are passed by Cherry code, not discovered from disk; likewise the
-agent's enabled managed skills load via `additionalSkillPaths`, which pi honors
-even under `noSkills` because the paths are supplied by Cherry, not
-disk-discovered.
+project-discovered surface pi is allowed. Cherry's prompt overrides suppress
+pi-home `SYSTEM.md` discovery. Inline extension factories still load because
+they are passed by Cherry code, not discovered from disk; likewise enabled
+managed skills load via `additionalSkillPaths` because Cherry supplies those
+paths explicitly.
 
 The trust boundary is therefore **executable/prompt resources off, workspace
 text on**: `noExtensions`/`noSkills`/`noPromptTemplates`/`noThemes` keep arbitrary
@@ -310,6 +308,14 @@ code and Cherry-managed resources from being disk-discovered, while
 resources (extensions, project skills/prompts/themes), it must add a Cherry-owned
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
+
+Connection startup uses an optimistic materialization snapshot. Cherry warms
+the MCP catalog, captures every reconcilable database/catalog fact, constructs
+the runtime, then captures those facts again before publishing the connection.
+If the signatures differ, startup fails closed and cleans up the connection's
+generation-scoped provider registration. Prompt-file content is deliberately
+outside this signature because it follows the connection-lifetime cache
+contract above.
 
 ## Internal Agent continuation normalization
 

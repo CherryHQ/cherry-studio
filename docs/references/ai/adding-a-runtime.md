@@ -41,8 +41,8 @@ bottom of this document — read them.
 
    - `permissionModes` — only modes the runtime actually honors. Don't list
      `plan` if the runtime has no plan mode.
-   - `createDefaults.permissionMode` — default to `'default'` (gated) unless
-     the runtime sandboxes tool execution; see the permission rule below.
+   - `createDefaults.permissionMode` — choose from the runtime's actual trust
+     roots and approval policy; see the permission rule below.
    - `isModelCompatible(provider, model)` — `provider` is `undefined` for
      orphan models (provider deleted / not yet loaded); decide fail-open vs
      fail-closed explicitly and say why in a comment. A runtime that needs
@@ -151,11 +151,11 @@ These are the choices nothing enforces:
   regression to guard against. See
   [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
   for the concrete enforcement pattern.
-- **Permission posture matches the sandbox.** `claude-code` defaults to
-  `bypassPermissions` because the SDK brokers tool execution; a runtime whose
-  tools execute at main-process privilege with no sandbox must default to
-  gated (`'default'`) and route every mutating tool through the approval
-  extension.
+- **Permission posture matches the trust roots.** `claude-code` defaults to
+  `bypassPermissions` because the SDK brokers tool execution. An in-process
+  runtime may default to `acceptEdits` only when automatic writes are confined
+  to canonical user-selected roots; shell, external paths, third-party tools,
+  symlink escapes, and Cherry approval-required mutations must remain gated.
 - **Resume tokens are opaque to the host but not to you.** Persist a stable
   runtime id as the resume handle and resolve it under the Cherry-owned session
   directory at open time; never persist absolute paths, because DB-stored paths
