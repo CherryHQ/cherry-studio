@@ -44,7 +44,8 @@ const DIRECT_MODEL = process.env.TRANSLATION_MODEL ?? 'deepseek/deepseek-v4-flas
 const DIRECT_BASE_URL = process.env.TRANSLATION_BASE_URL ?? 'https://api.ppinfra.com/openai/v1'
 const RESEARCH_MODEL = process.env.I18N_RESEARCH_MODEL ?? 'claude-sonnet-5'
 const CLAUDE_TRANSLATE_MODEL = process.env.I18N_TRANSLATE_MODEL ?? 'claude-sonnet-5'
-const BATCH_SIZE = 50
+// 400 strings took 289s in batches of 50 and 118s in one batch of 200, with the same completeness.
+const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE ?? 200)
 const CONCURRENCY = 3
 
 const flagValue = (name: string, fallback: string) => {
@@ -59,8 +60,15 @@ if (TRANSLATOR !== 'endpoint' && TRANSLATOR !== 'claude') {
   throw new Error(`unknown translator "${TRANSLATOR}", expected "endpoint" or "claude"`)
 }
 
-/** Wall-clock and spend, reported per run so the two engines stay comparable. */
-const stats = { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }
+/**
+ * Per-stage accounting. Research and translation are billed by different providers, so they are
+ * reported separately rather than as one number that hides which stage the spend came from.
+ */
+const stats = {
+  research: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 },
+  translate: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }
+}
+type Stage = keyof typeof stats
 
 // Renderer and main each own an independent catalog (locales/ + translate/); translate both.
 const CATALOGS = [
@@ -171,13 +179,13 @@ export const validate = (english: string, translation: string, doNotTranslate: s
 
 // ----------------------------------------------------------------- agent calls
 
-const runQuery = async <T>(prompt: string, options: Options): Promise<T> => {
+const runQuery = async <T>(prompt: string, options: Options, stage: Stage): Promise<T> => {
   for await (const message of query({ prompt, options })) {
     if (message.type !== 'result') continue
-    stats.requests += 1
-    stats.costUsd += message.total_cost_usd ?? 0
-    stats.inputTokens += message.usage?.input_tokens ?? 0
-    stats.outputTokens += message.usage?.output_tokens ?? 0
+    stats[stage].requests += 1
+    stats[stage].costUsd += message.total_cost_usd ?? 0
+    stats[stage].inputTokens += message.usage?.input_tokens ?? 0
+    stats[stage].outputTokens += message.usage?.output_tokens ?? 0
     if (message.subtype !== 'success') {
       throw new Error(`agent run failed: ${message.subtype}`)
     }
@@ -238,15 +246,19 @@ const research = async (keys: PendingKey[]): Promise<Map<string, Brief>> => {
   const results = await mapPool(batches, CONCURRENCY, async ({ scope, keys: batch }) => {
     const list = batch.map(({ key, english }) => `- ${key} = ${JSON.stringify(english)}`).join('\n')
     const header = `These keys belong to the ${scope}-process catalog, so their usages are under src/${scope}.\n\nKeys to research:\n`
-    return runQuery<{ briefs: Brief[] }>(RESEARCH_PROMPT + header + list, {
-      model: RESEARCH_MODEL,
-      cwd: ROOT,
-      settingSources: [],
-      allowedTools: ['Grep', 'Glob', 'Read'],
-      permissionMode: 'dontAsk',
-      maxTurns: 80,
-      outputFormat: { type: 'json_schema', schema: BRIEF_SCHEMA }
-    })
+    return runQuery<{ briefs: Brief[] }>(
+      RESEARCH_PROMPT + header + list,
+      {
+        model: RESEARCH_MODEL,
+        cwd: ROOT,
+        settingSources: [],
+        allowedTools: ['Grep', 'Glob', 'Read'],
+        permissionMode: 'dontAsk',
+        maxTurns: 80,
+        outputFormat: { type: 'json_schema', schema: BRIEF_SCHEMA }
+      },
+      'research'
+    )
   })
 
   for (const [index, result] of results.entries()) {
@@ -331,7 +343,8 @@ const translateViaAgent = async (locale: string, glossary: Glossary, items: unkn
       permissionMode: 'dontAsk',
       maxTurns: 2,
       outputFormat: { type: 'json_schema', schema: TRANSLATION_SCHEMA }
-    }
+    },
+    'translate'
   )
   return toTranslationMap(result.translations)
 }
@@ -353,9 +366,9 @@ Reply with a JSON object of the form {"translations":[{"key":"<the key exactly a
     ]
   })
 
-  stats.requests += 1
-  stats.inputTokens += completion.usage?.prompt_tokens ?? 0
-  stats.outputTokens += completion.usage?.completion_tokens ?? 0
+  stats.translate.requests += 1
+  stats.translate.inputTokens += completion.usage?.prompt_tokens ?? 0
+  stats.translate.outputTokens += completion.usage?.completion_tokens ?? 0
 
   const content = completion.choices[0]?.message?.content
   if (!content) throw new Error('endpoint returned an empty reply')
@@ -549,10 +562,22 @@ const main = async () => {
   }
 
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
-  const cost = stats.costUsd > 0 ? `, $${stats.costUsd.toFixed(4)}` : ''
-  console.log(
-    `\n⏱️  research=${RESEARCH} translator=${TRANSLATOR}: ${elapsed}s, ${stats.requests} requests, ${stats.inputTokens} in / ${stats.outputTokens} out tokens${cost}`
-  )
+  const line = (stage: Stage, who: string) => {
+    const s = stats[stage]
+    if (s.requests === 0) return null
+    const cost =
+      s.costUsd > 0
+        ? `, $${s.costUsd.toFixed(4)} (${who} billing)`
+        : ' (endpoint billing, cost not reported by the API)'
+    return `   ${stage}: ${s.requests} requests, ${s.inputTokens} in / ${s.outputTokens} out tokens${cost}`
+  }
+  console.log(`\n⏱️  research=${RESEARCH} translator=${TRANSLATOR}, batch=${BATCH_SIZE}, ${elapsed}s`)
+  for (const l of [
+    line('research', 'Claude SDK'),
+    line('translate', TRANSLATOR === 'claude' ? 'Claude SDK' : 'endpoint')
+  ]) {
+    if (l) console.log(l)
+  }
 
   if (rejectedTotal > 0) {
     console.error(`\n❌ ${rejectedTotal} strings failed validation and kept their placeholder. Re-run to retry them.`)
