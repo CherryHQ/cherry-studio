@@ -3833,7 +3833,7 @@ describe('AgentComposer', () => {
       kind: 'skill',
       label: 'Review (fast)',
       description: 'Review changed files',
-      promptText: 'Use the Review (fast) skill.',
+      promptText: 'Use the review-fast skill.',
       payload: reviewSkill
     })
   })
