@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
         "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Eliminar esta carpeta de trabajo también eliminará todas las tareas que contiene. Solo se eliminarán los registros de la base de datos; la carpeta real del disco no se eliminará.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Error al eliminar la carpeta de trabajo"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Eliminar carpeta de trabajo",
           "trigger": "Eliminar carpeta de trabajo"
         },
@@ -1543,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "files": "Archivos",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "Habilidades"
         },
         "description": "Selecciona entre archivos, agentes o habilidades",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "Cargando...",
-        "no_file_found": {
-          "description": "No hay archivos disponibles en las carpetas accesibles",
-          "label": "No se encontró ningún archivo"
-        },
         "no_items_found": {
           "description": "Sin archivos, agentes o habilidades disponibles",
           "label": "No se encontraron elementos"
+        },
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
         },
         "title": "Recursos"
       },
@@ -2523,6 +2544,7 @@
       "ocr": "Motor OCR no inicializado, verifica la configuración de OCR",
       "parse": "La IA devolvió una respuesta inválida; por favor, reintenta o cambia de modelo.",
       "payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
+      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
       "proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
       "quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
       "rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
@@ -2547,6 +2569,7 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Último error",
     "maxEmbeddingsPerCall": "máximo de embeddings por llamada",
     "message": "Mensaje de error",
@@ -3195,7 +3218,6 @@
       "updated_at": "Actualizado {{time}}"
     },
     "name_required": "Se requiere el nombre de la base de conocimientos",
-    "not_set": "No establecido",
     "provider_not_found": "No se ha encontrado el proveedor",
     "rag": {
       "chunk_overlap": "Tamaño de superposición",
@@ -3210,12 +3232,13 @@
       "chunking": "Fragmentación",
       "default_separator": "Auto (recomendado)",
       "document_count": "Recuento de documentos",
-      "download_local_embedding": "Descargar modelo local",
       "download_local_embedding_failed": "Error al descargar el modelo de embeddings local",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Selección de Modelo",
       "file_processing": "Procesamiento de archivos",
       "file_processing_hint": "El procesamiento de archivos se ejecuta automáticamente durante la importación del documento. Elegir el proveedor adecuado puede mejorar la calidad del análisis del documento.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
         "chunk_separator": "Delimitador en el que se divide el texto, en forma escapada. Con la segmentación inteligente activada, añade un punto de corte; con ella desactivada, el texto solo se divide por este delimitador.",
@@ -3229,6 +3252,8 @@
       },
       "processor": "Proveedor de Procesamiento",
       "processor_not_configured": "No configurado",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de reordenación",
       "reset_action": "Restablecer valores predeterminados",
@@ -4026,6 +4051,14 @@
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
       },
+      "stream_admission": {
+        "execution_changed": "[to be translated]:The response changed before the retry started. Please try again.",
+        "execution_not_ready": "[to be translated]:This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "[to be translated]:This model is already generating in the active reply group.",
+        "single_model_required": "[to be translated]:Select one model to add to the active reply group.",
+        "target_not_in_live_group": "[to be translated]:The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "[to be translated]:This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "No se pueden recuperar datos de tabla válidos"
       },
@@ -4040,7 +4073,8 @@
         "content": "¿Eliminar todas las respuestas del asistente de este grupo? La pregunta del usuario y los mensajes posteriores se conservarán.",
         "title": "Eliminar respuestas agrupadas"
       },
-      "retry_failed": "Reintentar el mensaje con error"
+      "retry_failed": "Reintentar el mensaje con error",
+      "retry_skipped_same_model": "[to be translated]:Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -6690,6 +6724,10 @@
       "installingHint": "La primera instalación puede descargar un entorno de ejecución y tardar unos minutos",
       "invalidTool": "Nombre de herramienta o clave inválida",
       "localModels": {
+        "acceleration": {
+          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "[to be translated]:Hardware acceleration"
+        },
         "cancel": "Cancelar",
         "description": "Modelos que se ejecutan localmente en tu dispositivo: descárgalos una vez y úsalos sin conexión sin necesidad de clave API.",
         "download": "Descargar",
@@ -6997,6 +7035,7 @@
       },
       "command": "Comando",
       "config_description": "Configurar modelo de contexto del protocolo del servidor",
+      "copyLogs": "[to be translated]:Copy logs",
       "customRegistryPlaceholder": "Por favor ingresa la dirección del repositorio privado, por ejemplo: https://npm.company.com",
       "deleteError": "Fallo al eliminar servidor",
       "deleteServer": "Eliminar servidor",
@@ -7050,6 +7089,7 @@
       },
       "logoUrl": "URL del logotipo",
       "logs": "Registros",
+      "logsHint": "[to be translated]:Logs from the MCP server process",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -8160,10 +8200,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
+      "next_tab": "[to be translated]:Next Tab",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
+      "prev_tab": "[to be translated]:Previous Tab",
       "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
@@ -8279,6 +8321,10 @@
           "doc2x": {
             "description": "Motor avanzado de restauración de archivos.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) ejecutándose en proceso — completamente offline, sin clave API, con reconocimiento en un hilo en segundo plano para que la interfaz permanezca responsiva. Descarga el modelo (~140MB) en Dependencias del Entorno antes del primer uso.",

@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
         "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Удаление этой рабочей директории также приведёт к удалению всех задач в ней. Удаляются только записи в базе данных; фактическая папка на диске не будет удалена.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Не удалось удалить рабочий каталог"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Удалить рабочий каталог",
           "trigger": "Удалить рабочий каталог"
         },
@@ -1543,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Агенты",
-          "files": "Файлы",
+          "resources": "[to be translated]:Files & Folders",
           "skills": "Навыки"
         },
         "description": "Выберите из файлов, агентов или навыков",
+        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "Загрузка...",
-        "no_file_found": {
-          "description": "В текущем рабочем пространстве нет файлов, доступных для поиска",
-          "label": "Файл не найден"
-        },
         "no_items_found": {
           "description": "Нет доступных файлов, агентов или навыков",
           "label": "Элементы не найдены"
+        },
+        "no_resources_found": {
+          "description": "[to be translated]:No searchable files or folders in the current workspace",
+          "label": "[to be translated]:No Resources Found"
         },
         "title": "Ресурсы"
       },
@@ -2523,6 +2544,7 @@
       "ocr": "Движок OCR не инициализирован, проверьте настройки OCR",
       "parse": "ИИ вернул недопустимый ответ, повторите попытку или смените модель",
       "payload": "Слишком большой объем запроса, уменьшите размер файла или текста.",
+      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
       "proxy": "Ошибка прокси или SSL-сертификата, проверьте настройки прокси и сети",
       "quota": "Квота аккаунта исчерпана, пополните баланс или смените провайдера",
       "rate_limit": "Слишком много запросов за короткое время. Подождите немного и повторите попытку, или переключитесь на модель с более высоким лимитом запросов",
@@ -2547,6 +2569,7 @@
       "503": "Серверная ошибка. Пожалуйста, попробуйте позже",
       "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Последняя ошибка",
     "maxEmbeddingsPerCall": "Максимум эмбеддингов за вызов",
     "message": "Сообщение об ошибке",
@@ -3195,7 +3218,6 @@
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
-    "not_set": "Не задано",
     "provider_not_found": "Провайдер не найден",
     "rag": {
       "chunk_overlap": "Размер перекрытия",
@@ -3210,12 +3232,13 @@
       "chunking": "Разбиение на блоки",
       "default_separator": "Авто (рекомендуется)",
       "document_count": "Количество документов",
-      "download_local_embedding": "Загрузить локальную модель",
       "download_local_embedding_failed": "Не удалось загрузить локальную модель эмбеддингов",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Модель эмбеддингов",
       "embedding_model_select": "Выбор модели",
       "file_processing": "Обработка файлов",
       "file_processing_hint": "Обработка файлов выполняется автоматически при импорте документа. Правильный выбор провайдера может повысить качество разбора документов.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
         "chunk_separator": "Разделитель, по которому разбивается текст, в экранированной форме. При включённом интеллектуальном разбиении он добавляет точку разрыва; при выключенном текст разбивается только по этому разделителю.",
@@ -3229,6 +3252,8 @@
       },
       "processor": "Провайдер обработки",
       "processor_not_configured": "Не настроено",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Отключено",
       "rerank_model": "Модель реранжирования",
       "reset_action": "Восстановить значения по умолчанию",
@@ -4026,6 +4051,14 @@
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Не настроен API адрес или токен Siyuan"
       },
+      "stream_admission": {
+        "execution_changed": "[to be translated]:The response changed before the retry started. Please try again.",
+        "execution_not_ready": "[to be translated]:This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "[to be translated]:This model is already generating in the active reply group.",
+        "single_model_required": "[to be translated]:Select one model to add to the active reply group.",
+        "target_not_in_live_group": "[to be translated]:The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "[to be translated]:This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "Не удалось получить корректные данные таблицы"
       },
@@ -4040,7 +4073,8 @@
         "content": "Удалить все ответы помощника в этой группе? Вопрос пользователя и последующие сообщения будут сохранены.",
         "title": "Удалить сгруппированные ответы"
       },
-      "retry_failed": "Повторить неудавшиеся сообщения"
+      "retry_failed": "Повторить неудавшиеся сообщения",
+      "retry_skipped_same_model": "[to be translated]:Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -6690,6 +6724,10 @@
       "installingHint": "При первой установке может загружаться среда выполнения, поэтому процесс может занять несколько минут",
       "invalidTool": "Неверное имя или ключ инструмента",
       "localModels": {
+        "acceleration": {
+          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "[to be translated]:Hardware acceleration"
+        },
         "cancel": "Отмена",
         "description": "Модели, работающие локально на вашем устройстве — скачайте один раз, затем используйте офлайн без API-ключа.",
         "download": "Скачать",
@@ -6997,6 +7035,7 @@
       },
       "command": "Команда",
       "config_description": "Настройка серверов протокола контекста модели",
+      "copyLogs": "[to be translated]:Copy logs",
       "customRegistryPlaceholder": "Введите адрес частного склада, например: https://npm.company.com",
       "deleteError": "Не удалось удалить сервер",
       "deleteServer": "Удалить сервер",
@@ -7050,6 +7089,7 @@
       },
       "logoUrl": "URL логотипа",
       "logs": "Журналы",
+      "logsHint": "[to be translated]:Logs from the MCP server process",
       "longRunning": "Длительный режим работы",
       "longRunningTooltip": "Включив эту опцию, сервер будет поддерживать длительные задачи. При получении уведомлений о ходе выполнения будет сброшен тайм-аут и максимальное время выполнения будет увеличено до 10 минут.",
       "marketplaces": "Торговые площадки",
@@ -8160,10 +8200,12 @@
       "label": "Клавиша",
       "move_tab_to_first": "Переместить вкладку в начало",
       "new_topic": "Новый топик",
+      "next_tab": "[to be translated]:Next Tab",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
       "open_tab_in_new_window": "Открыть вкладку в новом окне",
       "pin_tab": "Закрепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "prev_tab": "[to be translated]:Previous Tab",
       "print": "Печать",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
@@ -8279,6 +8321,10 @@
           "doc2x": {
             "description": "Продвинутый механизм восстановления файлов.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) работает внутри процесса — полностью автономно и без API-ключа. Распознавание выполняется в фоновом потоке, поэтому интерфейс остаётся отзывчивым. Перед первым использованием загрузите модель (~140 МБ) в разделе «Зависимости среды».",
