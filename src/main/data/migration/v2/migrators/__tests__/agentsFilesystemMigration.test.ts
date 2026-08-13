@@ -1133,7 +1133,7 @@ describe('agentsFilesystemMigration', () => {
     externalSession.sourceAgentId = 'source-owner'
     externalSession.finalAgentId = 'source-owner-final'
 
-    const result = await stageLegacyAgentFiles({
+    const input = {
       agentsDataRoot,
       agents: [
         { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
@@ -1141,11 +1141,18 @@ describe('agentsFilesystemMigration', () => {
         { sourceAgentId: 'source-owner', finalAgentId: 'source-owner-final' }
       ],
       sessions: [externalSession]
-    })
+    }
+
+    const result = await stageLegacyAgentFiles(input)
 
     expect(result.skippedTargetCount).toBe(1)
     await expect(access(path.join(preservedTarget, 'keep.txt'))).rejects.toThrow()
     expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+    expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+    expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+    expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
   })
 
   it('preserves an Agent target that is also its own legacy Session workspace', async () => {
@@ -1486,6 +1493,35 @@ describe('agentsFilesystemMigration', () => {
 
     expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'skips an absent target whose resolved parent is a legacy source',
+    async () => {
+      const { tempRoot, agentsDataRoot } = await createFixture()
+      const linkedSource = path.join(tempRoot, 'linked-source')
+      const session = sessionPlan(agentsDataRoot, linkedSource, {
+        sourceSessionId: 'session_resolved_parent_overlap',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+      const targetPath = session.systemWorkspacePath!
+      const targetParent = path.dirname(targetPath)
+      await mkdir(targetParent, { recursive: true })
+      await writeFile(path.join(targetParent, 'SOUL.md'), 'legacy source')
+      await symlink(targetParent, linkedSource)
+
+      const result = await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [session]
+      })
+
+      expect(result.skippedTargetCount).toBe(1)
+      await expect(access(targetPath)).rejects.toThrow()
+      expect(await readFile(path.join(targetParent, 'SOUL.md'), 'utf8')).toBe('legacy source')
+    }
+  )
 
   it.runIf(process.platform !== 'win32')(
     'removes a destination symlink without touching its external target',

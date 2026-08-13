@@ -443,8 +443,11 @@ export class AgentsMigrator extends BaseMigrator {
       processedCount: getTotalAgentsRowCount(this.sourceCounts),
       ...(skippedFilesystemTargetCount > 0
         ? {
-            warnings: [
-              `Skipped ${skippedFilesystemTargetCount} overlapping Agent filesystem ${skippedFilesystemTargetCount === 1 ? 'target' : 'targets'}; legacy source data was preserved`
+            warningMessages: [
+              {
+                key: 'migration.completed.agent_files_skipped',
+                params: { count: skippedFilesystemTargetCount }
+              }
             ]
           }
         : {})

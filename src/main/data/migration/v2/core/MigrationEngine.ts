@@ -318,8 +318,10 @@ export class MigrationEngine {
         // read on prepare failure; surface them on the success path too, alongside any
         // execute-phase warnings (e.g. knowledge files kept but not reindexable).
         const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
-        if (warnings.length > 0) {
-          logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
+        const warningMessages = [...(prepareResult.warningMessages ?? []), ...(executeResult.warningMessages ?? [])]
+        const warningCount = warnings.length + warningMessages.length
+        if (warningCount > 0) {
+          logger.warn(`${migrator.name} completed with ${warningCount} warning(s)`, { warnings, warningMessages })
         }
 
         // Record result
@@ -329,7 +331,8 @@ export class MigrationEngine {
           success: true,
           recordsProcessed: executeResult.processedCount,
           duration: Date.now() - migratorStartTime,
-          ...(warnings.length > 0 ? { warnings } : {})
+          ...(warnings.length > 0 ? { warnings } : {}),
+          ...(warningMessages.length > 0 ? { warningMessages } : {})
         })
 
         // Update progress: migrator completed

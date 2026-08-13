@@ -8,7 +8,8 @@ import {
   agentDataDirectoryPath,
   assertAgentStoragePath,
   ensureAgentDataDirectory,
-  ensureAgentStorageDirectory
+  ensureAgentStorageDirectory,
+  resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
 import { isPathInside } from '@main/utils/file'
@@ -1661,9 +1662,10 @@ async function clearLegacyAgentMigrationTargets(input: {
 
   const resolvedTargets: CleanupPathIndexEntry[] = []
   for (const target of targets) {
-    const targetStat = await lstatIfExists(target.path)
-    const resolvedTarget = targetStat && !targetStat.isSymbolicLink() ? await realpathIfExists(target.path) : undefined
-    if (resolvedTarget) resolvedTargets.push({ indexedPath: resolvedTarget, ownerPath: target.path })
+    resolvedTargets.push({
+      indexedPath: await resolveRealOrNearestExistingPath(target.path),
+      ownerPath: target.path
+    })
   }
   const resolvedTargetIndex = createCleanupPathAncestorIndex(resolvedTargets)
   for (const overlap of findCleanupTargetSourceOverlaps(resolvedTargets, resolvedTargetIndex, resolvedSources)) {

@@ -227,8 +227,11 @@ describe('AgentsMigrator', () => {
     // task-related sources are handled by the TS-loop). 45 - (5 scheduled
     // tasks + 6 run logs + 8 channel_task_subscriptions) = 26.
     expect(result.processedCount).toBe(26)
-    expect(result.warnings).toEqual([
-      'Skipped 2 overlapping Agent filesystem targets; legacy source data was preserved'
+    expect(result.warningMessages).toEqual([
+      {
+        key: 'migration.completed.agent_files_skipped',
+        params: { count: 2 }
+      }
     ])
 
     const outer = getExecutedSql(run)
