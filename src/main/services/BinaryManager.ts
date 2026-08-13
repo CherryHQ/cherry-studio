@@ -12,6 +12,7 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
+import { readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -36,6 +37,14 @@ import type {
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
+
+import {
+  cleanupOtherArtifactVersions,
+  isBundledFileReady,
+  isBundledTreeReady,
+  materializeBundledFile,
+  materializeBundledTree
+} from './bundledArtifacts'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -664,55 +673,65 @@ export class BinaryManager extends BaseService {
 
   private async extractBundledBinaries(): Promise<void> {
     const platformKey = `${process.platform}-${process.arch}`
-    const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
     const binDir = application.getPath('cherry.bin')
     await fsp.mkdir(binDir, { recursive: true })
+    let manifest
+    try {
+      manifest = readBundledArtifactManifest()
+    } catch (error) {
+      logger.error('Failed to load bundled artifact manifest', error as Error)
+      return
+    }
 
     for (const tool of BUNDLED_TOOLS) {
       try {
         const binaries = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
-        const versionPath = path.join(bundledDir, tool.versionFile)
-        const bundledVersion = this.readVersionMarker(versionPath)
-        if (!bundledVersion) {
-          logger.error(`Expected bundled ${tool.name} version marker missing`, new Error(`Missing ${versionPath}`))
-          continue
+        const artifact = manifest.artifacts[tool.name]
+        if (!artifact || artifact.kind !== 'files') throw new Error(`Missing bundled ${tool.name} files artifact`)
+        const files = binaries.map((binary) => artifact.files.find((file) => file.output === binary))
+        if (files.some((file) => file === undefined) || artifact.files.length !== binaries.length) {
+          throw new Error(`Bundled ${tool.name} manifest does not match expected binaries: ${binaries.join(', ')}`)
         }
-
-        const missingBundled = binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
-        if (missingBundled.length > 0) {
-          logger.error(
-            `Expected bundled ${tool.name} binaries missing`,
-            new Error(`Missing ${missingBundled.join(', ')} in ${bundledDir}`)
-          )
-          continue
-        }
+        const bundledFiles = files.filter((file) => file !== undefined)
 
         // Re-extract when any expected destination binary is missing, even if
         // the first one is present and the version marker matches — guards
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
         const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        const allDestsPresent = binaries.every((b) => fs.existsSync(path.join(binDir, b)))
-        if (allDestsPresent && bundledVersion === installedVersion) continue
-
-        // Copy each binary via dest.tmp + rename so an EBUSY on Windows
-        // (binary in use) doesn't leave a half-written file at `dest`.
-        for (const bin of binaries) {
-          const src = path.join(bundledDir, bin)
-          const dest = path.join(binDir, bin)
-          const tmp = `${dest}.tmp-${process.pid}`
-          await fsp.copyFile(src, tmp)
-          if (!isWin) await fsp.chmod(tmp, 0o755)
-          await fsp.rename(tmp, dest)
+        let changed = installedVersion !== artifact.version
+        for (const file of bundledFiles) {
+          const destination = path.join(binDir, file.output)
+          if (!changed && (await isBundledFileReady(file, destination))) continue
+          await materializeBundledFile(manifest, file, destination)
+          changed = true
         }
-        await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
-        logger.info(`Extracted bundled ${tool.name}`, { binDir, version: bundledVersion })
+        if (changed) {
+          await fsp.writeFile(path.join(binDir, tool.versionFile), artifact.version)
+          logger.info(`Extracted bundled ${tool.name}`, { binDir, version: artifact.version })
+        }
       } catch (err) {
         // Single-tool failure must not abort init — without this, an EBUSY
         // on (e.g.) bun would prevent mise/uv/rg from being extracted at all.
         logger.error(`Failed to extract bundled ${tool.name}`, err as Error)
+      }
+    }
+
+    if (isWin) {
+      try {
+        const artifact = manifest.artifacts.mingit
+        if (!artifact || artifact.kind !== 'tree') throw new Error('Missing bundled MinGit tree artifact')
+        const root = application.getPath('feature.binary.mingit')
+        const destination = path.join(root, artifact.version, platformKey)
+        if (!(await isBundledTreeReady(artifact, destination))) {
+          await materializeBundledTree(manifest, artifact, destination)
+          logger.info('Extracted bundled MinGit', { destination, version: artifact.version })
+        }
+        await cleanupOtherArtifactVersions(root, artifact.version)
+      } catch (error) {
+        logger.error('Failed to extract bundled MinGit', error as Error)
       }
     }
   }

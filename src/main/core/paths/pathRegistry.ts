@@ -111,6 +111,7 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    'feature.binary.mingit': path.join(appUserDataToolchain, 'mingit'),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
@@ -141,6 +142,7 @@ export function buildPathRegistry() {
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
+    'feature.agents.claude.binary': path.join(appUserDataToolchain, 'claude-agent-sdk'),
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data

@@ -3,25 +3,35 @@ import { isWin } from '@main/core/platform'
 import fs from 'fs'
 import path from 'path'
 
-import { toAsarUnpackedPath } from './asar'
+import { bundledArtifactPlatformKey, readBundledArtifactManifest } from './bundledArtifactManifest'
 
 /**
- * Resolve the bundled MinGit shipped under resources/binaries/<platform>/git.
+ * Resolve the bundled MinGit materialized from the signed app payload.
  * Windows-only — other platforms have no bundled git package. Returns the path
  * to git.exe when present, or null (dev on non-Windows, or missing bundle).
  *
- * MinGit is a multi-file tree run in place from resources (not copied into
- * cherry.bin), so this resolves through the asar.unpacked layout in production.
+ * MinGit is a multi-file tree stored under the versioned Toolchain cache.
  */
 export function getBundledGitPath(): string | null {
   if (!isWin) {
     return null
   }
-  const platformKey = `${process.platform}-${process.arch}`
-  const gitExe = toAsarUnpackedPath(
-    path.join(application.getPath('app.root.resources.binaries'), platformKey, 'git', 'cmd', 'git.exe')
-  )
-  return fs.existsSync(gitExe) ? gitExe : null
+  try {
+    const manifest = readBundledArtifactManifest()
+    const artifact = manifest.artifacts.mingit
+    if (!artifact || artifact.kind !== 'tree') return null
+    const entrypoint = artifact.entrypoints.find((candidate) => candidate.replaceAll('\\', '/').endsWith('/git.exe'))
+    if (!entrypoint) return null
+    const gitExe = path.join(
+      application.getPath('feature.binary.mingit'),
+      artifact.version,
+      bundledArtifactPlatformKey(manifest.platform, manifest.arch),
+      entrypoint
+    )
+    return fs.existsSync(gitExe) ? gitExe : null
+  } catch {
+    return null
+  }
 }
 
 /**

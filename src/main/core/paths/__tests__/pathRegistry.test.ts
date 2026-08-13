@@ -54,6 +54,14 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
   })
 
+  it('keeps expanded bundled payloads in dedicated version-cache roots', () => {
+    const registry = buildPathRegistry()
+    const toolchainRoot = path.join('/mock/userData', 'Toolchain')
+
+    expect(registry['feature.binary.mingit']).toBe(path.join(toolchainRoot, 'mingit'))
+    expect(registry['feature.agents.claude.binary']).toBe(path.join(toolchainRoot, 'claude-agent-sdk'))
+  })
+
   it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
     const registry = buildPathRegistry()
 

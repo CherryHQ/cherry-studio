@@ -3,10 +3,29 @@ import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
+const {
+  bundledManifestRef,
+  manifestRef,
+  mockCleanupOtherArtifactVersions,
+  mockExecFileAsync,
+  mockFs,
+  mockFsp,
+  mockIsBundledFileReady,
+  mockIsBundledTreeReady,
+  mockMaterializeBundledFile,
+  mockMaterializeBundledTree,
+  mockPreferenceService,
+  platformMock
+} = vi.hoisted(() => ({
+  bundledManifestRef: { value: {} },
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false },
+  mockCleanupOtherArtifactVersions: vi.fn(async () => undefined),
   mockExecFileAsync: vi.fn(),
+  mockIsBundledFileReady: vi.fn<(...args: unknown[]) => Promise<boolean>>(async () => true),
+  mockIsBundledTreeReady: vi.fn(async () => true),
+  mockMaterializeBundledFile: vi.fn(async () => undefined),
+  mockMaterializeBundledTree: vi.fn(async () => undefined),
   mockFs: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(),
@@ -49,6 +68,18 @@ vi.mock('@main/core/platform', () => ({
   get isWin() {
     return platformMock.isWin
   }
+}))
+
+vi.mock('@main/utils/bundledArtifactManifest', () => ({
+  readBundledArtifactManifest: vi.fn(() => bundledManifestRef.value)
+}))
+
+vi.mock('../bundledArtifacts', () => ({
+  cleanupOtherArtifactVersions: mockCleanupOtherArtifactVersions,
+  isBundledFileReady: mockIsBundledFileReady,
+  isBundledTreeReady: mockIsBundledTreeReady,
+  materializeBundledFile: mockMaterializeBundledFile,
+  materializeBundledTree: mockMaterializeBundledTree
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -127,6 +158,21 @@ const mockInstallPreferences = (values = DEFAULT_INSTALL_PREFERENCES) => {
   })
 }
 
+const makeBundledFile = (output: string) => ({
+  output,
+  archive: `${output}.zst`,
+  archiveSha256: 'a'.repeat(64),
+  sha256: 'b'.repeat(64),
+  size: 100,
+  mode: 0o755
+})
+
+const makeFilesArtifact = (version: string, outputs: string[]) => ({
+  kind: 'files' as const,
+  version,
+  files: outputs.map(makeBundledFile)
+})
+
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
   // and the OpenClaw gateway — it MUST keep the user's real HOME so they find
@@ -156,6 +202,11 @@ describe('BinaryManager', () => {
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    mockIsBundledFileReady.mockReset().mockResolvedValue(true)
+    mockIsBundledTreeReady.mockReset().mockResolvedValue(true)
+    mockMaterializeBundledFile.mockReset().mockResolvedValue(undefined)
+    mockMaterializeBundledTree.mockReset().mockResolvedValue(undefined)
+    mockCleanupOtherArtifactVersions.mockReset().mockResolvedValue(undefined)
     mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
     mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
@@ -165,6 +216,17 @@ describe('BinaryManager', () => {
     vi.mocked(getRawShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
+    bundledManifestRef.value = {
+      schemaVersion: 1,
+      platform: process.platform,
+      arch: process.arch,
+      artifacts: {
+        mise: makeFilesArtifact('2025.1.0', ['mise']),
+        bun: makeFilesArtifact('1.0.0', ['bun']),
+        uv: makeFilesArtifact('1.0.0', ['uv', 'uvx']),
+        rg: makeFilesArtifact('1.0.0', ['rg'])
+      }
+    }
     mockInstallPreferences()
     mockPreferenceService.set.mockImplementation(async (key: string, value: typeof manifestRef.value) => {
       if (key === 'feature.binary.tools') manifestRef.value = value
@@ -3003,16 +3065,15 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
-
-    beforeEach(async () => {
-      const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
-    })
-
     it('skips extraction when bundled version matches installed version', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise']) }
+      }
 
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockImplementation((p: string) => {
@@ -3022,46 +3083,54 @@ describe('BinaryManager', () => {
 
       await (service as any).extractBundledBinaries()
 
-      expect(mockFsp.copyFile).not.toHaveBeenCalled()
+      expect(mockMaterializeBundledFile).not.toHaveBeenCalled()
     })
 
-    it('copies binary when bundled version is newer than installed', async () => {
+    it('materializes a binary when the bundled version is newer than installed', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { mise: makeFilesArtifact('2025.2.0', ['mise']) }
+      }
 
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockImplementation((p: string) => {
-        if (p.includes('.mise-version')) {
-          return p.includes('binaries') ? '2025.2.0' : '2025.1.0'
-        }
+        if (p.includes('.mise-version')) return '2025.1.0'
         return ''
       })
 
       await (service as any).extractBundledBinaries()
 
-      expect(mockFsp.copyFile).toHaveBeenCalled()
+      expect(mockMaterializeBundledFile).toHaveBeenCalledWith(
+        bundledManifestRef.value,
+        expect.objectContaining({ output: 'mise' }),
+        expect.stringContaining('cherry.bin/mise')
+      )
     })
 
-    it('copies binary when no installed version exists', async () => {
+    it('materializes a binary when no installed version exists', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise']) }
+      }
 
-      mockFs.readFileSync.mockImplementation((p: string) => {
-        if (typeof p === 'string' && p.includes('binaries') && p.includes('.mise-version')) return '2025.1.0'
+      mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-      mockFs.existsSync.mockImplementation((...args: unknown[]) => {
-        const p = args[0]
-        if (typeof p === 'string' && p.includes('binaries')) return true
-        return false
       })
 
       await (service as any).extractBundledBinaries()
 
-      expect(mockFsp.copyFile).toHaveBeenCalled()
+      expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
     })
 
-    it('restores mise-shim.exe on Windows when mise.exe and its version marker already exist', async () => {
+    it('repairs only mise-shim.exe on Windows when the primary binary and version marker are intact', async () => {
       platformMock.isWin = true
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
       const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
@@ -3072,27 +3141,70 @@ describe('BinaryManager', () => {
 
       try {
         const service = new BinaryManager()
+        bundledManifestRef.value = {
+          schemaVersion: 1,
+          platform: 'win32',
+          arch: 'x64',
+          artifacts: { mise: makeFilesArtifact('2026.7.14', ['mise.exe', 'mise-shim.exe']) }
+        }
 
         mockFs.readFileSync.mockImplementation((p: string) => {
           if (p.includes('.mise-version')) return '2026.7.14'
           throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
         })
-        mockFs.existsSync.mockImplementation((...args: unknown[]) => {
-          const p = String(args[0])
-          if (p.includes('app.root.resources.binaries/win32-x64/mise')) return true
-          return p.endsWith('cherry.bin/mise.exe')
+        mockIsBundledFileReady.mockImplementation(async (file: unknown) => {
+          return (file as { output: string }).output === 'mise.exe'
         })
 
         await (service as any).extractBundledBinaries()
 
-        expect(mockFsp.copyFile).toHaveBeenCalledWith(
-          expect.stringContaining('app.root.resources.binaries/win32-x64/mise.exe'),
-          expect.stringContaining('cherry.bin/mise.exe.tmp-')
+        expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
+        expect(mockMaterializeBundledFile).toHaveBeenCalledWith(
+          bundledManifestRef.value,
+          expect.objectContaining({ output: 'mise-shim.exe' }),
+          expect.stringContaining('cherry.bin/mise-shim.exe')
         )
-        expect(mockFsp.copyFile).toHaveBeenCalledWith(
-          expect.stringContaining('app.root.resources.binaries/win32-x64/mise-shim.exe'),
-          expect.stringContaining('cherry.bin/mise-shim.exe.tmp-')
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
+
+    it('installs and then prunes versioned MinGit trees on Windows', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+      const mingit = {
+        kind: 'tree' as const,
+        version: '2.54.0',
+        archive: 'mingit.tar.zst',
+        archiveSha256: 'a'.repeat(64),
+        sha256: 'b'.repeat(64),
+        size: 100,
+        entrypoints: ['git/cmd/git.exe']
+      }
+
+      try {
+        bundledManifestRef.value = {
+          schemaVersion: 1,
+          platform: 'win32',
+          arch: 'x64',
+          artifacts: { mingit }
+        }
+        mockIsBundledTreeReady.mockResolvedValue(false)
+        const service = new BinaryManager()
+
+        await (service as any).extractBundledBinaries()
+
+        expect(mockMaterializeBundledTree).toHaveBeenCalledWith(
+          bundledManifestRef.value,
+          mingit,
+          '/mock/feature.binary.mingit/2.54.0/win32-x64'
         )
+        expect(mockCleanupOtherArtifactVersions).toHaveBeenCalledWith('/mock/feature.binary.mingit', '2.54.0')
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }

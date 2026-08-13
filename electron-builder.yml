@@ -66,6 +66,23 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI is bundled as a verified Zstd payload under resources/binaries
+  - "!node_modules/better-sqlite3/{deps,src}/**" # runtime uses lib/ + package.json + build/Release/better_sqlite3.node
+  - "!node_modules/better-sqlite3/binding.gyp"
+  - "!node_modules/better-sqlite3/build/{deps,Release/.deps,Release/obj,Release/obj.target}/**"
+  - "!node_modules/better-sqlite3/build/{Makefile,binding.Makefile,config.gypi,gyp-mac-tool,better_sqlite3.target.mk,test_extension.target.mk}"
+  - "!node_modules/better-sqlite3/build/Release/{.forge-meta,sqlite3.a,test_extension.node}"
+  - "!node_modules/@larksuiteoapi/node-sdk/es/**" # main resolves the CommonJS lib entry
+  - "!node_modules/@huggingface/transformers/src/**"
+  - "!node_modules/@huggingface/transformers/dist/{transformers.js,transformers.min.js,transformers.node.mjs,transformers.node.min.cjs,transformers.node.min.mjs,transformers.web.js,transformers.web.min.js,ort-wasm-simd-threaded.jsep.mjs}"
+  - "!node_modules/pdf-parse/dist/pdf-parse/{cjs,web}/**"
+  - "!node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs"
+  - "!node_modules/pdf-parse/dist/worker/cjs/**"
+  - "!node_modules/pdf-parse/dist/worker/pdf.worker.mjs"
+  - "!node_modules/pdf-parse/dist/node/**"
+  - "!node_modules/pdfjs-dist/build/**" # renderer copies its modern PDF.js assets into out/renderer
+  - "!node_modules/pdfjs-dist/{web,legacy/web}/**"
+  - "!node_modules/pdfjs-dist/legacy/build/{pdf.min.mjs,pdf.sandbox.mjs,pdf.sandbox.min.mjs,pdf.worker.min.mjs}"
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
@@ -77,7 +94,6 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
@@ -149,6 +165,7 @@ publish:
   url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+beforeBuild: scripts/before-build.js
 beforePack: scripts/before-pack.js
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js

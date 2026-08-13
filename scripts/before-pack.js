@@ -5,6 +5,7 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { bundleFilesArtifact, readManifest, verifyBundledArtifacts, writeManifest } = require('./download-binaries')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -106,6 +107,62 @@ const assertPrebuiltPackages = (platform, arch) => {
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 
+const claudeNativePackageName = (platform, arch) => `@anthropic-ai/claude-agent-sdk-${platform}-${arch}`
+exports.claudeNativePackageName = claudeNativePackageName
+
+const readPackageVersion = (projectRoot, packageName) => {
+  const manifestPath = path.join(projectRoot, 'node_modules', packageName, 'package.json')
+  if (!fs.existsSync(manifestPath)) throw new Error(`Missing package manifest: ${manifestPath}`)
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
+}
+
+const assertClaudeAgentSdkNativeVersion = (platform, arch, options = {}) => {
+  const projectRoot = options.projectRoot ?? path.join(__dirname, '..')
+  const sdkPackage = '@anthropic-ai/claude-agent-sdk'
+  const nativePackage = claudeNativePackageName(platform, arch)
+  const sdkVersion = readPackageVersion(projectRoot, sdkPackage)
+  const nativeVersion = readPackageVersion(projectRoot, nativePackage)
+  if (sdkVersion !== nativeVersion) {
+    throw new Error(
+      `Claude Agent SDK native package version mismatch for ${platform}-${arch}: ` +
+        `${sdkPackage}@${sdkVersion} != ${nativePackage}@${nativeVersion}`
+    )
+  }
+
+  const binaryName = platform === 'win32' ? 'claude.exe' : 'claude'
+  const binaryPath = path.join(projectRoot, 'node_modules', nativePackage, binaryName)
+  if (!fs.existsSync(binaryPath)) throw new Error(`Claude Code native binary missing: ${binaryPath}`)
+  return { binaryName, binaryPath, nativePackage, version: sdkVersion }
+}
+exports.assertClaudeAgentSdkNativeVersion = assertClaudeAgentSdkNativeVersion
+
+const bundleClaudeAgentSdk = async (platform, arch, options = {}) => {
+  const projectRoot = options.projectRoot ?? path.join(__dirname, '..')
+  const resourcesDir = options.resourcesDir ?? path.join(projectRoot, 'resources', 'binaries')
+  const platformKey = `${platform}-${arch}`
+  const outputDir = path.join(resourcesDir, platformKey)
+  const claude = assertClaudeAgentSdkNativeVersion(platform, arch, { projectRoot })
+  fs.mkdirSync(outputDir, { recursive: true })
+
+  const artifact = await bundleFilesArtifact({
+    version: claude.version,
+    files: [
+      {
+        source: claude.binaryPath,
+        output: claude.binaryName,
+        archive: 'claude.zst',
+        mode: 0o755
+      }
+    ],
+    outputDir
+  })
+  const manifest = readManifest(outputDir, platform, arch)
+  manifest.artifacts.claude = artifact
+  writeManifest(outputDir, manifest)
+  return artifact
+}
+exports.bundleClaudeAgentSdk = bundleClaudeAgentSdk
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
@@ -127,8 +184,9 @@ exports.default = async function (context) {
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
   execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
-  // Fail the build rather than ship a half-empty resources/binaries/<platform>.
-  require('./download-binaries').verifyBundledBinaries(platform, arch)
+  await bundleClaudeAgentSdk(platform, arch)
+  // Fail the build rather than ship a half-empty or corrupt payload set.
+  await verifyBundledArtifacts(platform, arch, { requiredArtifactNames: ['claude'] })
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错

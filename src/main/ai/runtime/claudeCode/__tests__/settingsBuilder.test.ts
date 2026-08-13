@@ -1,5 +1,4 @@
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
-import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -42,7 +41,7 @@ const mocks = vi.hoisted(() => ({
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn(),
+  ensureClaudeExecutable: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
@@ -53,16 +52,6 @@ const mocks = vi.hoisted(() => ({
   platform: { isMac: false },
   isWin: false
 }))
-
-vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeModule>()
-  return {
-    ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
-  }
-})
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.0.0-test') }
@@ -163,6 +152,10 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
+vi.mock('../ClaudeCodeBinaryService', () => ({
+  claudeCodeBinaryService: { ensureExecutable: mocks.ensureClaudeExecutable }
+}))
+
 vi.mock('@main/utils/file', () => ({
   getPathStatus: mocks.getPathStatus,
   isPathInside: (child: string, parent: string) => {
@@ -234,10 +227,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // tests) so each build creates a fresh snapshot instead of refreshing a prior test's instance.
     disposeToolPolicySnapshot('session-1')
     vi.clearAllMocks()
-    mocks.resolveRequire.mockImplementation((specifier: string) => {
-      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
-      return `/native/${specifier}/claude`
-    })
+    mocks.ensureClaudeExecutable.mockResolvedValue('/toolchain/claude')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -306,6 +296,20 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  })
+
+  it('uses the locally materialized Claude executable', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.ensureClaudeExecutable).toHaveBeenCalledOnce()
+    expect(settings.pathToClaudeCodeExecutable).toBe('/toolchain/claude')
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
