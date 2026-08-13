@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
         "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+        "mentionOnlyHint": "オンにすると、ボットは@メンションにのみ応答します。オフにすると、すべてのグループメッセージを受信します（QQオープンプラットフォームで「すべてのメッセージを受信」権限が必要です）。",
+        "mentionOnlyLabel": "@メンションのみ",
         "title": "QQ",
         "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}}チャンネル",
+          "channels_count_other": "{{count}} チャンネル",
+          "channels_empty": "チャンネルは変更されません。",
+          "channels_title": "チャンネルが作業ディレクトリなしに変更されました",
           "content": "この作業フォルダーを削除すると、その配下のすべてのタスクも削除されます。削除されるのはデータベースのレコードのみで、ディスク上の実際のフォルダーは削除されません。",
+          "disk_preserved": "ディスク上のフォルダとそのファイルは削除されません。",
           "error": {
             "failed": "ワークフォルダーの削除に失敗しました"
           },
+          "more_count_one": "…と、あと{{count}}個のアイテム",
+          "more_count_other": "…と他{{count}}点",
+          "preview": "「{{name}}」を削除すると、そのセッションが削除され、関連チャンネルとスケジュールタスクが作業ディレクトリなしに変更されます。この操作は元に戻せません。",
+          "preview_failed": "削除の影響を読み込めなかったため、このワークディレクトリはまだ削除できません。",
+          "preview_loading": "削除の影響を読み込んでいます…",
+          "sessions_count_one": "{{count}} セッション",
+          "sessions_count_other": "{{count}} セッション",
+          "sessions_empty": "セッションは削除されません。",
+          "sessions_title": "削除するセッション",
+          "tasks_count_one": "{{count}}件のスケジュールタスク",
+          "tasks_count_other": "{{count}}件の予定タスク",
+          "tasks_empty": "予定されたタスクは変更されません。",
+          "tasks_title": "スケジュールされたタスクが作業ディレクトリなしに変更されました",
           "title": "作業フォルダーを削除",
           "trigger": "作業フォルダーを削除"
         },
@@ -958,7 +978,6 @@
       "executing": "実行中...",
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
-      "pending": "確認待ち",
       "pendingBadge": "保留中",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
@@ -1544,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "エージェント",
-          "files": "ファイル",
+          "resources": "ファイルとフォルダ",
           "skills": "スキル"
         },
         "description": "ファイル、エージェント、またはスキルから選択",
+        "load_failed": "ワークスペースリソースの読み込みに失敗しました",
         "loading": "読み込み中...",
-        "no_file_found": {
-          "description": "アクセス可能なフォルダーに利用可能なファイルがありません",
-          "label": "ファイルが見つかりません"
-        },
         "no_items_found": {
           "description": "ファイル、エージェント、スキルは利用できません",
           "label": "アイテムが見つかりません"
+        },
+        "no_resources_found": {
+          "description": "現在のワークスペースには検索可能なファイルやフォルダがありません。",
+          "label": "リソースが見つかりません"
         },
         "title": "リソース"
       },
@@ -2524,6 +2544,7 @@
       "ocr": "OCR エンジンが初期化されていません。OCR 設定を確認してください",
       "parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",
       "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
+      "permission": "プロバイダーがこのリクエストを拒否しました。エラーの詳細、アカウントプラン、APIキーの権限、またはこのリソースへのアクセスを確認してください。",
       "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
       "quota": "アカウントの利用枠が不足しています。チャージするかプロバイダーを変更してください",
       "rate_limit": "短時間にリクエストが多すぎます。しばらく待ってから再試行するか、より高いレート制限のモデルに切り替えてください",
@@ -2548,6 +2569,7 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
+    "image_unreadable_for_non_vision_model": "選択されたモデルは画像に対応しておらず、Cherry Studioは添付ファイルから読み取り可能なテキストを抽出できませんでした。画像対応モデルを選択するか、画像を削除して再試行してください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -3196,7 +3218,6 @@
       "updated_at": "更新日時 {{time}}"
     },
     "name_required": "ナレッジベース名は必須です",
-    "not_set": "未設定",
     "provider_not_found": "プロバイダーが見つかりません",
     "rag": {
       "chunk_overlap": "オーバーラップサイズ",
@@ -3211,12 +3232,13 @@
       "chunking": "チャンキング",
       "default_separator": "自動（推奨）",
       "document_count": "文書数",
-      "download_local_embedding": "ローカルモデルをダウンロード",
       "download_local_embedding_failed": "ローカル埋め込みモデルのダウンロードに失敗しました",
+      "download_local_model": "ローカルモデルをダウンロード",
       "embedding_model": "埋め込みモデル",
       "embedding_model_select": "モデル選択",
       "file_processing": "ファイル処理",
       "file_processing_hint": "ファイルの処理はドキュメントのインポート時に自動的に実行されます。適切なプロバイダーを選択することで、ドキュメントの解析品質を向上させることができます。",
+      "file_processing_none": "使用しないでください",
       "hints": {
         "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
         "chunk_separator": "テキストを分割するデリミタ（エスケープ済み）。スマートチャンキングが有効な場合は区切り点として機能し、無効な場合はこのデリミタのみでテキストが分割されます。",
@@ -3230,6 +3252,8 @@
       },
       "processor": "処理プロバイダー",
       "processor_not_configured": "設定されていません",
+      "processor_not_downloaded": "ダウンロードされていません",
+      "processor_unreachable": "サービスが実行されていません",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -3480,6 +3504,12 @@
         "context_compress_model": "圧縮モデル",
         "context_compress_model_follow": "デフォルト",
         "context_count": "コンテキストカウント",
+        "context_count_follow_global": "グローバル設定に従う（{{count}}）",
+        "context_count_unlimited": "無制限",
+        "context_globally_disabled": "コンテキスト管理がグローバルで無効のため、ここの退避・圧縮設定は反映されません",
+        "context_inherited": "グローバル設定に従います：{{compress}}、{{threshold}} 文字を超えるツール出力は退避されます",
+        "context_inherited_compress_off": "自動圧縮オフ",
+        "context_inherited_compress_on": "自動圧縮オン",
         "context_management": "コンテキスト管理",
         "context_truncate_threshold": "ツール出力の切り捨てしきい値（文字数）",
         "creative": "クリエイティブ",
@@ -4021,6 +4051,14 @@
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
+      "stream_admission": {
+        "execution_changed": "リトライを開始する前に応答が変更されました。もう一度お試しください。",
+        "execution_not_ready": "この応答はまだ生成中で、再試行できません。",
+        "model_already_in_live_group": "このモデルはアクティブな返信グループで既に生成中です。",
+        "single_model_required": "アクティブな返信グループに追加するモデルを1つ選択してください。",
+        "target_not_in_live_group": "選択した返信はアクティブな返信グループに含まれなくなりました。もう一度お試しください。",
+        "topic_busy": "この会話はまだ生成中です。終了するまで待って、もう一度お試しください。"
+      },
       "table": {
         "invalid": "有効なテーブルデータを取得できません"
       },
@@ -4035,7 +4073,8 @@
         "content": "このグループ内のアシスタントの回答をすべて削除しますか？ユーザーの質問と後続のメッセージは保持されます。",
         "title": "グループの回答を削除"
       },
-      "retry_failed": "エラーになったメッセージを再試行"
+      "retry_failed": "エラーになったメッセージを再試行",
+      "retry_skipped_same_model": "Retry Allはモデルごとに最大1回のリトライを開始するため、追加の失敗応答{{count}}件をスキップしました。"
     },
     "ignore": {
       "knowledge": {
@@ -4467,27 +4506,27 @@
     },
     "pinned": "固定済み",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "料金階層を追加",
+      "cache_fallback_help": "キャッシュ価格を空白のままにすると、このティアの入力価格が使用されます。無料にする場合は0を入力してください。",
       "cache_read": "キャッシュ読み取り価格",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "キャッシュ書き込み料金",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "{{field}}、ティア {{index}}",
       "input": "入力価格",
       "million_tokens": "百万トークン",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "入力トークンから始まります",
+      "min_input_tokens_help": "包含的な境界。前のティアより大きくなければなりません。",
       "output": "出力価格",
       "price": "価格",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "価格ティア {{index}} を削除",
+      "tier": "ティア {{index}}",
+      "tier_from": "{{boundary}}入力トークンから（境界値を含む）",
+      "use_input_price": "入力価格を使用",
+      "validation_min_input_tokens": "正の整数を入力してください。",
+      "validation_min_input_tokens_order": "ティアは前のティアの後に開始する必要があります。",
+      "validation_price": "0以上の価格を入力してください。"
     },
     "reasoning": "思考",
     "rerank_model": "リランクモデル",
@@ -4639,6 +4678,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "フォント設定",
+        "line_breaks": "改行モード",
+        "line_breaks_description": "単一の改行を新しい行として表示します（Obsidianスタイル）。無効にすると、空行が段落を区切るまで改行はスペースに折り畳まれます。",
         "serif_font": "セリフフォント",
         "show_table_of_contents": "目次アウトラインを表示",
         "show_table_of_contents_description": "目次アウトラインサイドバーを表示し、文書内のナビゲーションを容易にする",
@@ -5406,6 +5447,7 @@
         "insertRowBefore": "上に挿入"
       }
     },
+    "backToTop": "トップに戻る",
     "commands": {
       "blockMath": {
         "description": "数式を挿入します",
@@ -6682,6 +6724,10 @@
       "installingHint": "初回インストール時にランタイムをダウンロードする場合があり、数分かかることがあります",
       "invalidTool": "無効なツール名またはキー",
       "localModels": {
+        "acceleration": {
+          "description": "DirectMLまたはCoreMLを使用して、ローカル埋め込みとOCR推論を高速化します。",
+          "label": "ハードウェアアクセラレーション"
+        },
         "cancel": "キャンセル",
         "description": "デバイス上でローカルに動作するモデル — 一度ダウンロードすれば、APIキーなしでオフラインで使用できます。",
         "download": "ダウンロード",
@@ -6989,6 +7035,7 @@
       },
       "command": "コマンド",
       "config_description": "モデルコンテキストプロトコルサーバーの設定",
+      "copyLogs": "ログをコピー",
       "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
       "deleteError": "サーバーの削除に失敗しました",
       "deleteServer": "サーバーを削除",
@@ -7042,6 +7089,7 @@
       },
       "logoUrl": "ロゴURL",
       "logs": "ログ",
+      "logsHint": "MCPサーバープロセスのログ",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -7428,6 +7476,20 @@
         "use_all_keys": "キー"
       },
       "collapse_all": "すべて折りたたむ",
+      "context_management": {
+        "compress_enabled": "自動圧縮",
+        "compress_enabled_description": "コンテキストウィンドウの上限に近づいたとき、古いやり取りを自動で要約します。アシスタントごとに上書きできます",
+        "compress_model": "圧縮モデル",
+        "compress_model_follow": "現在のモデルに従う",
+        "enabled": "コンテキスト管理を有効にする",
+        "enabled_description": "会話のコンテキストを自動管理します：大きすぎるツール出力を退避し、ウィンドウ上限に近づいたら履歴を圧縮します。無効にすると何も管理されず、ウィンドウを超えるリクエストは失敗します",
+        "max_messages": "保持する直近メッセージ数",
+        "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
+        "max_messages_unlimited": "無制限",
+        "title": "コンテキスト管理",
+        "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
+        "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"
+      },
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
@@ -8138,10 +8200,12 @@
       "label": "キー",
       "move_tab_to_first": "タブを最初に移動",
       "new_topic": "新しいトピック",
+      "next_tab": "次のタブ",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "open_tab_in_new_window": "新しいウィンドウでタブを開く",
       "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
+      "prev_tab": "前のタブ",
       "print": "印刷",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
@@ -8257,6 +8321,10 @@
           "doc2x": {
             "description": "高度なファイル復元エンジン。",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "PDFをMarkdownに変換する処理をすべてこのマシン上で行います。テキストレイヤーを含む文書は直接解析され、スキャン文書の場合はローカルのOCRモデルにフォールバックします。",
+            "name": "ローカルドキュメント"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) をインプロセスで実行 — 完全オフライン、APIキー不要、認識処理はバックグラウンドスレッドで実行されるためUIが応答性を保ちます。初回使用前に環境依存関係でモデル（約140MB）をダウンロードしてください。",
