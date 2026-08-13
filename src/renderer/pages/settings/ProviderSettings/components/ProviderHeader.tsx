@@ -80,7 +80,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
         </div>
         <Switch
           checked={provider.isEnabled}
-          disabled={isTogglingEnabled}
+          disabled={isTogglingEnabled || meta.isManagedReadOnly}
           onCheckedChange={(enabled) => void handleToggleEnabled(enabled)}
         />
       </div>

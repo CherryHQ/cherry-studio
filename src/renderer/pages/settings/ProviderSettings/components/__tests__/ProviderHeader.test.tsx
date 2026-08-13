@@ -15,8 +15,12 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   return {
-    Switch: ({ checked, onCheckedChange }: any) => (
-      <button type="button" data-checked={checked ? 'true' : 'false'} onClick={() => onCheckedChange(!checked)}>
+    Switch: ({ checked, onCheckedChange, disabled }: any) => (
+      <button
+        type="button"
+        data-checked={checked ? 'true' : 'false'}
+        data-disabled={disabled ? 'true' : 'false'}
+        onClick={() => onCheckedChange(!checked)}>
         switch
       </button>
     ),
@@ -144,5 +148,18 @@ describe('ProviderHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.options.label' }))
 
     expect(screen.getByText('api-options-drawer')).toBeInTheDocument()
+  })
+
+  it('disables the enable toggle for the managed CherryAI provider', () => {
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'CherryAI',
+      docsWebsite: undefined,
+      showApiOptionsButton: false,
+      isManagedReadOnly: true
+    })
+
+    render(<ProviderHeader providerId="cherryai" />)
+
+    expect(screen.getByRole('button', { name: 'switch' })).toHaveAttribute('data-disabled', 'true')
   })
 })

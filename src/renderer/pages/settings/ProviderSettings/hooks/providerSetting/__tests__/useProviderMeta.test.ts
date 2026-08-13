@@ -206,4 +206,44 @@ describe('useProviderMeta', () => {
 
     expect(result.current.showApiOptionsButton).toBe(false)
   })
+
+  it('marks the managed CherryAI provider read-only and hides its api/host editors', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryai',
+        name: 'CherryAI',
+        authType: 'api-key',
+        apiKeys: [],
+        apiFeatures: {},
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('cherryai'))
+
+    expect(result.current.isManagedReadOnly).toBe(true)
+    expect(result.current.isApiKeyFieldVisible).toBe(false)
+    expect(result.current.isConnectionFieldVisible).toBe(false)
+  })
+
+  it('keeps a normal provider editable', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        authType: 'api-key',
+        apiKeys: [],
+        apiFeatures: {},
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('openai'))
+
+    expect(result.current.isManagedReadOnly).toBe(false)
+    expect(result.current.isApiKeyFieldVisible).toBe(true)
+    expect(result.current.isConnectionFieldVisible).toBe(true)
+  })
 })

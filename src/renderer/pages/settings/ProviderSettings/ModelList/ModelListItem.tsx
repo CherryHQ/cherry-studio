@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/
 import { useIcon } from '@cherrystudio/ui/icons'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
+import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Bolt, Minus } from 'lucide-react'
@@ -34,6 +35,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 }) => {
   const { t } = useTranslation()
   const Icon = useIcon(getModelLogoRef(model))
+  // Managed CherryAI default data is read-only: hide the per-model edit/delete
+  // actions (the backend rejects mutations on the managed default model).
+  const isManagedCherryAiModel = isManagedCherryAiProviderId(model.providerId)
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')
@@ -84,31 +88,33 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
             </div>
             <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>
-          <div className={modelListClasses.rowInlineActions}>
-            <Tooltip content={t('common.settings')} placement="top">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className={modelListClasses.rowActionButton}
-                aria-label={t('common.settings')}
-                onClick={handleEdit}>
-                <Bolt className="size-4" />
-              </Button>
-            </Tooltip>
-            <Tooltip content={deleteTooltip} placement="top">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton}`}
-                aria-label={t('settings.models.manage.remove_model')}
-                disabled={disabled || isDefaultModel}
-                onClick={handleDelete}>
-                <Minus className="size-4" />
-              </Button>
-            </Tooltip>
-          </div>
+          {!isManagedCherryAiModel && (
+            <div className={modelListClasses.rowInlineActions}>
+              <Tooltip content={t('common.settings')} placement="top">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={modelListClasses.rowActionButton}
+                  aria-label={t('common.settings')}
+                  onClick={handleEdit}>
+                  <Bolt className="size-4" />
+                </Button>
+              </Tooltip>
+              <Tooltip content={deleteTooltip} placement="top">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton}`}
+                  aria-label={t('settings.models.manage.remove_model')}
+                  disabled={disabled || isDefaultModel}
+                  onClick={handleDelete}>
+                  <Minus className="size-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          )}
         </div>
       </RowFlex>
     </div>

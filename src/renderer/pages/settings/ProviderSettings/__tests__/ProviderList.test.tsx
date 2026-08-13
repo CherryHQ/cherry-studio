@@ -216,7 +216,7 @@ describe('ProviderList', () => {
     expect(onSelectProvider).toHaveBeenCalledWith('anthropic')
   })
 
-  it('hides CherryAI from the provider list', () => {
+  it('shows CherryAI in the provider list', () => {
     useProvidersMock.mockReturnValue({
       providers: [
         ...providers,
@@ -233,8 +233,8 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
+    expect(screen.getByText('CherryAI')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-item-cherryai')).toBeInTheDocument()
   })
 
   it('offers only safe canonical preset sources to the custom provider editor', () => {

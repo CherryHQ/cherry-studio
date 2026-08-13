@@ -5,6 +5,7 @@ import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
+const useProviderMetaMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
 
@@ -20,6 +21,10 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
   useProviderOnboardingAutoEnable: (...args: any[]) => useProviderOnboardingAutoEnableMock(...args)
+}))
+
+vi.mock('../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
 }))
 
 vi.mock('../components/ProviderHeader', () => ({
@@ -46,6 +51,9 @@ describe('ProviderSetting', () => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: true, name: 'openai' }
+    })
+    useProviderMetaMock.mockReturnValue({
+      isManagedReadOnly: false
     })
   })
 
@@ -76,5 +84,20 @@ describe('ProviderSetting', () => {
     const { container } = render(<ProviderSetting providerId="missing" />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('omits the authentication section for the managed CherryAI provider', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryai', isEnabled: true, name: 'CherryAI' }
+    })
+    useProviderMetaMock.mockReturnValue({
+      isManagedReadOnly: true
+    })
+
+    render(<ProviderSetting providerId="cherryai" />)
+
+    expect(screen.getByText('provider-header-cherryai')).toBeInTheDocument()
+    expect(screen.queryByText('authentication-section-cherryai')).not.toBeInTheDocument()
+    expect(screen.getByText('model-list-cherryai')).toBeInTheDocument()
   })
 })

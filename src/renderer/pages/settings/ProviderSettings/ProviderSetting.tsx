@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
+import { useProviderMeta } from './hooks/providerSetting/useProviderMeta'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
@@ -18,12 +19,15 @@ interface ProviderSettingProps {
 
 function ProviderSettingSections({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
   const health = useModelListHealth()
+  const { isManagedReadOnly } = useProviderMeta(providerId)
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
 
-  const authenticationSection = (
+  // The managed CherryAI provider is protected default data: its credential and
+  // host editors are read-only, so the whole authentication section is omitted.
+  const authenticationSection = isManagedReadOnly ? null : (
     <AuthenticationSection
       providerId={providerId}
       onOpenModelHealthCheck={health.openHealthCheck}

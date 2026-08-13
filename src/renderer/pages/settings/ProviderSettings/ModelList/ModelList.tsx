@@ -1,4 +1,5 @@
 import { ButtonGroup } from '@cherrystudio/ui'
+import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import React, { memo } from 'react'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -23,26 +24,31 @@ function ModelListContent({
 }) {
   const { isHealthChecking } = useModelListHealthRun()
   const disabled = isHealthChecking
+  // The managed CherryAI provider is protected default data, so its model list
+  // is read-only — no pull/add/download toolbar actions.
+  const isManagedReadOnly = isManagedCherryAiProviderId(providerId)
 
   return (
     <>
       <ProviderModelList
         providerId={providerId}
         disabled={disabled}
-        actions={({ disabled: toolbarDisabled }) => (
-          <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
-            <ProviderModelPullReconcile
-              providerId={providerId}
-              disabled={toolbarDisabled}
-              guideVersion={modelPullGuideVersion}
-            />
-            {providerId === 'ovms' ? (
-              <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
-            ) : (
-              <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
-            )}
-          </ButtonGroup>
-        )}
+        actions={({ disabled: toolbarDisabled }) =>
+          isManagedReadOnly ? null : (
+            <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
+              <ProviderModelPullReconcile
+                providerId={providerId}
+                disabled={toolbarDisabled}
+                guideVersion={modelPullGuideVersion}
+              />
+              {providerId === 'ovms' ? (
+                <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
+              ) : (
+                <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
+              )}
+            </ButtonGroup>
+          )
+        }
       />
       <ProviderModelHealthCheck disabled={disabled} hasVisibleModels={false} renderTrigger={false} />
     </>

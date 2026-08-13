@@ -257,4 +257,26 @@ describe('ModelListItem', () => {
       expect(toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
     })
   })
+
+  it('hides the edit and delete actions for managed CherryAI models', () => {
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'cherryai::qwen',
+            providerId: 'cherryai',
+            name: 'Qwen',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Qwen')).toBeInTheDocument()
+    expect(screen.queryByLabelText('common.settings')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.models.manage.remove_model')).not.toBeInTheDocument()
+  })
 })
