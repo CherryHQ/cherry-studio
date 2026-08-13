@@ -49,6 +49,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -926,7 +927,7 @@ export class MessageService {
    *   the first user turn creates an ordinary sibling under that root — no special case.
    */
   createSibling(sourceId: string, data: MessageData): Message {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
@@ -947,6 +948,8 @@ export class MessageService {
         tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId)).run()
       }
 
+      const status = source.role === 'user' ? 'success' : 'pending'
+      const createdAt = Date.now()
       const [row] = tx
         .insert(messageTable)
         .values({
@@ -954,8 +957,10 @@ export class MessageService {
           parentId: source.parentId,
           role: source.role,
           data,
-          status: source.role === 'user' ? 'success' : 'pending',
-          siblingsGroupId
+          status,
+          siblingsGroupId,
+          createdAt,
+          updatedAt: createdAt
         })
         .returning()
         .all()
@@ -963,6 +968,9 @@ export class MessageService {
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
+      if (isConversationActivityRole(source.role)) {
+        topicService.advanceLastActivityAtTx(tx, source.topicId, createdAt)
+      }
 
       logger.info('Created sibling message', {
         sourceId,
@@ -973,6 +981,10 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+    if (isConversationActivityRole(message.role)) {
+      getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
+    }
+    return message
   }
 
   /**
@@ -1023,7 +1035,7 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
       const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
@@ -1063,6 +1075,7 @@ export class MessageService {
       }
 
       // Step 3: Insert the message using the resolved parentId.
+      const createdAt = Date.now()
       const [row] = tx
         .insert(messageTable)
         .values({
@@ -1073,22 +1086,32 @@ export class MessageService {
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
-          messageSnapshot: dto.messageSnapshot
+          messageSnapshot: dto.messageSnapshot,
+          createdAt,
+          updatedAt: createdAt
         })
         .returning()
         .all()
       replaceChatMessageFileRefsTx(tx, row.id, dto.data)
 
+      const topicService = getDataService('TopicService')
+
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
-        const topicService = getDataService('TopicService')
         topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
+      }
+      if (isConversationActivityRole(dto.role)) {
+        topicService.advanceLastActivityAtTx(tx, topicId, createdAt)
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
 
       return rowToMessage(row)
     })
+    if (isConversationActivityRole(message.role)) {
+      getDataService('TopicService').notifyReadModelChange([topicId], 'projection')
+    }
+    return message
   }
 
   /**
@@ -1099,7 +1122,7 @@ export class MessageService {
    * place a reservation without moving the topic away from a currently streaming path.
    */
   reserveBranch(anchorId: string, activate: boolean = true): Message {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       const [anchor] = tx
         .select()
         .from(messageTable)
@@ -1113,6 +1136,7 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('reserve branch', 'the branch anchor must be an assistant message')
       }
 
+      const createdAt = Date.now()
       const [row] = tx
         .insert(messageTable)
         .values({
@@ -1121,18 +1145,25 @@ export class MessageService {
           role: 'user',
           data: { parts: [] },
           status: 'success',
-          siblingsGroupId: 0
+          siblingsGroupId: 0,
+          createdAt,
+          updatedAt: createdAt
         })
         .returning()
         .all()
 
+      const topicService = getDataService('TopicService')
+
       if (activate) {
-        getDataService('TopicService').setActiveNodeTx(tx, anchor.topicId, row.id, { assumeValid: true })
+        topicService.setActiveNodeTx(tx, anchor.topicId, row.id, { assumeValid: true })
       }
+      topicService.advanceLastActivityAtTx(tx, anchor.topicId, createdAt)
 
       logger.info('Reserved message branch', { anchorId, branchId: row.id, topicId: anchor.topicId, activate })
       return rowToMessage(row)
     })
+    getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
+    return message
   }
 
   /**
@@ -1163,12 +1194,14 @@ export class MessageService {
   createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
   ): CreateUserMessageWithPlaceholdersResult {
+    let activityChanged = false
     const result = application.get('DbService').withWriteTx((tx) => {
       // Validate topic
       const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
       if (!topic) {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
+      let latestActivityAt: number | null = null
 
       // 1. Resolve user message — insert new, or fetch existing
       let userMessage: Message
@@ -1190,6 +1223,7 @@ export class MessageService {
           resolvedParentId = dto.parentId
         }
 
+        const createdAt = Date.now()
         const [row] = tx
           .insert(messageTable)
           .values({
@@ -1200,12 +1234,15 @@ export class MessageService {
             status: dto.status ?? 'pending',
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
-            messageSnapshot: dto.messageSnapshot
+            messageSnapshot: dto.messageSnapshot,
+            createdAt,
+            updatedAt: createdAt
           })
           .returning()
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
+        if (isConversationActivityRole(dto.role)) latestActivityAt = createdAt
       } else if (input.userMessage.mode === 'existing') {
         const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
         if (!row) {
@@ -1240,6 +1277,7 @@ export class MessageService {
           )
         }
 
+        const activityTimestamp = Date.now()
         const [updatedRow] = tx
           .update(messageTable)
           .set({
@@ -1251,6 +1289,7 @@ export class MessageService {
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data)
         userMessage = rowToMessage(updatedRow)
+        latestActivityAt = activityTimestamp
       }
 
       // 2. Backfill siblings with groupId=0 under the user message
@@ -1264,6 +1303,8 @@ export class MessageService {
       // 3. Insert placeholders (preserving input order)
       const placeholders: Message[] = []
       for (const p of input.placeholders) {
+        const status = p.status ?? 'pending'
+        const createdAt = Date.now()
         const [row] = tx
           .insert(messageTable)
           .values({
@@ -1272,23 +1313,32 @@ export class MessageService {
             parentId: userMessage.id,
             role: p.role,
             data: p.data,
-            status: p.status ?? 'pending',
+            status,
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
-            messageSnapshot: p.messageSnapshot
+            messageSnapshot: p.messageSnapshot,
+            createdAt,
+            updatedAt: createdAt
           })
           .returning()
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, p.data)
         placeholders.push(rowToMessage(row))
+        if (isConversationActivityRole(p.role)) {
+          latestActivityAt = latestActivityAt === null ? createdAt : Math.max(latestActivityAt, createdAt)
+        }
       }
 
       // 4. Point activeNodeId at the new turn unless this is an explicitly non-activating
       // live-group append. Streaming work must not move the user's selected branch.
+      const topicService = getDataService('TopicService')
       if (!input.preserveActiveNode) {
         const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
-        const topicService = getDataService('TopicService')
         topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      }
+      if (latestActivityAt !== null) {
+        topicService.advanceLastActivityAtTx(tx, input.topicId, latestActivityAt)
+        activityChanged = true
       }
 
       logger.info('Reserved assistant turn', {
@@ -1317,6 +1367,7 @@ export class MessageService {
           ] as const)
         : [])
     ])
+    if (activityChanged) getDataService('TopicService').notifyReadModelChange([input.topicId], 'projection')
     return result
   }
 
@@ -1360,6 +1411,7 @@ export class MessageService {
       }
     }
 
+    let activityChanged = false
     const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
       const [existingRow] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
@@ -1403,11 +1455,27 @@ export class MessageService {
       if (dto.data !== undefined) updates.data = dto.data
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
-      if (dto.status !== undefined) updates.status = dto.status
+      let activityTransitionAt: number | null = null
+      if (dto.status !== undefined) {
+        updates.status = dto.status
+        if (
+          isAssistantActivityTransition({
+            existingStatus: existingRow.status,
+            role: existingRow.role,
+            status: dto.status
+          })
+        ) {
+          activityTransitionAt = Date.now()
+        }
+      }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {
         replaceChatMessageFileRefsTx(tx, id, dto.data)
+      }
+      if (activityTransitionAt !== null) {
+        getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
+        activityChanged = true
       }
 
       logger.info('Updated message', { id, changes: Object.keys(dto) })
@@ -1415,6 +1483,7 @@ export class MessageService {
       return rowToMessage(row)
     })
 
+    if (activityChanged) getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     return message
   }
 
@@ -1431,6 +1500,7 @@ export class MessageService {
       runtimeStats?: MessageRuntimeStatsInput
     }
   ): Message {
+    let activityTopicId: string | null = null
     application.get('DbService').withWriteTx((tx) => {
       const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
       if (!row) throw DataApiErrorFactory.notFound('Message', id)
@@ -1439,6 +1509,13 @@ export class MessageService {
       }
 
       const stats = mergeMessageRuntimeStats(row.stats, input.runtimeStats)
+      const activityTimestamp = isAssistantActivityTransition({
+        existingStatus: row.status,
+        role: row.role,
+        status: input.status
+      })
+        ? Date.now()
+        : null
       tx.update(messageTable)
         .set({
           data: input.data,
@@ -1448,7 +1525,12 @@ export class MessageService {
         .where(eq(messageTable.id, id))
         .run()
       replaceChatMessageFileRefsTx(tx, id, input.data)
+      if (activityTimestamp !== null) {
+        getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, activityTimestamp)
+        activityTopicId = row.topicId
+      }
     })
+    if (activityTopicId) getDataService('TopicService').notifyReadModelChange([activityTopicId], 'projection')
     aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
     const finalized = this.getById(id)
     if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
@@ -1593,7 +1675,7 @@ export class MessageService {
     const completedAt = Date.now()
     const result = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
-      if (!row) return null
+      if (!row) return { response: null, activityTopicId: null }
 
       const existing = rowToMessage(row)
       const parts = existing.data.parts ?? []
@@ -1622,12 +1704,15 @@ export class MessageService {
           .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
           .where(eq(messageTable.id, anchorId))
           .run()
+        getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, completedAt)
       }
-      return { parts: after, appliedApprovalIds, alreadySettledApprovalIds }
+      return {
+        response: { parts: after, appliedApprovalIds, alreadySettledApprovalIds },
+        activityTopicId: targetPresent ? row.topicId : null
+      }
     })
-
-    if (result === null) return null
-    if (result.appliedApprovalIds.length > 0) {
+    if (result.activityTopicId) {
+      getDataService('TopicService').notifyReadModelChange([result.activityTopicId], 'projection')
       notifyDataApiDataChange([
         {
           endpoint: '/topics/:topicId/messages',
@@ -1636,7 +1721,7 @@ export class MessageService {
         }
       ])
     }
-    return result
+    return result.response
   }
 
   /**
@@ -1834,9 +1919,10 @@ export class MessageService {
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
       }
 
+      const topicService = getDataService('TopicService')
+
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
-        const topicService = getDataService('TopicService')
         if (newActiveNodeId === null) {
           topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
@@ -2108,6 +2194,9 @@ export class MessageService {
         // so attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
+      // A copied pending row has no stream owner; make it terminal.
+      const status = sourceMessage.status === 'pending' ? 'error' : sourceMessage.status
+      const createdAt = Date.now()
       const [copiedMessage] = tx
         .insert(messageTable)
         .values({
@@ -2115,12 +2204,13 @@ export class MessageService {
           parentId: copiedParentId,
           role: sourceMessage.role,
           data: sourceMessage.data,
-          // A copied pending row has no stream owner; make it terminal.
-          status: sourceMessage.status === 'pending' ? 'error' : sourceMessage.status,
+          status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
           messageSnapshot: sourceMessage.messageSnapshot,
-          stats: Object.keys(copiedStats).length > 0 ? copiedStats : null
+          stats: Object.keys(copiedStats).length > 0 ? copiedStats : null,
+          createdAt,
+          updatedAt: createdAt
         })
         .returning()
         .all()
