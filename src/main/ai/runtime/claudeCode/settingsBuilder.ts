@@ -489,7 +489,8 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     assistantMcpEnabled,
     agentDataPath,
-    agentsMdLoader
+    agentsMdLoader,
+    plugins?.map((plugin) => plugin.path) ?? []
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -897,7 +898,8 @@ async function buildToolPermissions(
   agent: AgentEntity,
   assistantMcpEnabled: boolean,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader
+  agentsMdLoader: AgentsMdLoader,
+  pluginDirectories: readonly string[]
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -1144,6 +1146,26 @@ async function buildToolPermissions(
     }
   }
 
+  const skillRuntimeDependencyHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Skill') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const skillName = toolInput?.skill
+    if (typeof skillName !== 'string' || !skillName) return {}
+
+    const reason = await skillService.validateRuntimeDependencies(skillName, cwd, pluginDirectories)
+    if (!reason) return {}
+    logger.info('Blocked skill with missing runtime dependencies', { sessionId: session.id, skillName, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: reason
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -1384,6 +1406,7 @@ async function buildToolPermissions(
             interactiveToolPermissionHook,
             headlessConfigMutationHook,
             headlessSkillInstallHook,
+            skillRuntimeDependencyHook,
             disabledToolHook,
             assistantDestructiveOperationHook,
             assistantFeedbackSubmissionHook,

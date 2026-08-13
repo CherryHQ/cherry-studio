@@ -26,6 +26,11 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn().mockResolvedValue({})
 }))
 
+const findExecutableInEnvMock = vi.hoisted(() => vi.fn().mockResolvedValue(null))
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutableInEnv: findExecutableInEnvMock
+}))
+
 const executeCommandMock = vi.hoisted(() => vi.fn())
 vi.mock('@main/utils/processRunner', () => ({
   executeCommand: executeCommandMock
@@ -326,6 +331,58 @@ describe('SkillService', () => {
 
       expect(result).toEqual(['valid-skill'])
       expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('validateRuntimeDependencies', () => {
+    beforeEach(() => {
+      findExecutableInEnvMock.mockResolvedValue(null)
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory) => {
+        const descriptor = path.join(directory, 'SKILL.md')
+        try {
+          await fs.promises.access(descriptor)
+          return descriptor
+        } catch {
+          return null
+        }
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        context: 'fork',
+        agent: 'parallel:parallel-subagent',
+        allowed_tools: ['Bash(parallel-cli:*)']
+      } as never)
+    })
+
+    it('reports every missing dependency declared by a forked skill', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-runtime-deps-')
+      const skillDirectory = path.join(workdir, '.claude', 'skills', 'parallel-web-search')
+      await fs.promises.mkdir(skillDirectory, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDirectory, 'SKILL.md'), '# Search')
+
+      const result = await skillService.validateRuntimeDependencies('parallel-web-search', workdir, [])
+
+      expect(result).toBe(
+        'Skill "parallel-web-search" cannot run: missing subagent "parallel:parallel-subagent"; missing executable "parallel-cli".'
+      )
+    })
+
+    it('allows the skill when its plugin agent and executable are available', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-runtime-deps-')
+      const skillDirectory = path.join(workdir, '.claude', 'skills', 'parallel-web-search')
+      const pluginDirectory = await createTempDir('parallel-plugin-')
+      await fs.promises.mkdir(skillDirectory, { recursive: true })
+      await fs.promises.mkdir(path.join(pluginDirectory, '.claude-plugin'))
+      await fs.promises.mkdir(path.join(pluginDirectory, 'agents'))
+      await fs.promises.writeFile(path.join(skillDirectory, 'SKILL.md'), '# Search')
+      await fs.promises.writeFile(path.join(pluginDirectory, '.claude-plugin', 'plugin.json'), '{"name":"parallel"}')
+      await fs.promises.writeFile(path.join(pluginDirectory, 'agents', 'parallel-subagent.md'), '# Agent')
+      findExecutableInEnvMock.mockResolvedValue('/usr/local/bin/parallel-cli')
+
+      const result = await skillService.validateRuntimeDependencies('parallel-web-search', workdir, [pluginDirectory])
+
+      expect(result).toBeUndefined()
     })
   })
 
@@ -1619,9 +1676,17 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'foo'))).rejects.toThrow()
     })
 
-    it('quarantines modified builtin content instead of updating its trusted hash or mirror', async () => {
+    it('copies complete builtin content and quarantines later modifications', async () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       const builtinDir = await writeLibrarySkill('skill-creator', '# trusted')
+      await Promise.all([
+        fs.promises.mkdir(path.join(builtinDir, 'agents')),
+        fs.promises.mkdir(path.join(builtinDir, 'scripts'))
+      ])
+      await Promise.all([
+        fs.promises.writeFile(path.join(builtinDir, 'agents', 'reviewer.md'), '# Reviewer'),
+        fs.promises.writeFile(path.join(builtinDir, 'scripts', 'run.sh'), '#!/bin/sh')
+      ])
       const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
@@ -1633,6 +1698,12 @@ describe('SkillService', () => {
       })
       await skillService.linkMirror('skill-creator')
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'skill-creator'))).isSymbolicLink()).toBe(false)
+      await expect(
+        fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'agents', 'reviewer.md'), 'utf-8')
+      ).resolves.toBe('# Reviewer')
+      await expect(
+        fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'scripts', 'run.sh'), 'utf-8')
+      ).resolves.toBe('#!/bin/sh')
       await fs.promises.writeFile(path.join(builtinDir, 'SKILL.md'), '# modified by agent')
 
       await skillService.reconcileSkills()

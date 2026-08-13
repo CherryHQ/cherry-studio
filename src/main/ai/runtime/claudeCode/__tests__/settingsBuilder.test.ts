@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
+  validateSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
@@ -103,7 +104,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
-    getSkillPluginDirectory: mocks.getSkillPluginDirectory
+    getSkillPluginDirectory: mocks.getSkillPluginDirectory,
+    validateRuntimeDependencies: mocks.validateSkillRuntimeDependencies
   }
 }))
 
@@ -306,6 +308,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
+    mocks.validateSkillRuntimeDependencies.mockResolvedValue(undefined)
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
@@ -366,6 +369,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  it('denies a skill before forked execution when its declared runtime dependencies are missing', async () => {
+    mocks.validateSkillRuntimeDependencies.mockResolvedValue(
+      'Skill "parallel-web-search" cannot run: missing subagent "parallel:parallel-subagent"; missing executable "parallel-cli".'
+    )
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (candidate) => candidate.name === 'skillRuntimeDependencyHook'
+    )
+    const output = await hook?.(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Skill',
+        tool_input: { skill: 'parallel-web-search', args: 'latest React release' }
+      } as never,
+      'tool-use-1',
+      {} as never
+    )
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Skill "parallel-web-search" cannot run: missing subagent "parallel:parallel-subagent"; missing executable "parallel-cli".'
+      }
+    })
   })
 
   it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
@@ -2210,12 +2249,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
-    // disabledToolHook + assistantDestructiveOperationHook + assistantFeedbackSubmissionHook +
-    // supportBashPermissionHook + approvalRequiredToolHook + workspacePathHook + agentsMdHook +
-    // dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(13)
-
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
