@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。"
+      },
+      "cherry_support": {
+        "description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent"
       }
     },
     "channels": {
@@ -5994,10 +5997,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "チェリーアシスタントとチャットしてフィードバックを共有してください。",
+          "description": "Cherry Support とチャットして、ヘルプを受けたりフィードバックを共有したりできます。",
           "title": "エージェントを使用する"
         },
-        "agent_error": "フィードバック用のCherry Assistantを開けません。もう一度お試しください。",
+        "agent_error": "フィードバック用の Cherry Support を開けません。もう一度お試しください。",
         "button": "フィードバック",
         "dialog": {
           "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",

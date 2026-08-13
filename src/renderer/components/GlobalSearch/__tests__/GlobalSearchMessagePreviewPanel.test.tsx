@@ -22,7 +22,9 @@ const mocks = vi.hoisted(() => ({
   sessionLoadNext: vi.fn(),
   useInfiniteQuery: vi.fn(),
   onClose: vi.fn(),
-  onOpenMessage: vi.fn()
+  onOpenMessage: vi.fn(),
+  virtualRangeEnd: Number.MAX_SAFE_INTEGER,
+  virtualScrollToIndex: vi.fn()
 }))
 const flatItemsCache = vi.hoisted(() => new WeakMap<any[], Map<string, any[]>>())
 
@@ -91,6 +93,39 @@ vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
 vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: any) => message
 }))
+
+vi.mock('@renderer/components/VirtualList', async () => {
+  const { useImperativeHandle } = await import('react')
+
+  function MockDynamicVirtualList({
+    ref,
+    list,
+    children,
+    rangeExtractor,
+    getItemKey,
+    scrollElementRef,
+    header,
+    className,
+    onScroll
+  }: any) {
+    useImperativeHandle(ref, () => ({ scrollToIndex: mocks.virtualScrollToIndex }))
+
+    const endIndex = Math.min(mocks.virtualRangeEnd, list.length - 1)
+    const range = { startIndex: 0, endIndex, overscan: 0, count: list.length }
+    const indexes = rangeExtractor ? rangeExtractor(range) : Array.from({ length: endIndex + 1 }, (_, index) => index)
+
+    return (
+      <div ref={scrollElementRef} className={className} onScroll={onScroll}>
+        {header}
+        {indexes.map((index: number) => (
+          <div key={getItemKey?.(index) ?? index}>{children(list[index], index)}</div>
+        ))}
+      </div>
+    )
+  }
+
+  return { DynamicVirtualList: MockDynamicVirtualList }
+})
 
 vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
@@ -220,6 +255,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionIsRefreshing = false
     mocks.topicError = undefined
     mocks.sessionError = undefined
+    mocks.virtualRangeEnd = Number.MAX_SAFE_INTEGER
     mocks.useInfiniteQuery.mockImplementation(mockPreviewInfiniteQuery)
   })
 
@@ -367,6 +403,29 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     setScrollGeometry(scroller, { scrollTop: 20, scrollHeight: 4600 })
     rerender(<GlobalSearchMessagePreviewPanel {...props} />)
     expect(scroller.scrollTop).toBe(600)
+  })
+
+  it('mounts and highlights only the virtual range plus the active target', async () => {
+    mocks.topicPages = [
+      {
+        items: Array.from({ length: 150 }, (_, index) =>
+          createTopicMessage({
+            id: `topic-message-${index}`,
+            createdAt: `2026-01-01T00:00:${String(index).padStart(2, '0')}.000Z`,
+            updatedAt: `2026-01-01T00:00:${String(index).padStart(2, '0')}.000Z`
+          })
+        )
+      }
+    ]
+    mocks.virtualRangeEnd = 2
+
+    renderPreview({ ...TOPIC_TARGET, messageId: 'topic-message-149' })
+
+    await waitFor(() => expect(screen.getAllByText(/^message-content:/)).toHaveLength(4))
+    expect(screen.getByText('message-content:topic-message-149')).toBeInTheDocument()
+    expect(screen.queryByText('message-content:topic-message-3')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText('needle', { selector: 'mark' })).toHaveLength(4))
+    expect(mocks.virtualScrollToIndex).toHaveBeenCalledWith(149, { align: 'center' })
   })
 
   it('keeps loaded preview messages visible and allows retry when loading older messages fails', async () => {

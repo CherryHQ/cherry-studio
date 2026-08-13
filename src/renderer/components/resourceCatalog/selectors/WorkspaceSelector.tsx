@@ -139,13 +139,12 @@ export function WorkspaceSelector({
 
     try {
       const workspace = await createWorkspace({ body: { path: folderPath } })
-      await refetch()
       await onChange(workspace.id)
     } catch (error) {
       logger.error('Failed to create workspace from folder', error as Error, { folderPath })
       toast.error(t('agent.session.workspace_selector.create_failed'))
     }
-  }, [createWorkspace, handleOpenChange, onChange, refetch, t])
+  }, [createWorkspace, handleOpenChange, onChange, t])
 
   const handleRequestDeleteWorkspace = useCallback(
     (workspace: AgentWorkspaceEntity) => {
