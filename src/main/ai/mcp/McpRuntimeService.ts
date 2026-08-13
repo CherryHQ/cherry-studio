@@ -591,8 +591,8 @@ export class McpRuntimeService extends BaseService {
             const connectEnv: Record<string, string> = { ...server.env }
 
             // Get login shell environment first - needed for command detection and server execution
-            // Cheap: memoized on POSIX, a registry read on Windows (kept fresh so a
-            // PATH changed after launch reaches the server without an app restart).
+            // Cheap: served from a TTL cache that re-resolves in the background, so a
+            // PATH changed after launch reaches the server without an app restart.
             const loginShellEnv = await getShellEnv()
 
             // For package servers, use resolved configuration with platform overrides and variable substitution

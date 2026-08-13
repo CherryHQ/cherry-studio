@@ -254,14 +254,24 @@ describe('shellEnv – Windows registry PATH', () => {
 
   // -- concurrent dedup -----------------------------------------------------
 
-  it('should collapse overlapping fetches onto a single env resolution', async () => {
+  it('should collapse overlapping reads onto a single env resolution', async () => {
     mockRegistryPaths({ system: 'C:\\Windows' })
 
     // getWindowsEnvironment() reads HKLM + HKCU, i.e. two registry calls
-    // per resolution. Overlapping callers must share one resolution → 2 calls.
-    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
+    // per resolution. Overlapping readers must share one resolution → 2 calls.
+    await Promise.all([getShellEnv(), getShellEnv(), getRawShellEnv()])
 
     expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('should resolve the env again for every explicit refresh', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows' })
+
+    // Callers refresh to observe a tool they just installed, so a refresh may
+    // never adopt a capture that started before it → one resolution each.
+    await Promise.all([refreshShellEnv(), refreshShellEnv()])
+
+    expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(4)
   })
 
   // -- staleness ------------------------------------------------------------
