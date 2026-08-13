@@ -4,6 +4,7 @@ import type { generateImage, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
+import { isV3Model } from '../models/utils'
 import {
   type AiPlugin,
   type AiRequestContext,
@@ -110,7 +111,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    * - `originalParams` in context will be `{}` since no request params exist at resolution time.
    * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
    */
-  async resolveModel(modelId: string): Promise<LanguageModel> {
+  async resolveModel(modelId: string): Promise<LanguageModelV3> {
     const context = createContext(this.providerId, modelId, {})
     const manager = new PluginManager(this.basePlugins)
 
@@ -122,11 +123,18 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     if (!resolved) {
       throw new ModelResolutionError(modelId, this.providerId)
     }
+    if (!isV3Model(resolved)) {
+      throw new ModelResolutionError(
+        modelId,
+        this.providerId,
+        new Error(`Provider "${this.providerId}" resolved a non-V3 language model`)
+      )
+    }
 
     // 3. Apply middlewares
     if (context.middlewares && context.middlewares.length > 0) {
       return wrapLanguageModel({
-        model: resolved as LanguageModelV3,
+        model: resolved,
         middleware: context.middlewares
       })
     }

@@ -133,6 +133,16 @@ function createMockBrowserWindow(): MockBrowserWindow {
 
 const createdWindows: MockBrowserWindow[] = []
 
+// ─── Mock: electron (app.dock spied so Dock-visibility assertions work) ──
+
+// vi.hoisted: vi.mock factories are hoisted above imports, so the dock spies
+// must be created in a hoisted block too (same pattern as `platform` above) —
+// otherwise the factory references them before initialization.
+const dockSpies = vi.hoisted(() => ({
+  show: vi.fn(() => Promise.resolve()),
+  hide: vi.fn()
+}))
+
 vi.mock('electron', () => {
   class BrowserWindowMock {
     constructor() {
@@ -152,7 +162,7 @@ vi.mock('electron', () => {
   }
 
   return {
-    app: { dock: { show: () => Promise.resolve(), hide: () => {} } },
+    app: { dock: { show: dockSpies.show, hide: dockSpies.hide } },
     BrowserWindow: BrowserWindowMock,
     screen: {
       getCursorScreenPoint: vi.fn(() => ({ x: 0, y: 0 })),
@@ -269,6 +279,15 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'dockHidden/index.html',
       windowOptions: {},
       behavior: { macShowInDock: false }
+    },
+    // behavior.macShowInDock: true — Main-like window that keeps the Dock alive.
+    // Paired with dockHidden for the Dock-aggregation regression tests below.
+    dockVisible: {
+      type: 'dockVisible',
+      lifecycle: 'default',
+      htmlPath: 'dockVisible/index.html',
+      windowOptions: {},
+      behavior: { macShowInDock: true }
     }
   }
   return {
@@ -727,6 +746,60 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
 
       expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── macOS Dock visibility aggregation ─────────────────────
+  //
+  // Regression coverage for issue #18186: a resident SubWindow-like window
+  // (behavior.macShowInDock: false) must NOT keep the Dock icon alive when the
+  // Main-like window opts out via setMacShowInDockByType(Main, false). Before the
+  // registry fix, SubWindow omitted the flag and windowContributesToDock() fell
+  // through to the `!== false` default (true), so updateDockVisibility()'s some()
+  // never resolved to hide. These tests exercise the real aggregation path that
+  // MainWindowService.test.ts cannot (it mocks WindowManager entirely).
+  describe('Dock visibility aggregation (macShowInDock + setMacShowInDockByType)', () => {
+    beforeEach(() => {
+      // isMac already true for this suite (resetPlatform in outer beforeEach).
+      // Clear any dock calls captured during window creation so assertions target
+      // the explicit setMacShowInDockByType transitions below.
+      dockSpies.show.mockClear()
+      dockSpies.hide.mockClear()
+    })
+
+    it('hides the Dock when the only contributing type opts out (baseline)', () => {
+      // Single Main-like window contributes by default.
+      wm.open('dockVisible' as never)
+      dockSpies.hide.mockClear()
+
+      // Close-to-tray: Main opts out of Dock contribution.
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+
+      // No window contributes anymore → Dock must hide.
+      expect(dockSpies.hide).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the Dock visible while a contributing window still exists', () => {
+      wm.open('dockVisible' as never)
+      dockSpies.hide.mockClear()
+
+      // No override change → Main still contributes → Dock stays visible.
+      expect(dockSpies.hide).not.toHaveBeenCalled()
+    })
+
+    it('hides the Dock even with a resident SubWindow-like (macShowInDock:false) present (#18186)', () => {
+      // The regression scenario: Main-like + a resident hidden SubWindow-like.
+      // SubWindow-like declares macShowInDock:false, so it must not pin the Dock.
+      wm.open('dockVisible' as never)
+      wm.open('dockHidden' as never)
+      dockSpies.hide.mockClear()
+
+      // Main-like enters tray mode (close-to-tray).
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+
+      // Despite the resident SubWindow-like existing, its macShowInDock:false means
+      // it does not contribute — Dock aggregates to hidden.
+      expect(dockSpies.hide).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -14,6 +14,7 @@ const initialTopic: Topic = {
   id: 'topic-initial',
   assistantId: 'assistant-1',
   name: 'Initial topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: [],
@@ -25,6 +26,7 @@ const historyTopic: Topic = {
   id: 'topic-history',
   assistantId: 'assistant-1',
   name: 'History topic',
+  lastActivityAt: '2026-01-02T00:00:00.000Z',
   createdAt: '2026-01-02T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
   messages: [],
@@ -36,6 +38,7 @@ const createdTopic: Topic = {
   id: 'topic-created',
   assistantId: 'assistant-2',
   name: '',
+  lastActivityAt: '2026-01-03T00:00:00.000Z',
   createdAt: '2026-01-03T00:00:00.000Z',
   updatedAt: '2026-01-03T00:00:00.000Z',
   messages: [],
@@ -59,6 +62,7 @@ const homeMocks = vi.hoisted(() => ({
     assistantId?: string
     name: string
     activeNodeId?: string
+    lastActivityAt?: string
     createdAt?: string
     updatedAt: string
   }>,
@@ -224,6 +228,10 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
       const source = React.useMemo(
         () => ({
           topics: homeMocks.classicLayoutTopics,
+          // The mocked mapApiTopicToRendererTopic below is the identity, so the
+          // shared renderer view is the same list.
+          rendererTopics: homeMocks.classicLayoutTopics,
+          orderSignature: '',
           isLoading: homeMocks.isTopicsFirstPageLoading,
           isLoadingAll: homeMocks.isTopicsLoadingAll,
           isFullyLoaded: homeMocks.isTopicsFullyLoaded,
@@ -455,9 +463,9 @@ vi.mock('../Tabs/HomeTabs', () => ({
   default: ({
     historyRecordsActive,
     assistantTopicsSource,
+    onManageAssistants,
     onOpenHistoryRecords,
     onSetPanePosition,
-    resourceMenuItems,
     revealRequest,
     setActiveTopic
   }: any) => {
@@ -497,13 +505,11 @@ vi.mock('../Tabs/HomeTabs', () => ({
             </button>
           </>
         )}
-        {resourceMenuItems
-          ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
-          .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -579,11 +585,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onManageAssistants,
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
-    onSelectedAssistantClick,
-    resourceMenuItems
+    onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
     historyRecordsActive?: boolean
@@ -591,9 +597,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => void | Promise<void>
+    onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
-    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
 
@@ -617,13 +623,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
           Toggle selected assistant pane
         </button>
-        {resourceMenuItems
-          ?.filter((item) => item.id === 'assistant-resource-view')
-          .map((item) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -1146,9 +1150,24 @@ describe('HomePage', () => {
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
-      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        ...historyTopic,
+        id: 'topic-a',
+        assistantId: 'assistant-a',
+        lastActivityAt: '2026-01-05T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-old',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-new',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
     // The entry interceptor resolved the latest topic (assistant-a) before the page mounted.
     homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a' }

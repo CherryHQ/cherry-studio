@@ -1,4 +1,5 @@
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -93,7 +94,7 @@ function createFileItem(id = 'file-1', groupId: string | null = null): Knowledge
     type: 'file',
     data: {
       source: `/docs/${id}.md`,
-      relativePath: `${id}.md`
+      relativePath: `${id}.md` as PosixRelativeFilePath
     },
     status: 'processing',
     error: null,
@@ -202,11 +203,11 @@ describe('prepareKnowledgeItem', () => {
     // counted itself as reserved, expansion would dedupe it to `docs_1` every run.
     const root = createDirectoryItem('dir-root')
     // Pin the container's own prefix, as if it had already been indexed once.
-    root.data = { source: '/abs/docs', relativePath: 'docs' }
+    root.data = { source: '/abs/docs', relativePath: 'docs' as PosixRelativeFilePath }
     const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
     knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce([root, sibling])
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([
-      { type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' } }
+      { type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' as PosixRelativeFilePath } }
     ])
 
     return prepareKnowledgeItem(createPrepareOptions(root)).then(() => {
@@ -248,7 +249,7 @@ describe('prepareKnowledgeItem', () => {
           type: 'file',
           data: {
             source: '/docs/file-child.md',
-            relativePath: 'file-child.md'
+            relativePath: 'file-child.md' as PosixRelativeFilePath
           }
         }
       ]

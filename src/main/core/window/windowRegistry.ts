@@ -240,6 +240,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         // focus switches. Mirrors the Main window's choice above; do not remove.
         backgroundThrottling: false
       }
+    },
+    behavior: {
+      // SubWindow must NOT contribute to the macOS Dock — a warm-created standby
+      // instance (standbySize:1 + warmup:'eager') is always resident and hidden.
+      // Without this flag, windowContributesToDock() returns true for it, so
+      // updateDockVisibility()'s some() never resolves to hide, and the Dock icon
+      // stays visible on close-to-tray / tray-on-launch (see issue #18186).
+      macShowInDock: false
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)

@@ -103,9 +103,7 @@ function node(overrides: Partial<TraceNode> = {}): TraceNode {
     },
     events: [],
     links: [],
-    children: [],
-    percent: 100,
-    start: 0,
+    childIds: [],
     ...overrides
   } as unknown as TraceNode
 }

@@ -46,6 +46,7 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
+import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -111,6 +112,8 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  /** Active model — the right pane needs it for the context-usage denominator. */
+  model?: Model
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -448,6 +451,7 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    model: activeModel,
     center,
     centerClassName,
     centerSurface,
@@ -600,6 +604,7 @@ const AgentChatSessionCenter = ({
         deleteMessage={runtime.deleteMessage}
         respondToolApproval={runtime.respondToolApproval}
       />
+      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 
@@ -608,6 +613,7 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  model,
   center,
   centerClassName,
   centerSurface,
@@ -634,6 +640,7 @@ function AgentChatLayout({
 }: AgentChatLayoutProps) {
   return (
     <AgentRightPane.Scope
+      model={model}
       conversationState={conversationState}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}

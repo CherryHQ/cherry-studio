@@ -1,11 +1,17 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import {
+  DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
+  miniAppIdFromTabUrl,
+  trimMiniAppKeepAlive
+} from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
-import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -21,7 +27,9 @@ import React, { useEffect, useMemo, useRef } from 'react'
 const logger = loggerService.withContext('MiniAppTabsPool')
 
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId } = useMiniApps()
+  const { openedKeepAliveMiniApps, currentMiniAppId, setOpenedKeepAliveMiniApps } = useMiniApps()
+  const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
+  const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
@@ -30,14 +38,36 @@ const MiniAppTabsPool: React.FC = () => {
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
 
-  // Show only when the active tab's URL points at a specific miniapp detail.
-  const shouldShow = useMemo(() => {
+  const activeMiniAppId = useMemo(() => {
     const url = tabs.find((t) => t.id === activeTabId)?.url ?? ''
-    if (url === '/app/mini-app') return false
-    if (!url.startsWith('/app/mini-app/')) return false
-    const parts = url.split('/').filter(Boolean) // ['app', 'mini-app', '<id>', ...]
-    return parts.length >= 3
+    return miniAppIdFromTabUrl(url)
   }, [tabs, activeTabId])
+  const shouldShow = activeMiniAppId !== null
+
+  // Reconcile retention here, not in MiniAppPage: the pool remains mounted when
+  // the hard tab fuse hibernates every route that could otherwise run that hook.
+  const protectedAppIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (activeMiniAppId) ids.add(activeMiniAppId)
+    for (const tab of tabs) {
+      if (!tab.isPinned || tab.isDormant) continue
+      const appId = miniAppIdFromTabUrl(tab.url)
+      if (appId) ids.add(appId)
+    }
+    return ids
+  }, [activeMiniAppId, tabs])
+  const retention = useMemo(
+    () => trimMiniAppKeepAlive(openedKeepAliveMiniApps, cap, protectedAppIds),
+    [cap, openedKeepAliveMiniApps, protectedAppIds]
+  )
+
+  // Commit the render-time retention decision before MiniAppPage passive
+  // effects can add or touch entries in the shared keep-alive cache.
+  useLayoutEffect(() => {
+    if (retention.evicted.length === 0) return
+    setOpenedKeepAliveMiniApps(retention.keep)
+    for (const app of retention.evicted) clearWebviewState(app.appId)
+  }, [retention, setOpenedKeepAliveMiniApps])
 
   // Render the pool in a stable order (by appId), independent of the LRU
   // ordering inside `openedKeepAliveMiniApps`. Order in the cache is correct
@@ -47,13 +77,13 @@ const MiniAppTabsPool: React.FC = () => {
   // (known platform limitation). A stable sort breaks that link: every
   // surviving webview keeps the same DOM position across reorders, so
   // switching tabs never re-loads.
-  const appMetadataSignature = openedKeepAliveMiniApps
+  const appMetadataSignature = retention.keep
     .map((a) => JSON.stringify([a.appId, a.url]))
     .sort()
     .join('|')
 
   const apps = useMemo(() => {
-    const sorted = [...openedKeepAliveMiniApps]
+    const sorted = [...retention.keep]
     sorted.sort((a, b) => (a.appId < b.appId ? -1 : a.appId > b.appId ? 1 : 0))
     return sorted
     // The metadata hash captures membership and webview URL values without

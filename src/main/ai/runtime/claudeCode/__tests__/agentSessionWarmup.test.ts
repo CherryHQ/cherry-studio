@@ -1,5 +1,5 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
+  apiGatewayEnsureRunning: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('@application', () => ({
           ensureValidApiKey: mocks.apiGatewayEnsureKey,
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
+          ensureRunning: mocks.apiGatewayEnsureRunning,
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders,
           getInternalRequestToken: mocks.apiGatewayGetInternalRequestToken
@@ -106,10 +108,19 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { ApiGatewayNotRunningError, buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import(
+  '../agentSessionWarmup'
+)
 
-function resolveTestEffectiveEndpoint(provider: Provider, model: Model) {
+function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
+  const preferred =
+    preferredEndpointType &&
+    model.endpointTypes?.includes(preferredEndpointType) &&
+    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
+      ? preferredEndpointType
+      : undefined
   const endpointType =
+    preferred ??
     model.endpointTypes?.[0] ??
     provider.defaultChatEndpoint ??
     (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
@@ -150,7 +161,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayEnsureRunning.mockResolvedValue(undefined)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
@@ -561,6 +578,64 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {
+    // DeepSeek V4 Flash lists `openai-responses` first (in-app chat's default) and `anthropic-messages`
+    // third. The Agent SDK speaks Messages natively, so it must not take the translating gateway hop.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-flash',
+      apiModelId: 'deepseek-v4-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('deepseek-v4-flash')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+      ANTHROPIC_MODEL: 'deepseek-v4-flash'
+    })
+  })
+
+  it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
+    // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
+    // effective host would post Messages bodies at an OpenAI-compatible endpoint.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'relay-model',
+      apiModelId: 'relay-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'custom:relay-model'
+    })
+  })
+
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -692,14 +767,17 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: modelId,
       apiModelId: `${modelId}-api`
     }))
-    mocks.apiGatewayIsRunning.mockReturnValue(false)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 24444,
+      apiKey: 'gateway-key'
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
-    expect(mocks.apiGatewayStart).toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('openai:gpt-main-api')
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
@@ -716,6 +794,45 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  // The gateway is never started implicitly (#18521); the caller turns this into the prompt that
+  // offers to enable it, and the failed route must leave no persisted key behind.
+  it('fails a gateway route instead of starting the gateway the user disabled', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: false, host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toBeInstanceOf(
+      ApiGatewayNotRunningError
+    )
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureRunning).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
+  // `!isRunning()` is not consent: the gateway is also down while binding at boot, mid-restart, or
+  // after a failed activation. Prompting there would ask the user to enable what they already did.
+  it('converges an enabled-but-not-yet-listening gateway instead of asking for consent again', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // `ensureRunning`, never `start`: converging must not be able to re-persist the intent.
+    expect(mocks.apiGatewayEnsureRunning).toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
+  })
+
   it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
@@ -724,7 +841,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.2', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.2',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.preferenceGet.mockImplementation((key: string) =>
       key === 'feature.api_gateway.api_key' ? 'gateway-key' : undefined
     )
@@ -938,7 +1060,7 @@ describe('deriveConnectionConfig', () => {
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})

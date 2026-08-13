@@ -175,6 +175,7 @@ function isEmptyPricingEcho(value: unknown): boolean {
     isEmptyTier(pricing.output) &&
     !pricing.cacheRead &&
     !pricing.cacheWrite &&
+    !pricing.inputTokenTiers?.length &&
     !pricing.perImage &&
     !pricing.perMinute
   )
@@ -191,6 +192,17 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
     output: normalizeTier(pricing.output),
     ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
     ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.inputTokenTiers?.length
+      ? {
+          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
+            minInputTokens: tier.minInputTokens,
+            input: normalizeTier(tier.input),
+            output: normalizeTier(tier.output),
+            ...(tier.cacheRead ? { cacheRead: normalizeTier(tier.cacheRead) } : {}),
+            ...(tier.cacheWrite ? { cacheWrite: normalizeTier(tier.cacheWrite) } : {})
+          }))
+        }
+      : {}),
     ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
     ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
   }

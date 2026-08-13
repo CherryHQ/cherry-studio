@@ -89,10 +89,10 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openAgentFeedback = async () => {
     try {
-      const { sessionId } = await ipcApi.request('ai.agent.feedback_session.create')
+      const { sessionId } = await ipcApi.request('ai.agent.support_session.create')
       openRoute(getFeedbackAgentRoute(sessionId))
     } catch (error) {
-      logger.error('Failed to create Cherry Assistant feedback session', error as Error)
+      logger.error('Failed to create Cherry Support feedback session', error as Error)
       toast.error(t('settings.about.feedback.agent_error'))
     }
   }

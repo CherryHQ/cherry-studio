@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { execFile, spawn } from 'child_process'
+import { spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
@@ -51,34 +51,6 @@ const applyBinaryExecutionEnv = (env: Record<string, string>) => {
 }
 
 /**
- * Run `reg query <keyPath> /v <valueName>` and return the string data, or null on failure.
- */
-function queryRegValue(keyPath: string, valueName: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    execFile(
-      'reg',
-      ['query', keyPath, '/v', valueName],
-      {
-        encoding: 'utf-8',
-        timeout: 5000,
-        windowsHide: true
-      },
-      (error, stdout) => {
-        if (error) {
-          resolve(null)
-          return
-        }
-        // Output format:
-        //   HKEY_LOCAL_MACHINE\...\Environment
-        //       Path    REG_EXPAND_SZ    C:\Windows;...
-        const match = stdout.match(/REG_(?:EXPAND_)?SZ\s+(.*)/i)
-        resolve(match ? match[1].trim() : null)
-      }
-    )
-  })
-}
-
-/**
  * Replace `%VAR%` references with values from `env` (case-insensitive lookup).
  */
 function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
@@ -94,17 +66,32 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
  * Returns null when both registry reads fail.
  */
 async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
-  const [systemPath, userPath] = await Promise.all([
-    queryRegValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'Path'),
-    queryRegValue('HKCU\\Environment', 'Path')
-  ])
+  try {
+    const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+    const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
+      const pathValue = enumerateValuesSafe(hive, subkey).find(
+        (value) =>
+          value.name.toLowerCase() === 'path' &&
+          (value.type === RegistryValueType.REG_SZ || value.type === RegistryValueType.REG_EXPAND_SZ)
+      )
+      return typeof pathValue?.data === 'string' ? pathValue.data : null
+    }
 
-  if (!systemPath && !userPath) {
+    const systemPath = readPathValue(
+      HKEY.HKEY_LOCAL_MACHINE,
+      'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
+    )
+    const userPath = readPathValue(HKEY.HKEY_CURRENT_USER, 'Environment')
+
+    if (!systemPath && !userPath) {
+      return null
+    }
+
+    const combined = [systemPath, userPath].filter(Boolean).join(';')
+    return expandWindowsEnvVars(combined, env)
+  } catch {
     return null
   }
-
-  const combined = [systemPath, userPath].filter(Boolean).join(';')
-  return expandWindowsEnvVars(combined, env)
 }
 
 /**

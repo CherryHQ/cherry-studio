@@ -36,6 +36,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),
+  /** Last real conversation activity timestamp. */
+  lastActivityAt: z.iso.datetime(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -82,7 +84,7 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-updated session, or `null` when there are none. */
+/** Response for `GET /agent-sessions/latest` — the most-recently-active session, or `null` when there are none. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
@@ -133,12 +135,12 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-updated session across all agents.
+   * Most-recently-active session across all agents.
    *
    * First-entry restore reads this to resume the last-touched session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
+   * `lastActivityAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
    * page.
    */
   '/agent-sessions/latest': {

@@ -66,6 +66,26 @@ const wanxT2iSupports: ImageModeDef['supports'] = {
   }
 }
 
+/** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
+const qwenImage3Mode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 6, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      default: 'auto',
+      options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
+
 const qwenChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
   auto: {
@@ -381,6 +401,16 @@ export default defineProvider({
         }
       },
       modelId: 'qwen-image'
+    },
+    {
+      apiModelId: 'qwen-image-3.0',
+      imageGeneration: qwenImage3ImageGeneration,
+      modelId: 'qwen-image-3-0'
+    },
+    {
+      apiModelId: 'qwen-image-3.0-pro',
+      imageGeneration: qwenImage3ImageGeneration,
+      modelId: 'qwen-image-3-0-pro'
     },
     {
       apiModelId: 'qwen-image-edit',

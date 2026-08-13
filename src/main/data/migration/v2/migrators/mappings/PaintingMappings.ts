@@ -1,5 +1,5 @@
 import type { InsertPaintingRow } from '@data/db/schemas/painting'
-import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
@@ -120,6 +120,16 @@ function createScopedModelId(providerId: string, rawModelId: string, warnings: s
   }
 }
 
+function parseLegacyUniqueModelId(rawModelId: string, warnings: string[]): string | null {
+  const result = UniqueModelIdSchema.safeParse(rawModelId)
+  if (result.success) {
+    return result.data
+  }
+
+  warnings.push(`Dropped invalid legacy model id '${rawModelId}': ${result.error.issues[0]?.message ?? 'invalid id'}`)
+  return null
+}
+
 function normalizeLegacyModelId(value: unknown, providerId: string, warnings: string[]): string | null {
   if (isLegacyModelRef(value)) {
     const normalized = legacyModelToUniqueId(value)
@@ -133,7 +143,7 @@ function normalizeLegacyModelId(value: unknown, providerId: string, warnings: st
     }
 
     if (isUniqueModelId(rawModelId)) {
-      return rawModelId
+      return parseLegacyUniqueModelId(rawModelId, warnings)
     }
 
     return createScopedModelId(providerId, rawModelId, warnings)
@@ -145,7 +155,7 @@ function normalizeLegacyModelId(value: unknown, providerId: string, warnings: st
   }
 
   if (isUniqueModelId(rawModelId)) {
-    return rawModelId
+    return parseLegacyUniqueModelId(rawModelId, warnings)
   }
 
   return createScopedModelId(providerId, rawModelId, warnings)

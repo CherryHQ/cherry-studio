@@ -280,6 +280,7 @@ const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'w
 
 const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
+  deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
@@ -323,6 +324,24 @@ const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
 const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
 }))
+
+const agentSessionExportMocks = vi.hoisted(() => ({
+  copyAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+  moduleLoads: 0
+}))
+
+vi.mock('@renderer/services/agentSessionExport', () => {
+  agentSessionExportMocks.moduleLoads += 1
+
+  return {
+    agentSessionToMarkdown: vi.fn().mockResolvedValue('markdown'),
+    copyAgentSessionAsMarkdown: agentSessionExportMocks.copyAgentSessionAsMarkdown,
+    copyAgentSessionAsPlainText: vi.fn().mockResolvedValue(undefined),
+    exportAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+    getAgentSessionExportTitle: vi.fn((session: AgentSessionEntity) => session.name),
+    getAgentSessionMessagesForExport: vi.fn().mockResolvedValue([])
+  }
+})
 
 const createTopicStreamStatusMock = (
   overrides: {
@@ -485,7 +504,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
                 ? dataApiMocks.deleteWorkspace
                 : method === 'DELETE' && path === '/agents/:agentId'
                   ? dataApiMocks.deleteAgent
-                  : dataApiMocks.findOrCreateWorkspace,
+                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                    ? dataApiMocks.deleteAgentSessions
+                    : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -713,6 +734,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
     ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? CURRENT_SESSION_ISO,
     isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
@@ -819,6 +841,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
+    dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
@@ -856,6 +879,30 @@ describe('Sessions', () => {
     vi.clearAllMocks()
     tabsContextMocks.openTab.mockClear()
     windowFrameMocks.mode = 'embedded'
+  })
+
+  it('loads agent session export code only when an export action runs', async () => {
+    expect(agentSessionExportMocks.moduleLoads).toBe(0)
+
+    render(<SessionsForTest />)
+
+    const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
+    expect(sessionRow).not.toBeNull()
+    fireEvent.contextMenu(sessionRow as HTMLElement)
+
+    const copyMarkdownItem = screen
+      .getAllByRole('menuitem', { name: 'Copy as Markdown' })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(copyMarkdownItem).toBeDefined()
+    fireEvent.click(copyMarkdownItem as HTMLElement)
+
+    await vi.waitFor(() => {
+      expect(agentSessionExportMocks.moduleLoads).toBe(1)
+      expect(agentSessionExportMocks.copyAgentSessionAsMarkdown).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'session-a' }),
+        expect.any(Object)
+      )
+    })
   })
 
   afterEach(() => {
@@ -906,14 +953,14 @@ describe('Sessions', () => {
     // so the header stays plain even while it hides the open session.
     const collapsedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(collapsedGroup).toHaveAttribute('aria-expanded', 'false')
-    expect(collapsedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(collapsedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
     expect(collapsedGroup).not.toHaveAttribute('aria-current')
 
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     view.rerender(<SessionsForTest key="expanded-workdir" />)
     const expandedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(expandedGroup).toHaveAttribute('aria-expanded', 'true')
-    expect(expandedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(expandedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
   })
 
   it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
@@ -1468,7 +1515,7 @@ describe('Sessions', () => {
     expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
     // While the group is open the session row carries the selection; the header must not repeat it.
-    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-resource-list-row-selected')
 
     fireEvent.click(selectedBetaGroupButton)
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
@@ -1478,67 +1525,24 @@ describe('Sessions', () => {
     expect(groupChevron(collapsedBetaGroupButton)).toHaveAttribute('aria-expanded', 'false')
     // Collapsed, the header stands in for the hidden session row: same fill AND same weight a
     // selected row gets anywhere else in the list.
-    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-sidebar-accent')
+    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-resource-list-row-selected')
     expect(within(collapsedBetaGroupButton).getByText('Beta agent')).toHaveClass('font-medium')
   })
 
-  it('clears session selection while a resource menu item is active', () => {
+  it('clears session selection while agent management is active', () => {
     cacheMocks.state.activeSessionId = 'session-a'
     const onSelectResourceView = vi.fn()
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
     })
 
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onSelectResourceView
-          }
-        ]}
-      />
-    )
+    render(<SessionsForTest manageAgentsActive onManageAgents={onSelectResourceView} />)
 
     expect(screen.queryByRole('button', { name: 'Manage Agents' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
     expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
-  })
-
-  it('keeps Skill management out of the display menu', () => {
-    const onManageAgents = vi.fn()
-    const onManageSkills = vi.fn()
-    setupSessions({
-      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
-    })
-
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onManageAgents
-          },
-          {
-            id: 'skill-resource-view',
-            label: 'Skills',
-            onSelect: onManageSkills
-          }
-        ]}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    expect(onManageSkills).not.toHaveBeenCalled()
-    expect(onManageAgents).not.toHaveBeenCalled()
   })
 
   it('creates sessions from agent group actions', async () => {
@@ -2118,9 +2122,19 @@ describe('Sessions', () => {
     ).not.toBeInTheDocument()
     // Pinned rows are lifted out of their workdir group, so they must not keep its icon indent.
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
-    // Only the pin shows on a pinned row, so the title yields one icon zone instead of two.
-    expect(within(pinnedRow as HTMLElement).getByText('Pinned session')).toHaveClass('group-hover:mr-7')
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
+  })
+
+  it('keeps the pinned group label when every session is pinned in time mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
   })
 
   it('requires a second inline click before deleting a session', async () => {
@@ -3148,7 +3162,10 @@ describe('Sessions', () => {
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
-  it('deletes only tasks from the built-in Cherry Assistant group', async () => {
+  it.each([
+    { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
+    { builtinRole: 'support' as const, name: 'Cherry Support' }
+  ])('deletes only tasks from the protected built-in $name group', async ({ builtinRole, name }) => {
     const onActiveAgentDeleted = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
@@ -3156,8 +3173,8 @@ describe('Sessions', () => {
         {
           id: 'agent-a',
           model: 'model-a',
-          name: 'Cherry Assistant',
-          configuration: { builtin_role: 'assistant' }
+          name,
+          configuration: { builtin_role: builtinRole }
         }
       ],
       isLoading: false,
@@ -3167,11 +3184,11 @@ describe('Sessions', () => {
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
-    sessionDataMocks.deleteSessions.mockResolvedValueOnce({ deletedIds: ['session-a'] })
+    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a', 'session-not-loaded'] })
 
     render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
 
-    const agentGroup = screen.getByRole('button', { name: 'Cherry Assistant' }).closest('div')
+    const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteTasksMenuItem = screen
@@ -3182,8 +3199,11 @@ describe('Sessions', () => {
 
     fireEvent.click(deleteTasksMenuItem as HTMLElement)
 
-    await vi.waitFor(() => expect(sessionDataMocks.deleteSessions).toHaveBeenCalledWith(['session-a']))
+    await vi.waitFor(() =>
+      expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    )
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
     expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Delete all tasks for this agent. The agent itself will not be deleted.',

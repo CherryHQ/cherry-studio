@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -19,7 +19,7 @@ import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
-import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
@@ -27,6 +27,7 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import {
@@ -96,8 +97,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const registryState = useMcpRegistryState(form, () => setIsFormChanged(true), server)
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
-  const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
-  const fetchServerLogsRequestRef = useRef(0)
   const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
   const { theme } = useTheme()
@@ -166,48 +165,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       }
     }
   }
-
-  const fetchServerLogs = async (serverId = server?.id) => {
-    if (!serverId) return
-    const requestId = ++fetchServerLogsRequestRef.current
-    try {
-      const history = await ipcApi.request('mcp.server.get_logs', { serverId })
-      if (requestId === fetchServerLogsRequestRef.current && serverId === server?.id) {
-        setLogs((prev) => mergeServerLogs(history, prev))
-      }
-    } catch (error) {
-      logger.warn('Failed to load server logs', error as Error)
-    }
-  }
-
-  useEffect(() => {
-    const unsubscribe = ipcApi.on('mcp.server.log', (log) => {
-      if (log.serverId && log.serverId !== server?.id) return
-      setLogs((prev) => {
-        const merged = [...prev, log]
-        if (merged.length > 200) {
-          return merged.slice(merged.length - 200)
-        }
-        return merged
-      })
-    })
-
-    return () => {
-      unsubscribe?.()
-    }
-  }, [server?.id])
-
-  useEffect(() => {
-    fetchServerLogsRequestRef.current += 1
-    setLogs([])
-  }, [server?.id])
-
-  useEffect(() => {
-    if (activeTab === 'logs') {
-      void fetchServerLogs()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, server?.id])
 
   useEffect(() => {
     if (server?.isActive) {
@@ -518,27 +475,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   tabs.push({
     key: 'logs',
     label: t('settings.mcp.logs', 'Logs'),
-    children: (
-      <LogList>
-        {logs.length === 0 && (
-          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-        )}
-        {logs.map((log, idx) => (
-          <LogItem key={`${log.timestamp}-${idx}`}>
-            <LogHeader>
-              <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-              <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                {log.level}
-              </Badge>
-              <LogMessage>{log.message}</LogMessage>
-            </LogHeader>
-            {log.data && (
-              <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-            )}
-          </LogItem>
-        ))}
-      </LogList>
-    )
+    children: activeTab === 'logs' ? <McpLogsTab serverId={server.id} /> : null
   })
 
   const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
@@ -678,71 +615,6 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={className} {...props} />
 )
-
-const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
-)
-
-const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
-    {...props}
-  />
-)
-
-const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-wrap items-baseline gap-2', className)} {...props} />
-)
-
-const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
-)
-
-const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
-)
-
-const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
-  <pre
-    className={cn(
-      'wrap-break-word mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
-      className
-    )}
-    {...props}
-  />
-)
-
-function mapLogLevelClass(level: McpServerLogEntry['level']) {
-  switch (level) {
-    case 'error':
-    case 'stderr':
-      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
-    case 'warn':
-      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
-    case 'info':
-    case 'stdout':
-      return 'border-info-border bg-info-subtle text-info-subtle-foreground'
-    default:
-      return 'border-border-subtle bg-muted text-muted-foreground'
-  }
-}
-
-function mergeServerLogs(
-  history: McpServerLogEntry[],
-  current: (McpServerLogEntry & { serverId?: string })[]
-): (McpServerLogEntry & { serverId?: string })[] {
-  const seen = new Set<string>()
-  const merged: (McpServerLogEntry & { serverId?: string })[] = []
-
-  for (const log of [...history, ...current]) {
-    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    merged.push(log)
-  }
-
-  return merged.length > 200 ? merged.slice(merged.length - 200) : merged
-}
 
 const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
   <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />

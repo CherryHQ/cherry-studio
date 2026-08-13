@@ -92,6 +92,20 @@
   margin-bottom: 0.35em;
 }
 
+/*
+ * Prompt editor preview (PromptEditorField): restore visible line breaks.
+ *
+ * The global `.markdown p { white-space: normal }` above collapses a single
+ * soft newline to a space (correct for chat/model replies, where `\n` is a
+ * CommonMark soft break). But users author system prompts as structured
+ * plain text — one field per line — and expect WYSIWYG rendering. This scoped
+ * override re-enables pre-wrap ONLY for the prompt preview container, leaving
+ * chat messages, file previews, and model replies on `normal`. See #18377.
+ */
+.prompt-preview .markdown p {
+  white-space: pre-wrap;
+}
+
 .markdown ul {
   list-style-type: disc;
 }

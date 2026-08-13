@@ -63,7 +63,7 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '', undefined, (key) =>
+    const handled = await pasteHandling.handlePaste(event, ['.txt'], setFiles, undefined, '', undefined, (key) =>
       key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key
     )
 
@@ -84,6 +84,26 @@ describe('pasteHandling', () => {
       }
     ])
     expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)
+  })
+
+  it('leaves long pasted text untouched when text attachments are unsupported', async () => {
+    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const preventDefault = vi.fn()
+    const setFiles = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? clipboardText : ''),
+        files: []
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
+
+    expect(handled).toBe(false)
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(window.api.file.createTempFile).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
   })
 
   it('leaves short pasted text untouched', async () => {

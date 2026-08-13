@@ -44,8 +44,12 @@ export const mcpRequestSchemas = {
     output: McpServerSchema.array()
   }),
   'mcp.protocol_install.cancel': defineRoute({ input: protocolInstallRequestId, output: z.void() }),
-  // In-flight tool-call control.
-  'mcp.tool.abort_call': defineRoute({ input: z.object({ callId: z.string().min(1) }), output: z.boolean() }),
+  // In-flight tool-call control. `scope` is the caller-isolation key the call was registered
+  // under (topicId for chat) — abort only matches within the same scope.
+  'mcp.tool.abort_call': defineRoute({
+    input: z.object({ callId: z.string().min(1), scope: z.string().min(1).optional() }),
+    output: z.boolean()
+  }),
   // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`
   // type lives in src/main): matches the legacy preload's `Promise<any>` and avoids hoisting
   // the manifest type into @shared for this transport migration.

@@ -26,6 +26,11 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn().mockResolvedValue({})
 }))
 
+const executeCommandMock = vi.hoisted(() => vi.fn())
+vi.mock('@main/utils/processRunner', () => ({
+  executeCommand: executeCommandMock
+}))
+
 import { SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -531,6 +536,183 @@ describe('SkillService', () => {
       expect(createTempDirSpy).not.toHaveBeenCalled()
     })
 
+    /**
+     * Drives the real git plumbing through a fake `executeCommand`: `ls-remote` reports the given
+     * refs, `ls-tree` the given tree, and `checkout` materializes the tree on disk.
+     */
+    async function setupGithubInstall(options: {
+      refs?: Array<{ name: string; oid: string; namespace?: 'heads' | 'tags' }>
+      tree?: string[]
+    }) {
+      const skillService = new SkillService()
+      const workDir = await createTempDir('github-install-')
+      vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(workDir as never)
+      const tree = options.tree ?? ['skills/demo/SKILL.md']
+      const gitCalls: string[][] = []
+
+      executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
+        gitCalls.push(args)
+        if (args.includes('ls-remote')) {
+          return (options.refs ?? [])
+            .map((ref) => `${ref.oid}\trefs/${ref.namespace ?? 'heads'}/${ref.name}`)
+            .join('\n')
+        }
+        if (args.includes('ls-tree')) return tree.join('\n')
+        if (args.includes('checkout')) {
+          for (const entry of tree) {
+            await fs.promises.mkdir(path.join(workDir, path.dirname(entry)), { recursive: true })
+            await fs.promises.writeFile(path.join(workDir, entry), '# skill')
+          }
+        }
+        return ''
+      })
+
+      const installSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
+      return { skillService, installSpy, gitCalls, workDir }
+    }
+
+    const gitFetchArgs = (calls: string[][]) => calls.find((args) => args.includes('fetch'))
+
+    it('fetches the commit the ref pointed at and installs only the directory the URL selects', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'dev', oid }],
+        tree: ['README.md', 'skills/recruit-init/SKILL.md']
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/dev/skills/recruit-init/SKILL.md'
+      })
+
+      // Fetching the observed commit rather than the ref name is what closes the TOCTOU: a branch
+      // that moves between ls-remote and fetch must not change what gets installed.
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('skills', 'recruit-init')),
+        'marketplace',
+        'https://github.com/owner/repo/tree/dev/skills/recruit-init'
+      )
+    })
+
+    it('resolves a slash-bearing branch against the remote instead of splitting at the first segment', async () => {
+      const wanted = 'b'.repeat(40)
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [
+          { name: 'feature', oid: 'a'.repeat(40) },
+          { name: 'feature/foo', oid: wanted }
+        ]
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/feature/foo/skills/demo/SKILL.md'
+      })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([wanted]))
+    })
+
+    it('refuses a URL that names a repo-root SKILL.md instead of falling back to a shorter ref', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [
+          { name: 'feature', oid: 'a'.repeat(40) },
+          { name: 'feature/foo', oid: 'b'.repeat(40) }
+        ]
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
+      ).rejects.toThrow('repository root')
+      expect(gitFetchArgs(gitCalls)).toBeUndefined()
+    })
+
+    it('refuses a ref name carried by both a branch and a tag', async () => {
+      const { skillService } = await setupGithubInstall({
+        refs: [
+          { name: 'v1', oid: 'a'.repeat(40) },
+          { name: 'v1', oid: 'b'.repeat(40), namespace: 'tags' }
+        ]
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/v1/skills/demo/SKILL.md' })
+      ).rejects.toThrow('both a branch and a tag')
+    })
+
+    it('installs a commit permalink even though it matches no ref', async () => {
+      const oid = 'c'.repeat(40)
+      const { skillService, gitCalls } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
+
+      await skillService.install({
+        installSource: `github:https://github.com/owner/repo/blob/${oid}/skills/demo/SKILL.md`
+      })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+    })
+
+    it('fails a github URL whose ref matches no branch, tag or commit', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/nope/skills/demo/SKILL.md' })
+      ).rejects.toThrow('No branch or tag')
+      expect(gitFetchArgs(gitCalls)).toBeUndefined()
+    })
+
+    it('refuses a tree whose directories collide once case is folded', async () => {
+      // A case-insensitive filesystem merges these two into one checkout, so containment checks would
+      // inspect bytes other than the ones the URL selected.
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/SKILL.md', 'skills/Demo/SKILL.md']
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
+      ).rejects.toThrow('collide')
+    })
+
+    it('materializes only the selected directory instead of the whole repository', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+      })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['--filter=blob:none']))
+      expect(gitCalls.find((args) => args.includes('sparse-checkout'))).toEqual(
+        expect.arrayContaining(['/skills/demo/'])
+      )
+    })
+
+    it('never lets an untrusted repository prompt for credentials or pull LFS payloads', async () => {
+      const { skillService } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+      })
+
+      for (const [, , options] of executeCommandMock.mock.calls) {
+        expect(options.env).toMatchObject({ GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1' })
+        expect(options.timeout).toBeGreaterThan(0)
+      }
+    })
+
+    it('rejects a github URL that does not point at a SKILL.md file before cloning', async () => {
+      const skillService = new SkillService()
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+
+      for (const url of [
+        'https://github.com/owner/repo',
+        'https://github.com/owner/repo/tree/main/skills/recruit-init',
+        'https://example.com/owner/repo/blob/main/skills/x/SKILL.md'
+      ]) {
+        await expect(skillService.install({ installSource: `github:${url}` })).rejects.toThrow(
+          'Invalid GitHub skill URL'
+        )
+      }
+      expect(createTempDirSpy).not.toHaveBeenCalled()
+    })
+
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)
@@ -710,16 +892,28 @@ describe('SkillService', () => {
       )
     })
 
-    it('rejects a repository skill directory whose symlink resolves outside the clone', async () => {
+    it.each([
+      ['outside the clone', async () => createTempDir('skill-external-')],
+      [
+        'at another directory in the same clone',
+        async (repoDir: string) => {
+          const other = path.join(repoDir, 'other-skill')
+          await fs.promises.mkdir(other, { recursive: true })
+          return other
+        }
+      ]
+    ])('rejects a selected skill directory that is a symlink pointing %s', async (_case, createTarget) => {
+      // Containment alone cannot catch the in-repo case: the target stays inside the clone, so the
+      // user would silently install a different skill than the URL named.
       const skillService = new SkillService()
       const repoDir = await createTempDir('skill-repo-')
-      const externalDir = await createTempDir('skill-external-')
-      await fs.promises.writeFile(path.join(externalDir, 'SKILL.md'), '# external')
-      await fs.promises.symlink(externalDir, path.join(repoDir, 'linked'), 'dir')
-      vi.mocked(findSkillMdPath).mockResolvedValue(path.join(externalDir, 'SKILL.md'))
+      const targetDir = await createTarget(repoDir)
+      await fs.promises.writeFile(path.join(targetDir, 'SKILL.md'), '# target')
+      await fs.promises.symlink(targetDir, path.join(repoDir, 'linked'), 'dir')
+      vi.mocked(findSkillMdPath).mockResolvedValue(path.join(targetDir, 'SKILL.md'))
 
       await expect(skillService['resolveSkillDirectory'](repoDir, null, 'linked')).rejects.toThrow(
-        'resolves outside the repository'
+        'passes through a symlink'
       )
     })
 

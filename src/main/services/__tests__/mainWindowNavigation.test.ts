@@ -28,6 +28,7 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 import {
   acknowledgeMainWindowNavigation,
+  isAllowedRoute,
   openRouteInMainWindow,
   openSettingsInMainWindow
 } from '../mainWindowNavigation'
@@ -120,6 +121,28 @@ describe('mainWindowNavigation', () => {
         to: '/settings/about'
       })
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
+    })
+  })
+
+  describe('isAllowedRoute', () => {
+    it('allows real app routes under the /app prefix, with or without a query string', () => {
+      expect(isAllowedRoute('/app/agents')).toBe(true)
+      expect(isAllowedRoute('/app/agents?intent=feedback&sessionId=abc')).toBe(true)
+      expect(isAllowedRoute('/app/knowledge')).toBe(true)
+    })
+
+    it('allows settings routes carrying a query string', () => {
+      expect(isAllowedRoute('/settings/provider?id=openai')).toBe(true)
+    })
+
+    it('keeps the legacy protocol-deep-link prefixes allowlisted', () => {
+      expect(isAllowedRoute('/agents')).toBe(true)
+      expect(isAllowedRoute('/knowledge?x=1&y=2')).toBe(true)
+    })
+
+    it('rejects unknown routes', () => {
+      expect(isAllowedRoute('/definitely-not-a-route')).toBe(false)
+      expect(isAllowedRoute('/agents-legacy')).toBe(false)
     })
   })
 })

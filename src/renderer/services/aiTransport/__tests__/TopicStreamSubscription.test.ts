@@ -31,17 +31,21 @@ function createMockAiApi() {
       (d: {
         topicId: string
         executionId?: UniqueModelId
+        attemptId?: number
         anchorMessageId?: string
         status: string
         isTopicDone?: boolean
+        topicAttemptWatermark?: number
       }) => void
     >,
     error: [] as Array<
       (d: {
         topicId: string
         executionId?: UniqueModelId
+        attemptId?: number
         anchorMessageId?: string
         isTopicDone?: boolean
+        topicAttemptWatermark?: number
         error: SerializedError
       }) => void
     >
@@ -94,26 +98,46 @@ function createMockAiApi() {
     mockApi,
     request,
     on,
-    emitChunk: (topicId: string, executionId: UniqueModelId, chunk: UIMessageChunk, anchorMessageId?: string) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, anchorMessageId, chunk })
+    emitChunk: (
+      topicId: string,
+      executionId: UniqueModelId,
+      chunk: UIMessageChunk,
+      anchorMessageId?: string,
+      attemptId = 1
+    ) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
     },
     emitDone: (
       topicId: string,
       executionId: UniqueModelId | undefined,
       status: 'success' | 'paused',
       isTopicDone?: boolean,
-      anchorMessageId?: string
+      anchorMessageId?: string,
+      attemptId = 1,
+      topicAttemptWatermark?: number
     ) => {
-      for (const cb of [...listeners.done]) cb({ topicId, executionId, status, isTopicDone, anchorMessageId })
+      for (const cb of [...listeners.done]) {
+        cb({ topicId, executionId, attemptId, status, isTopicDone, anchorMessageId, topicAttemptWatermark })
+      }
     },
     emitError: (
       topicId: string,
       executionId: UniqueModelId | undefined,
       isTopicDone?: boolean,
-      anchorMessageId?: string
+      anchorMessageId?: string,
+      attemptId = executionId === undefined ? undefined : 1,
+      topicAttemptWatermark?: number
     ) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
+        cb({
+          topicId,
+          executionId,
+          attemptId,
+          isTopicDone,
+          anchorMessageId,
+          topicAttemptWatermark,
+          error: STREAM_ERROR
+        })
       }
     }
   }
@@ -152,8 +176,8 @@ describe('TopicStreamSubscription', () => {
 
   it('attaches once for the topic regardless of how many executions register', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    sub.register(A)
-    sub.register(B)
+    sub.register(A, undefined, 1)
+    sub.register(B, undefined, 1)
     await tick()
     expect(mock.mockApi.streamAttach).toHaveBeenCalledTimes(1)
     expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ topicId: TOPIC })
@@ -162,8 +186,8 @@ describe('TopicStreamSubscription', () => {
 
   it('demuxes chunks to the correct branch by executionId; no cross-contamination', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
-    const sb = sub.register(B)
+    const sa = sub.register(A, undefined, 1)
+    const sb = sub.register(B, undefined, 1)
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('helloA'))
@@ -179,7 +203,7 @@ describe('TopicStreamSubscription', () => {
 
   it('buffers chunks that arrive before a reader drains (internal queue)', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
+    const sa = sub.register(A, undefined, 1)
     await tick()
     mock.emitChunk(TOPIC, A, textChunk('one'))
     mock.emitChunk(TOPIC, A, textChunk('two'))
@@ -193,7 +217,7 @@ describe('TopicStreamSubscription', () => {
     sub.listen()
 
     mock.emitChunk(TOPIC, A, textChunk('early'))
-    const sa = sub.register(A)
+    const sa = sub.register(A, undefined, 1)
     mock.emitDone(TOPIC, A, 'success')
 
     expect(await readAll(sa)).toEqual([textChunk('early')])
@@ -202,7 +226,7 @@ describe('TopicStreamSubscription', () => {
 
   it('keeps same-execution continuation branches distinct by anchorMessageId', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const first = sub.register(A, 'assistant-1')
+    const first = sub.register(A, 'assistant-1', 1)
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('before-steer'), 'assistant-1')
@@ -210,33 +234,48 @@ describe('TopicStreamSubscription', () => {
 
     // The continuation can emit before React registers the new reader. It must
     // buffer under assistant-2 instead of targeting the closed assistant-1 branch.
-    mock.emitChunk(TOPIC, A, textChunk('after-steer'), 'assistant-2')
-    const second = sub.register(A, 'assistant-2')
-    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+    mock.emitChunk(TOPIC, A, textChunk('after-steer'), 'assistant-2', 2)
+    const second = sub.register(A, 'assistant-2', 2)
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2', 2)
 
     expect(await readAll(first)).toEqual([textChunk('before-steer')])
     expect(await readAll(second)).toEqual([textChunk('after-steer')])
     sub.dispose()
   })
 
+  it('keeps repeated attempts on the same model and anchor isolated', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const retry = sub.register(A, 'assistant-1', 2)
+    await tick()
+
+    mock.emitChunk(TOPIC, A, textChunk('retry'), 'assistant-1', 2)
+    // A delayed terminal from the prior attempt must not close the retry branch.
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 1, 1)
+    mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 2)
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 2)
+
+    expect(await readAll(retry)).toEqual([textChunk('retry'), textChunk('-continued')])
+    sub.dispose()
+  })
+
   it('keeps the topic attached across the done(false) gap before continuation chunks arrive', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const first = sub.register(A, 'assistant-1')
+    const first = sub.register(A, 'assistant-1', 1)
     await tick()
 
     mock.emitDone(TOPIC, A, 'success', false, 'assistant-1')
     expect(await readAll(first)).toEqual([])
-    sub.unregister(A, 'assistant-1')
+    sub.unregister(A, 'assistant-1', 1)
     await tick()
 
     expect(sub.isTopicOpen()).toBe(true)
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
-    mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2')
-    const second = sub.register(A, 'assistant-2')
-    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+    mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2', 2)
+    const second = sub.register(A, 'assistant-2', 2)
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2', 2)
     expect(await readAll(second)).toEqual([textChunk('continued')])
-    sub.unregister(A, 'assistant-2')
+    sub.unregister(A, 'assistant-2', 2)
     await tick()
 
     expect(sub.isTopicOpen()).toBe(false)
@@ -246,27 +285,27 @@ describe('TopicStreamSubscription', () => {
 
   it('replays the error part and terminal status when failure arrives before the branch registers', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
+    const terminals: Array<{ id: string; attemptId?: number; isAbort: boolean; isError: boolean }> = []
     sub.listen()
 
     mock.emitError(TOPIC, A)
-    const stream = sub.register(A)
+    const stream = sub.register(A, undefined, 1)
     sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
 
     expect(await readAll(stream)).toEqual([{ type: 'data-error', data: STREAM_ERROR }])
-    expect(terminals).toEqual([{ id: A, isAbort: false, isError: true }])
+    expect(terminals).toEqual([{ id: A, attemptId: 1, isAbort: false, isError: true }])
     sub.dispose()
   })
 
   it('one execution ending does NOT detach the topic or affect the other branch', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
-    const sb = sub.register(B)
+    const sa = sub.register(A, undefined, 1)
+    const sb = sub.register(B, undefined, 1)
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('a1'))
     mock.emitDone(TOPIC, A, 'success')
-    sub.unregister(A)
+    sub.unregister(A, undefined, 1)
     await tick()
 
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
@@ -282,15 +321,15 @@ describe('TopicStreamSubscription', () => {
 
   it('detaches the topic exactly once when the LAST execution unregisters', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    sub.register(A)
-    sub.register(B)
+    sub.register(A, undefined, 1)
+    sub.register(B, undefined, 1)
     await tick()
 
-    sub.unregister(A)
+    sub.unregister(A, undefined, 1)
     await tick()
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
-    sub.unregister(B)
+    sub.unregister(B, undefined, 1)
     await tick()
     expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId: TOPIC })
@@ -308,8 +347,8 @@ describe('TopicStreamSubscription', () => {
     )
 
     const sub = new TopicStreamSubscription(TOPIC)
-    sub.register(A)
-    sub.unregister(A) // last execution gone, but #attached is still false → deferred-detach guard skips
+    sub.register(A, undefined, 1)
+    sub.unregister(A, undefined, 1) // last execution gone, but #attached is still false → deferred-detach guard skips
     await tick()
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
@@ -323,13 +362,13 @@ describe('TopicStreamSubscription', () => {
 
   it('never detaches when the last execution is replaced by a new one within the same microtask', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    sub.register(A)
+    sub.register(A, undefined, 1)
     await tick() // attach resolves → #attached === true
 
     // Unregister the last execution and immediately re-register a new one,
     // synchronously, before the deferred-detach microtask runs.
-    sub.unregister(A)
-    sub.register(B)
+    sub.unregister(A, undefined, 1)
+    sub.register(B, undefined, 1)
     await tick()
 
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
@@ -341,13 +380,13 @@ describe('TopicStreamSubscription', () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
       bufferedChunks: [
-        { topicId: TOPIC, executionId: A, chunk: textChunk('replayA') },
-        { topicId: TOPIC, executionId: B, chunk: textChunk('replayB') }
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replayA') },
+        { topicId: TOPIC, executionId: B, attemptId: 1, chunk: textChunk('replayB') }
       ] satisfies StreamChunkPayload[]
     })
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
-    const sb = sub.register(B)
+    const sa = sub.register(A, undefined, 1)
+    const sb = sub.register(B, undefined, 1)
     await tick()
     mock.emitDone(TOPIC, undefined, 'success', true)
     expect(await readAll(sa)).toEqual([textChunk('replayA')])
@@ -355,23 +394,104 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
+        { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
+      ] satisfies StreamChunkPayload[]
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onTerminal = vi.fn()
+    const onRetired = vi.fn()
+    sub.onExecutionTerminal(onTerminal)
+    sub.onBranchesRetired(onRetired)
+    const live = sub.register(B, 'assistant-b', 1)
+    await tick()
+
+    mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
+
+    expect(await readAll(live)).toEqual([textChunk('replayB')])
+    expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 2, anchorMessageId: 'assistant-a' }])
+    expect(onTerminal).toHaveBeenCalledTimes(1)
+    expect(onTerminal).toHaveBeenCalledWith(
+      B,
+      expect.objectContaining({ attemptId: 1, anchorMessageId: 'assistant-b', isError: false })
+    )
+    expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
+  it('does not reopen covered attempts when the topic terminal arrives before attach replay', async () => {
+    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const live = sub.register(B, 'assistant-b', 1)
+    await tick()
+
+    mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
+        { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
+      ]
+    })
+    await tick()
+
+    expect(await readAll(live)).toEqual([])
+    expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
+  it('retires covered replay branches on a terminal error watermark', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 1, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') }
+      ] satisfies StreamChunkPayload[]
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onRetired = vi.fn()
+    const onTerminal = vi.fn()
+    sub.onBranchesRetired(onRetired)
+    sub.onExecutionTerminal(onTerminal)
+    const live = sub.register(B, 'assistant-b', 2)
+    await tick()
+
+    mock.emitError(TOPIC, B, true, 'assistant-b', 2, 2)
+
+    expect(await readAll(live)).toEqual([{ type: 'data-error', data: STREAM_ERROR }])
+    expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 1, anchorMessageId: 'assistant-a' }])
+    expect(onTerminal).toHaveBeenCalledWith(B, expect.objectContaining({ attemptId: 2, isError: true }))
+    expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
   it('per-execution onStreamDone closes that branch and fires a terminal event', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
-    const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
+    const sa = sub.register(A, undefined, 1)
+    const terminals: Array<{ id: string; attemptId?: number; isAbort: boolean; isError: boolean }> = []
     sub.onExecutionTerminal((id, t) => terminals.push({ id, ...t }))
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('x'))
     mock.emitDone(TOPIC, A, 'paused')
     expect(await readAll(sa)).toEqual([textChunk('x')]) // stream closed → read ends
-    expect(terminals).toEqual([{ id: A, isAbort: true, isError: false }])
+    expect(terminals).toEqual([{ id: A, attemptId: 1, isAbort: true, isError: false }])
     sub.dispose()
   })
 
   it('dispose() detaches, drops IPC listeners and closes branches', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
+    const sa = sub.register(A, undefined, 1)
     await tick()
     sub.dispose()
     expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
@@ -383,7 +503,7 @@ describe('TopicStreamSubscription', () => {
   it('attach not-found closes branches so readers end immediately', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({ status: 'not-found' })
     const sub = new TopicStreamSubscription(TOPIC)
-    const sa = sub.register(A)
+    const sa = sub.register(A, undefined, 1)
     await tick()
     expect(await readAll(sa)).toEqual([])
     sub.dispose()
@@ -394,7 +514,7 @@ describe('TopicStreamSubscription', () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
     sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
-    const sa = sub.register(A)
+    const sa = sub.register(A, undefined, 1)
     await tick()
     expect(await readAll(sa)).toEqual([])
     expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])

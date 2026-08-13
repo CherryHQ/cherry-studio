@@ -1,11 +1,13 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { render, screen, waitFor } from '@testing-library/react'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import McpSettings from '../McpSettings'
+import { formatMcpLogs } from '../utils'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -14,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   deleteMcpServer: vi.fn(),
   navigate: vi.fn(),
+  on: vi.fn<(event: string, callback: (log: McpServerLogEntry & { serverId: string }) => void) => () => void>(() =>
+    vi.fn()
+  ),
   request: vi.fn(),
   updateMcpServer: vi.fn()
 }))
@@ -40,7 +45,7 @@ vi.mock('@renderer/services/popup', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    on: vi.fn(() => vi.fn()),
+    on: mocks.on,
     request: mocks.request
   }
 }))
@@ -160,5 +165,58 @@ describe('McpSettings', () => {
     rerender(<McpSettings />)
 
     expect(screen.getByRole('textbox', { name: 'Server name' })).toHaveValue('Server B')
+  })
+
+  it('renders selectable MCP logs and copies them to the clipboard', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+    const logs: McpServerLogEntry[] = [
+      { timestamp: 1700000000000, level: 'info', message: 'Server started' },
+      { timestamp: 1700000001000, level: 'error', message: 'Connection failed', data: { detail: 'timeout' } }
+    ]
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_logs') return Promise.resolve(logs)
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      return Promise.resolve([])
+    })
+
+    const user = userEvent.setup()
+    const { container } = render(<McpSettings />)
+
+    expect(mocks.on).not.toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.get_logs', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'Logs' }))
+
+    expect(mocks.on).toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
+    expect(await screen.findByText('Server started')).toBeInTheDocument()
+    expect(screen.getByText('Connection failed')).toBeInTheDocument()
+
+    const liveLog = {
+      serverId: currentServer.id,
+      timestamp: 1700000002000,
+      level: 'info' as const,
+      message: 'Live log'
+    }
+    const logListener = mocks.on.mock.calls.find(([event]) => event === 'mcp.server.log')?.[1]
+    act(() => {
+      logListener?.(liveLog)
+    })
+    expect(screen.getByText('Live log')).toBeInTheDocument()
+
+    // `.selectable` is the maintained contract that opts the log list out of the
+    // global `user-select: none` (src/renderer/assets/styles/index.css).
+    expect(container.querySelector('.selectable')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Copy logs' }))
+    expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
   })
 })

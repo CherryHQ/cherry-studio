@@ -188,7 +188,6 @@ describe('TemporaryChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
 
     expect(prepared.topicId).toBe('1')
-    expect(prepared.isMultiModel).toBe(false)
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)

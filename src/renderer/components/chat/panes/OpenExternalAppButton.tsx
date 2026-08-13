@@ -13,7 +13,7 @@ import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { toast } from '@renderer/services/toast'
-import { buildEditorUrl } from '@renderer/utils/editor'
+import { openExternalApp } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
@@ -49,8 +49,10 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
     if (!externalApps) {
       return []
     }
-    return externalApps.filter((app) => app.tags.includes('code-editor'))
-  }, [externalApps])
+    return externalApps.filter(
+      (app) => app.tags.includes('code-editor') || (!fileTargetPath && app.tags.includes('terminal'))
+    )
+  }, [externalApps, fileTargetPath])
 
   const fileManagerName = useMemo(() => {
     if (isMac) {
@@ -80,11 +82,15 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
   }, [availableEditors, selectedTarget])
 
   const openInEditor = useCallback(
-    (app: ExternalAppInfo) => {
-      window.open(buildEditorUrl(app, openTargetPath))
-      setLastUsedTarget(app.id)
+    async (app: ExternalAppInfo) => {
+      try {
+        await openExternalApp(app, openTargetPath)
+        setLastUsedTarget(app.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('common.open_in', { name: app.name })))
+      }
     },
-    [openTargetPath, setLastUsedTarget]
+    [openTargetPath, setLastUsedTarget, t]
   )
 
   const openFileManager = useCallback(async () => {
@@ -111,7 +117,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
 
   const handlePrimaryClick = useCallback(() => {
     if (selectedEditor) {
-      openInEditor(selectedEditor)
+      void openInEditor(selectedEditor)
       return
     }
     void openFileManager()
@@ -147,7 +153,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
             label={app.name}
             icon={getEditorIcon(app)}
             active={selectedTarget === app.id}
-            onClick={() => openInEditor(app)}
+            onClick={() => void openInEditor(app)}
           />
         ))}
       </MenuList>

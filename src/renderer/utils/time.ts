@@ -1,6 +1,8 @@
 const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
+const MONTH_MS = 30 * DAY_MS
+const YEAR_MS = 365 * DAY_MS
 
 export function createDurationFormatter(language?: string): (durationMs: number) => string {
   const millisecondFormatter = new Intl.NumberFormat(language, {
@@ -47,18 +49,18 @@ export const formatRelativeTime = (value: string, language: string, now = Date.n
   const diffMs = new Date(value).getTime() - now
   const formatter = new Intl.RelativeTimeFormat(language, { numeric: 'auto' })
 
-  // Pick the unit by the *rounded* value, not the raw threshold: 59m54s rounds
-  // to 60 minutes, which must roll up to "1 hour ago" rather than render
-  // "60 minutes ago" (and likewise 23h59m -> a day, not "24 hours ago").
-  const minutes = Math.round(diffMs / MINUTE_MS)
-  if (Math.abs(minutes) < 60) {
-    return formatter.format(minutes, 'minute')
-  }
+  // Pick the unit from the *rounded* magnitude, not the raw threshold: 59m54s rounds to 60 minutes,
+  // which must roll up to "1 hour ago" rather than render "60 minutes ago" (and likewise 23h59m -> a
+  // day, not "24 hours ago"). Rounding the magnitude keeps both directions on the same unit —
+  // `Math.round` breaks ties toward +∞, so a signed test would put -11.5 months and +11.5 months on
+  // different units. Months and years use fixed averages; Intl has no calendar-aware relative unit.
+  const magnitude = Math.abs(diffMs)
+  const sign = diffMs < 0 ? -1 : 1
+  const inUnit = (unitMs: number) => sign * Math.round(magnitude / unitMs)
 
-  const hours = Math.round(diffMs / HOUR_MS)
-  if (Math.abs(hours) < 24) {
-    return formatter.format(hours, 'hour')
-  }
-
-  return formatter.format(Math.round(diffMs / DAY_MS), 'day')
+  if (Math.round(magnitude / MINUTE_MS) < 60) return formatter.format(inUnit(MINUTE_MS), 'minute')
+  if (Math.round(magnitude / HOUR_MS) < 24) return formatter.format(inUnit(HOUR_MS), 'hour')
+  if (Math.round(magnitude / DAY_MS) < 30) return formatter.format(inUnit(DAY_MS), 'day')
+  if (Math.round(magnitude / MONTH_MS) < 12) return formatter.format(inUnit(MONTH_MS), 'month')
+  return formatter.format(inUnit(YEAR_MS), 'year')
 }

@@ -33,7 +33,7 @@ export interface ApiGatewayProviderBundle {
  */
 export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const { t } = useTranslation()
-  const { apiGatewayConfig, apiGatewayRunning, startApiGateway, setApiGatewayEnabled } = useApiGateway()
+  const { apiGatewayConfig, apiGatewayRunning, startApiGateway } = useApiGateway()
   const host = apiGatewayConfig.host || DEFAULT_GATEWAY_HOST
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
@@ -51,15 +51,13 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       if (!started) {
         throw new Error('API gateway failed to start')
       }
-    } else if (!apiGatewayConfig.enabled) {
-      setApiGatewayEnabled(true)
     }
     const key = await preferenceService.get('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }
     return key
-  }, [apiGatewayRunning, apiGatewayConfig.enabled, startApiGateway, setApiGatewayEnabled])
+  }, [apiGatewayRunning, startApiGateway])
 
   return useMemo(() => {
     const baseUrl = `http://${host}:${port}`

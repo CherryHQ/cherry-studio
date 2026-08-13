@@ -84,6 +84,11 @@ describe('legacyModelToUniqueId', () => {
     it('should return null when provider contains the separator', () => {
       expect(legacyModelToUniqueId({ id: 'gpt-4', provider: 'o::p' })).toBeNull()
     })
+
+    it.each(['?', '#'])('should return null when model id contains reserved route character %s', (char) => {
+      expect(legacyModelToUniqueId({ id: `legacy-model${char}suffix`, provider: 'openai' })).toBeNull()
+      expect(legacyModelToUniqueId({ id: `openai::legacy-model${char}suffix`, provider: 'openai' })).toBeNull()
+    })
   })
 
   describe('fallback parameter', () => {
@@ -105,6 +110,10 @@ describe('legacyModelToUniqueId', () => {
 
     it('should discard fallback when it is not a UniqueModelId', () => {
       expect(legacyModelToUniqueId(null, 'raw-model-id')).toBeNull()
+    })
+
+    it.each(['?', '#'])('should discard fallback containing reserved route character %s', (char) => {
+      expect(legacyModelToUniqueId(null, `openai::legacy-model${char}suffix`)).toBeNull()
     })
 
     it('should return null for empty fallback', () => {

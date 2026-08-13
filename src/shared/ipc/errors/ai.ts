@@ -1,3 +1,4 @@
+import { type AiStreamAdmissionReason, isAiStreamAdmissionReason } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
 
 import { IpcError } from './IpcError'
@@ -16,6 +17,8 @@ export const aiErrorCodes = {
    * everything but `message`.
    */
   AI_REQUEST_FAILED: 'AI_REQUEST_FAILED',
+  /** A live-stream execution change was rejected; `data.reason` is renderer-localized. */
+  AI_STREAM_ADMISSION_REJECTED: 'AI_STREAM_ADMISSION_REJECTED',
   /**
    * An `ai.agent.task.*` command referenced a task that does not exist, is not
    * an `agent.task` schedule, or belongs to another agent (the three cases are
@@ -47,4 +50,10 @@ export const aiErrorCodes = {
  */
 export function aiErrorDetail(e: unknown): SerializedError | undefined {
   return e instanceof IpcError && e.code === aiErrorCodes.AI_REQUEST_FAILED ? (e.data as SerializedError) : undefined
+}
+
+export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
+  if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
+  return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
 }

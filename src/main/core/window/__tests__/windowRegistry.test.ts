@@ -264,3 +264,16 @@ describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', ()
     expect(metadata?.behavior?.macShowInDock).toBe(false)
   })
 })
+
+// Regression guard for issue #18186: a warm-created standby SubWindow is always
+// resident (pooled + standbySize:1 + warmup:'eager'). If it does not opt out of
+// Dock contribution, windowContributesToDock() returns true for it and the Dock
+// icon can never be hidden on close-to-tray / tray-on-launch.
+describe('WINDOW_TYPE_REGISTRY SubWindow — must not keep the Dock icon alive', () => {
+  it('opts out of macOS Dock contribution (macShowInDock: false)', () => {
+    const metadata = WINDOW_TYPE_REGISTRY[WindowType.SubWindow]
+
+    expect(metadata).toBeDefined()
+    expect(metadata?.behavior?.macShowInDock).toBe(false)
+  })
+})

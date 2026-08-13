@@ -1,3 +1,4 @@
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import { getItemStatus, getItemTitle } from '../utils/selectors'
@@ -14,7 +15,7 @@ describe('dataSourcePanel.selectors', () => {
         createUrlItem({
           id: 'url-1',
           source: 'https://example.com/product-docs',
-          relativePath: 'Drop-in replacements for React Native UI.md'
+          relativePath: 'Drop-in replacements for React Native UI.md' as PosixRelativeFilePath
         })
       )
     ).toBe('Drop-in replacements for React Native UI')

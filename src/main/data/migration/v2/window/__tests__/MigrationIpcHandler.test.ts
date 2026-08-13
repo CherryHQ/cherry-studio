@@ -586,7 +586,15 @@ describe('MigrationIpcHandler', () => {
       success: true,
       totalDuration: 4200,
       migratorResults: [
-        { migratorId: 'a', migratorName: 'A', success: true, recordsProcessed: 10, duration: 1000, warnings: ['w1'] },
+        {
+          migratorId: 'a',
+          migratorName: 'A',
+          success: true,
+          recordsProcessed: 10,
+          duration: 1000,
+          warnings: ['w1'],
+          warningMessages: [{ key: 'migration.completed.agent_files_skipped', params: { count: 2 } }]
+        },
         { migratorId: 'b', migratorName: 'B', success: true, recordsProcessed: 5, duration: 3200 }
       ]
     }
@@ -603,6 +611,7 @@ describe('MigrationIpcHandler', () => {
       durationMs: 4200
     })
     expect(progress.warnings).toEqual(['w1'])
+    expect(progress.warningMessages).toEqual([{ key: 'migration.completed.agent_files_skipped', params: { count: 2 } }])
   })
 
   it('uses the live migrator count for totalMigrators, distinct from completedMigrators', async () => {

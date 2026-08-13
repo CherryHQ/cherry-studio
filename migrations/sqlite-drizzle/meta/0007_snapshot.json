@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "14f725f0-9e4d-4ecb-96bb-60f1d6681ab4",
+  "id": "0f5fea5a-c909-4d37-b8ba-6d1f61856523",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -543,6 +543,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -567,6 +574,11 @@
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_last_activity_at_idx": {
+          "name": "agent_session_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "agent_session_updated_at_idx": {
@@ -4101,6 +4113,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -4124,6 +4143,11 @@
         }
       },
       "indexes": {
+        "topic_last_activity_at_idx": {
+          "name": "topic_last_activity_at_idx",
+          "columns": ["last_activity_at"],
+          "isUnique": false
+        },
         "topic_updated_at_idx": {
           "name": "topic_updated_at_idx",
           "columns": ["updated_at"],
@@ -4372,13 +4396,6 @@
         },
         "endpoint_types": {
           "name": "endpoint_types",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "preferred_endpoint_type": {
-          "name": "preferred_endpoint_type",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

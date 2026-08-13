@@ -149,6 +149,19 @@ describe('Dialog primitive', () => {
     )
   })
 
+  it('marks dialog content as no-drag so it stays clickable over titlebar drag regions', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = document.querySelector('[data-slot="dialog-content"]')
+    expect(content).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
   it('keeps content mounted while its close animation is active', () => {
     const originalGetComputedStyle = window.getComputedStyle
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {

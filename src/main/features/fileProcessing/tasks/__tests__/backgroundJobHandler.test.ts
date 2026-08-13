@@ -57,7 +57,7 @@ vi.mock('../../persistence/MarkdownResultStore', () => ({
   markdownResultStore: { persistResultToPath: persistResultMock }
 }))
 
-const { backgroundJobHandler } = await import('../backgroundJobHandler')
+const { backgroundJobHandler, localBackgroundJobHandler } = await import('../backgroundJobHandler')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000201'
 const FAKE_ENTRY = {
@@ -133,16 +133,16 @@ beforeEach(() => {
   capabilityHandlerMock.mode = 'background'
 })
 
+const CONTRACT_INPUT: FileProcessingJobPayload = {
+  feature: 'image_to_text',
+  file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+  processorId: 'tesseract'
+}
+
 describe('backgroundJobHandler.execute', () => {
-  it('declares the background job contract', () => {
+  it('declares the remote background job contract', () => {
     expect(backgroundJobHandler.recovery).toBe('retry')
-    expect(
-      backgroundJobHandler.defaultQueue?.({
-        feature: 'image_to_text',
-        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-        processorId: 'tesseract'
-      })
-    ).toBe('file-processing.tesseract')
+    expect(backgroundJobHandler.defaultQueue?.(CONTRACT_INPUT)).toBe('file-processing.tesseract')
     expect(backgroundJobHandler.defaultConcurrency).toBe(2)
     expect(backgroundJobHandler.defaultRetryPolicy).toEqual({
       maxAttempts: 1,
@@ -151,6 +151,17 @@ describe('backgroundJobHandler.execute', () => {
       maxDelayMs: 0
     })
     expect(backgroundJobHandler.defaultTimeoutMs).toBe(15 * 60_000)
+  })
+
+  it('declares the local background job contract: own queue namespace, one job at a time', () => {
+    expect(localBackgroundJobHandler.defaultQueue?.(CONTRACT_INPUT)).toBe('file-processing.local.tesseract')
+    expect(localBackgroundJobHandler.defaultConcurrency).toBe(1)
+    // Everything else is shared verbatim with the remote handler — the two differ
+    // only in where they dispatch and how many they admit.
+    expect(localBackgroundJobHandler.recovery).toBe(backgroundJobHandler.recovery)
+    expect(localBackgroundJobHandler.defaultRetryPolicy).toEqual(backgroundJobHandler.defaultRetryPolicy)
+    expect(localBackgroundJobHandler.defaultTimeoutMs).toBe(backgroundJobHandler.defaultTimeoutMs)
+    expect(localBackgroundJobHandler.execute).toBe(backgroundJobHandler.execute)
   })
 
   it('returns inline text artifact for image_to_text output', async () => {

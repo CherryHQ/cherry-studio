@@ -5,6 +5,7 @@ import { Worker } from 'node:worker_threads'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
 import type { InferenceModelSource, InferenceResponse } from '../inferenceProtocol'
 import { inferenceWorkerSource } from '../inferenceWorkerSource'
 
@@ -129,6 +130,7 @@ function startWorker(): Worker {
     appPath,
     cacheDir,
     onnxRuntimeBindingPath: '',
+    runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE,
     proxyRouting: { version: 0, mode: 'direct' }
   })
   return spawned

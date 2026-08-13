@@ -58,14 +58,9 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\n${provider} is blocking the request because the user's IP region is not supported. This is NOT an API-key issue. Suggest configuring an HTTP/SOCKS proxy in system settings, or switching to a provider available in the user's region. DO NOT suggest changing the API key.\n`
   }
 
-  // Auth / API key issues
-  if (
-    status === 401 ||
-    status === 403 ||
-    msg.includes('api_key') ||
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden')
-  ) {
+  // Auth / API key issues (401). 403 is handled below — mirrors `classifyError`, which keeps
+  // a refused request out of the invalid-key bucket.
+  if (status === 401 || msg.includes('api_key') || msg.includes('unauthorized')) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
@@ -74,6 +69,12 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
   if (status === 402 || isQuotaErrorMessage(msg)) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
+  }
+
+  // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
+  if (status === 403 || msg.includes('forbidden')) {
+    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    return `## Context\n${provider} refused this request with HTTP 403. The API key was NOT rejected as invalid, so this is usually an account plan, key permission, or resource-access restriction rather than a wrong key. Read the provider's own error text in the error data before concluding. DO NOT tell the user their API key is invalid or suggest regenerating it unless the provider's error text says so.\n`
   }
 
   if (status === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('too many requests')) {
@@ -227,13 +228,14 @@ Analyze the error and return a JSON diagnosis in ${language}.
 ${contextHint}
 ## Output
 Return ONLY valid JSON (no markdown, no code blocks):
-{"summary":"one-line","category":"auth|region|quota|rate_limit|model|network|proxy|content|server|context_length|payload|stream|parse|mcp|knowledge|ocr|deprecated|unknown","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
+{"summary":"one-line","category":"auth|permission|region|quota|rate_limit|model|network|proxy|content|server|context_length|payload|stream|parse|mcp|knowledge|ocr|deprecated|unknown","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
 
 ## Rules
 - 2-4 concrete steps, reference actual provider/model name from error
 - No URLs, no links, no restart suggestion, plain text only
 - Distinguish rate_limit (too many requests, transient, retry soon) from quota (billing/balance exhausted, not transient, must top up)
 - Distinguish region (geo-block, fix by proxy/switching provider) from auth (API key issue)
+- Distinguish permission (HTTP 403, request refused - plan/entitlement/resource access) from auth (key itself rejected)
 - For content (safety filter), suggest rephrasing, never billing/auth fixes
 
 ## Examples

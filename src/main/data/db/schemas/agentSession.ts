@@ -24,9 +24,16 @@ export const agentSessionTable = sqliteTable(
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
     ...orderKeyColumns,
+    // Dedicated conversation activity time. Name, owner, workspace and order
+    // changes must not move this column.
+    lastActivityAt: integer().notNull().$defaultFn(Date.now),
     ...createUpdateTimestamps
   },
-  (t) => [orderKeyIndex('agent_session')(t), index('agent_session_updated_at_idx').on(t.updatedAt)]
+  (t) => [
+    orderKeyIndex('agent_session')(t),
+    index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
+    index('agent_session_updated_at_idx').on(t.updatedAt)
+  ]
 )
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect

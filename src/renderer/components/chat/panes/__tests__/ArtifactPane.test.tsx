@@ -1324,7 +1324,13 @@ describe('ArtifactPane', () => {
     await waitFor(() =>
       expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace',
-        expect.objectContaining({ recursive: true, searchPattern: 'deep', maxEntries: 200 })
+        expect.objectContaining({
+          recursive: true,
+          includeFiles: true,
+          includeDirectories: false,
+          searchPattern: 'deep',
+          maxEntries: 200
+        })
       )
     )
     await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())

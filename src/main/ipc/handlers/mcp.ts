@@ -40,7 +40,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     if (senderId) application.get('ProtocolService').cancelPendingMcpInstallRequest(senderId, requestId)
   },
   // In-flight tool-call control.
-  'mcp.tool.abort_call': async ({ callId }) => application.get('McpRuntimeService').abortTool(callId),
+  'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
   // Package upload.
   'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
     application.get('McpPackageService').uploadDxt(buffer, fileName),

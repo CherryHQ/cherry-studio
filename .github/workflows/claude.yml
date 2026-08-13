@@ -1,6 +1,20 @@
-name: Claude Code
+name: Claude
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review"
+        required: true
+        type: string
+  pull_request:
+    types: [opened, ready_for_review, reopened]
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "src/**/*.ts"
+    #   - "src/**/*.tsx"
+    #   - "src/**/*.js"
+    #   - "src/**/*.jsx"
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -11,10 +25,114 @@ on:
     types: [submitted]
 
 jobs:
+  claude-review:
+    # Automatically review same-repository PRs, or manually review through Actions or @claude review.
+    # https://github.com/anthropics/claude-code-action/issues/542
+    if: |
+      (
+        (github.event_name == 'pull_request') &&
+        (github.event.pull_request.head.repo.full_name == github.repository) &&
+        (github.event.pull_request.draft == false)
+      ) || (
+        (github.event_name == 'issue_comment') &&
+        (github.event.issue.pull_request != null) &&
+        contains(github.event.comment.body, '@claude review') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      ) || (
+        github.event_name == 'workflow_dispatch'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Resolve manually requested PR
+        if: github.event_name == 'workflow_dispatch'
+        id: manual-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$REQUESTED_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR number must be a positive integer"
+            exit 1
+          fi
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$REQUESTED_PR_NUMBER")"
+          if [[ "$(jq -r '.state' <<< "$pr_json")" != "open" ]]; then
+            echo "::error::PR #$REQUESTED_PR_NUMBER is not open"
+            exit 1
+          fi
+
+          {
+            echo "number=$(jq -r '.number' <<< "$pr_json")"
+            echo "head_sha=$(jq -r '.head.sha' <<< "$pr_json")"
+            echo "base_ref=$(jq -r '.base.ref' <<< "$pr_json")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || format('refs/pull/{0}/head', github.event.issue.number) }}
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are performing a read-only, evidence-based review of the pull request below. Do not modify files, create commits, or change repository state.
+
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || steps.manual-pr.outputs.number }}
+            EVENT HEAD SHA: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || 'MANUAL_TRIGGER' }}
+            BASE BRANCH: ${{ github.event.pull_request.base.ref || steps.manual-pr.outputs.base_ref || 'resolve with gh pr view' }}
+
+            ## Plan and execute the review
+
+            Before reviewing the implementation in depth, create a concise internal review plan based on the PR intent, diff, repository guidance, size, risk, and affected subsystems. The plan must identify:
+            - the behavior or invariants the PR is expected to preserve or change;
+            - the affected subsystems, integration paths, and highest-risk boundaries;
+            - the concrete review angles and evidence needed to complete each one;
+            - whether to review directly or use multiple agents, with work divided by subsystem or risk rather than file count;
+            - how candidate findings will be verified, deduplicated, and published.
+
+            Do not publish the plan. Execute the review systematically against it, completing every planned angle. If new evidence materially changes the scope or risk, update the plan before continuing rather than expanding the review ad hoc.
+
+            Review a small, focused PR directly and perform an adversarial second pass. For a large, cross-cutting, or high-risk PR, launch the minimum useful number of independent read-only reviewer subagents in parallel according to the plan. Assign only angles relevant to the actual changes.
+
+            Each reviewer must follow the repository guidance, inspect sufficient context, cite exact evidence, and return candidate findings only. Reviewers must not modify files or post comments. After reviewers finish, if any candidates exist, launch one fresh read-only verifier subagent with no reviewer conversation history. Give it the combined candidate findings and require it to actively try to disprove each one by checking callers, invariants, platform constraints, intentional design, and current code. The verifier must return CONFIRM or REJECT with concrete evidence for every candidate. Skip the verifier only when all reviewers report no findings.
+
+            The main agent must confirm that the review plan is complete, synthesize the result, resolve disagreements, deduplicate overlaps and existing PR feedback visible in context, and independently re-read every surviving finding before publishing. Only the main agent may post GitHub comments.
+
+            ## Finding threshold and output
+
+            - Report only high-confidence issues caused or made reachable by this PR: runtime correctness, data loss, security, broken contracts, unsafe migration, concrete performance regressions, or clear project-boundary violations with a realistic maintenance cost.
+            - Every finding must identify an exact file and changed line, explain the violated behavior or project rule, give a realistic failure scenario and impact, and suggest the smallest reasonable fix or author decision.
+            - Use Blocker for runtime, data, security, contract, migration, or high-risk infrastructure failures; Warning for a concrete maintainability or ownership problem with a clear fix; Notice only when a specific design intent must be confirmed.
+            - Reject pure style preferences, formatter concerns, speculative future needs, optional refactors, pre-existing unrelated problems, duplicate comments, and missing guards when actual callers guarantee the precondition.
+            - Do not claim approval or merge readiness. CI, signatures, conflicts, and other process gates are separate from the code findings unless their evidence directly proves a defect in this PR.
+            - Use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true` for line-specific findings. Use `gh pr comment` only for a cross-cutting actionable finding or, when no findings survive verification, one concise top-level comment saying so.
+            - Do not post praise, change summaries, speculative suggestions, or review analysis. Only post the final GitHub comments; do not submit review text as ordinary messages.
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: |
+            --model ${{ vars.ANTHROPIC_MODEL }}
+            --allowedTools "Agent,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
   claude:
     if: |
       (github.event_name == 'issue_comment'
         && contains(github.event.comment.body, '@claude')
+        && !contains(github.event.comment.body, '@claude review')
         && contains(fromJSON('["COLLABORATOR","MEMBER","OWNER"]'), github.event.comment.author_association))
       ||
       (github.event_name == 'pull_request_review_comment'
@@ -34,7 +152,7 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -44,17 +162,11 @@ jobs:
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
             actions: read
-
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://docs.anthropic.com/en/docs/claude-code/sdk#command-line for available options
-          # claude_args: '--model claude-opus-4-1-20250805 --allowed-tools Bash(gh pr:*)'
+          claude_args: |
+            --model ${{ vars.ANTHROPIC_MODEL }}

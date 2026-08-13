@@ -8,7 +8,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
  * topicId / sessionId in the URL).
  *
  * Resolution order: the cross-window "last focused" id, validated by its by-id
- * endpoint, then the globally most-recently-updated conversation. `null` means
+ * endpoint, then the globally most-recently-active conversation. `null` means
  * nothing to resume — the route falls through bare and the page decides what to
  * show.
  *

@@ -1,13 +1,13 @@
 import { fileURLToPath } from 'node:url'
 
-import {
-  type Options,
-  type Query,
-  query as createClaudeQuery,
-  type SDKAssistantMessage,
-  type SDKPartialAssistantMessage,
-  type SDKResultMessage,
-  type SDKUserMessage
+import type {
+  Options,
+  Query,
+  query,
+  SDKAssistantMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -52,6 +52,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import {
+  ApiGatewayNotRunningError,
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
@@ -355,6 +356,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
+  private createQuery?: typeof query
   private closePromise?: Promise<void>
   /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
@@ -394,6 +397,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
+    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -401,7 +406,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    )
+    ).catch((error) => {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    })
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -439,6 +449,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.spawnOptions = options
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
+    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -732,6 +745,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
@@ -753,7 +767,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
   private tryRecoverWithoutResume(error: unknown): boolean {
-    if (this.resumeRecoveryRetried || !this.resumeToken || !this.spawnOptions || this.abortController.signal.aborted) {
+    const createClaudeQuery = this.createQuery
+    if (
+      this.resumeRecoveryRetried ||
+      !this.resumeToken ||
+      !this.spawnOptions ||
+      !createClaudeQuery ||
+      this.abortController.signal.aborted
+    ) {
       return false
     }
     const reason = getResumeRecoveryReason(error)

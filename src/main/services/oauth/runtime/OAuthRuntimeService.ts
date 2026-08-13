@@ -4,7 +4,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { WindowId } from '@shared/ipc/types'
 import { shell } from 'electron'
 
-import { describeOAuthError, OAuthServiceError, OAuthTransientError } from '../errors'
+import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
 import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
@@ -29,6 +29,15 @@ const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
  */
 type RefreshResult = { status: 'ok'; accessToken: string } | { status: 'terminal' } | { status: 'retriable' }
 
+type ActiveSignIn = {
+  operation: {
+    controller: AbortController
+    phase: 'discovery' | 'callback' | 'exchange' | 'persist'
+    requestIds: Set<string>
+  }
+  promise: Promise<OAuthAccount>
+}
+
 /**
  * A 4xx from the token endpoint means the refresh token is dead — except the
  * transient ones: 429 (rate limit), 408 (request timeout) and 425 (too early)
@@ -50,17 +59,32 @@ export class OAuthRuntimeService extends BaseService {
   private readonly transports = new Map<string, LoopbackCallbackTransport>()
   private readonly deepLinkTransports = new Map<string, DeepLinkCallbackTransport>()
   private readonly refreshPromises = new Map<string, Promise<RefreshResult>>()
+  private readonly activeSignIns = new Map<string, ActiveSignIn>()
+  private stopping = false
+  private teardownPromise: Promise<void> | null = null
 
-  protected onStop(): void {
-    this.closeTransports()
-    this.refreshPromises.clear()
+  protected onInit(): void {
+    this.stopping = false
+    this.teardownPromise = null
   }
 
-  protected onDestroy(): void {
-    this.closeTransports()
+  protected onStop(): Promise<void> {
+    return this.teardown()
   }
 
-  private closeTransports(): void {
+  protected onDestroy(): Promise<void> {
+    return this.teardown()
+  }
+
+  private teardown(): Promise<void> {
+    if (this.teardownPromise) return this.teardownPromise
+
+    this.stopping = true
+    const activePromises = [...this.activeSignIns.values()].map(({ operation, promise }) => {
+      if (this.isSignInCancellable(operation.phase)) operation.controller.abort()
+      return promise
+    })
+
     for (const transport of this.transports.values()) {
       transport.close()
     }
@@ -69,6 +93,15 @@ export class OAuthRuntimeService extends BaseService {
       transport.close()
     }
     this.deepLinkTransports.clear()
+
+    this.teardownPromise = Promise.allSettled(activePromises).then(() => {
+      this.refreshPromises.clear()
+    })
+    return this.teardownPromise
+  }
+
+  private isSignInCancellable(phase: ActiveSignIn['operation']['phase']): boolean {
+    return phase === 'discovery' || phase === 'callback'
   }
 
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
@@ -129,39 +162,117 @@ export class OAuthRuntimeService extends BaseService {
     )
   }
 
-  public signIn = async (providerId: string): Promise<OAuthAccount> => {
-    const definition = this.getDefinition(providerId)
-    const transport = this.getLoopbackTransport(definition)
-    // Reserve synchronously before the first await — a check-then-await guard
-    // lets a double-click start a second flow that kills the first (see
-    // LoopbackCallbackTransport.tryAcquire).
-    if (!transport.tryAcquire()) {
-      throw new OAuthServiceError(`A ${providerId} sign-in is already in progress`)
-    }
-
-    const timeout = AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)
+  private runSignIn = async (
+    definition: OAuthRuntimeProviderDefinition,
+    transport: LoopbackCallbackTransport,
+    operation: ActiveSignIn['operation']
+  ): Promise<OAuthAccount> => {
+    const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
     try {
-      const client = await definition.createClient()
+      const client = await definition.createClient({ signal })
+      if (operation.controller.signal.aborted) {
+        throw new OAuthSignInCancelledError(definition.providerId)
+      }
       const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
 
-      const codePromise = transport.waitForAuthorizationCode(state, timeout)
+      operation.phase = 'callback'
+      const codePromise = transport.waitForAuthorizationCode(state, signal)
       await shell.openExternal(authUrl)
       const code = await codePromise
 
+      operation.phase = 'exchange'
       const tokenData = await client.exchangeCode(code, codeVerifier)
+      if (this.stopping) {
+        throw new OAuthServiceError(`${definition.providerId} sign-in stopped before tokens were persisted`)
+      }
       // Persist the freshly minted tokens before any side effect: the auth code
       // is now spent, so a failing post-persist hook must not discard a valid
       // token and force a full re-auth.
+      operation.phase = 'persist'
       await this.persistTokens(definition, tokenData)
       await definition.afterPersistTokens?.(tokenData, {})
-      providerService.update(providerId, { isEnabled: true })
-      this.logger.info(`${providerId} sign-in succeeded`)
-      return this.getAccount(providerId)
+      providerService.update(definition.providerId, { isEnabled: true })
+      this.logger.info(`${definition.providerId} sign-in succeeded`)
+      return this.getAccount(definition.providerId)
     } catch (error) {
-      this.logger.error(`${providerId} sign-in failed`, describeOAuthError(error))
-      throw error instanceof OAuthServiceError ? error : new OAuthServiceError(`${providerId} sign-in failed`, error)
-    } finally {
-      transport.close()
+      if (this.isSignInCancellable(operation.phase) && operation.controller.signal.aborted) {
+        this.logger.info(`${definition.providerId} sign-in cancelled`)
+        throw new OAuthSignInCancelledError(definition.providerId)
+      }
+      this.logger.error(`${definition.providerId} sign-in failed`, describeOAuthError(error))
+      throw error instanceof OAuthServiceError
+        ? error
+        : new OAuthServiceError(`${definition.providerId} sign-in failed`, error)
+    }
+  }
+
+  public signIn = (providerId: string, requestId: string): Promise<OAuthAccount> => {
+    if (this.stopping) {
+      return Promise.reject(new OAuthServiceError('OAuth runtime is stopping'))
+    }
+
+    const existing = this.activeSignIns.get(providerId)
+    if (existing) {
+      existing.operation.requestIds.add(requestId)
+      return existing.promise
+    }
+
+    try {
+      const definition = this.getDefinition(providerId)
+      const transport = this.getLoopbackTransport(definition)
+      // Reserve synchronously before the first await — a check-then-await guard
+      // lets a double-click start a second flow that kills the first.
+      if (!transport.tryAcquire()) {
+        throw new OAuthServiceError(`A ${providerId} sign-in is already in progress`)
+      }
+
+      const operation: ActiveSignIn['operation'] = {
+        controller: new AbortController(),
+        phase: 'discovery',
+        requestIds: new Set([requestId])
+      }
+      const activeSignIn: ActiveSignIn = {
+        operation,
+        promise: this.runSignIn(definition, transport, operation).finally(() => {
+          if (this.activeSignIns.get(providerId) !== activeSignIn) return
+          this.activeSignIns.delete(providerId)
+          transport.close()
+        })
+      }
+      this.activeSignIns.set(providerId, activeSignIn)
+      return activeSignIn.promise
+    } catch (error) {
+      return Promise.reject(error)
+    }
+  }
+
+  public joinActiveSignIn = async (
+    providerId: string,
+    requestId: string
+  ): Promise<{ status: 'not-found' } | { status: 'completed'; account: OAuthAccount }> => {
+    this.getDefinition(providerId)
+    const activeSignIn = this.activeSignIns.get(providerId)
+    if (!activeSignIn) return { status: 'not-found' }
+    activeSignIn.operation.requestIds.add(requestId)
+    return { status: 'completed', account: await activeSignIn.promise }
+  }
+
+  public cancelSignIn = async (providerId: string, requestId: string): Promise<void> => {
+    this.getDefinition(providerId)
+    const activeSignIn = this.activeSignIns.get(providerId)
+    if (
+      !activeSignIn ||
+      !activeSignIn.operation.requestIds.has(requestId) ||
+      !this.isSignInCancellable(activeSignIn.operation.phase)
+    ) {
+      return
+    }
+
+    activeSignIn.operation.controller.abort()
+    try {
+      await activeSignIn.promise
+    } catch (error) {
+      if (!(error instanceof OAuthSignInCancelledError)) throw error
     }
   }
 

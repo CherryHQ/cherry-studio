@@ -38,7 +38,7 @@ const messageListSearchMock = vi.hoisted(() => ({
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
   setForceWideLayout: () => {},
-  setRailGutterPx: () => {}
+  setRailGutterPx: vi.fn()
 }))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
@@ -301,6 +301,7 @@ describe('MessageList', () => {
     messageGroupMountCounts.clear()
     messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.setRailGutterPx.mockReset()
   })
 
   it('exposes a stable message-list boundary', () => {
@@ -352,6 +353,23 @@ describe('MessageList', () => {
       paddingLeft: '48px',
       paddingRight: '48px'
     })
+  })
+
+  it('preserves the measured rail gutter when the message list unmounts', () => {
+    Object.defineProperty(messageVirtualListMocks.scrollElement!, 'clientWidth', { value: 820 })
+    const view = render(
+      <MessageListProvider
+        value={createValue([createMessage('assistant-1', 'assistant')], { messageNavigation: 'anchor' })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
+
+    chatLayoutModeMock.setRailGutterPx.mockClear()
+    view.unmount()
+
+    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {

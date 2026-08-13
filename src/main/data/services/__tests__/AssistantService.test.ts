@@ -24,6 +24,9 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 /**
  * Build a `ListAssistantsQuery` through the real zod schema so `page` / `limit`
  * defaults are exercised the same way the handler applies them. Tests stay
@@ -1234,11 +1237,13 @@ describe('AssistantDataService', () => {
         createdAt: 1_000,
         updatedAt: 1_000
       })
+      notifyDataApiDataChangeMock.mockClear()
 
       assistantDataService.delete('ast-1')
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('should delete assistant topics atomically when requested', async () => {

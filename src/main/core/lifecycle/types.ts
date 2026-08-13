@@ -60,6 +60,29 @@ export enum LifecycleState {
 }
 
 /**
+ * How a single service's teardown (`onStop` / `onDestroy`) ended.
+ *
+ * Orthogonal to `LifecycleState`, which does NOT encode it: an anything-but-
+ * `completed` outcome simply leaves the state where it was — `Stopping` for a
+ * stop, and for a destroy whatever preceded the call (`Stopped`, `Stopping`, or
+ * even `Ready`). The state machine says where the service is; this says how the
+ * framework's attempt ended. Only `completed` may produce a `SERVICE_STOPPED` /
+ * `SERVICE_DESTROYED` event.
+ */
+export type TeardownOutcome = 'completed' | 'timed_out' | 'failed'
+
+/**
+ * Aggregate result of a `stopAll()` / `destroyAll()` pass.
+ * Empty on both counts means the pass was clean.
+ */
+export interface TeardownSummary {
+  /** Services whose teardown exceeded the per-service ceiling and was abandoned */
+  timedOut: string[]
+  /** Services whose teardown threw, or was skipped because their stop was still in flight */
+  failed: string[]
+}
+
+/**
  * Error handling strategy for lifecycle operations
  */
 export type ErrorStrategy = 'fail-fast' | 'graceful' | 'custom'

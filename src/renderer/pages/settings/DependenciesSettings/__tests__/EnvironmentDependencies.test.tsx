@@ -479,11 +479,13 @@ describe('EnvironmentDependencies', () => {
   it('excludes Code CLI snapshots from the dependency grid', async () => {
     setSnapshots({
       claude: miseSnapshot('claude', 'claude'),
+      pi: miseSnapshot('pi', 'npm:@earendil-works/pi-coding-agent'),
       'some-agent': miseSnapshot('some-agent', 'npm:some-agent')
     })
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('some-agent')).toBeInTheDocument()
     expect(screen.queryByText('claude')).not.toBeInTheDocument()
+    expect(screen.queryByText('pi')).not.toBeInTheDocument()
   })
 
   it('uses latest versions for exactly applied tools regardless of a custom definition', async () => {

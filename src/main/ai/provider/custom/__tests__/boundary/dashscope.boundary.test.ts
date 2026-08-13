@@ -76,6 +76,31 @@ const CASES: Case[] = [
     })
   },
   {
+    name: 'chat-like (qwen-image-3.0) → messages[] + prompt_extend/watermark/negative_prompt',
+    input: {
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      n: 2,
+      size: '1328x1328',
+      modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
+      providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
+    } as ImageGenerationSubmitInput,
+    schema: z.strictObject({
+      model: z.string(),
+      input: z.strictObject({
+        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
+      }),
+      parameters: z.strictObject({
+        size: z.literal('1328*1328'),
+        n: z.literal(2),
+        negative_prompt: z.literal('blurry'),
+        prompt_extend: z.literal(true),
+        watermark: z.literal(false)
+      })
+    })
+  },
+  {
     name: 'wanx-v1 → input.ref_image + parameters.style/ref_*',
     input: {
       ...base,

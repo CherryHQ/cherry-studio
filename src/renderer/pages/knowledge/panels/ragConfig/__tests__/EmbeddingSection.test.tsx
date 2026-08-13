@@ -44,7 +44,7 @@ describe('EmbeddingSection', () => {
 
     expect(localOption).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'knowledge.rag.rerank_disabled' })).toBeInTheDocument()
-    expect(screen.queryByText('knowledge.not_set')).not.toBeInTheDocument()
+    expect(screen.queryByText('knowledge.rag.file_processing_none')).not.toBeInTheDocument()
 
     rerender(<EmbeddingSection embeddingModelId="openai::text-embedding-3-small" onEmbeddingModelChange={vi.fn()} />)
     expect(screen.getByText('local-model-option')).toBeInTheDocument()

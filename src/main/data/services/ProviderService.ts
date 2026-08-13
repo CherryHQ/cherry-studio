@@ -813,7 +813,7 @@ class ProviderService {
    * cannot be deleted. User-created providers that inherit from a preset can be deleted.
    */
   delete(providerId: string): void {
-    application.get('DbService').withWriteTx((tx) => {
+    const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({ presetProviderId: userProviderTable.presetProviderId })
         .from(userProviderTable)
@@ -863,7 +863,11 @@ class ProviderService {
       if (deleted.length === 0) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
+
+      return models.length
     })
+
+    if (deletedModelCount > 0) pinService.notifyPurged()
 
     logger.info('Deleted provider', { providerId })
   }

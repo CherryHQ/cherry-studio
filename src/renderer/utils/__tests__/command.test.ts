@@ -1,7 +1,8 @@
 import { findCommandDefinition } from '@shared/utils/command'
+import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 import { describe, expect, it } from 'vitest'
 
-import { getCommandShortcutLabel, getShortcutBindingFromKeyboardEvent, resolveCommandDisplayState } from '../command'
+import { getCommandShortcutLabel, resolveCommandDisplayState } from '../command'
 
 describe('getShortcutBindingFromKeyboardEvent', () => {
   it('normalizes command/control shortcuts by platform', () => {
@@ -25,6 +26,9 @@ describe('getShortcutBindingFromKeyboardEvent', () => {
       'CommandOrControl',
       '='
     ])
+    expect(
+      getShortcutBindingFromKeyboardEvent({ key: '+', code: 'Equal', ctrlKey: true, shiftKey: true }, 'win32')
+    ).toEqual(['CommandOrControl', 'Shift', '='])
   })
 })
 
@@ -35,6 +39,15 @@ describe('getCommandShortcutLabel', () => {
     )
     expect(getCommandShortcutLabel('topic.create', undefined, { context: {}, isMac: false, platform: 'win32' })).toBe(
       'Ctrl+N'
+    )
+  })
+
+  it('formats macOS tab navigation shortcuts as control-tab', () => {
+    expect(getCommandShortcutLabel('tab.next', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
+      '⌃Tab'
+    )
+    expect(getCommandShortcutLabel('tab.prev', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
+      '⌃⇧Tab'
     )
   })
 

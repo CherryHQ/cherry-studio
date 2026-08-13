@@ -438,6 +438,11 @@ export class ProviderModelMigrator extends BaseMigrator {
             logger.warn('Model with missing or empty id skipped', { providerId: provider.id, name: model?.name })
             continue
           }
+          if (!createModelId(provider.id, model.id)) {
+            skippedInvalidModels++
+            logger.warn('Model with invalid id skipped', { providerId: provider.id, modelId: model.id })
+            continue
+          }
           if (seenModelIds.has(model.id)) {
             skippedDuplicateModels++
             logger.warn('Duplicate model id skipped', { providerId: provider.id, modelId: model.id })
@@ -500,7 +505,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         warnings.push(`Skipped ${skippedInvalidId} provider(s) with missing or empty id`)
       }
       if (skippedInvalidModels > 0) {
-        warnings.push(`Skipped ${skippedInvalidModels} model(s) with missing or empty id`)
+        warnings.push(`Skipped ${skippedInvalidModels} model(s) with invalid id`)
       }
       if (skippedDuplicateModels > 0) {
         warnings.push(`Skipped ${skippedDuplicateModels} duplicate model(s)`)

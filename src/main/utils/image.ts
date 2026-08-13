@@ -1,4 +1,4 @@
-import sharp from 'sharp'
+import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
@@ -13,9 +13,24 @@ const MAX_ENTITY_INPUT_PIXELS = 100_000_000
  * decides how to react).
  */
 export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> {
+  // Delayed loading: a static import would map sharp's multi-MB libvips native library at boot.
+  const sharp = (await import('sharp')).default
   // Only the first frame of an animated GIF is used — fine for a 128² entity image.
   return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS })
     .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
     .webp()
     .toBuffer()
+}
+
+/**
+ * Re-encode image bytes to PNG, passing them through untouched when they already are one — for
+ * consumers that only decode PNG. Throws on input sharp cannot decode (BMP, or non-image bytes).
+ */
+export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
+  if ((await fileTypeFromBuffer(bytes))?.mime === 'image/png') {
+    return bytes
+  }
+
+  const sharp = (await import('sharp')).default
+  return sharp(bytes).png().toBuffer()
 }

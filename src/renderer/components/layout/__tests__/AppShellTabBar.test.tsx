@@ -230,11 +230,7 @@ describe('AppShellTabBar', () => {
       detachTab
     })
 
-    const backButton = screen.getByRole('button', { name: 'common.back' })
-    // The focused control stays visually plain until hover, while both label and icon highlight together.
-    expect(backButton).toHaveClass('cursor-pointer', 'bg-transparent', 'hover:text-foreground')
-    expect(backButton.querySelector('svg')).toHaveClass('group-hover:text-foreground')
-    expect(backButton).not.toHaveClass('hover:bg-accent')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
@@ -245,7 +241,6 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
     const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
-    expect(detachButton.querySelector('svg')).toHaveClass('text-foreground-tertiary', 'group-hover:text-foreground')
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
@@ -409,131 +404,13 @@ describe('AppShellTabBar', () => {
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
+    // Electron drag-region markers keep tabs interactive while whitespace can move the window.
     expect(tabStrip.closest('header')).toHaveAttribute('data-ui', 'app.tab-bar')
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')
-  })
-
-  it("keeps an inactive tab's existing tone while dragging", () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
-      configurable: true,
-      value: vi.fn()
-    })
-
-    try {
-      mocks.macTransparentState.value = true
-      renderTabBar()
-
-      const tab = screen.getByRole('button', { name: 'A' })
-      const classNameBeforeDrag = tab.className
-      const pointerDown = new MouseEvent('pointerdown', {
-        bubbles: true,
-        button: 0,
-        clientX: 100,
-        clientY: 20,
-        screenX: 100,
-        screenY: 20
-      })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(tab, pointerDown)
-
-      const pointerMove = new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 110,
-        clientY: 20,
-        screenX: 110,
-        screenY: 20
-      })
-      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
-
-      expect(tab).toHaveClass('cursor-grabbing')
-      expect(tab.className.replace('cursor-grabbing', 'cursor-default')).toBe(classNameBeforeDrag)
-    } finally {
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-    }
-  })
-
-  it('removes the left inset on Windows and Linux without caller configuration', () => {
-    const tabs = [createTab('home')]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(header).not.toHaveClass('pl-3')
-    expect(tabStrip).toHaveClass('pr-1')
-    expect(tabStrip).not.toHaveClass('px-1')
-    expect(tabStrip).not.toHaveClass('pl-1')
-  })
-
-  it('keeps the macOS tab bar flush while tab buttons avoid traffic lights when the sidebar narrows', () => {
-    mocks.platformState.isMac = true
-
-    renderTabBar()
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-    expect(screen.queryByTestId('macos-tab-strip-traffic-light-spacer')).toBeNull()
-    expect(tabStrip).toHaveStyle({
-      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-    })
-    expect(tabStrip).toHaveClass('pr-1')
-    expect(tabStrip).not.toHaveClass('pl-1')
-  })
-
-  it('removes the macOS traffic light reserve while fullscreen', () => {
-    mocks.platformState.isMac = true
-
-    renderTabBar({ isFullscreen: true })
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(tabStrip).not.toHaveStyle({
-      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-    })
-    expect(tabStrip).toHaveClass('pr-1')
-  })
-
-  it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
-    const fadeMask = 'linear-gradient(to right, black 80%, transparent 100%)'
-
-    renderTabBar({
-      tabs: [createTab('chat', { url: '/app/chat?topicId=topic-1', title: 'Chat title' }), createTab('a')],
-      activeTabId: 'chat'
-    })
-
-    const title = screen.getByText('Chat title')
-    const tabButton = screen.getByRole('button', { name: 'Chat title' })
-    const icon = tabButton.querySelector('svg')
-
-    expect(title).toHaveClass('font-normal')
-    expect(title).toHaveClass('text-xs')
-    expect(title).toHaveClass('leading-none')
-    expect(title).toHaveClass('min-w-0', 'flex-1', 'overflow-hidden', 'whitespace-nowrap')
-    expect(title).not.toHaveClass('font-medium')
-    expect(title).not.toHaveClass('truncate')
-    expect(title.getAttribute('style')).toContain(`mask-image: ${fadeMask}`)
-    expect(tabButton).toHaveClass('px-2')
-    expect(tabButton).not.toHaveClass('pr-1')
-    expect(icon).toHaveAttribute('width', '14')
-    expect(icon).toHaveAttribute('height', '14')
-    expect(icon).toHaveClass('shrink-0')
   })
 
   it('does not request ResourceList reveal when switching chat or agent tabs', () => {

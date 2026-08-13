@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   setActiveNode: vi.fn().mockResolvedValue(undefined),
   topicPending: false,
   eventEmit: vi.fn(),
+  useDataChange: vi.fn(),
   useQuery: vi.fn(),
   useMutation: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: mocks.useDataChange,
   useMutation: mocks.useMutation,
   useQuery: mocks.useQuery
 }))
@@ -237,7 +239,19 @@ describe('TopicBranchPanel', () => {
     })
   })
 
-  it('sets the active branch to the latest leaf passing through the selected node', async () => {
+  it('refetches an open tree after a cross-window tree change', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/topics/:topicId/tree', expect.any(Function), {
+      routeParams: { topicId: 'topic-1' }
+    })
+    const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    listener?.()
+
+    expect(mocks.refetchTree).toHaveBeenCalledOnce()
+  })
+
+  it('sets the active branch without a redundant tree refetch', async () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
@@ -251,7 +265,10 @@ describe('TopicBranchPanel', () => {
       body: { nodeId: 'leaf-1' },
       params: { id: 'topic-1' }
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
+      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+    })
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -503,7 +520,7 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('deletes a persisted empty message from its context menu', async () => {

@@ -1,6 +1,5 @@
 import { application } from '@application'
-import type { TokenUsageData } from '@cherrystudio/analytics-client'
-import { AnalyticsClient } from '@cherrystudio/analytics-client'
+import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -63,8 +62,9 @@ export class AnalyticsService extends BaseService implements Activatable {
     await this.reconciler.flush()
   }
 
-  onActivate(): void {
+  async onActivate(): Promise<void> {
     const clientId = getClientId()
+    const { AnalyticsClient } = await import('@cherrystudio/analytics-client')
 
     this.client = new AnalyticsClient({
       clientId,

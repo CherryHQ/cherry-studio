@@ -1,5 +1,6 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { render } from '@testing-library/react'
+import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -23,15 +24,23 @@ const stubApp = (id: string): MiniApp => ({
 const mocks = vi.hoisted(() => ({
   openedKeepAliveMiniApps: [] as MiniApp[],
   currentMiniAppId: '',
-  tabs: [] as { id: string; url: string }[],
-  activeTabId: ''
+  maxKeepAliveMiniApps: 10,
+  setOpenedKeepAliveMiniApps: vi.fn(),
+  tabs: [] as { id: string; url: string; isDormant?: boolean; isPinned?: boolean }[],
+  activeTabId: '',
+  clearWebviewState: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-    currentMiniAppId: mocks.currentMiniAppId
+    currentMiniAppId: mocks.currentMiniAppId,
+    setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps
   })
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.maxKeepAliveMiniApps]
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -42,11 +51,19 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
+  clearWebviewState: mocks.clearWebviewState,
   getWebviewLoaded: () => false,
   setWebviewLoaded: vi.fn()
 }))
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
+
+const PassiveEffectProbe = ({ onEffect }: { onEffect: () => void }) => {
+  useEffect(() => {
+    onEffect()
+  }, [onEffect])
+  return null
+}
 
 const renderedAppIds = (container: HTMLElement): string[] =>
   Array.from(container.querySelectorAll<HTMLElement>('[data-mini-app-id]')).map((el) => el.dataset.miniAppId as string)
@@ -58,8 +75,11 @@ describe('MiniAppTabsPool', () => {
   beforeEach(() => {
     mocks.openedKeepAliveMiniApps = []
     mocks.currentMiniAppId = ''
+    mocks.maxKeepAliveMiniApps = 10
+    mocks.setOpenedKeepAliveMiniApps.mockReset()
     mocks.tabs = []
     mocks.activeTabId = ''
+    mocks.clearWebviewState.mockReset()
   })
 
   it('renders webviews in stable appId-sorted order regardless of LRU order', () => {
@@ -113,5 +133,93 @@ describe('MiniAppTabsPool', () => {
 
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
     expect(renderedAppUrls(container)).toEqual(['https://renamed-alpha.example.com', 'https://bravo.example.com'])
+  })
+
+  it('trims the oldest unprotected webviews when the keep-alive cap decreases', () => {
+    const alpha = stubApp('alpha')
+    const bravo = stubApp('bravo')
+    const charlie = stubApp('charlie')
+    mocks.maxKeepAliveMiniApps = 1
+    mocks.openedKeepAliveMiniApps = [alpha, bravo, charlie]
+
+    const { container } = render(<MiniAppTabsPool />)
+
+    expect(renderedAppIds(container)).toEqual(['charlie'])
+    expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalledWith([charlie])
+    expect(mocks.clearWebviewState).toHaveBeenCalledWith('alpha')
+    expect(mocks.clearWebviewState).toHaveBeenCalledWith('bravo')
+  })
+
+  it('preserves awake pinned webviews while trimming an unpinned entry', () => {
+    const pinA = stubApp('pinA')
+    const unpinned = stubApp('unpinned')
+    const pinC = stubApp('pinC')
+    mocks.maxKeepAliveMiniApps = 1
+    mocks.openedKeepAliveMiniApps = [pinA, unpinned, pinC]
+    mocks.tabs = [
+      { id: 'pin-a', url: '/app/mini-app/pinA', isPinned: true },
+      { id: 'pin-c', url: '/app/mini-app/pinC', isPinned: true }
+    ]
+
+    const { container } = render(<MiniAppTabsPool />)
+
+    expect(renderedAppIds(container)).toEqual(['pinA', 'pinC'])
+    expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalledWith([pinA, pinC])
+    expect(mocks.clearWebviewState).toHaveBeenCalledWith('unpinned')
+  })
+
+  it('evicts a dormant pin from the global pool without evicting the active miniapp', () => {
+    const dormant = stubApp('dormant')
+    const pinned = stubApp('pinned')
+    const active = stubApp('active')
+    mocks.maxKeepAliveMiniApps = 2
+    mocks.openedKeepAliveMiniApps = [dormant, pinned, active]
+    mocks.currentMiniAppId = active.appId
+    mocks.tabs = [
+      { id: 'dormant-tab', url: '/app/mini-app/dormant', isPinned: true, isDormant: true },
+      { id: 'pinned-tab', url: '/app/mini-app/pinned', isPinned: true },
+      { id: 'active-tab', url: '/app/mini-app/active' }
+    ]
+    mocks.activeTabId = 'active-tab'
+
+    const { container } = render(<MiniAppTabsPool />)
+
+    expect(renderedAppIds(container)).toEqual(['active', 'pinned'])
+    expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalledWith([pinned, active])
+    expect(mocks.clearWebviewState).toHaveBeenCalledWith('dormant')
+    expect(mocks.clearWebviewState).not.toHaveBeenCalledWith('active')
+  })
+
+  it.each(['?source=assistant', '#details'])('protects the active miniapp when its tab URL ends with %s', (suffix) => {
+    const alpha = stubApp('alpha')
+    const bravo = stubApp('bravo')
+    mocks.maxKeepAliveMiniApps = 1
+    mocks.openedKeepAliveMiniApps = [alpha, bravo]
+    mocks.currentMiniAppId = alpha.appId
+    mocks.tabs = [{ id: 'active-tab', url: `/app/mini-app/alpha${suffix}` }]
+    mocks.activeTabId = 'active-tab'
+
+    const { container } = render(<MiniAppTabsPool />)
+
+    expect(renderedAppIds(container)).toEqual(['alpha'])
+    expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalledWith([alpha])
+    expect(mocks.clearWebviewState).toHaveBeenCalledWith('bravo')
+    expect(mocks.clearWebviewState).not.toHaveBeenCalledWith('alpha')
+  })
+
+  it('reconciles retention before sibling passive effects can update the keep-alive cache', () => {
+    const effectOrder: string[] = []
+    mocks.maxKeepAliveMiniApps = 1
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.setOpenedKeepAliveMiniApps.mockImplementation(() => effectOrder.push('pool'))
+
+    render(
+      <>
+        <PassiveEffectProbe onEffect={() => effectOrder.push('page')} />
+        <MiniAppTabsPool />
+      </>
+    )
+
+    expect(effectOrder).toEqual(['pool', 'page'])
   })
 })

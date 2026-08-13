@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildOpenCodeConfig, buildQwenConfig } from '../builders'
+import { buildOpenCodeConfig, buildPiModelsConfig, buildPiSettingsConfig, buildQwenConfig } from '../builders'
 
 describe('buildOpenCodeConfig', () => {
   it('adds string provider headers', () => {
@@ -76,6 +76,64 @@ describe('buildQwenConfig', () => {
     expect(result.security).toEqual({
       unrelated: true,
       auth: { someOtherField: 'keep-me', selectedType: 'openai' }
+    })
+  })
+})
+
+describe('Pi config builders', () => {
+  it('writes one Cherry-managed provider and preserves user providers', () => {
+    const result = buildPiModelsConfig(
+      {
+        userTop: 'keep',
+        providers: {
+          'cherry-old': { baseUrl: 'https://old.example' },
+          user: { baseUrl: 'https://user.example' }
+        }
+      },
+      {
+        api: 'openai-completions',
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.example.com/v1',
+        contextWindow: 128000,
+        headers: { 'X-Title': 'Cherry Studio' },
+        input: ['text', 'image'],
+        maxTokens: 8192,
+        model: 'model-id',
+        modelLabel: 'Model Label',
+        providerKey: 'cherry-example',
+        reasoning: true
+      }
+    )
+
+    expect(result).toEqual({
+      userTop: 'keep',
+      providers: {
+        user: { baseUrl: 'https://user.example' },
+        'cherry-example': {
+          baseUrl: 'https://api.example.com/v1',
+          api: 'openai-completions',
+          apiKey: 'sk-test',
+          headers: { 'X-Title': 'Cherry Studio' },
+          models: [
+            {
+              id: 'model-id',
+              name: 'Model Label',
+              reasoning: true,
+              input: ['text', 'image'],
+              contextWindow: 128000,
+              maxTokens: 8192
+            }
+          ]
+        }
+      }
+    })
+  })
+
+  it('sets Pi defaults without dropping unrelated settings', () => {
+    expect(buildPiSettingsConfig({ theme: 'light' }, { providerKey: 'cherry-example', model: 'model-id' })).toEqual({
+      theme: 'light',
+      defaultProvider: 'cherry-example',
+      defaultModel: 'model-id'
     })
   })
 })

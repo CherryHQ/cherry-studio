@@ -179,18 +179,17 @@
           "originalKey": "topicNamingModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "classified",
-          "category": "preferences",
+          "status": "deleted",
+          "category": null,
           "targetKey": null,
           "children": [
             {
               "category": null,
               "defaultValue": "gpt-4",
               "originalKey": "id",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
-              "type": "string",
-              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
+              "type": "string"
             },
             {
               "category": null,

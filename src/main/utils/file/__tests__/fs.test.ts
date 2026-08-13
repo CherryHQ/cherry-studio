@@ -107,7 +107,8 @@ describe('probeReadable', () => {
     expect(await probeReadable(path.join(tmp, 'nope') as AbsoluteFilePath)).toBe('missing')
   })
 
-  it("returns 'unverifiable' for a non-ENOENT failure", async () => {
+  // Windows reports ENOENT for this, so there is no non-ENOENT failure to provoke.
+  it.skipIf(process.platform === 'win32')("returns 'unverifiable' for a non-ENOENT failure", async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'x')
     // Treating a regular file as a directory parent yields ENOTDIR, not ENOENT, so the probe must

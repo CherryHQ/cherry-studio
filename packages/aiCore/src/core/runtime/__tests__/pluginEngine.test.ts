@@ -379,6 +379,20 @@ describe('PluginEngine', () => {
         )
       ).rejects.toThrow(ModelResolutionError)
     })
+
+    it('should reject a resolver that returns a non-V3 model', async () => {
+      const plugin: AiPlugin = {
+        name: 'legacy-resolver',
+        resolveModel: vi.fn().mockResolvedValue({
+          specificationVersion: 'v2',
+          provider: 'legacy',
+          modelId: 'legacy-model'
+        })
+      }
+      engine = new PluginEngine('openai', [plugin])
+
+      await expect(engine.resolveModel('legacy-model')).rejects.toThrow(ModelResolutionError)
+    })
   })
 
   describe('Parameter Transformation', () => {

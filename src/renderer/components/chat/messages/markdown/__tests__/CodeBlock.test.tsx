@@ -57,7 +57,7 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/markdown', () => ({
+vi.mock('@renderer/utils/markdownLight', () => ({
   getCodeBlockId: mocks.getCodeBlockId
 }))
 

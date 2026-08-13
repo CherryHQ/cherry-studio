@@ -1,8 +1,9 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { context, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 import { KB } from '@shared/utils/constants'
 
+import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../utils/customFetch'
 import { TRACER_NAME } from './constants'
 
 const logger = loggerService.withContext('httpTraceFetch')
@@ -55,6 +56,14 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
 
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const span = tracer.startSpan('http.request', {}, context.active())
+    // Hand the innermost fetch (customFetch) a slot to record the final on-wire
+    // body. Provider transforms between this span and the wire (DashScope
+    // web_extractor, Ark include-stripping, Codex/Grok coercion) rewrite the body
+    // after the initial capture below, so `inputs` is corrected once the request
+    // has actually been built. The symbol survives `{ ...init, body }` spreads.
+    const finalBodySlot: HttpTraceFinalBodySlot = {}
+    if (init)
+      (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot })[HTTP_TRACE_FINAL_BODY_SLOT] = finalBodySlot
     // Capturing request metadata must never break the real request: if any of the
     // url/header/body helpers throw, drop tracing for this call and fall back to
     // the untraced fetch.
@@ -82,11 +91,16 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     try {
       response = await innerFetch(input, init)
     } catch (error) {
+      // The request may still have been sent (customFetch records the body before
+      // net.fetch rejects) — reflect the real body on the errored span too.
+      applyFinalBodyInputs(span, init, maxBodyBytes)
       span.recordException(error as Error)
       span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
       span.end()
       throw error
     }
+
+    applyFinalBodyInputs(span, init, maxBodyBytes)
 
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
@@ -185,6 +199,21 @@ async function accumulateBody(
     signal?.removeEventListener('abort', onAbort)
   }
   return { body: truncate(acc, maxBytes), error: streamError }
+}
+
+/**
+ * Overwrite the span's `inputs` with the body the innermost fetch actually sent,
+ * when a provider transform rewrote it via the trace slot. No-op when the slot is
+ * absent (no transform in the chain) or carries no string body.
+ */
+function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBodyBytes: number): void {
+  const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+    HTTP_TRACE_FINAL_BODY_SLOT
+  ]
+  const finalBody = slot?.body
+  if (typeof finalBody !== 'string') return
+  const parsed = readRequestBody(finalBody, maxBodyBytes)
+  if (parsed !== undefined) span.setAttribute('inputs', stringifyBody(parsed))
 }
 
 function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): unknown {

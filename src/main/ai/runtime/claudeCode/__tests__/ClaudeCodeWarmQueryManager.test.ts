@@ -89,7 +89,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const abortController = new AbortController()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1', abortController } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1', abortController } as any })
 
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
     const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
@@ -109,7 +109,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const ignoredSpawn = vi.fn()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({
+    await manager.prewarm({
       key: 'session-1',
       options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn } as any
     })
@@ -128,8 +128,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const firstWarm = warmQuery(firstCleanup.promise)
     const secondWarm = warmQuery(secondCleanup.promise)
     startupMock.mockResolvedValueOnce(firstWarm).mockResolvedValueOnce(secondWarm)
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-    manager.prewarm({ key: 'session-2', options: { model: 'opus' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-2', options: { model: 'opus' } as any })
     await Promise.resolve()
 
     const closing = manager.closeAll()
@@ -160,7 +160,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
     await Promise.resolve()
 
     await expect(manager._doStop()).resolves.toBeUndefined()
@@ -169,9 +169,13 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
   it('does not reject stop when a warm cleanup fails', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery(Promise.reject(new Error('dispose failed')))
+    const cleanupFailure = Promise.reject(new Error('dispose failed'))
+    // Park a handler: prewarm yields to the SDK import before the dispose chain attaches the real
+    // one, so the bare rejection would otherwise be reported as unhandled.
+    cleanupFailure.catch(() => undefined)
+    const warm = warmQuery(cleanupFailure)
     startupMock.mockResolvedValueOnce(warm)
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
     await Promise.resolve()
 
     await expect(manager._doStop()).resolves.toBeUndefined()
@@ -184,8 +188,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const current = warmQuery()
     startupMock.mockResolvedValueOnce(stale).mockResolvedValueOnce(current)
 
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
-    manager.prewarm({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
 
     await Promise.resolve()
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
@@ -292,7 +296,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({
+    await manager.prewarm({
       key: 'session-1',
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
       credentialsFingerprint: 'set-1'
@@ -312,7 +316,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({
+    await manager.prewarm({
       key: 'session-1',
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
       credentialsFingerprint: 'set-1',
@@ -353,7 +357,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({
+    await manager.prewarm({
       key: 'session-1',
       options: { model: 'sonnet' } as any,
       credentialsFingerprint: 'set-1'
@@ -374,7 +378,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({
+    await manager.prewarm({
       key: 'session-1',
       options: { model: 'sonnet' } as any,
       knowledgeBaseIds: []
@@ -395,7 +399,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
     await Promise.resolve()
     vi.advanceTimersByTime(5 * 60 * 1000)
     await Promise.resolve()

@@ -67,10 +67,31 @@ export const resolveArtifactPaneFileSelection = (
   workspacePath: string | undefined,
   rawPath: string
 ): ArtifactPaneFileSelection | null => {
-  const normalized = normalizeTreePath(rawPath)
-  if (!normalized) return null
+  const normalizedRawPath = normalizeTreePath(rawPath)
+  if (!normalizedRawPath) return null
 
   const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  const normalizedWorkspacePath = parsedWorkspacePath?.success ? normalizeTreePath(parsedWorkspacePath.data) : null
+  const windowsWorkspaceMatch = normalizedWorkspacePath?.match(/^([A-Za-z]):\/(.+)$/)
+  const malformedWorkspacePrefix = windowsWorkspaceMatch
+    ? `${windowsWorkspaceMatch[1]}:${windowsWorkspaceMatch[2]}`.toLowerCase()
+    : null
+  const normalizedRawPathKey = normalizedRawPath.toLowerCase()
+  const isMalformedWorkspacePath =
+    malformedWorkspacePrefix !== null &&
+    (normalizedRawPathKey === malformedWorkspacePrefix ||
+      normalizedRawPathKey.startsWith(`${malformedWorkspacePrefix}/`))
+  if (
+    normalizedWorkspacePath &&
+    /^[A-Za-z]:\//.test(normalizedWorkspacePath) &&
+    /^[A-Za-z]:(?=[^/])/.test(normalizedRawPath) &&
+    !isMalformedWorkspacePath
+  ) {
+    return null
+  }
+  const normalized = isMalformedWorkspacePath
+    ? normalizedRawPath.replace(/^([A-Za-z]:)(?=[^/])/, '$1/')
+    : normalizedRawPath
   if (parsedWorkspacePath?.success) {
     const validWorkspacePath = parsedWorkspacePath.data
     const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)

@@ -59,15 +59,24 @@ describe('LoopbackCallbackTransport', () => {
     await expect(promise).resolves.toBe('the-code')
   })
 
-  it('rejects on a state mismatch (CSRF guard)', async () => {
+  it('ignores callbacks for another flow without settling the current flow', async () => {
     const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
     const port = await activePort(transport)
+    const observed = promise.then(
+      (code) => ({ status: 'resolved' as const, code }),
+      (error) => ({ status: 'rejected' as const, error })
+    )
 
-    // Attach the rejection handler before triggering the callback — the reject
-    // fires during the fetch round-trip, so awaiting after would flag it unhandled.
-    const rejection = expect(promise).rejects.toThrow(/state mismatch/)
-    await fetch(`http://127.0.0.1:${port}/callback?code=x&state=forged`)
-    await rejection
+    for (const query of ['code=old&state=stale', 'error=access_denied&state=stale', 'code=missing-state']) {
+      const res = await fetch(`http://127.0.0.1:${port}/callback?${query}`)
+      expect(res.status).toBe(200)
+      await expect(Promise.race([observed, Promise.resolve({ status: 'pending' as const })])).resolves.toEqual({
+        status: 'pending'
+      })
+    }
+
+    await fetch(`http://127.0.0.1:${port}/callback?code=current&state=expected`)
+    await expect(observed).resolves.toEqual({ status: 'resolved', code: 'current' })
   })
 
   it('rejects when the provider returns an error', async () => {

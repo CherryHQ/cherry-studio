@@ -319,7 +319,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
   }
 
-  private toProviderToolName(toolName: string): string {
+  /** Wire-safe name for a client tool name (identity when already compatible). */
+  toProviderToolName(toolName: string): string {
     return this.providerToolNames.get(toolName) ?? this.registerProviderToolName(toolName)
   }
 

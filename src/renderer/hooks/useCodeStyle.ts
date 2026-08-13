@@ -9,6 +9,7 @@ interface CodeStyleContextType {
   getShikiPreProperties: (language: string) => Promise<ShikiPreProperties>
   highlightCode: (code: string, language: string) => Promise<string>
   shikiMarkdownIt: (code: string) => Promise<string>
+  loadThemeNames: () => Promise<string[]>
   themeNames: string[]
   activeShikiTheme: string
   isShikiThemeDark: boolean

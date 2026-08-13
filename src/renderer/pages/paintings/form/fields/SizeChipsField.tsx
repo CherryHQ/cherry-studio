@@ -85,7 +85,6 @@ export default function SizeChipsField({
             type="button"
             key={optionValue}
             disabled={disabled}
-            title={label}
             className={cn(
               chipClass.base,
               isSelected ? chipClass.active : chipClass.inactive,

@@ -59,8 +59,8 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

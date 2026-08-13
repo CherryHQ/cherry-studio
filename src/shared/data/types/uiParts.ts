@@ -20,6 +20,7 @@
  * - data-knowledge-scope (knowledge bases available to this user turn)
  * - data-clear (context boundary marker)
  * - data-code (code blocks)
+ * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
@@ -108,6 +109,25 @@ export interface CodePartData {
   language: string
 }
 
+/**
+ * Model retry/fallback status. Transient: emitted live while a chat model call
+ * is being retried or failed over to a fallback model, and stripped before the
+ * assistant message is persisted (see PersistenceListener). Never written to DB.
+ */
+export type RetryPartData =
+  | {
+      state: 'retrying'
+      /** Model id that will handle the upcoming attempt. */
+      modelId: string
+      /** 1-based number of the upcoming attempt, including the original call. */
+      attempt: number
+      /** Short human reason, e.g. "http 429: rate limit exceeded". */
+      reason: string
+    }
+  | {
+      state: 'settled'
+    }
+
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
 // ============================================================================
@@ -127,6 +147,7 @@ export type CherryDataPartTypes = {
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData
+  retry: RetryPartData
 }
 
 // ============================================================================

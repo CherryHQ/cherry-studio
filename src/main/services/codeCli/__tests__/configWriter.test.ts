@@ -82,6 +82,30 @@ describe('writeCliConfigFiles', () => {
     }
   })
 
+  it('deletes a requested config file', async () => {
+    await mkdir(path.dirname(codexAuth()), { recursive: true })
+    await writeFile(codexAuth(), '{"auth_mode":"apikey"}\n')
+
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-auth', delete: true }])
+
+    await expect(stat(codexAuth())).rejects.toThrow()
+  })
+
+  it('restores a deleted file when a later mutation fails', async () => {
+    await mkdir(path.dirname(codexAuth()), { recursive: true })
+    await writeFile(codexAuth(), '{"auth_mode":"apikey"}\n')
+    vi.mocked(atomicWriteFile).mockRejectedValueOnce(new Error('disk full')).mockImplementationOnce(actualWrite)
+
+    await expect(
+      writeCliConfigFiles(CodeCli.OPENAI_CODEX, [
+        { target: 'codex-auth', delete: true },
+        { target: 'codex-config', content: 'model = "new"\n' }
+      ])
+    ).rejects.toThrow('disk full')
+
+    expect(await readFile(codexAuth(), 'utf-8')).toBe('{"auth_mode":"apikey"}\n')
+  })
+
   it('rejects a target that is not a config file of the tool, writing nothing', async () => {
     await expect(writeCliConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'codex-auth', content: '{}' }])).rejects.toThrow(
       'codex-auth is not a config file of claude-code'

@@ -1,7 +1,6 @@
-import fs, { createReadStream } from 'node:fs'
+import { createReadStream } from 'node:fs'
 
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { GB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 import type {
@@ -11,8 +10,6 @@ import type {
   PreparedDoc2xStartContext
 } from './types'
 import { Doc2xExportStatusResponseSchema, Doc2xParseStatusResponseSchema, Doc2xPreuploadResponseSchema } from './types'
-
-const DOC2X_MAX_FILE_SIZE = GB
 
 export async function createUploadTask(context: PreparedDoc2xStartContext): Promise<{
   uid: string
@@ -54,12 +51,6 @@ export async function uploadFile(
   configuredApiHost: string,
   signal?: AbortSignal
 ): Promise<void> {
-  const stat = await fs.promises.stat(filePath)
-
-  if (stat.size >= DOC2X_MAX_FILE_SIZE) {
-    throw new Error('Doc2x file is too large (must be smaller than 1GB)')
-  }
-
   const safeUploadUrl = sanitizeRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(filePath)
 

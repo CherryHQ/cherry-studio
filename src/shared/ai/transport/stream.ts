@@ -5,6 +5,21 @@ import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
+export const aiStreamAdmissionReasons = {
+  SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
+  TARGET_NOT_IN_LIVE_GROUP: 'TARGET_NOT_IN_LIVE_GROUP',
+  MODEL_ALREADY_IN_LIVE_GROUP: 'MODEL_ALREADY_IN_LIVE_GROUP',
+  EXECUTION_NOT_READY: 'EXECUTION_NOT_READY',
+  EXECUTION_CHANGED: 'EXECUTION_CHANGED',
+  TOPIC_BUSY: 'TOPIC_BUSY'
+} as const
+
+export type AiStreamAdmissionReason = (typeof aiStreamAdmissionReasons)[keyof typeof aiStreamAdmissionReasons]
+
+export function isAiStreamAdmissionReason(value: unknown): value is AiStreamAdmissionReason {
+  return Object.values(aiStreamAdmissionReasons).some((reason) => reason === value)
+}
+
 export interface AiChatRequestBody extends AssistantTurnOptions {
   /** Topic ID for message routing and persistence. */
   topicId: string
@@ -25,6 +40,8 @@ export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
   executionId?: UniqueModelId
+  /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
+  attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
   chunk: UIMessageChunk
@@ -55,7 +72,11 @@ export type TopicStreamStatus =
  */
 export interface ActiveExecution {
   executionId: UniqueModelId
+  /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
+  attemptId: number
   anchorMessageId?: string
+  /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
+  seedFromEmpty?: boolean
 }
 
 /** Chat-tree target captured when a queued draft is created. */
@@ -113,10 +134,21 @@ export interface TopicStatusSnapshotEntry {
   lastCompletedAt?: number
 }
 
+type AiStreamRegenerateTarget =
+  /** Reset and retry one failed assistant row in place. */
+  | { retryMessageId: string; appendToLiveGroupMessageId?: never }
+  /** Append one model response to the selected live reply group. */
+  | { retryMessageId?: never; appendToLiveGroupMessageId: string }
+  /** Ordinary regeneration creates a sibling response. */
+  | { retryMessageId?: never; appendToLiveGroupMessageId?: never }
+
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
   executionId?: UniqueModelId
+  attemptId?: number
+  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   status: 'success' | 'paused'
   isTopicDone?: boolean
@@ -127,6 +159,9 @@ export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
+  attemptId?: number
+  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean
@@ -161,22 +196,25 @@ export type AiStreamOpenRequest = {
       userMessageParts: CherryMessagePart[]
       /** Target intent captured by the chat composer; reserved intent must never degrade into a live steer. */
       targetMode?: ComposerChatTarget['mode']
+      retryMessageId?: never
+      appendToLiveGroupMessageId?: never
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
     }
-  | {
+  | ({
       /** Re-run the assistant under an existing user msg. */
       trigger: 'regenerate-message'
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      targetMode?: never
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
-    }
+    } & AiStreamRegenerateTarget)
 )
 
 /**
@@ -262,32 +300,20 @@ export type AiStreamOpenResponse =
        * `'injected'` — a stream was already live, or an enqueue-only turn
        *                 intentionally launched no models. The subscriber was
        *                 attached to the running stream instead of starting a
-       *                 turn; chat steers may still include `userMessageId` /
-       *                 `reservedMessages` for the queued user row.
+       *                 turn; chat steers may still include `reservedMessages`
+       *                 for the queued user row.
        */
       mode: 'started' | 'injected'
-      /** Multi-model: execution IDs for frontend to create per-model streams. */
-      executionIds?: UniqueModelId[]
-      /**
-       * Authoritative DB id of the user message created for this turn, when the
-       * dispatch created one (submit on a persisted topic; agent session).
-       * Absent for regenerate / continue / temporary topics. The renderer joins
-       * its optimistic user bubble against this.
-       */
-      userMessageId?: string
+      /** Runtime identities, including per-attempt ids, for optimistic stream attachment. */
+      activeExecutions?: ActiveExecution[]
+      /** The reservation deliberately left the topic's persisted active node unchanged. */
+      preserveActiveNode?: boolean
       /**
        * Authoritative persisted message skeletons reserved before the stream starts. Contract
        * intent: a consumer may seed these into its view immediately for an optimistic render, then
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
-      /**
-       * Assistant placeholder ids derived from `reservedMessages` (its assistant rows, or the
-       * per-model `request.messageId` fallback). The v2 home page reads this through
-       * `usePendingMessages` (via `V2ChatContent`) as the join key for reconciling its optimistic
-       * pending bubbles against the persisted rows.
-       */
-      placeholderIds?: string[]
     }
   | {
       mode: 'blocked'

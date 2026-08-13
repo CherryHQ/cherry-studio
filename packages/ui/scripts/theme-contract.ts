@@ -100,7 +100,12 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'highlight',
   'highlight-foreground',
   'highlight-accent',
-  'chat-user'
+  'chat-user',
+  'resource-list-row-hover',
+  'resource-list-row-active',
+  'resource-list-row-active-foreground',
+  'resource-list-row-selected',
+  'resource-list-row-selected-foreground'
 ] as const
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
@@ -126,7 +131,12 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'error',
   'error-subtle',
   'error-subtle-foreground',
-  'error-border'
+  'error-border',
+  'resource-list-row-hover',
+  'resource-list-row-active',
+  'resource-list-row-active-foreground',
+  'resource-list-row-selected',
+  'resource-list-row-selected-foreground'
 ] as const
 
 /**
@@ -155,5 +165,7 @@ export const CHERRY_PRODUCT_SURFACE_PAIRS = [
   ['error-subtle', 'error-subtle-foreground'],
   ['inline-code', 'inline-code-foreground'],
   ['reference', 'reference-foreground'],
-  ['highlight', 'highlight-foreground']
+  ['highlight', 'highlight-foreground'],
+  ['resource-list-row-active', 'resource-list-row-active-foreground'],
+  ['resource-list-row-selected', 'resource-list-row-selected-foreground']
 ] as const

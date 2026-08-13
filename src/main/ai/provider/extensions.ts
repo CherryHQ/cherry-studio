@@ -1,66 +1,52 @@
 /** App-specific Provider Extensions registered alongside `coreExtensions`. */
 
-import {
-  type AmazonBedrockProvider,
-  type AmazonBedrockProviderSettings,
-  createAmazonBedrock
-} from '@ai-sdk/amazon-bedrock'
-import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
-import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
+import type { AmazonBedrockProvider, AmazonBedrockProviderSettings } from '@ai-sdk/amazon-bedrock'
+import type { ByteDanceProviderSettings } from '@ai-sdk/bytedance'
+import type { CerebrasProviderSettings } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
-import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
-import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
-import {
-  createVertexMaas,
-  type GoogleVertexMaasProvider,
-  type GoogleVertexMaasProviderSettings
-} from '@ai-sdk/google-vertex/maas/edge'
-import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
-import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
-import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
-import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
+import type { GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
+import type { GoogleVertexProvider, GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import type { GoogleVertexMaasProvider, GoogleVertexMaasProviderSettings } from '@ai-sdk/google-vertex/maas/edge'
+import type { GroqProviderSettings } from '@ai-sdk/groq'
+import type { HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
+import type { MistralProviderSettings } from '@ai-sdk/mistral'
+import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
-import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
+import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
-import {
-  createGitHubCopilotOpenAICompatible,
-  type GitHubCopilotProviderSettings
-} from '@opeoginni/github-copilot-openai-compatible'
+import type { GitHubCopilotProviderSettings } from '@opeoginni/github-copilot-openai-compatible'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
-import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
+import type { VoyageProviderSettings } from 'voyage-ai-provider'
 
-import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix/aihubmixProvider'
-import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
-import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
-import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
-import {
-  createLocalEmbeddingProvider,
-  type LocalEmbeddingProviderSettings
-} from './custom/localEmbedding/localEmbeddingProvider'
-import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
-import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
-import {
+import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
+import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
+import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
+import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
+import type { MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
+import type { ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
+import type {
   createKimiWebSearchToolFor,
-  createMoonshotProvider,
   KIMI_WEB_SEARCH_TOOL_NAME,
-  type KimiFormulaCredentials,
-  type MoonshotProvider,
-  type MoonshotProviderSettings
+  KimiFormulaCredentials,
+  MoonshotProvider,
+  MoonshotProviderSettings
 } from './custom/moonshotProvider'
-import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
-import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
-import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
-import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
-import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
-import { createZhipuProvider, type ZhipuProviderSettings } from './custom/zhipuProvider'
+import type { NewApiProviderSettings } from './custom/newapiProvider'
+import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
+import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
+import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
+import type { ZhipuProviderSettings } from './custom/zhipuProvider'
+
+let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
+let moonshotWebSearchToolName: typeof KIMI_WEB_SEARCH_TOOL_NAME | undefined
 
 export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
   aliases: ['vertexai'] as const,
   supportsImageGeneration: true,
-  create: createVertex,
+  create: async (settings) => (await import('@ai-sdk/google-vertex/edge')).createVertex(settings),
   toolFactories: {
     webSearch:
       (provider: GoogleVertexProvider) =>
@@ -79,7 +65,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: createVertexAnthropic,
+  create: async (settings) => (await import('@ai-sdk/google-vertex/anthropic/edge')).createVertexAnthropic(settings),
   toolFactories: {
     webSearch:
       (provider: GoogleVertexAnthropicProvider) =>
@@ -104,7 +90,7 @@ export const GoogleVertexMaaSExtension = ProviderExtension.create({
   name: 'google-vertex-maas',
   aliases: ['vertexai-maas'] as const,
   supportsImageGeneration: false,
-  create: createVertexMaas
+  create: async (settings) => (await import('@ai-sdk/google-vertex/maas/edge')).createVertexMaas(settings)
 } as const satisfies ProviderExtensionConfig<
   GoogleVertexMaasProviderSettings,
   GoogleVertexMaasProvider,
@@ -116,8 +102,10 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
   // Cast because the upstream package doesn't fully implement `ProviderV3`.
-  create: (options?: GitHubCopilotProviderSettings) =>
-    createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV3
+  create: async (options?: GitHubCopilotProviderSettings) =>
+    (await import('@opeoginni/github-copilot-openai-compatible')).createGitHubCopilotOpenAICompatible(
+      options
+    ) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
   ProviderV3,
@@ -128,7 +116,7 @@ export const BedrockExtension = ProviderExtension.create({
   name: 'bedrock',
   aliases: ['aws-bedrock'] as const,
   supportsImageGeneration: true,
-  create: createAmazonBedrock,
+  create: async (settings) => (await import('@ai-sdk/amazon-bedrock')).createAmazonBedrock(settings),
   // Bedrock runs Anthropic models, whose `tools` expose the same server-side
   // web-search / web-fetch factories as the native `anthropic` extension.
   toolFactories: {
@@ -148,52 +136,53 @@ export const BedrockExtension = ProviderExtension.create({
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
-  create: createPerplexity
+  create: async (settings) => (await import('@ai-sdk/perplexity')).createPerplexity(settings)
 } as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
 
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
   supportsImageGeneration: false,
-  create: createMistral
+  create: async (settings) => (await import('@ai-sdk/mistral')).createMistral(settings)
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
 
 export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
   aliases: ['hf', 'hugging-face'] as const,
   supportsImageGeneration: true,
-  create: createHuggingFace
+  create: async (settings) => (await import('@ai-sdk/huggingface')).createHuggingFace(settings)
 } as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ProviderV3, 'huggingface'>)
 
 export const GatewayExtension = ProviderExtension.create({
   name: 'gateway',
   aliases: ['ai-gateway'] as const,
   supportsImageGeneration: true,
-  create: createGatewayWithImageModel
+  create: async (settings) => (await import('./custom/gateway/gatewayProvider')).createGatewayWithImageModel(settings)
 } as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV3, 'gateway'>)
 
 export const CerebrasExtension = ProviderExtension.create({
   name: 'cerebras',
   supportsImageGeneration: false,
-  create: createCerebras
+  create: async (settings) => (await import('@ai-sdk/cerebras')).createCerebras(settings)
 } as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ProviderV3, 'cerebras'>)
 
 export const GroqExtension = ProviderExtension.create({
   name: 'groq',
   supportsImageGeneration: false,
-  create: createGroq
+  create: async (settings) => (await import('@ai-sdk/groq')).createGroq(settings)
 } as const satisfies ProviderExtensionConfig<GroqProviderSettings, ProviderV3, 'groq'>)
 
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: true,
-  create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
+  create: async (options?: OllamaProviderSettings) =>
+    (await import('./custom/ollama/ollamaProvider')).createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
 export const MinimaxExtension = ProviderExtension.create({
   name: 'minimax',
   aliases: ['minimax-global'] as const,
   supportsImageGeneration: true,
-  create: createMinimaxProvider
+  create: async (settings) => (await import('./custom/minimax/minimaxProvider')).createMinimaxProvider(settings)
 } as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
 
 /**
@@ -204,7 +193,12 @@ export const MinimaxExtension = ProviderExtension.create({
 export const MoonshotExtension = ProviderExtension.create({
   name: 'moonshot',
   supportsImageGeneration: false,
-  create: createMoonshotProvider,
+  create: async (settings) => {
+    const module = await import('./custom/moonshotProvider')
+    moonshotWebSearchToolFactory = module.createKimiWebSearchToolFor
+    moonshotWebSearchToolName = module.KIMI_WEB_SEARCH_TOOL_NAME
+    return module.createMoonshotProvider(settings)
+  },
   toolFactories: {
     // Unlike the descriptor-only factories, this one EXECUTES, so it needs a credential. It cannot
     // come from the provider argument: `getToolProvider` re-creates the instance with no settings
@@ -212,9 +206,16 @@ export const MoonshotExtension = ProviderExtension.create({
     // through the plugin config instead (buildProviderBuiltinWebSearchConfig).
     webSearch:
       () =>
-      (credentials: KimiFormulaCredentials = {}) => ({
-        tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchToolFor(credentials) }
-      })
+      (credentials: KimiFormulaCredentials = {}) => {
+        if (!moonshotWebSearchToolFactory || !moonshotWebSearchToolName) {
+          throw new Error('Moonshot provider module was not loaded before resolving its tools')
+        }
+        return {
+          tools: {
+            [moonshotWebSearchToolName]: moonshotWebSearchToolFactory(credentials)
+          }
+        }
+      }
   }
 } as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 
@@ -222,7 +223,7 @@ export const MoonshotExtension = ProviderExtension.create({
 export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
   supportsImageGeneration: true,
-  create: createAihubmix
+  create: async (settings) => (await import('./custom/aihubmix/aihubmixProvider')).createAihubmix(settings)
 } as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'>)
 
 /** NewAPI — multi-backend gateway routed by endpoint_type. */
@@ -230,14 +231,14 @@ export const NewApiExtension = ProviderExtension.create({
   name: 'newapi',
   aliases: ['new-api', 'o3'] as const,
   supportsImageGeneration: true,
-  create: createNewApi
+  create: async (settings) => (await import('./custom/newapiProvider')).createNewApi(settings)
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
 
 export const TogetherAIExtension = ProviderExtension.create({
   name: 'togetherai',
   aliases: [SystemProviderIds.together] as const,
   supportsImageGeneration: true,
-  create: createTogetherAI
+  create: async (settings) => (await import('@ai-sdk/togetherai')).createTogetherAI(settings)
 } as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
 
 /**
@@ -246,7 +247,7 @@ export const TogetherAIExtension = ProviderExtension.create({
 export const PpioExtension = ProviderExtension.create({
   name: 'ppio',
   supportsImageGeneration: true,
-  create: createPpioProvider
+  create: async (settings) => (await import('./custom/ppio/ppioProvider')).createPpioProvider(settings)
 } as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV3, 'ppio'>)
 
 /**
@@ -255,7 +256,7 @@ export const PpioExtension = ProviderExtension.create({
 export const DmxapiExtension = ProviderExtension.create({
   name: 'dmxapi',
   supportsImageGeneration: true,
-  create: createDmxapiProvider
+  create: async (settings) => (await import('./custom/dmxapi/dmxapiProvider')).createDmxapiProvider(settings)
 } as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'>)
 
 /**
@@ -264,7 +265,7 @@ export const DmxapiExtension = ProviderExtension.create({
 export const SiliconExtension = ProviderExtension.create({
   name: 'silicon',
   supportsImageGeneration: true,
-  create: createSiliconProvider
+  create: async (settings) => (await import('./custom/silicon/siliconProvider')).createSiliconProvider(settings)
 } as const satisfies ProviderExtensionConfig<SiliconProviderSettings, ProviderV3, 'silicon'>)
 
 /**
@@ -273,7 +274,7 @@ export const SiliconExtension = ProviderExtension.create({
 export const ZhipuExtension = ProviderExtension.create({
   name: 'zhipu',
   supportsImageGeneration: true,
-  create: createZhipuProvider
+  create: async (settings) => (await import('./custom/zhipuProvider')).createZhipuProvider(settings)
 } as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
 
 /**
@@ -294,7 +295,7 @@ export const ZhipuExtension = ProviderExtension.create({
 export const DoubaoExtension = ProviderExtension.create({
   name: 'doubao',
   supportsImageGeneration: true,
-  create: createByteDance
+  create: async (settings) => (await import('@ai-sdk/bytedance')).createByteDance(settings)
 } as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
 
 /**
@@ -303,7 +304,7 @@ export const DoubaoExtension = ProviderExtension.create({
 export const OvmsExtension = ProviderExtension.create({
   name: 'ovms',
   supportsImageGeneration: true,
-  create: createOvmsProvider
+  create: async (settings) => (await import('./custom/ovms/ovmsProvider')).createOvmsProvider(settings)
 } as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV3, 'ovms'>)
 
 /**
@@ -313,7 +314,8 @@ export const OvmsExtension = ProviderExtension.create({
 export const ModelscopeExtension = ProviderExtension.create({
   name: 'modelscope',
   supportsImageGeneration: true,
-  create: createModelscopeProvider
+  create: async (settings) =>
+    (await import('./custom/modelscope/modelscopeProvider')).createModelscopeProvider(settings)
 } as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV3, 'modelscope'>)
 
 /**
@@ -327,7 +329,7 @@ export const DashScopeExtension = ProviderExtension.create({
   name: 'dashscope',
   aliases: ['bailian'] as const,
   supportsImageGeneration: true,
-  create: createDashScopeProvider
+  create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
@@ -337,7 +339,7 @@ export const VoyageExtension = ProviderExtension.create({
   name: 'voyage',
   aliases: [SystemProviderIds.voyageai] as const,
   supportsImageGeneration: false,
-  create: createVoyage
+  create: async (settings) => (await import('voyage-ai-provider')).createVoyage(settings)
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
 /**
@@ -347,7 +349,8 @@ export const VoyageExtension = ProviderExtension.create({
 export const LocalEmbeddingExtension = ProviderExtension.create({
   name: LOCAL_EMBEDDING_PROVIDER_ID,
   supportsImageGeneration: false,
-  create: createLocalEmbeddingProvider
+  create: async (settings) =>
+    (await import('./custom/localEmbedding/localEmbeddingProvider')).createLocalEmbeddingProvider(settings)
 } as const satisfies ProviderExtensionConfig<
   LocalEmbeddingProviderSettings,
   ProviderV3,

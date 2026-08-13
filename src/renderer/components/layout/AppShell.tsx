@@ -37,6 +37,7 @@ export const AppShell = () => {
     openTab
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const canCycleTabs = tabs.length > 1 && !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
@@ -81,7 +82,23 @@ export const AppShell = () => {
     void GlobalSearchPopup.show()
   }, [isSettingsTabActive])
 
+  // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
+  const cycleTab = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (tabs.length <= 1) return
+      const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
+      if (currentIndex === -1) return
+
+      const offset = direction === 'next' ? 1 : -1
+      const nextIndex = (currentIndex + offset + tabs.length) % tabs.length
+      setActiveTab(tabs[nextIndex].id)
+    },
+    [tabs, activeTabId, setActiveTab]
+  )
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
   useEffect(() => {
     if (isSettingsTabActive) {

@@ -107,6 +107,18 @@ describe('usePins', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: true, query: { entityType: 'model' } })
   })
 
+  it('refetches mounted pins when another window changes pin data', () => {
+    const refetch = wirePins([MODEL_PIN_A])
+    wireMutations()
+    renderHook(() => usePins('model'))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('disables the /pins query and toggle when enabled is false', async () => {
     const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
     wirePins([MODEL_PIN_A])

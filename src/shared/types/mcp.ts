@@ -16,7 +16,7 @@ export type McpServerLogEntry = {
  * process `McpCatalogService` is the sole producer.
  */
 export interface McpTool {
-  /** Wire-name; `${serverName}__${toolName}` for server tools, synthetic for descriptor-only. */
+  /** AI SDK wire ID; readable slugs use display names, while the identity digest uses `serverId` + original `name`. */
   id: string
   /** Original protocol-level tool name. */
   name: string

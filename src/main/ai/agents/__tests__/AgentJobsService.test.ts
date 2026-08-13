@@ -484,6 +484,7 @@ describe('AgentJobsService', () => {
         name: 'Scheduled task',
         workspace: { type: 'system' }
       })
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(
         service.bindTaskSessionReuse({

@@ -16,3 +16,10 @@ export const OPEN_CODE_ENDPOINTS: readonly EndpointType[] = [
   'openai-responses',
   'openai-chat-completions'
 ]
+
+export const PI_ENDPOINTS: readonly EndpointType[] = [
+  'google-generate-content',
+  'anthropic-messages',
+  'openai-responses',
+  'openai-chat-completions'
+]

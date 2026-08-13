@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export type ConversationCenterSurface<TResourceKind extends string> =
   | {
@@ -12,37 +11,22 @@ export type ConversationCenterSurface<TResourceKind extends string> =
       type: 'history'
     }
 
-export type ConversationCenterResourceDefinition<TResourceKind extends string> = {
-  icon?: ReactNode
-  id: string
-  kind: TResourceKind
-  label: ReactNode
-}
-
-type ConversationCenterResourceMenuItem = {
-  active?: boolean
-  icon?: ReactNode
-  id: string
-  label: ReactNode
-  onSelect: () => void | Promise<void>
-}
-
 type UseConversationCenterSurfaceOptions<TResourceKind extends string> = {
   conversationKey: string
   disabled?: boolean
-  resourceDefinitions: readonly ConversationCenterResourceDefinition<TResourceKind>[]
+  resourceKinds: readonly TResourceKind[]
 }
 
 export function useConversationCenterSurface<TResourceKind extends string>({
   conversationKey,
   disabled = false,
-  resourceDefinitions
+  resourceKinds
 }: UseConversationCenterSurfaceOptions<TResourceKind>) {
   const [active, setActive] = useState<ConversationCenterSurface<TResourceKind> | null>(null)
 
   const activeResourceExists =
     active?.type === 'resource'
-      ? resourceDefinitions.some((definition) => definition.kind === active.kind)
+      ? resourceKinds.some((resourceKind) => resourceKind === active.kind)
       : active?.type === 'history'
   const activeSurface = !disabled && active?.conversationKey === conversationKey && activeResourceExists ? active : null
   const activeResourceKind = activeSurface?.type === 'resource' ? activeSurface.kind : null
@@ -87,29 +71,17 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     const activeStillValid =
       !disabled &&
       active.conversationKey === conversationKey &&
-      (active.type === 'history' || resourceDefinitions.some((definition) => definition.kind === active.kind))
+      (active.type === 'history' || resourceKinds.some((resourceKind) => resourceKind === active.kind))
 
     if (activeStillValid) return
     setActive(null)
-  }, [active, conversationKey, disabled, resourceDefinitions])
-
-  const resourceMenuItems = useMemo<readonly ConversationCenterResourceMenuItem[] | undefined>(() => {
-    if (disabled || resourceDefinitions.length === 0) return undefined
-
-    return resourceDefinitions.map((definition) => ({
-      active: activeResourceKind === definition.kind,
-      icon: definition.icon,
-      id: definition.id,
-      label: definition.label,
-      onSelect: () => toggleResource(definition.kind)
-    }))
-  }, [activeResourceKind, disabled, resourceDefinitions, toggleResource])
+  }, [active, conversationKey, disabled, resourceKinds])
 
   return {
     activeResourceKind,
     closeSurface,
     historyActive,
-    resourceMenuItems,
-    toggleHistory
+    toggleHistory,
+    toggleResource
   }
 }

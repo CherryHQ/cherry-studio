@@ -214,12 +214,20 @@ describe('extractConfigFromCliConfigDraft', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
   })
 
-  // OpenCode's extractConfig is bespoke (re-derives autoCompact/permissionMode from the nested
-  // provider/model shape) rather than delegating to a sanitize* helper — pin its round-trip.
+  // OpenCode's extractConfig is bespoke (re-derives managed settings from the generated config)
+  // rather than delegating to a sanitize* helper — pin its round-trip.
   it('round-trips opencode managed settings from the config blob', async () => {
     const blob = { autoCompact: true, permissionMode: 'ask' }
     const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual(blob)
+  })
+
+  it('writes opencode auto compact to the schema-supported compaction section', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', { autoCompact: true })
+    const config = JSON.parse(files[0].content)
+
+    expect(config.compaction).toEqual({ auto: true })
+    expect(config).not.toHaveProperty('autoCompact')
   })
 
   it('round-trips qwen managed settings from the config blob', async () => {

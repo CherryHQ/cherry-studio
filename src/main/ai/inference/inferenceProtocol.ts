@@ -21,6 +21,27 @@ export interface InferenceModelSource {
   revision: string
 }
 
+export type LocalInferenceProfileId = 'cpu' | 'directml' | 'coreml'
+export type LocalInferenceDevice = 'cpu' | 'dml' | 'coreml'
+export type LocalInferenceExecutionProvider = 'cpu' | 'dml' | 'coreml' | { name: 'coreml'; coreMlFlags: number }
+
+export interface LocalInferenceSessionOptions {
+  executionProviders: LocalInferenceExecutionProvider[]
+  enableMemPattern?: boolean
+  executionMode?: 'sequential'
+}
+
+/** Runtime options resolved in the main process for the worker's two inference backends. */
+export interface LocalInferenceRuntimeProfile {
+  id: LocalInferenceProfileId
+  /** transformers.js device selector. */
+  transformersDevice: LocalInferenceDevice
+  /** ppu-paddle-ocr options and the default transformers.js session options. */
+  sessionOptions: LocalInferenceSessionOptions
+  /** transformers.js override; defaults to {@link sessionOptions} when absent. */
+  embeddingSessionOptions?: LocalInferenceSessionOptions
+}
+
 // -- main → worker --------------------------------------------------------
 
 /** One-time setup sent right after the worker spawns. */
@@ -34,6 +55,8 @@ export interface InferenceInitMessage {
    * `CHERRY_ONNXRUNTIME_BINDING_PATH` in the worker's own env before its first lazy
    * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see OnnxRuntimeBinaryService). */
   onnxRuntimeBindingPath: string
+  /** Platform-resolved runtime configuration for embedding and OCR. */
+  runtimeProfile: LocalInferenceRuntimeProfile
   /** ProxyService-owned routing decision; the worker never parses proxy or bypass config. */
   proxyRouting: ProxyRoutingSnapshot
 }

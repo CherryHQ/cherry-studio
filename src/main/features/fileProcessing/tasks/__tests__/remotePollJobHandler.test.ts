@@ -24,7 +24,8 @@ const {
   startRemoteMock,
   pollRemoteMock,
   toPersistableMock,
-  rehydrateMock
+  rehydrateMock,
+  getPdfPageCountMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
@@ -40,7 +41,8 @@ const {
   startRemoteMock: vi.fn(),
   pollRemoteMock: vi.fn(),
   toPersistableMock: vi.fn(),
-  rehydrateMock: vi.fn()
+  rehydrateMock: vi.fn(),
+  getPdfPageCountMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -61,6 +63,18 @@ vi.mock('../../processors/registry', () => ({
 
 vi.mock('../../persistence/MarkdownResultStore', () => ({
   markdownResultStore: { persistResultToPath: persistResultMock }
+}))
+
+vi.mock('@main/utils/pdf', () => ({
+  getPdfPageCount: getPdfPageCountMock
+}))
+
+vi.mock('@main/i18n', () => ({
+  t: vi.fn((key: string, params: Record<string, string | number>) =>
+    key.endsWith('document_size_limit_exceeded')
+      ? `File must be smaller than ${params.maxSize}. Compress or split it, then add it again.`
+      : `PDF exceeds the ${params.maxPages}-page limit. Split the PDF manually and add it again.`
+  )
 }))
 
 const { remotePollJobHandler } = await import('../remotePollJobHandler')
@@ -101,7 +115,9 @@ function setupCapability() {
   }
   resolveProcessorConfigByFeatureMock.mockReturnValue({
     id: 'doc2x',
-    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'] }]
+    capabilities: [
+      { feature: 'document_to_markdown', inputs: ['document'], maxInputBytes: 1024 * 1024 * 1024, maxInputPages: 1000 }
+    ]
   })
 }
 
@@ -149,6 +165,7 @@ beforeEach(() => {
   fileManagerGetByIdMock.mockResolvedValue(FAKE_ENTRY)
   toFileInfoMock.mockResolvedValue(FAKE_FILE_INFO)
   capabilityHandlerMock.mode = 'remote-poll'
+  getPdfPageCountMock.mockResolvedValue(1)
 })
 
 afterEach(() => {
@@ -243,6 +260,8 @@ describe('remotePollJobHandler.execute', () => {
 
   it('resume from metadata: skips startRemote and calls rehydrate', async () => {
     setupCapability()
+    getPdfPageCountMock.mockRejectedValue(new Error('source PDF is no longer readable'))
+    toFileInfoMock.mockResolvedValue({ ...FAKE_FILE_INFO, size: 1024 * 1024 * 1024 })
     const restoredCtx = { apiHost: 'https://doc2x.example.com', apiKey: 're-read-key', stage: 'exporting' }
     rehydrateMock.mockReturnValue({ providerTaskId: 'recovered-task', remoteContext: restoredCtx })
     pollRemoteMock.mockResolvedValue({
@@ -258,6 +277,7 @@ describe('remotePollJobHandler.execute', () => {
     await remotePollJobHandler.execute(ctx)
 
     expect(startRemoteMock).not.toHaveBeenCalled()
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
     expect(rehydrateMock).toHaveBeenCalledWith(
       { providerTaskId: 'recovered-task', stage: 'exporting', apiHost: restoredCtx.apiHost },
       expect.objectContaining({ id: 'doc2x' })
@@ -266,6 +286,32 @@ describe('remotePollJobHandler.execute', () => {
       { providerTaskId: 'recovered-task', remoteContext: restoredCtx },
       ctx.signal
     )
+  })
+
+  it('preflights a remote job that has not been submitted to the provider', async () => {
+    setupCapability()
+    getPdfPageCountMock.mockResolvedValue(1001)
+
+    await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow(
+      'PDF exceeds the 1000-page limit. Split the PDF manually and add it again.'
+    )
+
+    expect(getPdfPageCountMock).toHaveBeenCalledWith('/tmp/paper.pdf')
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+    expect(startRemoteMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized remote job before provider preparation', async () => {
+    setupCapability()
+    toFileInfoMock.mockResolvedValue({ ...FAKE_FILE_INFO, size: 1024 * 1024 * 1024 })
+
+    await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow(
+      'File must be smaller than 1 GB. Compress or split it, then add it again.'
+    )
+
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+    expect(startRemoteMock).not.toHaveBeenCalled()
   })
 
   it('persists updated PersistableRemoteState when stage switches (parsing → exporting)', async () => {

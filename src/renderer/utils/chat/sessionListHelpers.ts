@@ -296,7 +296,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
       composeResourceListGroupResolvers(
         pinnedResolver,
         createTimeGroupResolver<T>({
-          getTimestamp: (session) => session.updatedAt,
+          getTimestamp: (session) => session.lastActivityAt,
           labels: labels.time,
           now
         })
@@ -371,9 +371,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   if (options.mode === 'time') {
     return sortRankedResourceItems(sessions, {
       getRank: (session) =>
-        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
+        session.pinned === true
+          ? 0
+          : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.lastActivityAt, options.now)],
       isPinned,
-      compareWithinGroup: compareResourceRecency((session) => session.updatedAt)
+      compareWithinGroup: compareResourceRecency((session) => session.lastActivityAt)
     })
   }
 

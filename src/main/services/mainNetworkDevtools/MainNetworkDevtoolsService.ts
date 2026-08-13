@@ -8,7 +8,8 @@ import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { net } from 'electron'
-import WebSocket, { WebSocketServer } from 'ws'
+import type WebSocket from 'ws'
+import type { WebSocketServer } from 'ws'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -533,6 +534,7 @@ export class MainNetworkDevtoolsService extends BaseService {
   }
 
   private async startWebSocketServer(port = MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT): Promise<number> {
+    const { WebSocketServer } = await import('ws')
     const server = new WebSocketServer({ host: '127.0.0.1', port })
 
     server.on('error', (error) => {
@@ -595,7 +597,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     const payload = JSON.stringify(message)
     for (const client of this.clients) {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === 1) {
         client.send(payload)
       }
     }

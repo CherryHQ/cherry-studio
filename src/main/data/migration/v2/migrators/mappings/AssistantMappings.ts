@@ -186,6 +186,39 @@ function extractLegacyTag(source: OldAssistant): { name: string | null; discarde
   }
 }
 
+/** v1's MAX_CONTEXT_COUNT — the slider's top stop, which meant "unlimited". */
+const V1_UNLIMITED_CONTEXT_COUNT = 100
+
+/**
+ * v1 `contextCount` → v2 `contextSettings.maxMessages`. Returns `undefined` for
+ * "leave absent" (unlimited or unusable input).
+ *
+ * The units differ by one. v1's pipeline was `takeRight(contextCount + 2)`
+ * followed by a filter that DROPS leading non-user rows, so `C = 1` on an
+ * alternating path ending at the current user served three rows
+ * (`[prev user, prev assistant, current user]`). v2's window keeps the last N
+ * and then EXTENDS BACKWARD to a user row, so the same three rows come from
+ * `N = 2`. Mapping C→N directly would hand every migrated assistant two
+ * messages less context than it had in v1.
+ *
+ * Sentinels: 100 (v1's slider max) meant unlimited → `null`, the three-state
+ * contract's EXPLICIT unlimited, not absent. Absent means "inherit", and since
+ * the v1 default assistant migrates into a finite global, returning absent here
+ * would quietly re-limit an assistant the user had set to unlimited. `0` meant
+ * "no history" and v1's user-start filter collapsed it to the current user
+ * alone → `N = 1` (no offset — +1 would hand a whole turn back). Unusable input
+ * → `undefined`, which really is "nothing to say, inherit".
+ *
+ * Shared with the default-assistant → global-preference mapping so both sides
+ * of the migration convert identically.
+ */
+export function contextCountToMaxMessages(raw: unknown): number | null | undefined {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return undefined
+  if (raw < 0) return undefined
+  if (raw >= V1_UNLIMITED_CONTEXT_COUNT) return null
+  return raw === 0 ? 1 : raw + 1
+}
+
 /**
  * Transform a legacy Redux Assistant to v2 assistant table row + junction rows.
  *
@@ -215,6 +248,11 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
   const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
+  // The per-field sanitiser drops `contextCount` — no such column in v2.
+  const maxMessages = contextCountToMaxMessages(legacySettings.contextCount)
+  if (maxMessages !== undefined) {
+    settings.contextSettings = { ...settings.contextSettings, maxMessages }
+  }
 
   return {
     assistant: {

@@ -1,5 +1,5 @@
 import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
-import { Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
+import { AlignJustify, Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export interface MenuItem {
@@ -61,6 +61,13 @@ export const menuItems: MenuItem[] = [
     icon: Type,
     action: (settings, updateSettings) => updateSettings({ showTableOfContents: !settings.showTableOfContents }),
     isActive: (settings) => settings.showTableOfContents
+  },
+  {
+    key: 'line-breaks',
+    labelKey: 'notes.settings.display.line_breaks',
+    icon: AlignJustify,
+    action: (settings, updateSettings) => updateSettings({ lineBreaks: !settings.lineBreaks }),
+    isActive: (settings) => settings.lineBreaks
   },
   {
     key: 'divider1',

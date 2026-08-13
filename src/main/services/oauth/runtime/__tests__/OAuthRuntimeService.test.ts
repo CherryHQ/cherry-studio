@@ -4,19 +4,26 @@ const h = vi.hoisted(() => {
   const providerStore = new Map<string, { authConfig?: unknown; isEnabled?: boolean }>()
   const refreshMock = vi.fn()
   const afterPersistMock = vi.fn()
+  const clientMock = {
+    refresh: refreshMock,
+    createAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st', codeVerifier: 'cv' })),
+    exchangeCode: vi.fn()
+  }
+  const createClientMock = vi.fn<
+    (context?: { signal?: AbortSignal }) => typeof clientMock | Promise<typeof clientMock>
+  >(() => clientMock)
   return {
     providerStore,
     refreshMock,
     afterPersistMock,
+    createClientMock,
     // One controllable fake OAuth client shared by every provider definition.
-    clientMock: {
-      refresh: refreshMock,
-      createAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st', codeVerifier: 'cv' })),
-      exchangeCode: vi.fn()
-    },
+    clientMock,
     transportMock: {
       tryAcquire: vi.fn(() => true),
-      waitForAuthorizationCode: vi.fn(async () => 'auth-code'),
+      waitForAuthorizationCode: vi
+        .fn<(state: string, signal: AbortSignal) => Promise<string>>()
+        .mockResolvedValue('auth-code'),
       close: vi.fn()
     },
     deepLinkTransportMock: {
@@ -40,7 +47,9 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@main/core/lifecycle', () => ({
-  BaseService: class {},
+  BaseService: class {
+    protected onInit(): void {}
+  },
   Injectable: () => (target: unknown) => target,
   ServicePhase: () => (target: unknown) => target,
   Phase: { WhenReady: 'whenReady' }
@@ -62,7 +71,7 @@ vi.mock('../providerDefinitions', () => ({
         type: 'loopback',
         config: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' }
       },
-      createClient: () => h.clientMock,
+      createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
       extractAccountId: () => null
     },
     cherryin: {
@@ -75,9 +84,19 @@ vi.mock('../providerDefinitions', () => ({
   }
 }))
 
-import { OAuthTransientError } from '../../errors'
+import { OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 import { OAuthHttpError } from '../PkceOAuthClient'
+
+class TestOAuthRuntimeService extends OAuthRuntimeService {
+  initializeForTest(): void {
+    this.onInit()
+  }
+
+  stopForTest(): Promise<void> | void {
+    return this.onStop()
+  }
+}
 
 function seedOAuth(id: string, authConfig: Record<string, unknown>): void {
   h.providerStore.set(id, { authConfig: { type: 'oauth', clientId: 'x', ...authConfig } })
@@ -87,14 +106,19 @@ const FUTURE = () => Date.now() + 1_000_000
 const PAST = () => Date.now() - 1_000
 
 describe('OAuthRuntimeService', () => {
-  let service: OAuthRuntimeService
+  let service: TestOAuthRuntimeService
 
   beforeEach(() => {
     h.providerStore.clear()
     vi.clearAllMocks()
     h.refreshMock.mockReset()
     h.afterPersistMock.mockReset()
-    service = new OAuthRuntimeService()
+    h.createClientMock.mockReset().mockReturnValue(h.clientMock)
+    h.transportMock.tryAcquire.mockReset().mockReturnValue(true)
+    h.transportMock.waitForAuthorizationCode.mockReset().mockResolvedValue('auth-code')
+    h.transportMock.close.mockReset()
+    service = new TestOAuthRuntimeService()
+    service.initializeForTest()
   })
 
   it('returns a still-valid token without refreshing', async () => {
@@ -344,7 +368,7 @@ describe('OAuthRuntimeService', () => {
   it('signIn persists tokens, enables the provider, and closes the transport', async () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
 
-    const account = await service.signIn('codex')
+    const account = await service.signIn('codex', 'sign-in-request')
 
     const stored = h.providerStore.get('codex')
     expect(stored?.authConfig).toMatchObject({ accessToken: 'at' })
@@ -354,10 +378,150 @@ describe('OAuthRuntimeService', () => {
     expect(h.transportMock.close).toHaveBeenCalled()
   })
 
-  // W2: tryAcquire already reserved — a second concurrent sign-in is refused.
-  it('signIn rejects when a flow is already in progress', async () => {
-    h.transportMock.tryAcquire.mockReturnValueOnce(false)
-    await expect(service.signIn('codex')).rejects.toThrow(/already in progress/)
+  it('atomically attaches to an active sign-in without starting another flow', async () => {
+    let resolveCode: (code: string) => void = () => {}
+    h.transportMock.waitForAuthorizationCode.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveCode = resolve
+        })
+    )
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+
+    const first = service.signIn('codex', 'sign-in-request')
+    const attached = service.joinActiveSignIn('codex', 'attach-request')
+    expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(1))
+
+    resolveCode('auth-code')
+    await expect(attached).resolves.toEqual({ status: 'completed', account: { accountId: null } })
+    await expect(first).resolves.toEqual({ accountId: null })
+  })
+
+  it('returns not-found when attaching without an active sign-in', async () => {
+    await expect(service.joinActiveSignIn('codex', 'attach-request')).resolves.toEqual({ status: 'not-found' })
+    expect(h.transportMock.tryAcquire).not.toHaveBeenCalled()
+    expect(h.transportMock.waitForAuthorizationCode).not.toHaveBeenCalled()
+  })
+
+  it('cancels an active sign-in and allows an immediate retry', async () => {
+    let callbackSignal: AbortSignal | undefined
+    h.transportMock.waitForAuthorizationCode.mockImplementation((_state: string, signal: AbortSignal) => {
+      callbackSignal = signal
+      return new Promise<string>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+
+    const first = service.signIn('codex', 'first-request')
+    const second = service.signIn('codex', 'second-request')
+    const attached = service.joinActiveSignIn('codex', 'attach-request')
+    const firstOutcome = first.catch((error: unknown) => error)
+    const secondOutcome = second.catch((error: unknown) => error)
+    const attachedOutcome = attached.catch((error: unknown) => error)
+    await vi.waitFor(() => expect(callbackSignal).toBeInstanceOf(AbortSignal))
+
+    await service.cancelSignIn('codex', 'stale-request')
+    expect(callbackSignal?.aborted).toBe(false)
+
+    await service.cancelSignIn('codex', 'attach-request')
+    expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(await secondOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(await attachedOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    await expect(service.joinActiveSignIn('codex', 'later-attach')).resolves.toEqual({ status: 'not-found' })
+
+    const retryOutcome = service.signIn('codex', 'retry-request').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(2))
+
+    await service.cancelSignIn('codex', 'first-request')
+    expect(callbackSignal?.aborted).toBe(false)
+
+    await service.cancelSignIn('codex', 'retry-request')
+    expect(await retryOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(2)
+    expect(h.transportMock.close).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels while client discovery is pending and allows an immediate retry', async () => {
+    let discoverySignal: AbortSignal | undefined
+    let rejectDiscovery: (error: Error) => void = () => {}
+    h.createClientMock.mockImplementationOnce((context) => {
+      discoverySignal = context?.signal
+      return new Promise((_resolve, reject) => {
+        rejectDiscovery = reject
+        context?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+
+    const firstOutcome = service.signIn('codex', 'first-request').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(h.createClientMock).toHaveBeenCalledTimes(1))
+    if (!discoverySignal) {
+      rejectDiscovery(new Error('test cleanup'))
+      await firstOutcome
+    }
+    expect(discoverySignal).toBeInstanceOf(AbortSignal)
+
+    await service.cancelSignIn('codex', 'first-request')
+    expect(discoverySignal?.aborted).toBe(true)
+    expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+    await expect(service.signIn('codex', 'retry-request')).resolves.toEqual({ accountId: null })
+    expect(h.createClientMock).toHaveBeenCalledTimes(2)
+    expect(h.transportMock.close).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an exchange failure distinct when cancellation arrives after the callback', async () => {
+    let rejectExchange: (error: Error) => void = () => {}
+    h.clientMock.exchangeCode.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectExchange = reject
+        })
+    )
+
+    const outcome = service.signIn('codex', 'sign-in-request').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(h.clientMock.exchangeCode).toHaveBeenCalledTimes(1))
+
+    const cancellation = service.cancelSignIn('codex', 'sign-in-request')
+    rejectExchange(new Error('token exchange failed'))
+    await cancellation
+
+    const error = await outcome
+    expect(error).toBeInstanceOf(OAuthServiceError)
+    expect(error).not.toBeInstanceOf(OAuthSignInCancelledError)
+    expect(error).toHaveProperty('cause', expect.objectContaining({ message: 'token exchange failed' }))
+  })
+
+  it('joins an in-flight exchange on stop and does not persist its late result', async () => {
+    let resolveExchange: (tokens: { access_token: string; refresh_token: string }) => void = () => {}
+    h.clientMock.exchangeCode.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveExchange = resolve
+        })
+    )
+
+    const signInOutcome = service.signIn('codex', 'sign-in-request').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(h.clientMock.exchangeCode).toHaveBeenCalledTimes(1))
+
+    let stopSettled = false
+    const stop = Promise.resolve(service.stopForTest()).then(() => {
+      stopSettled = true
+    })
+    await Promise.resolve()
+    expect(stopSettled).toBe(false)
+
+    resolveExchange({ access_token: 'late-token', refresh_token: 'late-refresh' })
+    await stop
+    await expect(signInOutcome).resolves.toBeInstanceOf(OAuthServiceError)
+    expect(h.providerStore.get('codex')?.authConfig).toBeUndefined()
+    expect(h.providerServiceMock.update).not.toHaveBeenCalledWith('codex', { isEnabled: true })
+
+    await expect(service.signIn('codex', 'stopped-request')).rejects.toThrow(/stopping/)
+    service.initializeForTest()
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' })
+    await expect(service.signIn('codex', 'restart-request')).resolves.toEqual({ accountId: null })
   })
 
   it('handleDeepLinkCallback exchanges, persists, and notifies the initiator', async () => {

@@ -255,7 +255,7 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
             maxDepth: 0,
             includeHidden: false,
             includeFiles: true,
-            includeDirectories: true,
+            includeDirectories: false,
             maxEntries: ARTIFACT_FILE_SEARCH_MAX_ENTRIES,
             searchPattern: trimmedSearch
           })

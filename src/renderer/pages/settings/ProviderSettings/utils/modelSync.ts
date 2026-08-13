@@ -54,12 +54,14 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities ? { capabilities: [...capabilities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -96,6 +98,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   // rewrite the user's explicit route.
   const REGISTRY_FIELDS = [
     'name',
+    'presetModelId',
     'description',
     'group',
     'capabilities',
@@ -136,7 +139,6 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'name' && keepFetchedName) {
         continue
       }
-
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value

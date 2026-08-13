@@ -9,7 +9,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Switch
 } from '@cherrystudio/ui'
 import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -373,6 +374,9 @@ export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =
 
 export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const cfg = channel.config
+  const mentionOnly = (cfg.mention_only as boolean) ?? true
+
   return (
     <ChannelFieldsForm
       channel={channel}
@@ -397,6 +401,18 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
         extraHint: t('agent.channels.qq.whoamiTip'),
         fullWidth: true
       }}
+      extraContent={
+        <div className="col-span-2 flex items-center gap-3 pt-1">
+          <Switch
+            checked={mentionOnly}
+            onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm">{t('agent.channels.qq.mentionOnlyLabel')}</span>
+            <span className="text-muted-foreground text-xs">{t('agent.channels.qq.mentionOnlyHint')}</span>
+          </div>
+        </div>
+      }
     />
   )
 }

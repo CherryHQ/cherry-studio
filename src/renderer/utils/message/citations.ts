@@ -27,6 +27,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
+  CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbGrepOutputSchema,
@@ -69,13 +70,6 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 ])
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
-
-/**
- * kb_read returns a whole document slice — orders of magnitude more text than a kb_search chunk —
- * but the tooltip only ever shows a snippet. Truncate here so the full slice is not carried
- * through the render path and re-serialized into every `<sup data-citation>` tag.
- */
-const KNOWLEDGE_SNIPPET_MAX_CHARS = 300
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -152,8 +146,8 @@ function unwrapCitableOutput(output: unknown): unknown {
 
 function toSnippet(content: string): string {
   const trimmed = content.trim()
-  if (trimmed.length <= KNOWLEDGE_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, KNOWLEDGE_SNIPPET_MAX_CHARS)}…`
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
 /**

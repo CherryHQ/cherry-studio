@@ -373,7 +373,8 @@ describe('userDataRelocation execution', () => {
     await expect(runUserDataRelocation()).resolves.toBe('handled')
 
     expect(symlinkMock).toHaveBeenCalledWith(
-      path.join(fs.realpathSync(target), 'real'),
+      // `.native` to match fsp.realpath, which expands Windows 8.3 short names.
+      path.join(fs.realpathSync.native(target), 'real'),
       path.join(root, `.target.cherry-relocation-${TASK_ID}-work`, 'payload', 'relative-link'),
       'junction'
     )

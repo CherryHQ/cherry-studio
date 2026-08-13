@@ -13,13 +13,12 @@ Fresh v2 databases seed a persisted default assistant backed by the managed Cher
 The CherryAI default seeder also inserts missing default-model preference rows for:
 
 - `chat.default_model_id`
-- `topic.naming.model_id`
 - `feature.quick_assistant.model_id`
 - `feature.translate.model_id`
 
 Existing preference rows are preserved, including intentional `null` values such as translate's "follow the default model" state.
 
-Topic auto-naming now uses `topic.naming.model_id` instead of the current assistant's model. If that preference is invalid or points to a missing model, topic naming falls back to the managed CherryAI default model.
+Topic auto-naming uses `feature.quick_assistant.model_id`. If the quick model is invalid or points to a missing model, topic naming falls back to the managed CherryAI default model.
 
 Settings pickers that still have the legacy renderer default-assistant sentinel now prefer the persisted seeded default assistant when it exists, so fresh installs do not show duplicate default assistant choices.
 
@@ -29,7 +28,7 @@ The managed CherryAI default model is internal app bootstrap data. It is not lis
 
 Fresh profiles whose preferred system language is Chinese start with `Cherry 助手`; other fresh profiles start with `Cherry Assistant`. The seeded assistant remains ordinary user data and can be renamed or deleted, and it is not automatically renamed if the app language changes later.
 
-Existing v2 profiles that are missing one of the default-model preference rows may receive `cherryai::qwen` for that missing row the next time the seeder runs. Existing non-empty values and existing `null` values are not overwritten.
+Existing v2 profiles that are missing one of these default-model preference rows may receive `cherryai::qwen` for that missing row the next time the seeder runs. Existing non-empty values and existing `null` values are not overwritten.
 
 Local API clients should not rely on the CherryAI managed default model as a gateway-accessible model. Select an explicitly configured user/provider model for gateway traffic.
 

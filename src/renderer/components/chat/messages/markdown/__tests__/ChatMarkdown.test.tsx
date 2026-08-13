@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ChatMarkdown from '../ChatMarkdown'
+import ChatMarkdown from '../ChatMarkdownRuntime'
 import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  defaultMarkdownPlugins: {},
   Markdown: (props: { children: string; remarkPlugins?: unknown[] }) => {
     mocks.markdown(props)
     return <div data-testid="static-markdown">{props.children}</div>
@@ -30,7 +31,7 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  withChatPlugins: () => ({})
+  withMath: () => ({})
 }))
 
 vi.mock('../../MessageListProvider', () => ({

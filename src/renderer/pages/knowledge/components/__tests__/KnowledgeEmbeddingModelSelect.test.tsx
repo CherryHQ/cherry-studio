@@ -7,15 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 
-const { localModel, mockModelSelectorProps, mockPopupConfirm, mockToastError } = vi.hoisted(() => ({
+const { localModel, mockModelSelectorProps, mockShowDownloadPopup } = vi.hoisted(() => ({
   localModel: {
     status: 'not_downloaded' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
-    isStatusResolved: true,
-    download: vi.fn<() => Promise<boolean>>()
+    isStatusResolved: true
   },
   mockModelSelectorProps: [] as Array<Record<string, any>>,
-  mockPopupConfirm: vi.fn<(options: Record<string, unknown>) => Promise<boolean>>(),
-  mockToastError: vi.fn()
+  mockShowDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>()
 }))
 
 vi.mock('@renderer/hooks/useLocalModel', () => ({
@@ -40,8 +38,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: mockToastError } }))
-vi.mock('@renderer/services/popup', () => ({ popup: { confirm: mockPopupConfirm } }))
+vi.mock('@renderer/components/popups/LocalModelDownloadPopup', () => ({
+  default: { show: mockShowDownloadPopup }
+}))
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
 }))
@@ -64,7 +63,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'common.cancel': 'Cancel',
-        'knowledge.rag.download_local_embedding': 'Download Local Model',
+        'knowledge.rag.download_local_model': 'Download Local Model',
         'knowledge.rag.download_local_embedding_failed': 'Failed to download the local embedding model',
         'settings.dependencies.localModels.download': 'Download',
         'settings.dependencies.localModels.embedding.subtitle': 'Qwen3 Embedding 0.6B · ~614 MB'
@@ -86,53 +85,47 @@ const makeEmbeddingModel = (id: UniqueModelId, providerId: string, name: string)
 describe('KnowledgeEmbeddingModelSelect', () => {
   beforeEach(() => {
     mockModelSelectorProps.length = 0
-    mockToastError.mockClear()
     localModel.status = 'not_downloaded'
     localModel.isStatusResolved = true
-    localModel.download.mockReset().mockResolvedValue(true)
-    mockPopupConfirm.mockReset().mockResolvedValue(true)
+    mockShowDownloadPopup.mockReset().mockResolvedValue(true)
   })
 
-  it('waits for confirmation before selecting and downloading the local model', async () => {
+  it('selects the local model only once the download dialog reports it on disk', async () => {
     const user = userEvent.setup()
-    let resolveConfirmation!: (confirmed: boolean) => void
-    mockPopupConfirm.mockReturnValue(
+    let finishDownload!: (downloaded: boolean) => void
+    mockShowDownloadPopup.mockReturnValue(
       new Promise((resolve) => {
-        resolveConfirmation = resolve
+        finishDownload = resolve
       })
     )
-    localModel.download.mockReturnValue(new Promise(() => undefined))
     const onChange = vi.fn()
     render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
 
     await user.click(screen.getByRole('button', { name: 'select-local-model' }))
 
-    expect(mockPopupConfirm).toHaveBeenCalledWith({
-      title: 'Download Local Model',
-      content: 'Qwen3 Embedding 0.6B · ~614 MB',
-      okText: 'Download',
-      cancelText: 'Cancel'
+    expect(mockShowDownloadPopup).toHaveBeenCalledWith({
+      model: 'embedding',
+      description: 'Qwen3 Embedding 0.6B · ~614 MB'
     })
+    // The dialog stays open for the whole download, so nothing is selected yet.
     expect(onChange).not.toHaveBeenCalled()
-    expect(localModel.download).not.toHaveBeenCalled()
 
-    resolveConfirmation(true)
+    finishDownload(true)
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
-    expect(localModel.download).toHaveBeenCalledOnce()
   })
 
-  it('keeps the current selection and does not download when confirmation is cancelled', async () => {
+  // False covers a decline, a mid-download cancel and a download the user gave up on.
+  it('keeps the current selection when the model never arrives', async () => {
     const user = userEvent.setup()
-    mockPopupConfirm.mockResolvedValue(false)
+    mockShowDownloadPopup.mockResolvedValue(false)
     const onChange = vi.fn()
     render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
 
     await user.click(screen.getByRole('button', { name: 'select-local-model' }))
 
-    await waitFor(() => expect(mockPopupConfirm).toHaveBeenCalledOnce())
+    await waitFor(() => expect(mockShowDownloadPopup).toHaveBeenCalledOnce())
     expect(onChange).not.toHaveBeenCalled()
-    expect(localModel.download).not.toHaveBeenCalled()
   })
 
   it('hides and rejects the local model until the platform probe resolves', async () => {
@@ -149,8 +142,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
     await user.click(screen.getByRole('button', { name: 'select-local-model' }))
     expect(onChange).not.toHaveBeenCalled()
-    expect(mockPopupConfirm).not.toHaveBeenCalled()
-    expect(localModel.download).not.toHaveBeenCalled()
+    expect(mockShowDownloadPopup).not.toHaveBeenCalled()
   })
 
   it.each(['ready', 'downloading'] as const)(
@@ -164,8 +156,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
       await user.click(screen.getByRole('button', { name: 'select-local-model' }))
 
       expect(onChange).toHaveBeenCalledWith(LOCAL_EMBEDDING_UNIQUE_MODEL_ID)
-      expect(mockPopupConfirm).not.toHaveBeenCalled()
-      expect(localModel.download).not.toHaveBeenCalled()
+      expect(mockShowDownloadPopup).not.toHaveBeenCalled()
     }
   )
 
@@ -182,19 +173,5 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
     expect(mockModelSelectorProps.at(-1)?.filter(remoteModel)).toBe(true)
     expect(mockModelSelectorProps.at(-1)?.prioritizedProviderIds).toEqual(['local-embedding'])
-  })
-
-  it('keeps the selection and reports a confirmed background download failure', async () => {
-    const user = userEvent.setup()
-    localModel.status = 'error'
-    localModel.download.mockRejectedValue(new Error('failed'))
-    const onChange = vi.fn()
-    render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
-
-    await user.click(screen.getByRole('button', { name: 'select-local-model' }))
-
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith(LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
-    expect(mockPopupConfirm).toHaveBeenCalledOnce()
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Failed to download the local embedding model'))
   })
 })

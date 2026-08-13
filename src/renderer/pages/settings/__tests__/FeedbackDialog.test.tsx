@@ -107,7 +107,7 @@ describe('FeedbackDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.feedback_session.create')
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create')
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })

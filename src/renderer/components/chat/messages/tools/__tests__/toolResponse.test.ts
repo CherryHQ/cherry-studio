@@ -35,6 +35,71 @@ describe('toolResponse adapter', () => {
     expect(response.response).toBe('ok')
   })
 
+  it('uses raw MCP metadata instead of a hashed non-ASCII wire id for display', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-ocr',
+      toolName: 'mcp__ocr__tool_1234567890abcdef1234',
+      state: 'output-available',
+      input: { image: 'invoice.png' },
+      output: {
+        content: 'ok',
+        metadata: {
+          description: '识别票据中的结构化字段',
+          name: '识别发票',
+          serverName: '票据 OCR',
+          serverId: 'ocr-server',
+          type: 'mcp'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+
+    expect(response.tool.name).toBe('识别发票')
+    expect((response.tool as any).description).toBe('识别票据中的结构化字段')
+    expect((response.tool as any).serverName).toBe('票据 OCR')
+  })
+
+  it.each([
+    {
+      state: 'approval-requested',
+      approval: { id: 'approval-ocr' }
+    },
+    {
+      state: 'output-error',
+      errorText: 'OCR failed'
+    }
+  ] as const)('uses tool metadata for a hashed non-ASCII MCP id in $state state', (stateFields) => {
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-ocr',
+      toolName: 'mcp__ocr__tool_1234567890abcdef1234',
+      input: { image: 'invoice.png' },
+      toolMetadata: {
+        cherry: {
+          tool: {
+            description: '识别票据中的结构化字段',
+            name: '识别发票',
+            serverName: '票据 OCR',
+            serverId: 'ocr-server',
+            type: 'mcp'
+          }
+        }
+      },
+      ...stateFields
+    }
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+
+    expect(response.tool.name).toBe('识别发票')
+    expect((response.tool as any).serverName).toBe('票据 OCR')
+  })
+
   it('keeps structured MCP arrays bare for dedicated tool renderers', () => {
     const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
     const part = {

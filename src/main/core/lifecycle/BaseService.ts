@@ -32,6 +32,12 @@ export abstract class BaseService {
   /** Guard flag to prevent concurrent activate/deactivate execution */
   private _activating = false
 
+  /**
+   * Whether `_doStop()` is currently running. Distinct from `state === Stopping`,
+   * which a rejected `onStop()` also leaves behind — see `_doDestroy()`.
+   */
+  private _stopInFlight = false
+
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
 
@@ -279,6 +285,7 @@ export abstract class BaseService {
    */
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
+    this._stopInFlight = true
     try {
       // Auto-deactivate: independent try/catch, failure does not block onStop
       if (this._activated && isActivatable(this)) {
@@ -291,6 +298,7 @@ export abstract class BaseService {
       }
       await this.onStop()
     } finally {
+      this._stopInFlight = false
       this._cleanupDisposables()
     }
     this._state = LifecycleState.Stopped
@@ -302,6 +310,23 @@ export abstract class BaseService {
    */
   public async _doDestroy(): Promise<void> {
     if (this._state === LifecycleState.Destroyed) {
+      return
+    }
+    // An abandoned _doStop() keeps running after the shutdown ceiling expires.
+    // Destroying underneath it would race live work and tear down the very
+    // resources that work is using, so skip; the caller turns the unchanged
+    // state into a non-`completed` outcome. `_cleanupDisposables()` below is
+    // skipped along with it — moot, since destroy only runs on the shutdown
+    // path, where the process is about to disappear.
+    //
+    // Deliberately keyed on the in-flight flag, NOT on `Stopping`: a rejected
+    // onStop() also leaves the state at `Stopping` (`_state = Stopped` sits
+    // after the try/finally), but it has already settled AND already disposed
+    // via that finally. Nothing is running underneath it, so it keeps the
+    // pre-existing behaviour of getting its onDestroy().
+    if (this._stopInFlight) {
+      const name = getServiceName(this.constructor as ServiceConstructor)
+      logger.warn(`Skipping destroy for '${name}' — stop still in flight`)
       return
     }
     // Safety net: deactivate if still active (e.g., destroy without stop)

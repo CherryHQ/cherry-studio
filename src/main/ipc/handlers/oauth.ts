@@ -1,12 +1,29 @@
 import { application } from '@application'
+import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import type { oauthRequestSchemas } from '@shared/ipc/schemas/oauth'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 const runtime = () => application.get('OAuthRuntimeService')
 
+async function mapSignInCancellation<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request
+  } catch (error) {
+    if (error instanceof OAuthSignInCancelledError) {
+      throw new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED, error.message)
+    }
+    throw error
+  }
+}
+
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
-  'oauth.sign_in': ({ providerId }) => runtime().signIn(providerId),
+  'oauth.sign_in': ({ providerId, requestId }) => mapSignInCancellation(runtime().signIn(providerId, requestId)),
+  'oauth.sign_in.attach': ({ providerId, requestId }) =>
+    mapSignInCancellation(runtime().joinActiveSignIn(providerId, requestId)),
+  'oauth.cancel_sign_in': ({ providerId, requestId }) => runtime().cancelSignIn(providerId, requestId),
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),

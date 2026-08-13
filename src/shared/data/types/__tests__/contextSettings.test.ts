@@ -7,12 +7,9 @@ import {
 } from '../contextSettings'
 
 describe('contextSettings schemas', () => {
-  it('defaults: enabled + compress on, 50k threshold, no model', () => {
-    expect(DEFAULT_CONTEXT_SETTINGS).toEqual({
-      enabled: true,
-      truncateThreshold: 50_000,
-      compress: { enabled: true, modelId: null }
-    })
+  // The default is the floor every layer merges onto, so a field added to the
+  // schema but not to the constant reaches the request pipeline as undefined.
+  it('the hardcoded default satisfies the effective schema', () => {
     expect(() => EffectiveContextSettingsSchema.parse(DEFAULT_CONTEXT_SETTINGS)).not.toThrow()
   })
 

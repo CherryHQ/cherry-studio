@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiError } from '@shared/data/api/errors'
 import type { ErrorHandler } from 'elysia'
 
@@ -30,6 +31,20 @@ const openaiEnvelope = (type: string, message: string, code: string) => ({ error
 /** Cherry REST envelope — mirrors the v2 `DataApiError` vocabulary. */
 const restEnvelope = (code: string, message: string, details?: Record<string, unknown>) => ({
   error: { code, message, ...(details ? { details } : {}) }
+})
+
+/**
+ * JSON-RPC 2.0 error envelope for the MCP proxy. Not typed as the SDK's
+ * `JSONRPCErrorResponse`: that type declares `id?: string | number`, while the SDK's own
+ * Streamable HTTP transport writes `id: null` for errors with no request to attribute
+ * them to. The wire shape a client sees is what has to match, so it wins over the type.
+ */
+export const MCP_TRANSPORT_ERROR = -32000
+
+export const jsonRpcEnvelope = (code: ErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
+  jsonrpc: JSONRPC_VERSION,
+  error: { code, message },
+  id: null
 })
 
 /** Google (Gemini) dialect envelope: `{ error: { code, message, status } }`. */
@@ -302,8 +317,41 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   )
 }
 
+/**
+ * MCP proxy dialect (`POST /v1/mcps/:id/mcp`). The peer is an MCP transport, not a REST
+ * client, so a framework-level failure it never reaches the route for — a body Elysia
+ * could not parse, an unknown server id — must still arrive as JSON-RPC.
+ *
+ * `MCP_TRANSPORT_ERROR` for the resource failures: `ErrorCode` names -32000
+ * `ConnectionClosed`, which is not what happened, and it is the code both the SDK's
+ * transport and this route's 403/405 responders already use for a transport-level refusal.
+ */
+function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
+  if (code === 'PARSE') {
+    return status(400, jsonRpcEnvelope(ErrorCode.ParseError, 'Parse error'))
+  }
+  if (code === 'VALIDATION') {
+    return status(400, jsonRpcEnvelope(ErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
+  }
+  if (code === 'NOT_FOUND') {
+    return status(404, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Not found'))
+  }
+  if (error instanceof DataApiError) {
+    return status(error.status, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, error.message))
+  }
+
+  logger.error('API gateway request error', { code, error })
+  return status(
+    500,
+    jsonRpcEnvelope(ErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
+  )
+}
+
+/** Only the JSON-RPC proxy leaf speaks MCP; `/v1/mcps` and `/v1/mcps/:id` stay REST. */
+const MCP_PROXY_PATH = /^\/v1\/mcps\/[^/]+\/mcp$/
+
 /** Select the response dialect from the request path. */
-function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'rest' {
+function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'mcp' | 'rest' {
   let pathname = ''
   try {
     pathname = new URL(request.url).pathname
@@ -313,6 +361,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
+  if (MCP_PROXY_PATH.test(pathname)) return 'mcp'
   return 'rest'
 }
 
@@ -330,6 +379,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
       return openaiErrorHandler(ctx)
     case 'google':
       return googleErrorHandler(ctx)
+    case 'mcp':
+      return mcpErrorHandler(ctx)
     default:
       return restErrorHandler(ctx)
   }

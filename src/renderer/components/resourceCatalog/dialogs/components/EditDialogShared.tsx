@@ -26,7 +26,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -278,11 +278,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', {
-    query: { limit: 100 },
-    swrOptions: { revalidateOnFocus: true }
-  })
-  const bases = useMemo(() => data?.items ?? [], [data])
+  const { bases, isLoading } = useKnowledgeBases({ revalidateOnFocus: true })
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
   const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])

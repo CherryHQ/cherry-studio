@@ -1,11 +1,11 @@
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ProcessorPanel } from './components/ProcessorPanel'
-import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
 import { type FileProcessingMenuEntry, getFeatureSections } from './utils/fileProcessingMeta'
 
@@ -29,12 +29,18 @@ const DocumentProcessingSettings: FC = () => {
   } = useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
+  const visibleProcessorIds = useMemo(
+    () =>
+      availableProcessors.status === 'ready' || !defaultDocumentProcessor
+        ? availableProcessors.processorIds
+        : new Set([defaultDocumentProcessor]),
+    [availableProcessors.processorIds, availableProcessors.status, defaultDocumentProcessor]
+  )
   const menuEntries = useMemo(
     () =>
-      getFeatureSections(processors, availableProcessors.processorIds).find(
-        (section) => section.feature === 'document_to_markdown'
-      )?.entries ?? EMPTY_MENU_ENTRIES,
-    [availableProcessors.processorIds, processors]
+      getFeatureSections(processors, visibleProcessorIds).find((section) => section.feature === 'document_to_markdown')
+        ?.entries ?? EMPTY_MENU_ENTRIES,
+    [processors, visibleProcessorIds]
   )
 
   const [activeKey, setActiveKey] = useState(
@@ -51,20 +57,21 @@ const DocumentProcessingSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={themeMode} innerClassName={documentProcessingFieldClassName}>
-      {availableProcessors.status === 'error' ? (
-        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
-          {t('settings.tool.file_processing.errors.load_processors_failed')}
-        </div>
-      ) : activeEntry ? (
+      {activeEntry ? (
         <ProcessorPanel
           entry={activeEntry}
           entries={menuEntries}
+          selectionDisabled={availableProcessors.status !== 'ready'}
           onSelectEntry={(entry) => setActiveKey(entry.key)}
           onSetApiKeys={setApiKeys}
           onSetCapabilityField={setCapabilityField}
           onSetDefaultProcessor={setDefaultProcessor}
           onSetLanguageOptions={setLanguageOptions}
         />
+      ) : availableProcessors.status === 'error' ? (
+        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+          {t('settings.tool.file_processing.errors.load_processors_failed')}
+        </div>
       ) : (
         <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
           {t('common.no_results')}

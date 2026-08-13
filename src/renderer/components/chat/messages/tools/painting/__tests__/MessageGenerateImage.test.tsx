@@ -1,4 +1,5 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type * as SharedFileUtils from '@shared/utils/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +8,10 @@ const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
-vi.mock('@shared/utils/file', () => ({
+// Partial mock: only `toSafeFileUrl` is stubbed. Replacing the whole barrel
+// breaks any module that pulls a different export from it at import time.
+vi.mock('@shared/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedFileUtils>()),
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
 vi.mock('@renderer/components/Spinner', () => ({

@@ -1,0 +1,1 @@
+export { WorkspaceDeleteConfirmDialog } from './WorkspaceDeleteConfirmDialog'

@@ -39,6 +39,12 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     }
   },
 
+  '/agent-workspaces/:workspaceId/references': {
+    GET: async ({ params }) => {
+      return agentWorkspaceService.getReferences(params.workspaceId)
+    }
+  },
+
   '/agent-workspaces/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

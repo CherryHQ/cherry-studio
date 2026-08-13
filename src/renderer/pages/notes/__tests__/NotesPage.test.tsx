@@ -2,6 +2,8 @@ import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { NotesEditorLoading } from '../NotesEditor'
+
 const mocks = vi.hoisted(() => {
   const noteNode = {
     id: '/notes/note.md',
@@ -246,7 +248,8 @@ vi.mock('@renderer/services/NotesService', () => ({
   uploadNotes: vi.fn()
 }))
 
-vi.mock('../NotesEditor', async () => {
+vi.mock('../NotesEditor', async (importOriginal) => {
+  const original = await importOriginal<{ NotesEditorLoading: typeof NotesEditorLoading }>()
   const React = await import('react')
 
   function MockNotesEditor({ activeNodeId, codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
@@ -289,9 +292,8 @@ vi.mock('../NotesEditor', async () => {
     })
   }
 
-  return {
-    default: MockNotesEditor
-  }
+  // Keep the real loading surface: the page's ready-gate contract is asserted against it.
+  return { ...original, default: MockNotesEditor }
 })
 
 vi.mock('../NotesSettings', () => ({

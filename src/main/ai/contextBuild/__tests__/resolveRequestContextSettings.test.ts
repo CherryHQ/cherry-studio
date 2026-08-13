@@ -16,11 +16,20 @@ import { resolveRequestContextSettings } from '../resolveRequestContextSettings'
 
 /** Wire the mocked PreferenceService to a global-settings snapshot. */
 const setPrefs = (
-  over: Partial<{ enabled: boolean; truncate: number; compressEnabled: boolean; modelId: string | null }> = {}
+  over: Partial<{
+    enabled: boolean
+    truncate: number
+    maxMessages: number | null
+    compressEnabled: boolean
+    modelId: string | null
+  }> = {}
 ) => {
   const map: Record<string, unknown> = {
     'chat.context_settings.enabled': over.enabled ?? true,
     'chat.context_settings.truncate_threshold': over.truncate ?? 100_000,
+    // The preference is `number | null`; omitting it here would hand the
+    // resolver an `undefined` no real request can produce.
+    'chat.context_settings.max_messages': over.maxMessages ?? null,
     'chat.context_settings.compress.enabled': over.compressEnabled ?? true,
     'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null
   }

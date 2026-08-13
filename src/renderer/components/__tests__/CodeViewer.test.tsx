@@ -139,4 +139,24 @@ describe('CodeViewer', () => {
     // The un-highlighted fallback renders the raw text at full opacity
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
   })
+
+  it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
+    // The wrapped line-content must be able to shrink below its min-content width
+    // (base64, URLs, minified JSON), otherwise long lines overflow the container
+    // and get clipped by the line's paint containment with no way to scroll to them.
+    const { container } = render(
+      <CodeViewer
+        value="long=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        language="text"
+        wrapped
+      />
+    )
+
+    const lineContent = container.querySelector('.line-content')
+    expect(lineContent).toHaveClass('min-w-0')
+    // The descendants-facing wrap classes must carry `!important` so they win
+    // over `.markdown pre span { white-space: pre }` inside chat code blocks.
+    expect(lineContent).toHaveClass('[&_*]:whitespace-pre-wrap!')
+    expect(lineContent).toHaveClass('[&_*]:break-words!')
+  })
 })

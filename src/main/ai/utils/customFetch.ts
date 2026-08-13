@@ -17,6 +17,22 @@ import { net, session } from 'electron'
 const PROVIDER_USER_AGENT_HEADER = 'x-cherry-studio-user-agent'
 
 /**
+ * Symbol-keyed slot carried on a `RequestInit` between the HTTP-trace wrapper
+ * (`createHttpTraceFetch`) and this innermost fetch. Provider fetch wrappers
+ * rewrite the body (DashScope web_extractor, Ark include-stripping, Codex/Grok
+ * body coercion) between the two, so the trace would otherwise record the
+ * pre-transform request. `customFetch` writes the final on-wire body here; the
+ * trace reads it back and overwrites its `inputs` attribute.
+ */
+export const HTTP_TRACE_FINAL_BODY_SLOT: unique symbol = Symbol('httpTrace.finalBody')
+
+/** Slot value stored under {@link HTTP_TRACE_FINAL_BODY_SLOT}. */
+export interface HttpTraceFinalBodySlot {
+  /** The body this request actually sent. */
+  body?: BodyInit | null
+}
+
+/**
  * Resolve the effective `User-Agent` from a {@link HeadersInit} with
  * case-insensitive last-writer-wins.
  *
@@ -54,6 +70,14 @@ function resolveUserAgent(headers: HeadersInit): string | null {
 export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) => {
   // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
   const target = input instanceof URL ? input.href : input
+
+  // Record the final on-wire body for the HTTP-trace layer (see
+  // HTTP_TRACE_FINAL_BODY_SLOT). Innermost means the body here is the one really
+  // sent — after every provider transform — so the trace can correct its span.
+  const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+    HTTP_TRACE_FINAL_BODY_SLOT
+  ]
+  if (finalBodySlot) finalBodySlot.body = init?.body
 
   // A custom `User-Agent` in the request headers is overwritten by Chromium's net
   // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session

@@ -39,6 +39,10 @@ const tryCanonicalize = (value: string): string | null => {
   }
 }
 
+/** Canonical key for path identity, with a normalized fallback for unsupported UNC paths. */
+export const getPathComparisonKey = (value: string): string =>
+  toComparisonKey(normalizeSeparators(tryCanonicalize(value) ?? value))
+
 /** Canonicalized, `/`-separated form of an accessible base path, or null if the match fails. */
 const findAccessibleBasePath = (filePath: string, accessiblePaths: readonly string[]): string | null => {
   const canonicalFilePath = tryCanonicalize(filePath)

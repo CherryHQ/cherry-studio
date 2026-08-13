@@ -1,7 +1,12 @@
 import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { customFetch, installProviderUserAgentInterceptor } from '../customFetch'
+import {
+  customFetch,
+  HTTP_TRACE_FINAL_BODY_SLOT,
+  type HttpTraceFinalBodySlot,
+  installProviderUserAgentInterceptor
+} from '../customFetch'
 
 const SENTINEL_HEADER = 'x-cherry-studio-user-agent'
 
@@ -65,6 +70,21 @@ describe('customFetch', () => {
 
     const [, init] = vi.mocked(net.fetch).mock.calls[0]
     expect(new Headers(init?.headers).get(SENTINEL_HEADER)).toBe('MyAgent/1.0')
+  })
+
+  it('records the final on-wire body into the HTTP-trace slot when present', async () => {
+    vi.mocked(net.fetch).mockResolvedValue(new Response())
+    const slot: HttpTraceFinalBodySlot = {}
+    const init: RequestInit & { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } = {
+      method: 'POST',
+      body: JSON.stringify({ tools: [{ type: 'web_extractor' }] }),
+      [HTTP_TRACE_FINAL_BODY_SLOT]: slot
+    }
+
+    await customFetch('https://api.test/v1/responses', init)
+
+    // The trace slot receives the exact body that goes onto the wire.
+    expect(slot.body).toBe(JSON.stringify({ tools: [{ type: 'web_extractor' }] }))
   })
 
   it('leaves requests without a User-Agent untouched', async () => {

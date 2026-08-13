@@ -69,6 +69,24 @@ vi.mock('../settingsBuilder', async (importActual) => ({
 
 vi.mock('../streamAdapter', async (importActual) => {
   const actualStreamAdapter = await importActual<typeof StreamAdapterModule>()
+  const createResultError = (message: any) => {
+    const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
+    const isErrorResult =
+      message.subtype !== 'success' ||
+      message.is_error ||
+      message.terminal_reason === 'api_error' ||
+      apiErrorStatus != null
+    if (!isErrorResult) return undefined
+
+    const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : (message.errors ?? [])
+    return new actualStreamAdapter.ClaudeCodeResultError(
+      errors.join('; ') || 'runtime failed',
+      message.subtype,
+      errors,
+      message.terminal_reason,
+      apiErrorStatus
+    )
+  }
   // Keep the real `v3UsageToStats` projection (and error class); only stub the SDK-dependent bits.
   return {
     ...actualStreamAdapter,
@@ -85,7 +103,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
     }),
     ClaudeCodeStreamAdapter: class {
-      readonly finalizeOpenParts = vi.fn()
+      readonly finalizeOpenTextParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
       private turnHasActivity = false
@@ -134,6 +152,8 @@ vi.mock('../streamAdapter', async (importActual) => {
         if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
           if (message.type === 'result') {
             this.options.onSessionId(message.session_id)
+            const resultError = createResultError(message)
+            if (resultError) throw resultError
             return { type: 'continue' }
           }
           const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
@@ -226,15 +246,12 @@ vi.mock('../streamAdapter', async (importActual) => {
         }
         if (message.type === 'result') {
           this.options.onSessionId(message.session_id)
-          if (message.subtype !== 'success') {
+          const resultError = createResultError(message)
+          if (resultError) {
             // Mirrors the real adapter: errors flush usage metadata, then throw before the turn flag
             // flips (the real flip happens after handleResultMessage returns, which a throw skips).
             this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
-            throw new actualStreamAdapter.ClaudeCodeResultError(
-              message.errors?.join('; ') || 'runtime failed',
-              message.subtype,
-              message.errors ?? []
-            )
+            throw resultError
           }
           this.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
           this.turnActive = false
@@ -2835,6 +2852,93 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('surfaces SDK success envelopes marked as API errors instead of completing the turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-api-error',
+      usage: {},
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: null,
+      result: 'API Error: The operation timed out.'
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+
+    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-api-error' })
+    expect(seen).toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'message-metadata' }) })
+    )
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
+      })
+    )
+    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('tears down a turn-less API failure instead of retaining the warm query', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-background-api-error',
+      usage: {},
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: 504,
+      result: 'API Error: The operation timed out.'
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+
+    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-background-api-error' })
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
+      })
+    )
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
+    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+    void connection.close()
+  })
+
   it('logs non-salvage SDK failures before surfacing the runtime error', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -2861,6 +2965,34 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'Claude Code query loop failed',
       expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
     )
+    void connection.close()
+  })
+
+  it('finalizes open text parts before surfacing an ordinary query error', async () => {
+    const nextQueryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => nextQueryResult.promise }
+      }
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    nextQueryResult.reject(new Error('ordinary query failure'))
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'error', error: expect.objectContaining({ message: 'ordinary query failure' }) }
+    })
+    expect(mocks.adapterInstances[0].finalizeOpenTextParts).toHaveBeenCalledOnce()
     void connection.close()
   })
 

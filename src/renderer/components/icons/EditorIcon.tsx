@@ -1,4 +1,4 @@
-import { CursorIcon, VsCodeIcon, ZedIcon } from '@renderer/components/icons/SvgIcon'
+import { CursorIcon, VsCodeIcon, WindowsTerminalIcon, ZedIcon } from '@renderer/components/icons/SvgIcon'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 
 export const getEditorIcon = (app: ExternalAppInfo, className = 'size-4') => {
@@ -9,5 +9,7 @@ export const getEditorIcon = (app: ExternalAppInfo, className = 'size-4') => {
       return <CursorIcon className={className} />
     case 'zed':
       return <ZedIcon className={className} />
+    case 'wt':
+      return <WindowsTerminalIcon className={className} />
   }
 }

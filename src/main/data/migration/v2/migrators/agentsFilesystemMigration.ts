@@ -8,7 +8,8 @@ import {
   agentDataDirectoryPath,
   assertAgentStoragePath,
   ensureAgentDataDirectory,
-  ensureAgentStorageDirectory
+  ensureAgentStorageDirectory,
+  resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
 import { isPathInside } from '@main/utils/file'
@@ -83,6 +84,10 @@ export interface AgentFilesystemMigrationProgress {
   total: number
   fileCount: number
   byteCount: number
+}
+
+export interface AgentFilesystemMigrationResult {
+  skippedTargetCount: number
 }
 
 export interface ClaudeConfigMigrationProgress {
@@ -1474,10 +1479,14 @@ interface CleanupPathIndexEntry {
   ownerPath: string
 }
 
-interface CleanupSourceOwnership {
+interface CleanupSourceOwner {
   sourceAgentId: string
   finalAgentId: string
-  hasConflictingOwner: boolean
+}
+
+interface CleanupTargetSourceOverlap {
+  targetPath: string
+  sourcePath: string
 }
 
 type CleanupPathAncestorIndex = Map<string, CleanupPathIndexEntry>
@@ -1538,37 +1547,48 @@ function createCleanupTargetAncestorIndex(targets: CleanupPathIndexEntry[]): Cle
   return index
 }
 
-function findCleanupTargetSourceOverlap(
+function findCleanupTargetSourceOverlaps(
   targets: CleanupPathIndexEntry[],
   targetIndex: CleanupPathAncestorIndex,
   sources: CleanupPathIndexEntry[]
-): string | undefined {
+): CleanupTargetSourceOverlap[] {
+  const overlaps = new Map<string, CleanupTargetSourceOverlap>()
   const sourceIndex = createCleanupPathAncestorIndex(sources)
   for (const source of sources) {
     const targetAncestor = findCleanupPathAncestor(targetIndex, source.indexedPath)
-    if (targetAncestor) return targetAncestor.ownerPath
+    if (targetAncestor) {
+      overlaps.set(cleanupPathIndexKey(targetAncestor.ownerPath), {
+        targetPath: targetAncestor.ownerPath,
+        sourcePath: source.ownerPath
+      })
+    }
   }
   for (const target of targets) {
-    if (findCleanupPathAncestor(sourceIndex, target.indexedPath)) return target.ownerPath
+    const sourceAncestor = findCleanupPathAncestor(sourceIndex, target.indexedPath)
+    if (sourceAncestor) {
+      overlaps.set(cleanupPathIndexKey(target.ownerPath), {
+        targetPath: target.ownerPath,
+        sourcePath: sourceAncestor.ownerPath
+      })
+    }
   }
-  return undefined
+  return Array.from(overlaps.values())
 }
 
 async function clearLegacyAgentMigrationTargets(input: {
   agentsDataRoot: string
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
   sessions: AgentFileSessionPlan[]
-}): Promise<void> {
+}): Promise<Set<string>> {
   await ensureAgentStorageDirectory(input.agentsDataRoot, input.agentsDataRoot)
 
-  const sourceOwnershipByPath = new Map<string, CleanupSourceOwnership>()
+  const sourceOwnershipByPath = new Map<string, CleanupSourceOwner[]>()
   const addSourceOwner = (sourcePath: string, sourceAgentId: string, finalAgentId: string) => {
     const key = cleanupPathIndexKey(sourcePath)
-    const ownership = sourceOwnershipByPath.get(key)
-    if (!ownership) {
-      sourceOwnershipByPath.set(key, { sourceAgentId, finalAgentId, hasConflictingOwner: false })
-    } else if (ownership.sourceAgentId !== sourceAgentId || ownership.finalAgentId !== finalAgentId) {
-      ownership.hasConflictingOwner = true
+    const owners = sourceOwnershipByPath.get(key) ?? []
+    if (!owners.some((owner) => owner.sourceAgentId === sourceAgentId && owner.finalAgentId === finalAgentId)) {
+      owners.push({ sourceAgentId, finalAgentId })
+      sourceOwnershipByPath.set(key, owners)
     }
   }
   for (const session of input.sessions) {
@@ -1585,14 +1605,13 @@ async function clearLegacyAgentMigrationTargets(input: {
   const targetPaths = new Map<string, { path: string; exists: boolean; preserveExactSource: boolean }>()
   for (const { sourceAgentId, finalAgentId } of input.agents) {
     const targetPath = path.resolve(agentDataDirectoryPath(input.agentsDataRoot, finalAgentId))
-    const exactSourceOwnership = sourceOwnershipByPath.get(cleanupPathIndexKey(targetPath))
+    const exactSourceOwners = sourceOwnershipByPath.get(cleanupPathIndexKey(targetPath))
     // Some v1 Agents already use the final v2 Agent data path as their workspace.
-    // It remains a source of truth, but only when no other Agent claims the same path.
+    // Keep that source even when another Agent also references the same workspace.
     const preserveExactSource =
-      exactSourceOwnership !== undefined &&
-      !exactSourceOwnership.hasConflictingOwner &&
-      exactSourceOwnership.sourceAgentId === sourceAgentId &&
-      exactSourceOwnership.finalAgentId === finalAgentId
+      exactSourceOwners?.some(
+        (owner) => owner.sourceAgentId === sourceAgentId && owner.finalAgentId === finalAgentId
+      ) ?? false
     targetPaths.set(targetPath, { path: targetPath, exists: false, preserveExactSource })
   }
   for (const session of input.sessions) {
@@ -1630,9 +1649,9 @@ async function clearLegacyAgentMigrationTargets(input: {
     (sourcePath) => !preservedSourceKeys.has(cleanupPathIndexKey(sourcePath))
   )
   const lexicalSources = overlapSourcePaths.map((sourcePath) => ({ indexedPath: sourcePath, ownerPath: sourcePath }))
-  const lexicalOverlapTarget = findCleanupTargetSourceOverlap(lexicalTargets, lexicalTargetIndex, lexicalSources)
-  if (lexicalOverlapTarget) {
-    throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${lexicalOverlapTarget}`)
+  const targetSourceOverlaps = new Map<string, CleanupTargetSourceOverlap>()
+  for (const overlap of findCleanupTargetSourceOverlaps(lexicalTargets, lexicalTargetIndex, lexicalSources)) {
+    targetSourceOverlaps.set(cleanupPathIndexKey(overlap.targetPath), overlap)
   }
 
   const resolvedSources: CleanupPathIndexEntry[] = []
@@ -1643,17 +1662,25 @@ async function clearLegacyAgentMigrationTargets(input: {
 
   const resolvedTargets: CleanupPathIndexEntry[] = []
   for (const target of targets) {
-    const targetStat = await lstatIfExists(target.path)
-    const resolvedTarget = targetStat && !targetStat.isSymbolicLink() ? await realpathIfExists(target.path) : undefined
-    if (resolvedTarget) resolvedTargets.push({ indexedPath: resolvedTarget, ownerPath: target.path })
+    resolvedTargets.push({
+      indexedPath: await resolveRealOrNearestExistingPath(target.path),
+      ownerPath: target.path
+    })
   }
   const resolvedTargetIndex = createCleanupPathAncestorIndex(resolvedTargets)
-  const resolvedOverlapTarget = findCleanupTargetSourceOverlap(resolvedTargets, resolvedTargetIndex, resolvedSources)
-  if (resolvedOverlapTarget) {
-    throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${resolvedOverlapTarget}`)
+  for (const overlap of findCleanupTargetSourceOverlaps(resolvedTargets, resolvedTargetIndex, resolvedSources)) {
+    const key = cleanupPathIndexKey(overlap.targetPath)
+    if (!targetSourceOverlaps.has(key)) targetSourceOverlaps.set(key, overlap)
   }
 
-  const cleanupTargets = targets.filter((target) => !target.preserveExactSource)
+  for (const overlap of targetSourceOverlaps.values()) {
+    logger.warn('Skipping Agent filesystem target because it overlaps a legacy source', overlap)
+  }
+
+  const skippedTargetKeys = new Set(targetSourceOverlaps.keys())
+  const cleanupTargets = targets.filter(
+    (target) => !target.preserveExactSource && !skippedTargetKeys.has(cleanupPathIndexKey(target.path))
+  )
   for (const target of cleanupTargets) {
     await removeTreeWithoutFollowing(target.path)
   }
@@ -1661,8 +1688,10 @@ async function clearLegacyAgentMigrationTargets(input: {
   logger.info('Cleared stale Agent migration filesystem targets before copying', {
     targets: cleanupTargets.length,
     removedTargets: cleanupTargets.filter((target) => target.exists).length,
-    preservedSources: targets.length - cleanupTargets.length
+    preservedSources: targets.length - cleanupTargets.length,
+    skippedTargets: skippedTargetKeys.size
   })
+  return skippedTargetKeys
 }
 
 export async function stageLegacyAgentFiles(input: {
@@ -1670,7 +1699,7 @@ export async function stageLegacyAgentFiles(input: {
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
   sessions: AgentFileSessionPlan[]
   onProgress?: (progress: AgentFilesystemMigrationProgress) => void
-}): Promise<void> {
+}): Promise<AgentFilesystemMigrationResult> {
   const startedAt = performance.now()
   if (input.agents.length === 0) {
     logger.info('Prepared Agent identity and workspace files', {
@@ -1678,10 +1707,10 @@ export async function stageLegacyAgentFiles(input: {
       sessions: 0,
       durationMs: Math.round(performance.now() - startedAt)
     })
-    return
+    return { skippedTargetCount: 0 }
   }
 
-  await clearLegacyAgentMigrationTargets(input)
+  const skippedTargetKeys = await clearLegacyAgentMigrationTargets(input)
 
   const plansByAgent = new Map<string, AgentFileSessionPlan[]>()
   for (const session of input.sessions) {
@@ -1725,7 +1754,8 @@ export async function stageLegacyAgentFiles(input: {
     for (const { sourceAgentId, finalAgentId } of input.agents) {
       const agentPlans = plansByAgent.get(sourceAgentId) ?? []
       const agentDataPath = agentDataDirectoryPath(input.agentsDataRoot, finalAgentId)
-      await ensureAgentStorageDirectory(input.agentsDataRoot, agentDataPath)
+      const skipAgentTarget = skippedTargetKeys.has(cleanupPathIndexKey(agentDataPath))
+      if (!skipAgentTarget) await ensureAgentStorageDirectory(input.agentsDataRoot, agentDataPath)
       const defaultWorkspacePath = legacyAgentWorkspacePath(input.agentsDataRoot, sourceAgentId)
 
       const orderedSources = [...agentPlans]
@@ -1738,15 +1768,17 @@ export async function stageLegacyAgentFiles(input: {
         .map((plan) => plan.sourceWorkspacePath)
       orderedSources.push(defaultWorkspacePath)
 
-      const seenSources = new Set<string>()
-      const claimedIdentityEntries = new Set<string>()
-      for (const sourcePath of orderedSources) {
-        const normalizedSource = path.resolve(sourcePath)
-        if (seenSources.has(normalizedSource)) continue
-        seenSources.add(normalizedSource)
-        const identityStats = await copyIdentityFromWorkspace(sourcePath, agentDataPath, claimedIdentityEntries)
-        identityFileCount += identityStats.fileCount
-        identityByteCount += identityStats.byteCount
+      if (!skipAgentTarget) {
+        const seenSources = new Set<string>()
+        const claimedIdentityEntries = new Set<string>()
+        for (const sourcePath of orderedSources) {
+          const normalizedSource = path.resolve(sourcePath)
+          if (seenSources.has(normalizedSource)) continue
+          seenSources.add(normalizedSource)
+          const identityStats = await copyIdentityFromWorkspace(sourcePath, agentDataPath, claimedIdentityEntries)
+          identityFileCount += identityStats.fileCount
+          identityByteCount += identityStats.byteCount
+        }
       }
 
       processedAgents++
@@ -1758,11 +1790,11 @@ export async function stageLegacyAgentFiles(input: {
         byteCount: identityByteCount
       })
 
-      await ensureAgentDataDirectory(input.agentsDataRoot, finalAgentId)
+      if (!skipAgentTarget) await ensureAgentDataDirectory(input.agentsDataRoot, finalAgentId)
 
       const systemSessions = agentPlans.filter((plan) => plan.isManagedDefault && plan.systemWorkspacePath)
       for (const session of systemSessions) {
-        if (session.systemWorkspacePath) {
+        if (session.systemWorkspacePath && !skippedTargetKeys.has(cleanupPathIndexKey(session.systemWorkspacePath))) {
           await ensureAgentStorageDirectory(input.agentsDataRoot, session.systemWorkspacePath)
         }
       }
@@ -1772,6 +1804,18 @@ export async function stageLegacyAgentFiles(input: {
       const contentSessionId = contentSessionIdByAgent.get(sourceAgentId)
       const contentSession = systemSessions.find((session) => session.sourceSessionId === contentSessionId)
       if (!contentSession?.systemWorkspacePath) continue
+
+      if (skippedTargetKeys.has(cleanupPathIndexKey(contentSession.systemWorkspacePath))) {
+        processedWorkspaceSessions++
+        input.onProgress?.({
+          phase: 'workspace',
+          processed: processedWorkspaceSessions,
+          total: totalWorkspaceSessions,
+          fileCount: workspaceFileCount,
+          byteCount: workspaceByteCount
+        })
+        continue
+      }
 
       const workspaceStats = await copyOrdinaryWorkspaceContent(
         workspaceCopyContext,
@@ -1813,4 +1857,5 @@ export async function stageLegacyAgentFiles(input: {
     workspaceByteCount,
     durationMs: Math.round(performance.now() - startedAt)
   })
+  return { skippedTargetCount: skippedTargetKeys.size }
 }

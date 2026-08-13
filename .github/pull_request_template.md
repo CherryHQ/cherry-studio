@@ -3,14 +3,10 @@
 1. Consider creating this PR as draft: https://github.com/CherryHQ/cherry-studio/blob/main/CONTRIBUTING.md
 -->
 
-> ### 🚨 Branch strategy — read before opening this PR
+> ### Branch strategy
 >
-> The v2 refactor has merged into `main`, so **`main` is the default branch for active development** (v1 and v2 code currently coexist there — expect large, breaking changes).
->
-> - **Active development** (features, refactors, optimizations, fixes for the current codebase) → target **`main`** (the default base).
-> - **v1 maintenance** (hotfixes and subsequent v1 releases) → branch from and target **`v1`**, _not_ `main`.
->
-> A v1 fix does **not** auto-carry to `main`: if the same bug exists on `main`, open a separate forward-port PR targeting `main`. Before touching subsystems being replaced, read `docs/references/data/` and watch for `@deprecated` markers — they flag code being deleted.
+> - Active development targets `main`.
+> - v1 maintenance targets `v1`; forward-port fixes to `main` separately when needed.
 
 ### What this PR does
 

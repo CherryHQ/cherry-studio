@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { HtmlArtifactPopupHost, HtmlArtifactView } from '../HtmlArtifactView'
+import { HtmlArtifactPopupHost } from '../HtmlArtifactPopupContext'
+import { HtmlArtifactView } from '../HtmlArtifactView'
 import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext'
 
 const mocks = vi.hoisted(() => ({

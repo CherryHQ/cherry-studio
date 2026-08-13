@@ -58,7 +58,8 @@ describe('NotesEditor RichEditor integration', () => {
     }
     const { container } = render(<TestEditor />)
 
-    await waitFor(() => expect(editorRef.current).not.toBeNull())
+    // NotesEditor lazy-loads RichEditor; the real module is heavy enough to exceed the 1s default.
+    await waitFor(() => expect(editorRef.current).not.toBeNull(), { timeout: 10_000 })
     expect(screen.getByText('notes.characters: 20')).toBeInTheDocument()
     expect(screen.queryByTestId('toolbar-image')).not.toBeInTheDocument()
     expect(screen.queryByTestId('toolbar-inlineMath')).not.toBeInTheDocument()

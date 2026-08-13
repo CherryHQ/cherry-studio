@@ -64,11 +64,13 @@ describe('diagnostic source collection', () => {
       writeFile(path.join(logsDir, `app-error.${logDate}.log`), recentError)
     ])
 
-    const topicDir = path.join(tracesDir, 'topic:one')
+    // `:` and `*` exercise archive-name sanitisation but are unwriteable on Windows.
+    const isWin = process.platform === 'win32'
+    const topicDir = path.join(tracesDir, isWin ? 'topic-one' : 'topic:one')
     await mkdir(topicDir)
     const recentTrace = `${JSON.stringify({ id: 'recent', startTime: now - 3_000 })}\n`
     const oldTrace = `${JSON.stringify({ id: 'old', startTime: now - 2 * 86_400_000 })}\n`
-    await writeFile(path.join(topicDir, 'trace*one'), `${oldTrace}${recentTrace}`)
+    await writeFile(path.join(topicDir, isWin ? 'trace-one' : 'trace*one'), `${oldTrace}${recentTrace}`)
 
     const range = { fromMs: now - 86_400_000, toMs: now }
     const collection = await collectDiagnosticSources(range, ALL_SOURCES)

@@ -85,13 +85,17 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
-  const { themeNames } = useCodeStyle()
+  const { loadThemeNames, themeNames } = useCodeStyle()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
 
   useEffect(() => {
     setFontSizeValue(fontSize)
   }, [fontSize])
+
+  useEffect(() => {
+    void loadThemeNames()
+  }, [loadThemeNames])
 
   const handleSpellCheckChange = (checked: boolean) => {
     void setEnableSpellCheck(checked)

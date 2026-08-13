@@ -8,7 +8,7 @@ import type {
   PersistableRemoteState
 } from '../processors/types'
 import { prepareFileProcessingJob } from './jobExecution'
-import type { FileProcessingJobPayload } from './shared'
+import { type FileProcessingJobPayload, fileProcessingQueue } from './shared'
 
 const logger = loggerService.withContext('FileProcessing:RemotePollJobHandler')
 
@@ -33,7 +33,7 @@ const POLL_INTERVAL_MS = 1_000
  */
 export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   recovery: 'retry',
-  defaultQueue: (input) => `file-processing.${input.processorId}`,
+  defaultQueue: (input) => fileProcessingQueue(input.processorId),
   defaultConcurrency: 2,
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 30 * 60_000,
