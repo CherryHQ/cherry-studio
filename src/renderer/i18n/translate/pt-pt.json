@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Introduza o seu Client Secret do QQ Bot",
         "description": "Receber e responder a mensagens através da API oficial do QQ Bot.",
+        "mentionOnlyHint": "[Descrever a função do bot]: Quando ativado, o bot responde apenas a menções diretas (@menções) no chat. Desativá-lo permitirá que o bot receba todas as mensagens do grupo (isso exige a permissão “receber todas as mensagens” na QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]: Mençione apenas.",
         "title": "QQ",
         "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o seu ID de chat no formato correto."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]: {{count}} canal",
+          "channels_count_other": "[para ser traduzido]: {{count}} canais",
+          "channels_empty": "Os canais não serão alterados.",
+          "channels_title": "[Para ser traduzido]: Os canais foram alterados para não referenciarem o diretório de trabalho (work directory).",
           "content": "Eliminar esta pasta de trabalho também eliminará todas as tarefas sob ele. Apenas os registos da base de dados são removidos; a pasta real no disco não será eliminada.",
+          "disk_preserved": "A pasta no disco e os seus arquivos não serão apagados.",
           "error": {
             "failed": "Falha ao eliminar a pasta de trabalho"
           },
+          "more_count_one": "[para ser traduzido]: …e mais {{count}} itens.",
+          "more_count_other": "…e mais {{count}} itens.",
+          "preview": "[Para ser traduzido]: Excluir “{{name}}” remove suas sessões, altera os canais relacionados e as tarefas agendadas para que não façam parte do diretório de trabalho. Esta ação não pode ser desfeita.",
+          "preview_failed": "O impacto da exclusão não pôde ser verificado; portanto, este diretório de trabalhos ainda não pode ser excluído.",
+          "preview_loading": "[A ser traduzido]: Carregando as informações sobre o impacto da exclusão…",
+          "sessions_count_one": "[Para ser traduzido]: {{count}} sessão",
+          "sessions_count_other": "[to be translated]:{{count}} sessões",
+          "sessions_empty": "Nenhuma sessão será excluída.",
+          "sessions_title": "[Sessões a serem excluídas]",
+          "tasks_count_one": "[Para ser traduzido]: {{count}} tarefa agendada",
+          "tasks_count_other": "[To be translated]: {{count}} tarefas agendadas",
+          "tasks_empty": "[Nos tarefas agendadas, nada será alterado.]",
+          "tasks_title": "[Tarefas agendadas alteradas para não usar diretório de trabalho]",
           "title": "Eliminar pasta de trabalho",
           "trigger": "Apagar pasta de trabalho"
         },
@@ -958,7 +978,6 @@
       "executing": "A executar...",
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
-      "pending": "A aguardar confirmação",
       "pendingBadge": "Pendente",
       "permissionExpired": "Pedido de permissão expirou. A aguardar novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
@@ -1544,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "files": "Ficheiros",
+          "resources": "Arquivos e Pastas",
           "skills": "Competências"
         },
         "description": "Selecione entre ficheiros, agentes ou competências",
+        "load_failed": "Falhou ao carregar os recursos do workspace.",
         "loading": "A carregar...",
-        "no_file_found": {
-          "description": "Nenhum ficheiro disponível em pastas acessíveis",
-          "label": "Nenhum Ficheiro Encontrado"
-        },
         "no_items_found": {
           "description": "Nenhum ficheiro, agente ou competência disponível",
           "label": "Nenhum item encontrado"
+        },
+        "no_resources_found": {
+          "description": "Em nenhum dos arquivos ou pastas que podem ser pesquisados no espaço de trabalho atual…",
+          "label": "Não foram encontrados recursos."
         },
         "title": "Recursos"
       },
@@ -2524,6 +2544,7 @@
       "ocr": "Motor OCR não inicializado, verifique as definições de OCR",
       "parse": "A IA retornou uma resposta inválida, tente novamente ou mude de modelo",
       "payload": "Conteúdo do pedido muito grande, reduza o tamanho do ficheiro ou do texto",
+      "permission": "O fornecedor recusou este pedido. Verifique os detalhes do erro, o seu plano de conta, as permissões da chave API ou o acesso a este recurso.",
       "proxy": "Erro de proxy ou certificado SSL, verifique as configurações de proxy e de rede",
       "quota": "A quota da conta esgotou-se. Adicione saldo ou mude de fornecedor.",
       "rate_limit": "Demasiados pedidos num curto espaço de tempo. Aguarde um momento e tente novamente, ou mude para um modelo com um limite de taxa mais elevado",
@@ -2548,6 +2569,7 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "image_unreadable_for_non_vision_model": "[Para ser traduzido]: O modelo selecionado não suporta imagens, e o Cherry Studio não conseguiu extrair texto legível do anexo. Escolha um modelo capaz de processar imagens ou remova a imagem e tente novamente.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -3196,7 +3218,6 @@
       "updated_at": "Atualizado {{time}}"
     },
     "name_required": "Nome da base de conhecimento é obrigatório",
-    "not_set": "Não Definido",
     "provider_not_found": "Fornecedor não encontrado",
     "rag": {
       "chunk_overlap": "Tamanho de Sobreposição",
@@ -3211,12 +3232,13 @@
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
       "document_count": "Contagem de Documentos",
-      "download_local_embedding": "Descarregar Modelo Local",
       "download_local_embedding_failed": "Não foi possível descarregar o modelo de embeddings local",
+      "download_local_model": "[Para ser traduzido]: Baixe o Modelo Local.",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Seleção de Modelo",
       "file_processing": "Processamento de Ficheiros",
       "file_processing_hint": "O processamento de ficheiros é executado automaticamente durante a importação do documento. Escolher o fornecedor certo pode melhorar a qualidade da análise do documento.",
+      "file_processing_none": "[não use]",
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_separator": "Delimitador no qual o texto é dividido, em forma escapada. Com a divisão inteligente ativada, ele adiciona um ponto de interrupção; com ela desativada, o texto é dividido apenas por esse delimitador.",
@@ -3230,6 +3252,8 @@
       },
       "processor": "Processador de Fornecedor",
       "processor_not_configured": "Não configurado",
+      "processor_not_downloaded": "Não foi baixado.",
+      "processor_unreachable": "[Para ser traduzido]: O serviço não está em execução.",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3480,6 +3504,12 @@
         "context_compress_model": "Modelo de compressão",
         "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_count_follow_global": "Seguir definição global ({{count}})",
+        "context_count_unlimited": "Sem limite",
+        "context_globally_disabled": "A gestão de contexto está desativada globalmente, pelo que as definições de descarga e compressão aqui não têm efeito",
+        "context_inherited": "A seguir as definições globais: {{compress}}; saídas de ferramentas acima de {{threshold}} caracteres são descarregadas",
+        "context_inherited_compress_off": "compressão automática desativada",
+        "context_inherited_compress_on": "compressão automática ativada",
         "context_management": "Gestão de contexto",
         "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
@@ -4021,6 +4051,14 @@
         "export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
         "no_config": "Endereço da API ou token do Siyuan não configurado"
       },
+      "stream_admission": {
+        "execution_changed": "A resposta mudou antes que o reenvio (retry) começasse. Por favor, tente novamente.",
+        "execution_not_ready": "Esta resposta ainda está sendo gerada e não pode ser tentada novamente por enquanto.",
+        "model_already_in_live_group": "Este modelo já está sendo usado no grupo de respostas ativo.",
+        "single_model_required": "Selecione um modelo para adicionar ao grupo de respostas ativo.",
+        "target_not_in_live_group": "[A resposta selecionada não está mais na lista de respostas ativas. Tente novamente.]",
+        "topic_busy": "essa conversa ainda está em andamento. Aguarde até que termine e tente novamente."
+      },
       "table": {
         "invalid": "Incapaz de recuperar dados de tabela válidos"
       },
@@ -4035,7 +4073,8 @@
         "content": "Eliminar todas as respostas do assistente neste grupo? A pergunta do utilizador e as mensagens posteriores serão mantidas.",
         "title": "Eliminar respostas agrupadas"
       },
-      "retry_failed": "Repetir mensagem com erro"
+      "retry_failed": "Repetir mensagem com erro",
+      "retry_skipped_same_model": "Foram ignoradas {{count}} respostas adicionais que falharam, pois a função “Retry All” permite no máximo apenas uma tentativa de reenvio de cada modelo."
     },
     "ignore": {
       "knowledge": {
@@ -4467,27 +4506,27 @@
     },
     "pinned": "Fixado",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": ">[Para ser traduzido]: Adicionar níveis de preços",
+      "cache_fallback_help": "Deixe os preços do cache em branco para usar o preço de entrada desse nível; insira “0” para o serviço gratuito.",
       "cache_read": "Preço de Leitura de Cache",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "[Preço de Gravação no Cache]",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[Para ser traduzido]: {{campo}}, nível {{índice}}",
       "input": "Preço de entrada",
       "million_tokens": "Um milhão de tokens",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "[Para ser traduzido]: Começa a partir dos tokens de entrada.",
+      "min_input_tokens_help": "Limite inclusivo; deve ser maior do que o nível anterior.",
       "output": "Preço de saída",
       "price": "Preço",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "Remover o nível de preço {{index}}",
+      "tier": "[não há texto para ser traduzido entre “[to be translated]” e “Tier {{index}”]",
+      "tier_from": "De [{{boundary}}} tokens de entrada (inclusivos)]",
+      "use_input_price": "Use o preço de entrada.",
+      "validation_min_input_tokens": "[Para ser traduzido]: Digite um número inteiro positivo.",
+      "validation_min_input_tokens_order": "O nível deve começar após o nível anterior.",
+      "validation_price": "Insira um preço maior ou igual a 0."
     },
     "reasoning": "Raciocínio",
     "rerank_model": "Modelo de reclassificação",
@@ -4639,6 +4678,8 @@
         "font_size_medium": "Médio",
         "font_size_small": "Pequeno",
         "font_title": "Definições do tipo de letra",
+        "line_breaks": "Modo de Quebra de Linha",
+        "line_breaks_description": "Renderizar uma quebra de linha como uma nova linha (no estilo Obsidian). Quando desativada, as quebras de linha são transformadas em espaços, até que uma linha em branco separe os parágrafos.",
         "serif_font": "Tipo de letra serifado",
         "show_table_of_contents": "Mostrar índice",
         "show_table_of_contents_description": "Apresenta uma barra lateral com o índice para facilitar a navegação no documento",
@@ -5406,6 +5447,7 @@
         "insertRowBefore": "inserir acima"
       }
     },
+    "backToTop": "Voltar ao topo",
     "commands": {
       "blockMath": {
         "description": "inserir fórmula matemática",
@@ -6682,6 +6724,10 @@
       "installingHint": "A primeira instalação pode descarregar um runtime e levar alguns minutos",
       "invalidTool": "Nome ou chave de ferramenta inválida",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML ou CoreML para acelerar o processo de incorporação de dados (embedding) e a inferência de reconhecimento ótico de caracteres (OCR) de forma local.",
+          "label": "[Aceleração por hardware]"
+        },
         "cancel": "Cancelar",
         "description": "Modelos executados localmente no dispositivo: descarregue-os uma vez e utilize-os offline, sem uma chave de API.",
         "download": "Descarregar",
@@ -6989,6 +7035,7 @@
       },
       "command": "Comando",
       "config_description": "Configurar modelo de protocolo de contexto do servidor",
+      "copyLogs": "[Copiar logs]",
       "customRegistryPlaceholder": "Por favor, introduza o endereço do repositório privado, por exemplo: https://npm.company.com",
       "deleteError": "Falha ao eliminar servidor",
       "deleteServer": "Eliminar Servidor",
@@ -7042,6 +7089,7 @@
       },
       "logoUrl": "URL do Logotipo",
       "logs": "Registos",
+      "logsHint": "[Traduzido]: Logs do processo do servidor MCP",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -7428,6 +7476,20 @@
         "use_all_keys": "Use chaves"
       },
       "collapse_all": "Recolher tudo",
+      "context_management": {
+        "compress_enabled": "Compressão automática",
+        "compress_enabled_description": "Resume automaticamente os turnos mais antigos ao aproximar-se do limite da janela de contexto. Os assistentes podem substituir esta definição",
+        "compress_model": "Modelo de compressão",
+        "compress_model_follow": "Seguir o modelo atual",
+        "enabled": "Ativar gestão de contexto",
+        "enabled_description": "Gere automaticamente o contexto da conversa: descarrega saídas de ferramentas demasiado grandes e comprime o histórico perto do limite da janela. Se desativada, nada é gerido e os pedidos que excedam a janela falham",
+        "max_messages": "Mensagens recentes mantidas",
+        "max_messages_description": "Envia apenas as mensagens mais recentes; as anteriores são excluídas do contexto. Deixe vazio para não limitar. Os assistentes podem substituir esta definição",
+        "max_messages_unlimited": "Sem limite",
+        "title": "Gestão de contexto",
+        "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
+        "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
+      },
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",
@@ -8138,10 +8200,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover Aba para o Primeiro",
       "new_topic": "Novo tópico",
+      "next_tab": "Próxima aba",
       "occupied_by_other_application": "Este atalho já está a ser utilizado pelo sistema ou por outra aplicação",
       "open_tab_in_new_window": "Abrir aba em nova janela",
       "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Premir atalho",
+      "prev_tab": "[Para ser traduzido]: Aba anterior",
       "print": "Imprimir",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
@@ -8257,6 +8321,10 @@
           "doc2x": {
             "description": "Motor avançado de restauração de ficheiros.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[Traduzido]: Converte PDFs em Markdown de forma completa neste dispositivo. Os documentos que contêm apenas texto são analisados diretamente; as imagens escaneadas utilizam o modelo OCR local como alternativa.",
+            "name": "[Local Document]"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) em execução em processo — totalmente offline, sem chave de API, com reconhecimento numa thread em segundo plano para manter a interface responsiva. Descarregue o modelo (~140MB) em Dependências de Ambiente antes do primeiro uso.",
