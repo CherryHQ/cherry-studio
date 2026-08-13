@@ -109,6 +109,37 @@ describe('diffAssistantUpdate', () => {
     expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
   })
 
+  it('does not resurrect a disabled identity flag when updating an unrelated setting', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        injectModelIdentity: false
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, temperature: 0.5 }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    // The PATCH carries only the temperature change; the disabled identity
+    // flag must not be re-emitted (the service merges settings, so emitting
+    // it would silently re-enable the flag — the .default(true) regression).
+    expect(result?.dto).toEqual({ settings: { temperature: 0.5 } })
+    expect((result?.dto as { settings?: Record<string, unknown> }).settings).not.toHaveProperty('injectModelIdentity')
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
+  it('emits injectModelIdentity when the toggle flips to off', () => {
+    const assistant = createAssistant() // DEFAULT_ASSISTANT_SETTINGS.injectModelIdentity = true
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, injectModelIdentity: false }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto).toEqual({ settings: { injectModelIdentity: false } })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
   it('renames an assistant without resending invalid legacy settings', () => {
     const assistant = createAssistant({
       settings: {

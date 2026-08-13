@@ -3741,7 +3741,9 @@
         "search": "Search available servers...",
         "switch_title_active": "Toggle off to remove",
         "switch_title_inactive": "This server is disabled in MCP settings; remove it to re-add later",
-        "title": "Tools"
+        "title": "Tools",
+        "inject_identity": "Inject model identity",
+        "inject_identity_hint": "Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)"
       }
     },
     "create_menu": {

@@ -3741,7 +3741,9 @@
         "search": "搜索可用服务...",
         "switch_title_active": "关闭以移除",
         "switch_title_inactive": "该服务在 MCP 设置中未启用,移除后可重新添加",
-        "title": "工具"
+        "title": "工具",
+        "inject_identity": "注入模型身份",
+        "inject_identity_hint": "在系统提示词中声明当前运行的模型,避免模型误认身份(如自称 Claude)"
       }
     },
     "create_menu": {

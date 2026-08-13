@@ -1,5 +1,6 @@
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,10 +34,54 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name: 'GPT-4' } as Model
+const provider = { id: 'openai', name: 'OpenAI' } as Provider
 
 describe('assembleSystemPrompt', () => {
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('model identity section (local patch)', () => {
+    it('emits the identity section first when a provider is supplied', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: makeAssistant({ prompt: 'base' }),
+        model,
+        provider
+      })
+      expect(out).toContain('# Identity')
+      expect(out).toContain('model "GPT-4" (provider: OpenAI)')
+      // Identity must win over the assistant prompt when asked about itself.
+      expect(out?.indexOf('# Identity')).toBe(0)
+      expect(out).toContain('base')
+    })
+
+    it('omits the identity section when no provider is supplied', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: makeAssistant({ prompt: 'base' }),
+        model
+      })
+      expect(out).not.toContain('# Identity')
+    })
+
+    it('omits the identity section when injectModelIdentity is off', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, injectModelIdentity: false } }),
+        model,
+        provider
+      })
+      expect(out).not.toContain('# Identity')
+      expect(out).toBe('base')
+    })
+
+    it('emits the identity section when injectModelIdentity is explicitly on', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, injectModelIdentity: true } }),
+        model,
+        provider
+      })
+      expect(out).toContain('# Identity')
+      expect(out).toContain('model "GPT-4" (provider: OpenAI)')
+    })
   })
 
   it('returns undefined when no section contributes text', async () => {

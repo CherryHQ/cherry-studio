@@ -26,6 +26,7 @@ import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } fro
 import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
+import { buildIdentitySection } from '../params/assembleSystemPrompt'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
@@ -161,5 +162,13 @@ async function resolveFallback(
     sdkConfig.modelId,
     plugins
   )
-  return { model: resolved, options: pickFallbackCallOptions(options) }
+  // Local patch (model identity): the fallback's own identity section. The
+  // primary's system prompt keeps the PRIMARY's identity across fallbacks
+  // (see buildFallbackModels' module note), so this section is used by the
+  // retry wrapper to rewrite the system prompt when the fallback takes over —
+  // the fallback then reports itself truthfully instead of inheriting the
+  // primary's identity.
+  const identitySection =
+    args.assistant?.settings?.injectModelIdentity !== false ? buildIdentitySection(model, provider) : undefined
+  return { model: resolved, options: pickFallbackCallOptions(options), identitySection }
 }
