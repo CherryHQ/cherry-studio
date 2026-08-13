@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
   isLarkFormSubmissionCommand,
   isPermanentDeletionToolName
 } from '../assistantCommandSafety'
@@ -85,5 +86,26 @@ describe('isLarkFormSubmissionCommand', () => {
     'printf "lark-cli base +form-submit"'
   ])('allows non-submission command: %s', (command) => {
     expect(isLarkFormSubmissionCommand(command)).toBe(false)
+  })
+})
+
+describe('isGitHubIssueCreationCommand', () => {
+  it.each([
+    'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md',
+    '  gh issue create --repo CherryHQ/cherry-studio',
+    '/usr/local/bin/gh issue create --repo CherryHQ/cherry-studio',
+    'cd /workspace && "C:\\Program Files\\GitHub CLI\\gh" issue create --title "Bug"'
+  ])('detects %s', (command) => {
+    expect(isGitHubIssueCreationCommand(command)).toBe(true)
+  })
+
+  it.each([
+    'gh issue list --repo CherryHQ/cherry-studio',
+    'gh search issues "startup crash" --repo CherryHQ/cherry-studio',
+    'printf "gh issue create"',
+    'echo gh issue create',
+    'laugh issue create'
+  ])('allows non-creation command: %s', (command) => {
+    expect(isGitHubIssueCreationCommand(command)).toBe(false)
   })
 })
