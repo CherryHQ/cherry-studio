@@ -59,7 +59,9 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
 const PassiveEffectProbe = ({ onEffect }: { onEffect: () => void }) => {
-  useEffect(onEffect, [onEffect])
+  useEffect(() => {
+    onEffect()
+  }, [onEffect])
   return null
 }
 
