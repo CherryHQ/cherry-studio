@@ -98,7 +98,7 @@
     "@earendil-works/pi-coding-agent": "0.80.3",
     "@firecrawl/anydoc": "0.1.3",
     "@huggingface/transformers": "4.2.0",
-    "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@larksuiteoapi/node-sdk": "^1.73.0",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.1.0",
     "@node-rs/xxhash": "1.7.6",
