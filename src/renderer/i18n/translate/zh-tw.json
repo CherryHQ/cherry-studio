@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋"
       }
     },
     "channels": {
@@ -3546,7 +3549,7 @@
             "hint": "啟用時限制回覆長度"
           },
           "max_tool_calls": {
-            "hint": "啟用時會限制工具呼叫輪數；否則使用預設的 20 輪上限"
+            "hint": "啟用後限制工具呼叫輪次；關閉時使用預設的 {{count}} 輪上限"
           },
           "model": {
             "hint": "覆寫此助理的全域預設模型"
@@ -5994,10 +5997,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "與 Cherry Assistant 聊天以分享回饋。",
+          "description": "與 Cherry 支援對話，取得使用協助或提交回饋。",
           "title": "使用 Agent"
         },
-        "agent_error": "無法開啟 Cherry Assistant 以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟 Cherry 支援以提供意見回饋。請再試一次。",
         "button": "回饋",
         "dialog": {
           "description": "選擇分享回饋的方式，幫助我們讓 Cherry Studio 變得更好。",
@@ -7061,7 +7064,7 @@
       },
       "fetch": {
         "button": "取得伺服器",
-        "success": "伺服器取得成功"
+        "success": "已成功取得 MCP 伺服器"
       },
       "filter": {
         "allStatuses": "所有狀態",
@@ -7622,7 +7625,6 @@
       "topic_naming": {
         "auto": "對話自動重新命名",
         "label": "對話命名",
-        "model": "命名模型",
         "prompt": "對話命名提示詞"
       },
       "translate_model": "翻譯模型",

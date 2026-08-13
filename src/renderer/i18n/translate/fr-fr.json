@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistant intégré Cherry Studio. Diagnostiquer les problèmes, guider les opérations, collecter les FAQ, soumettre des bugs/demandes de fonctionnalités, et rechercher/créer des Compétences"
+      },
+      "cherry_support": {
+        "description": "Agent d'assistance officiel de Cherry Studio pour la configuration, le diagnostic, les FAQ et les commentaires"
       }
     },
     "channels": {
@@ -3546,7 +3549,7 @@
             "hint": "Longueur de réponse des majuscules lorsqu'elle est activée"
           },
           "max_tool_calls": {
-            "hint": "Limite les boucles d'appels d'outils lorsqu'elle est activée"
+            "hint": "Limite le nombre de tours d'appels d'outils lorsque activé ; sinon, la limite par défaut de {{count}} tours s'applique"
           },
           "model": {
             "hint": "Remplace le modèle par défaut global pour cet assistant"
@@ -4513,7 +4516,7 @@
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "field_for_tier": "{{champ}}, niveau {{index}}",
+      "field_for_tier": "{{field}}, palier {{index}}",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
       "min_input_tokens": "Commence aux jetons d'entrée",
@@ -4812,7 +4815,7 @@
     },
     "installed_at": "OpenClaw installé à",
     "migration": {
-      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "description": "Une installation externe d'OpenClaw a été détectée dans le PATH, mais Cherry Studio utilise son propre binaire OpenClaw géré. Installez la version gérée pour continuer.",
       "install_button": "Réinstaller OpenClaw",
       "title": "OpenClaw nécessite une mise à jour"
     },
@@ -5994,10 +5997,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discutez avec Cherry Assistant pour partager vos commentaires.",
+          "description": "Discutez avec Cherry Support pour obtenir de l'aide ou partager vos commentaires.",
           "title": "Utiliser Agent"
         },
-        "agent_error": "Impossible d'ouvrir Cherry Assistant pour envoyer un commentaire. Veuillez réessayer.",
+        "agent_error": "Impossible d'ouvrir Cherry Support pour envoyer un commentaire. Veuillez réessayer.",
         "button": "Faire un retour",
         "dialog": {
           "description": "Choisissez comment partager votre retour d'expérience et aidez-nous à améliorer Cherry Studio.",
@@ -6763,7 +6766,7 @@
       "removeDefinitionOnlyDependents": "Les outils installés en dépendent : {{dependents}}.",
       "removeError": "Échec de la suppression de l'outil",
       "removeErrorHint": "La commande de nettoyage a échoué. Copiez le journal ci-dessous pour résoudre le problème ou partagez-le pour obtenir de l'aide.",
-      "removeRuntimeConfirmMessage": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ? La désinstallation de cet environnement d'exécution peut endommager les outils npm ou pip qui en dépendent.",
+      "removeRuntimeConfirmMessage": "Supprimer « {{name}} » de Cherry Studio ? Cherry ne nettoiera que la copie exacte gérée par mise. Les runtimes système et intégrés ne sont jamais modifiés. Les outils npm ou pip installés peuvent bloquer la suppression s'ils dépendent de ce runtime.",
       "runtimeDependency": "Dépendance d'exécution",
       "runtimeDependencyHint": "Runtime pour les outils npm/pip",
       "searchFailed": "Échec de la recherche. Consultez les journaux.",
@@ -7622,7 +7625,6 @@
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
         "label": "Nom de sujet",
-        "model": "Modèle de dénomination",
         "prompt": "Mot-clé de renommage des sujets"
       },
       "translate_model": "Modèle de traduction",
@@ -8817,7 +8819,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "Peut coller ou glisser du texte, des fichiers texte ou des images (avec prise en charge de l'OCR)"
+      "placeholder": "Entrez du texte..."
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

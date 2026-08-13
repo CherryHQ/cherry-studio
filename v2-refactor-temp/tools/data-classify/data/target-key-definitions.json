@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -241,13 +248,6 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
-    },
-    {
-      "targetKey": "topic.naming.model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
       "targetKey": "topic.tab.display_mode",

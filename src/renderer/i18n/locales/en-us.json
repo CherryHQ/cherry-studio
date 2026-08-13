@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -3851,10 +3854,17 @@
     "skill_marketplace": {
       "empty_description": "Search online registries to find installable skills.",
       "empty_title": "Search for skills",
+      "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Install from GitHub",
+      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "GitHub SKILL.md URL",
+      "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
       "no_results_title": "No skills found",
       "search_failed_description": "Search failed. Please try again later.",
+      "search_label": "Search skills",
       "search_placeholder": "Search skills...",
+      "source_label": "Skill source",
       "title": "Online skill search"
     },
     "sort": {
@@ -3881,13 +3891,6 @@
       "placeholder": "New tag name..."
     },
     "tag_sync_failed": "Failed to sync tags",
-    "time_ago": {
-      "days": "{{count}} day(s) ago",
-      "hours": "{{count}} hour(s) ago",
-      "just_now": "Just now",
-      "minutes": "{{count}} minute(s) ago",
-      "months": "{{count}} month(s) ago"
-    },
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",
@@ -5994,10 +5997,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Assistant to share feedback.",
+          "description": "Chat with Cherry Support to get help or share feedback.",
           "title": "Use Agent"
         },
-        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support for feedback. Please try again.",
         "button": "Feedback",
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
@@ -7622,7 +7625,6 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
-        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -7645,7 +7647,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "App Update"
     },
     "openai": {
       "service_tier": {

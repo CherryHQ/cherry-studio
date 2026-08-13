@@ -434,6 +434,126 @@
     },
     {
       "capabilities": ["image-recognition", "image-generation"],
+      "family": "qwen",
+      "id": "qwen-image-3-0",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen Image 3.0",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "family": "qwen",
+      "id": "qwen-image-3-0-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen Image 3.0 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
       "id": "qwen-image-3-pro",
       "inputModalities": ["text", "image"],
       "metadata": {},
