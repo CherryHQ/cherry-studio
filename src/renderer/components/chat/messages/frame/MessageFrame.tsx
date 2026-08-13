@@ -354,7 +354,7 @@ const UserBubbleMessage = ({
 
   return (
     <div className="flex w-full flex-col items-end">
-      <div className="flex max-w-full items-start justify-end gap-2.5 has-[.code-block]:w-full">
+      <div className="flex max-w-[calc(100%-2.5rem)] items-start justify-end gap-2.5 has-[.code-block]:w-full">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           {message.delivery && (
             <div className="mb-1 max-w-full">
