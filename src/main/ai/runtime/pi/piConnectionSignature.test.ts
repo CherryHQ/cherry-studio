@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getAgent: vi.fn(),
   getProvider: vi.fn(),
   getModel: vi.fn(),
   getApiKeys: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@application', () => ({ application: { get: () => ({ listTools: mocks.listTools }) } }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
+vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.getProvider, getApiKeys: mocks.getApiKeys }
 }))
@@ -24,7 +26,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({ skillService: { list: mocks.listSkills } }))
 
-const { buildPiConnectionSignature } = await import('./piConnectionSignature')
+const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
 
 const agent = {
   id: 'agent-1',
@@ -36,6 +38,7 @@ const agent = {
 } as unknown as AgentEntity
 
 beforeEach(() => {
+  mocks.getAgent.mockReturnValue(agent)
   mocks.getSession.mockReturnValue({
     id: 'session-1',
     agentId: 'agent-1',
@@ -51,14 +54,14 @@ beforeEach(() => {
   mocks.listChannels.mockReturnValue([])
 })
 
-describe('buildPiConnectionSignature', () => {
-  it('ignores the live permission mode but covers every spawn-frozen external input', async () => {
-    const baseline = await buildPiConnectionSignature('session-1', agent, 'provider::model')
-    const withPermissionChange = await buildPiConnectionSignature(
-      'session-1',
-      { ...agent, configuration: { ...agent.configuration, permission_mode: 'bypassPermissions' } },
-      'provider::model'
-    )
+describe('capturePiConnectionSnapshot', () => {
+  it('ignores the live permission mode but covers every reconcilable external input', async () => {
+    const baseline = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.getAgent.mockReturnValueOnce({
+      ...agent,
+      configuration: { ...agent.configuration, permission_mode: 'bypassPermissions' }
+    })
+    const withPermissionChange = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     expect(withPermissionChange).toBe(baseline)
 
     const mutations = [
@@ -80,7 +83,9 @@ describe('buildPiConnectionSignature', () => {
 
     for (const mutate of mutations) {
       mutate()
-      await expect(buildPiConnectionSignature('session-1', agent, 'provider::model')).resolves.not.toBe(baseline)
+      await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.not.toMatchObject({
+        signature: baseline
+      })
     }
   })
 })

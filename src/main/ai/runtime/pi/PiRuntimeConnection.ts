@@ -1,10 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
@@ -55,7 +54,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjection } from './modelInjection'
-import { buildPiConnectionSignature } from './piConnectionSignature'
+import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
@@ -93,6 +92,7 @@ interface PendingSteer {
 }
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
+  private readonly generation = randomUUID()
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
@@ -132,14 +132,26 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const session = agentSessionService.getById(this.input.sessionId)
+    // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
+    // configuration change halfway through materialization. A concurrent agent edit is caught by
+    // the final snapshot check below.
+    const discoverySnapshot = await capturePiConnectionSnapshot(
+      this.input.sessionId,
+      this.input.agentId,
+      this.input.modelId,
+      this.input.knowledgeBaseIds
+    )
+    await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    const initialSnapshot = await capturePiConnectionSnapshot(
+      this.input.sessionId,
+      this.input.agentId,
+      this.input.modelId,
+      this.input.knowledgeBaseIds
+    )
+    const { agent, session } = initialSnapshot
     const workspacePath = session?.workspace?.path
     if (!session?.agentId || !workspacePath) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
-    }
-    const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
-      throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
 
     // pi has no native permission modes; the approval extension enforces them.
@@ -164,8 +176,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Cherry owns the credential + model registry: in-memory only, never pi's
     // global auth.json/models.json. The real key is a runtime override; the
     // registered provider config carries only the placeholder (plan D1).
-    const runtimeProviderName = `${injection.providerName}:${this.input.sessionId}`
-    const runtimeApi = `cherry-${this.input.sessionId}-${injection.api}`
+    const runtimeProviderName = `${injection.providerName}:${this.input.sessionId}:${this.generation}`
+    const runtimeApi = `cherry-${this.input.sessionId}-${this.generation}-${injection.api}`
     const isolatedProviderConfig: ProviderConfig = {
       ...providerConfig,
       api: runtimeApi,
@@ -176,111 +188,112 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
     modelRegistry.registerProvider(runtimeProviderName, isolatedProviderConfig)
     this.apiProviderSourceId = `provider:${runtimeProviderName}`
-    const model = modelRegistry.find(runtimeProviderName, injection.modelId)
-    if (!model) {
-      await this.unregisterApiProvider()
-      throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
-    }
+    try {
+      const model = modelRegistry.find(runtimeProviderName, injection.modelId)
+      if (!model)
+        throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
 
-    // The workspace is always trusted: the user picked it by hand in Cherry, so there is
-    // no separate "do you trust this project?" prompt. What actually loads from it is
-    // still governed by the explicit `no*` flags below.
-    const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      // The workspace is always trusted: the user picked it by hand in Cherry, so there is
+      // no separate "do you trust this project?" prompt. What actually loads from it is
+      // still governed by the explicit `no*` flags below.
+      const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
 
-    // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
-    // from the same store the claude driver reads. These are injected explicitly
-    // via `additionalSkillPaths` below; disk auto-discovery stays off (see comment).
-    const additionalSkillPaths = await resolveEnabledSkillPaths(session.agentId)
+      // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
+      // from the same store the claude driver reads. These are injected explicitly
+      // via `additionalSkillPaths` below; disk auto-discovery stays off (see comment).
+      const additionalSkillPaths = await resolveEnabledSkillPaths(session.agentId)
 
-    const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
-    const instructions = agent.instructions?.trim()
-    const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
-    const isToolEnabled = (serverName: string, toolName: string) =>
-      !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
-    const citationsGuidance = buildCitationsGuidance({
-      web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
-      kb:
-        (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
-        (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
-    })
-    const promptOverrides = await buildAgentPromptOverrides(
-      workspacePath,
-      agentDataPath,
-      agent.configuration,
-      instructions,
-      citationsGuidance
-    )
-    const resourceLoader = new pi.DefaultResourceLoader({
-      cwd: workspacePath,
-      agentDir,
-      settingsManager,
-      // Provider injection re-applies across reloads (plan D1); the approval/policy
-      // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
-      // The workspace is trusted (user-selected), so its AGENTS.md/CLAUDE.md context
-      // files load — parity with the claude driver's `project` setting source. Other
-      // disk auto-discovery stays off: extensions are arbitrary JS running inside
-      // Cherry's main process (a different trust class than workspace text), and
-      // skills/prompt-templates/themes are Cherry-managed — the agent's enabled
-      // skills are injected explicitly via `additionalSkillPaths`, which loads even
-      // under `noSkills` because the paths are Cherry-owned, not discovered.
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: false,
-      additionalSkillPaths,
-      extensionFactories: [
-        createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-        createPiApprovalExtension({
-          sessionId: this.input.sessionId,
-          workspacePath,
-          agentDataPath,
-          emit: (event) => this.eventQueue.push(event),
-          getInteractionState: () =>
-            application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
-          getPermissionMode: () => this.permissionMode,
-          isDisabled: (toolName) => this.disabledTools.has(toolName),
-          // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-          // disabledTools hard-blocks every class at fire-time.
-          autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-          approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
-        })
-      ],
-      // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
-      // override runs; Cherry owns the agent persona.
-      systemPromptOverride: () => promptOverrides.systemPrompt,
-      appendSystemPromptOverride: () => (promptOverrides.appendSystemPrompt ? [promptOverrides.appendSystemPrompt] : [])
-    })
-    await resourceLoader.reload()
-
-    const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
-
-    // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
-    // assistant tools, and user-configured servers all cross the same protocol adapter.
-    const linkedChannel = resolveLinkedChannel(agent.id, session.id)
-    const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
-    await warmMcpToolCatalogs(agent.mcps ?? [])
-    this.mcpBridge = await buildMcpToolDefinitions(
-      buildAgentMcpServers(
-        session,
-        agent,
-        assistantMcpEnabled,
-        undefined,
-        linkedChannel ? { id: linkedChannel.id } : null,
+      const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
+      const instructions = agent.instructions?.trim()
+      const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
+      const isToolEnabled = (serverName: string, toolName: string) =>
+        !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
+      const citationsGuidance = buildCitationsGuidance({
+        web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
+        kb:
+          (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+          (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
+      })
+      const promptOverrides = await buildAgentPromptOverrides(
+        workspacePath,
         agentDataPath,
+        agent.configuration,
+        instructions,
+        citationsGuidance
+      )
+      const resourceLoader = new pi.DefaultResourceLoader({
+        cwd: workspacePath,
+        agentDir,
+        settingsManager,
+        // Provider injection re-applies across reloads (plan D1); the approval/policy
+        // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
+        // The workspace is trusted (user-selected), so its AGENTS.md/CLAUDE.md context
+        // files load — parity with the claude driver's `project` setting source. Other
+        // disk auto-discovery stays off: extensions are arbitrary JS running inside
+        // Cherry's main process (a different trust class than workspace text), and
+        // skills/prompt-templates/themes are Cherry-managed — the agent's enabled
+        // skills are injected explicitly via `additionalSkillPaths`, which loads even
+        // under `noSkills` because the paths are Cherry-owned, not discovered.
+        noExtensions: true,
+        noSkills: true,
+        noPromptTemplates: true,
+        noThemes: true,
+        noContextFiles: false,
+        additionalSkillPaths,
+        extensionFactories: [
+          createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
+          createPiApprovalExtension({
+            sessionId: this.input.sessionId,
+            workspacePath,
+            agentDataPath,
+            emit: (event) => this.eventQueue.push(event),
+            getInteractionState: () =>
+              application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+            getPermissionMode: () => this.permissionMode,
+            isDisabled: (toolName) => this.disabledTools.has(toolName),
+            // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
+            // disabledTools hard-blocks every class at fire-time.
+            autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
+            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
+          })
+        ],
+        // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
+        // override runs; Cherry owns the agent persona.
+        systemPromptOverride: () => promptOverrides.systemPrompt,
+        appendSystemPromptOverride: () =>
+          promptOverrides.appendSystemPrompt ? [promptOverrides.appendSystemPrompt] : []
+      })
+      await resourceLoader.reload()
+
+      const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
+
+      // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
+      // assistant tools, and user-configured servers all cross the same protocol adapter.
+      const linkedChannel = resolveLinkedChannel(agent.id, session.id)
+      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
+      this.mcpBridge = await buildMcpToolDefinitions(
+        buildAgentMcpServers(
+          session,
+          agent,
+          assistantMcpEnabled,
+          undefined,
+          linkedChannel ? { id: linkedChannel.id } : null,
+          agentDataPath,
+          this.input.knowledgeBaseIds
+        )
+      )
+      const customTools = this.mcpBridge.tools
+      const finalSnapshot = await capturePiConnectionSnapshot(
+        this.input.sessionId,
+        this.input.agentId,
+        this.input.modelId,
         this.input.knowledgeBaseIds
       )
-    )
-    const customTools = this.mcpBridge.tools
-    this.connectionSignature = await buildPiConnectionSignature(
-      this.input.sessionId,
-      agent,
-      this.input.modelId,
-      this.input.knowledgeBaseIds
-    )
+      if (finalSnapshot.signature !== initialSnapshot.signature) {
+        throw new Error(`Pi connection materialization changed during startup: ${this.input.sessionId}`)
+      }
+      this.connectionSignature = initialSnapshot.signature
 
-    let piSession: AgentSession
-    try {
       const created = await pi.createAgentSession({
         cwd: workspacePath,
         agentDir,
@@ -297,18 +310,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
       })
-      piSession = created.session
+      const piSession = created.session
+
+      this.session = piSession
+      this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
+      this.maybeEmitResumeToken()
+      return this
     } catch (error) {
-      await this.mcpBridge.close()
+      const bridge = this.mcpBridge
       this.mcpBridge = undefined
-      await this.unregisterApiProvider()
+      const cleanup = await Promise.allSettled([bridge?.close(), this.unregisterApiProvider()])
+      for (const result of cleanup) {
+        if (result.status === 'rejected') logger.warn('Pi startup cleanup failed', { error: result.reason })
+      }
       throw error
     }
-
-    this.session = piSession
-    this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
-    this.maybeEmitResumeToken()
-    return this
   }
 
   /**
@@ -403,8 +419,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
-    const agent = agentService.getAgent(this.input.agentId)
-    if (!agent?.model) return 'invalid'
+    let snapshot
+    try {
+      snapshot = await capturePiConnectionSnapshot(
+        this.input.sessionId,
+        this.input.agentId,
+        input.modelId,
+        input.knowledgeBaseIds
+      )
+    } catch (error) {
+      if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
+      throw error
+    }
+    const { agent } = snapshot
 
     const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
     // Changing the permission mode can alter admission for the current tool loop, so defer it until
@@ -419,10 +446,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (
-      (await buildPiConnectionSignature(this.input.sessionId, agent, input.modelId, input.knowledgeBaseIds)) !==
-      this.connectionSignature
-    ) {
+    if (snapshot.signature !== this.connectionSignature) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'

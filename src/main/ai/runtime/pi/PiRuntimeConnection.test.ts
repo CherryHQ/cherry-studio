@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
+  unregisterApiProviders: vi.fn(),
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
@@ -37,7 +38,7 @@ const mocks = vi.hoisted(() => ({
   listChannels: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
-  buildConnectionSignature: vi.fn(),
+  captureConnectionSnapshot: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
   warmMcpToolCatalogs: vi.fn(),
@@ -113,7 +114,10 @@ vi.mock('./modelInjection', () => ({
     streamSimple: mocks.providerStreamSimple
   })
 }))
-vi.mock('./piConnectionSignature', () => ({ buildPiConnectionSignature: mocks.buildConnectionSignature }))
+vi.mock('./piConnectionSignature', () => ({
+  capturePiConnectionSnapshot: mocks.captureConnectionSnapshot,
+  PiInvalidConnectionSnapshotError: class extends Error {}
+}))
 vi.mock('./piSdk', () => ({
   loadPiSdk: mocks.loadPiSdk,
   loadPiAiCompat: mocks.loadPiAiCompat,
@@ -241,17 +245,24 @@ beforeEach(() => {
   mocks.listChannels.mockReturnValue([])
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.buildConnectionSignature.mockImplementation(
-    async (_sessionId: string, agent: any, modelId: string, knowledgeBaseIds?: readonly string[]) =>
-      JSON.stringify({
-        agent: {
-          ...agent,
-          updatedAt: undefined,
-          configuration: { ...agent.configuration, permission_mode: undefined }
-        },
-        modelId,
-        knowledgeBaseIds: [...(knowledgeBaseIds ?? [])]
-      })
+  mocks.captureConnectionSnapshot.mockImplementation(
+    async (_sessionId: string, _agentId: string, modelId: string, knowledgeBaseIds?: readonly string[]) => {
+      const agent = mocks.getAgent()
+      const session = mocks.getById()
+      return {
+        agent,
+        session,
+        signature: JSON.stringify({
+          agent: {
+            ...agent,
+            updatedAt: undefined,
+            configuration: { ...agent.configuration, permission_mode: undefined }
+          },
+          modelId,
+          knowledgeBaseIds: [...(knowledgeBaseIds ?? [])]
+        })
+      }
+    }
   )
   mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
   mocks.buildAgentMcpServers.mockReturnValue({ 'cherry-tools': { name: 'cherry-tools', instance: {} } })
@@ -279,7 +290,7 @@ beforeEach(() => {
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
   mocks.loadPiSdk.mockResolvedValue(fakePi)
-  mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: vi.fn() })
+  mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: mocks.unregisterApiProviders })
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
   mocks.providerResult = {
     role: 'assistant',
@@ -310,10 +321,13 @@ describe('PiRuntimeConnection', () => {
     await new PiRuntimeConnection(input).start()
 
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)
-    expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith(`p:${SESSION_ID}`, 'real-key')
+    expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith(expect.stringMatching(`^p:${SESSION_ID}:`), 'real-key')
     expect(mocks.registerProvider).toHaveBeenCalledWith(
-      `p:${SESSION_ID}`,
-      expect.objectContaining({ apiKey: 'placeholder', api: `cherry-${SESSION_ID}-anthropic-messages` })
+      expect.stringMatching(`^p:${SESSION_ID}:`),
+      expect.objectContaining({
+        apiKey: 'placeholder',
+        api: expect.stringMatching(`^cherry-${SESSION_ID}-.+-anthropic-messages$`)
+      })
     )
     expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
@@ -327,17 +341,41 @@ describe('PiRuntimeConnection', () => {
     ])
   })
 
-  it('uses a connection-scoped api namespace so same-family sessions cannot overwrite each other', async () => {
+  it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
+    const firstConnection = await new PiRuntimeConnection(input).start()
     await new PiRuntimeConnection(input).start()
-    await new PiRuntimeConnection({ ...input, sessionId: 'sess-2' }).start()
 
     const first = mocks.registerProvider.mock.calls[0]
     const second = mocks.registerProvider.mock.calls[1]
-    expect(first[0]).toBe('p:sess-1')
-    expect(second[0]).toBe('p:sess-2')
-    expect(first[1].api).toBe('cherry-sess-1-anthropic-messages')
-    expect(second[1].api).toBe('cherry-sess-2-anthropic-messages')
+    expect(first[0]).not.toBe(second[0])
     expect(first[1].api).not.toBe(second[1].api)
+
+    await firstConnection.close()
+    expect(mocks.unregisterApiProviders).toHaveBeenCalledWith(`provider:${first[0]}`)
+    expect(mocks.unregisterApiProviders).not.toHaveBeenCalledWith(`provider:${second[0]}`)
+  })
+
+  it('unregisters its provider when materialization fails after registration', async () => {
+    mocks.buildPromptParts.mockRejectedValueOnce(new Error('prompt failed'))
+
+    await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('prompt failed')
+
+    const providerName = mocks.registerProvider.mock.calls[0][0]
+    expect(mocks.unregisterApiProviders).toHaveBeenCalledWith(`provider:${providerName}`)
+  })
+
+  it('rejects a connection whose reconcilable inputs changed during materialization', async () => {
+    const agent = mocks.getAgent()
+    const session = mocks.getById()
+    mocks.captureConnectionSnapshot
+      .mockResolvedValueOnce({ agent, session, signature: 'discovery' })
+      .mockResolvedValueOnce({ agent, session, signature: 'before' })
+      .mockResolvedValueOnce({ agent, session, signature: 'after' })
+
+    await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('materialization changed during startup')
+
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
+    expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
   it('reopens the session file by scanning for the resume session id', async () => {

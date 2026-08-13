@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
@@ -9,6 +10,7 @@ import { providerService } from '@data/services/ProviderService'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 function stableValue(value: unknown): unknown {
@@ -22,16 +24,32 @@ function stableValue(value: unknown): unknown {
   )
 }
 
-/** Hash every spawn-frozen fact consumed while constructing a Pi connection. */
-export async function buildPiConnectionSignature(
-  sessionId: string,
-  agent: AgentEntity,
-  modelId: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
-): Promise<string> {
-  const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId || session.agentId !== agent.id) throw new Error(`Invalid Pi session snapshot: ${sessionId}`)
+export interface PiConnectionSnapshot {
+  agent: AgentEntity
+  session: AgentSessionEntity
+  signature: string
+}
 
+export class PiInvalidConnectionSnapshotError extends Error {}
+
+/**
+ * Capture every reconcilable fact consumed while constructing a Pi connection.
+ * Prompt files intentionally remain connection-lifetime snapshots: changing them
+ * does not invalidate a warm connection or its provider prompt cache.
+ */
+export async function capturePiConnectionSnapshot(
+  sessionId: string,
+  agentId: string,
+  requestedModelId?: UniqueModelId,
+  selectedKnowledgeBaseIds?: readonly string[]
+): Promise<PiConnectionSnapshot> {
+  const session = agentSessionService.getById(sessionId)
+  const agent = agentService.getAgent(agentId)
+  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
+  }
+
+  const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
   const [provider, model, skills] = await Promise.all([
     providerService.getByProviderId(parsed.providerId),
@@ -50,18 +68,25 @@ export async function buildPiConnectionSignature(
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
-  const snapshot = stableValue({
-    agent: { ...agent, updatedAt: undefined, configuration },
-    session: { workspaceId: session.workspaceId, workspace: session.workspace },
-    modelId,
-    provider,
-    model,
-    apiKeys,
-    enabledSkills,
-    mcpServers,
-    mcpTools,
-    linkedChannelId: linkedChannel?.id ?? null,
-    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
-  })
-  return createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')
+  const signature = createHash('sha256')
+    .update(
+      JSON.stringify(
+        stableValue({
+          agent: { ...agent, updatedAt: undefined, configuration },
+          session: { workspaceId: session.workspaceId, workspace: session.workspace },
+          modelId,
+          provider,
+          model,
+          apiKeys,
+          enabledSkills,
+          mcpServers,
+          mcpTools,
+          linkedChannelId: linkedChannel?.id ?? null,
+          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
+        })
+      )
+    )
+    .digest('hex')
+
+  return { agent, session, signature }
 }
