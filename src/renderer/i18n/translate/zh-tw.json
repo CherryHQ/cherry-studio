@@ -2887,7 +2887,7 @@
   "help": {
     "feedback": "問題回饋",
     "guide": "使用指南",
-    "star": "支持我們",
+    "star": "GitHub 按讚",
     "title": "幫助",
     "whats_new": "新功能"
   },
@@ -6046,7 +6046,7 @@
       },
       "feedback": {
         "agent": {
-          "description": "使用內建的問題回饋 Agent 取得使用協助或提交回饋。",
+          "description": "使用內建的問題回饋 Agent 取得 Cherry Studio 使用協助或提交回饋。",
           "title": "向問題回饋助手求助"
         },
         "agent_error": "無法開啟問題回饋助手，請再試一次。",
