@@ -49,6 +49,7 @@ const migrationHookMock = vi.hoisted(() => ({
       totalMigrators: number
     }
     warnings?: string[]
+    warningMessages?: Array<{ key: string; params?: Record<string, string | number> }>
   }
 }))
 
@@ -528,9 +529,13 @@ describe('MigrationApp', () => {
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
   })
 
-  it('does not claim all data is unchanged when skipping fails', () => {
+  it('defines localized skip failures and Agent omission notices', () => {
     expect(zhCN.migration.skip_dialog.failed).toBe('跳过迁移失败，请重试。')
     expect(enUS.migration.skip_dialog.failed).toBe('Failed to skip migration. Please try again.')
+    expect(zhCN.migration.completed.agent_files_skipped_one).toContain('1')
+    expect(zhCN.migration.completed.agent_files_skipped_other).toContain('{{count}}')
+    expect(enUS.migration.completed.agent_files_skipped_one).toContain('target;')
+    expect(enUS.migration.completed.agent_files_skipped_other).toContain('targets;')
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -620,18 +625,24 @@ describe('MigrationApp', () => {
       migrators: [],
       overallProgress: 100,
       stage: 'completed',
-      warnings: ['First migration notice', 'Second migration notice']
+      warnings: ['Second migration notice'],
+      warningMessages: [{ key: 'migration.completed.agent_files_skipped', params: { count: 2 } }]
     }
 
     render(<MigrationApp />)
 
     const warningTrigger = screen.getByRole('button', { name: 'migration.completed.warning_heading' })
+    const restartButton = screen.getByRole('button', { name: 'migration.buttons.restart' })
     expect(warningTrigger).toHaveAttribute('data-dialog-trigger', 'true')
-    expect(screen.queryByText('First migration notice')).not.toBeInTheDocument()
+    expect(screen.getByText('migration.completed.description_with_warnings')).toBeInTheDocument()
+    expect(screen.queryByText('migration.completed.description')).not.toBeInTheDocument()
+    // Warning review is intentionally earlier in the completion screen's reading order than restart.
+    expect(warningTrigger.compareDocumentPosition(restartButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('migration.completed.agent_files_skipped')).not.toBeInTheDocument()
 
     fireEvent.click(warningTrigger)
 
-    expect(screen.getByText('First migration notice')).toBeInTheDocument()
+    expect(screen.getByText('migration.completed.agent_files_skipped')).toBeInTheDocument()
     expect(screen.getByText('Second migration notice')).toBeInTheDocument()
     expect(screen.getByText('migration.completed.warning_description')).toBeInTheDocument()
     expect(screen.queryByTestId('dialog-footer')).not.toBeInTheDocument()
@@ -643,10 +654,24 @@ describe('MigrationApp', () => {
     })
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(
-      '1. First migration notice\n2. Second migration notice'
+      '1. migration.completed.agent_files_skipped\n2. Second migration notice'
     )
     expect(toastSuccessMock).toHaveBeenCalledWith('migration.completed.warning_copy_success')
     expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the all-data-ready completion copy when there are no notices', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Completed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed'
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.getByText('migration.completed.description')).toBeInTheDocument()
+    expect(screen.queryByText('migration.completed.description_with_warnings')).not.toBeInTheDocument()
   })
 
   it('shows an error toast when completed migration notices cannot be copied', async () => {

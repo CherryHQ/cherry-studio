@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cố vấn tích hợp Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, và tìm kiếm/tạo Kỹ năng"
+      },
+      "cherry_support": {
+        "description": "Agent hỗ trợ chính thức của Cherry Studio cho hướng dẫn cấu hình, chẩn đoán, FAQ và phản hồi"
       }
     },
     "channels": {
@@ -1085,6 +1088,34 @@
         "Write": {
           "description": "Tạo hoặc ghi đè lên các tệp",
           "label": "Viết"
+        },
+        "bash": {
+          "description": "Chạy lệnh shell",
+          "label": "Chạy lệnh shell"
+        },
+        "edit": {
+          "description": "Sửa tập tin",
+          "label": "Sửa tập tin"
+        },
+        "find": {
+          "description": "Tìm tập tin",
+          "label": "Tìm tập tin"
+        },
+        "grep": {
+          "description": "Tìm kiếm nội dung tập tin",
+          "label": "Tìm kiếm nội dung tập tin"
+        },
+        "ls": {
+          "description": "Liệt kê nội dung thư mục",
+          "label": "Liệt kê nội dung thư mục"
+        },
+        "read": {
+          "description": "Đọc tập tin",
+          "label": "Đọc tập tin"
+        },
+        "write": {
+          "description": "Ghi tập tin",
+          "label": "Ghi tập tin"
         }
       }
     },
@@ -1150,6 +1181,11 @@
       "startSuccess": "Máy chủ API đã khởi động thành công",
       "stopError": "Không thể dừng Máy chủ API:",
       "stopSuccess": "Máy chủ API đã dừng thành công"
+    },
+    "required": {
+      "confirm": "Bật",
+      "description": "Mô hình của Agent này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio. Bật tính năng này cũng sẽ tự động khởi động máy chủ trong các lần chạy sau; bạn có thể tắt lại trong Cài đặt.",
+      "title": "Bật Máy chủ API?"
     },
     "status": {
       "running": "Chạy",
@@ -2494,6 +2530,7 @@
     "openai-response": "Phản hồi của OpenAI"
   },
   "error": {
+    "api_gateway_required": "Mô hình này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio, nhưng máy chủ hiện đang bị tắt. Bật nó lên để chạy Agent này.",
     "availableProviders": "Nhà cung cấp có sẵn",
     "availableTools": "Công cụ có sẵn",
     "backup": {
@@ -3444,6 +3481,18 @@
             "hint": "Phân rã nhiệm vụ và lập kế hoạch",
             "label": "Mô hình kế hoạch (tùy chọn)"
           },
+          "runtime": {
+            "immutable_hint": "Không thể thay đổi sau khi tạo",
+            "label": "Chế độ chạy",
+            "option": {
+              "claude_code": "Nâng cao: Claude Agent",
+              "pi": "Nhanh: Pi"
+            },
+            "selected": {
+              "claude_code": "Nâng cao",
+              "pi": "Nhanh"
+            }
+          },
           "small_model": {
             "hint": "Kiểm tra nhẹ và định dạng",
             "label": "Mô hình nhỏ (tùy chọn)"
@@ -3546,7 +3595,7 @@
             "hint": "Giới hạn độ dài phản hồi của Caps khi được bật"
           },
           "max_tool_calls": {
-            "hint": "Giới hạn vòng lặp gọi công cụ khi được bật"
+            "hint": "Giới hạn số vòng gọi công cụ khi bật; nếu tắt sẽ dùng giới hạn mặc định {{count}} vòng"
           },
           "model": {
             "hint": "Ghi đè mô hình mặc định toàn cục cho trợ lý này"
@@ -3851,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Tìm kiếm trong các sổ đăng ký trực tuyến để tìm các kỹ năng có thể cài đặt.",
       "empty_title": "Tìm kiếm kỹ năng",
+      "github_empty_description": "Dán liên kết đến tập tin SKILL.md của một kỹ năng, ví dụ github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Cài đặt từ GitHub",
+      "github_url_invalid": "Hãy dán liên kết GitHub có kết thúc bằng SKILL.md",
+      "github_url_label": "URL SKILL.md trên GitHub",
+      "github_url_placeholder": "Liên kết GitHub, kết thúc bằng /SKILL.md",
       "no_results_description": "Thử một từ khóa khác hoặc nhập tệp ZIP hoặc thư mục cục bộ.",
       "no_results_title": "Không tìm thấy kỹ năng nào",
       "search_failed_description": "Tìm kiếm thất bại. Vui lòng thử lại sau.",
+      "search_label": "Tìm kiếm kỹ năng",
       "search_placeholder": "Kỹ năng tìm kiếm...",
+      "source_label": "Nguồn kỹ năng",
       "title": "Tìm kiếm kỹ năng trực tuyến"
     },
     "sort": {
@@ -3881,13 +3937,6 @@
       "placeholder": "Tên thẻ mới..."
     },
     "tag_sync_failed": "Không đồng bộ được thẻ",
-    "time_ago": {
-      "days": "{{count}} ngày trước",
-      "hours": "{{count}} giờ trước",
-      "just_now": "Vừa xong",
-      "minutes": "{{count}} phút trước",
-      "months": "{{count}} tháng trước"
-    },
     "title": "Thư viện",
     "toolbar": {
       "add_group_placeholder": "Tên nhóm...",
@@ -4812,7 +4861,7 @@
     },
     "installed_at": "OpenClaw đã được cài đặt tại",
     "migration": {
-      "description": "Đã phát hiện phiên bản OpenClaw lỗi thời được cài qua npm. Vui lòng cài lại để nhận phiên bản chính thức mới nhất.",
+      "description": "Đã phát hiện một bản cài đặt OpenClaw bên ngoài trong PATH, nhưng Cherry Studio chỉ sử dụng tệp nhị phân OpenClaw do chính nó quản lý. Hãy cài đặt phiên bản được quản lý để tiếp tục.",
       "install_button": "Cài đặt lại OpenClaw",
       "title": "OpenClaw Cần Cập Nhật"
     },
@@ -5994,10 +6043,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Trò chuyện với Cherry Assistant để chia sẻ phản hồi.",
+          "description": "Trò chuyện với Cherry Support để nhận trợ giúp hoặc chia sẻ phản hồi.",
           "title": "Sử dụng Agent"
         },
-        "agent_error": "Không thể mở Cherry Assistant để gửi phản hồi. Vui lòng thử lại.",
+        "agent_error": "Không thể mở Cherry Support để gửi phản hồi. Vui lòng thử lại.",
         "button": "Phản hồi",
         "dialog": {
           "description": "Chọn cách chia sẻ phản hồi và giúp chúng tôi cải thiện Cherry Studio tốt hơn.",
@@ -7622,7 +7671,6 @@
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
-        "model": "Mô hình đặt tên",
         "prompt": "Lời nhắc đặt tên cuộc trò chuyện"
       },
       "translate_model": "Mô hình Dịch",
@@ -7645,7 +7693,8 @@
       "assistant": "Tin nhắn Trợ lý",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
-      "title": "Thông báo"
+      "title": "Thông báo",
+      "update": "Cập nhật Ứng dụng"
     },
     "openai": {
       "service_tier": {
@@ -8817,7 +8866,7 @@
       "aborted": "Dịch bị hủy"
     },
     "input": {
-      "placeholder": "Văn bản, tệp văn bản hoặc hình ảnh (hỗ trợ OCR) có thể được dán hoặc kéo vào"
+      "placeholder": "Nhập văn bản..."
     },
     "language": {
       "not_pair": "Ngôn ngữ nguồn khác với ngôn ngữ đã đặt",

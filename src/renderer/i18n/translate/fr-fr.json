@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistant intégré Cherry Studio. Diagnostiquer les problèmes, guider les opérations, collecter les FAQ, soumettre des bugs/demandes de fonctionnalités, et rechercher/créer des Compétences"
+      },
+      "cherry_support": {
+        "description": "Agent d'assistance officiel de Cherry Studio pour la configuration, le diagnostic, les FAQ et les commentaires"
       }
     },
     "channels": {
@@ -1085,6 +1088,34 @@
         "Write": {
           "description": "Crée ou écrase des fichiers",
           "label": "Écrire"
+        },
+        "bash": {
+          "description": "Exécuter des commandes shell",
+          "label": "Exécuter des commandes shell"
+        },
+        "edit": {
+          "description": "Modifier des fichiers",
+          "label": "Modifier des fichiers"
+        },
+        "find": {
+          "description": "Trouver des fichiers",
+          "label": "Trouver des fichiers"
+        },
+        "grep": {
+          "description": "Rechercher dans le contenu des fichiers",
+          "label": "Rechercher dans le contenu des fichiers"
+        },
+        "ls": {
+          "description": "Lister le contenu du répertoire",
+          "label": "Lister le contenu du répertoire"
+        },
+        "read": {
+          "description": "Lire des fichiers",
+          "label": "Lire des fichiers"
+        },
+        "write": {
+          "description": "Écrire des fichiers",
+          "label": "Écrire des fichiers"
         }
       }
     },
@@ -1150,6 +1181,11 @@
       "startSuccess": "Serveur API démarré avec succès",
       "stopError": "Échec de l'arrêt du Serveur API : ",
       "stopSuccess": "Serveur API arrêté avec succès"
+    },
+    "required": {
+      "confirm": "Activer",
+      "description": "Le modèle de cet agent doit être relayé par le Serveur API local de Cherry Studio. L'activation démarre aussi automatiquement le serveur aux lancements futurs ; vous pourrez le désactiver à nouveau dans les Paramètres.",
+      "title": "Activer le Serveur API ?"
     },
     "status": {
       "running": "En cours d'exécution",
@@ -2494,6 +2530,7 @@
     "openai-response": "Réponse OpenAI"
   },
   "error": {
+    "api_gateway_required": "Ce modèle doit être relayé par le Serveur API local de Cherry Studio, qui est actuellement désactivé. Activez-le pour exécuter cet agent.",
     "availableProviders": "Fournisseurs disponibles",
     "availableTools": "Outils disponibles",
     "backup": {
@@ -3444,6 +3481,18 @@
             "hint": "Décomposition et planification des tâches",
             "label": "Modèle de plan (optionnel)"
           },
+          "runtime": {
+            "immutable_hint": "Ne peut pas être modifié après la création",
+            "label": "Mode d’exécution",
+            "option": {
+              "claude_code": "Avancé : Claude Agent",
+              "pi": "Rapide : Pi"
+            },
+            "selected": {
+              "claude_code": "Avancé",
+              "pi": "Rapide"
+            }
+          },
           "small_model": {
             "hint": "Vérifications et formatage légers",
             "label": "Petit modèle (optionnel)"
@@ -3546,7 +3595,7 @@
             "hint": "Longueur de réponse des majuscules lorsqu'elle est activée"
           },
           "max_tool_calls": {
-            "hint": "Limite les boucles d'appels d'outils lorsqu'elle est activée"
+            "hint": "Limite le nombre de tours d'appels d'outils lorsque activé ; sinon, la limite par défaut de {{count}} tours s'applique"
           },
           "model": {
             "hint": "Remplace le modèle par défaut global pour cet assistant"
@@ -3851,10 +3900,17 @@
     "skill_marketplace": {
       "empty_description": "Recherchez dans les registres en ligne pour trouver des compétences installables.",
       "empty_title": "Rechercher des compétences",
+      "github_empty_description": "Collez un lien vers le fichier SKILL.md d'une compétence, par exemple github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Installer depuis GitHub",
+      "github_url_invalid": "Collez un lien GitHub qui se termine par SKILL.md",
+      "github_url_label": "URL SKILL.md GitHub",
+      "github_url_placeholder": "Lien GitHub se terminant par /SKILL.md",
       "no_results_description": "Essayez un autre mot-clé ou importez un fichier ZIP local ou un répertoire.",
       "no_results_title": "Aucune compétence trouvée",
       "search_failed_description": "La recherche a échoué. Veuillez réessayer plus tard.",
+      "search_label": "Rechercher des compétences",
       "search_placeholder": "Compétences de recherche...",
+      "source_label": "Source de la compétence",
       "title": "Recherche de compétences en ligne"
     },
     "sort": {
@@ -3881,13 +3937,6 @@
       "placeholder": "Nouveau nom d'étiquette..."
     },
     "tag_sync_failed": "Échec de la synchronisation des étiquettes",
-    "time_ago": {
-      "days": "{{count}} jour(s)",
-      "hours": "{{count}} heure(s)",
-      "just_now": "À l'instant",
-      "minutes": "{{count}} minute(s)",
-      "months": "{{count}} mois"
-    },
     "title": "Bibliothèque",
     "toolbar": {
       "add_group_placeholder": "Nom du groupe...",
@@ -4513,7 +4562,7 @@
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "field_for_tier": "{{champ}}, niveau {{index}}",
+      "field_for_tier": "{{field}}, palier {{index}}",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
       "min_input_tokens": "Commence aux jetons d'entrée",
@@ -4812,7 +4861,7 @@
     },
     "installed_at": "OpenClaw installé à",
     "migration": {
-      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "description": "Une installation externe d'OpenClaw a été détectée dans le PATH, mais Cherry Studio utilise son propre binaire OpenClaw géré. Installez la version gérée pour continuer.",
       "install_button": "Réinstaller OpenClaw",
       "title": "OpenClaw nécessite une mise à jour"
     },
@@ -5994,10 +6043,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discutez avec Cherry Assistant pour partager vos commentaires.",
+          "description": "Discutez avec Cherry Support pour obtenir de l'aide ou partager vos commentaires.",
           "title": "Utiliser Agent"
         },
-        "agent_error": "Impossible d'ouvrir Cherry Assistant pour envoyer un commentaire. Veuillez réessayer.",
+        "agent_error": "Impossible d'ouvrir Cherry Support pour envoyer un commentaire. Veuillez réessayer.",
         "button": "Faire un retour",
         "dialog": {
           "description": "Choisissez comment partager votre retour d'expérience et aidez-nous à améliorer Cherry Studio.",
@@ -6763,7 +6812,7 @@
       "removeDefinitionOnlyDependents": "Les outils installés en dépendent : {{dependents}}.",
       "removeError": "Échec de la suppression de l'outil",
       "removeErrorHint": "La commande de nettoyage a échoué. Copiez le journal ci-dessous pour résoudre le problème ou partagez-le pour obtenir de l'aide.",
-      "removeRuntimeConfirmMessage": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ? La désinstallation de cet environnement d'exécution peut endommager les outils npm ou pip qui en dépendent.",
+      "removeRuntimeConfirmMessage": "Supprimer « {{name}} » de Cherry Studio ? Cherry ne nettoiera que la copie exacte gérée par mise. Les runtimes système et intégrés ne sont jamais modifiés. Les outils npm ou pip installés peuvent bloquer la suppression s'ils dépendent de ce runtime.",
       "runtimeDependency": "Dépendance d'exécution",
       "runtimeDependencyHint": "Runtime pour les outils npm/pip",
       "searchFailed": "Échec de la recherche. Consultez les journaux.",
@@ -7622,7 +7671,6 @@
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
         "label": "Nom de sujet",
-        "model": "Modèle de dénomination",
         "prompt": "Mot-clé de renommage des sujets"
       },
       "translate_model": "Modèle de traduction",
@@ -7645,7 +7693,8 @@
       "assistant": "Message de l'assistant",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "Mise à jour de l'application"
     },
     "openai": {
       "service_tier": {
@@ -8817,7 +8866,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "Peut coller ou glisser du texte, des fichiers texte ou des images (avec prise en charge de l'OCR)"
+      "placeholder": "Entrez du texte..."
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

@@ -20,7 +20,8 @@ const NotificationSettings: FC = () => {
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
     assistant: 'app.notification.assistant.enabled',
     backup: 'app.notification.backup.enabled',
-    knowledge: 'app.notification.knowledge.enabled'
+    knowledge: 'app.notification.knowledge.enabled',
+    update: 'app.notification.update.enabled'
   })
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
@@ -60,6 +61,15 @@ const NotificationSettings: FC = () => {
           <Switch
             checked={notificationSettings.knowledge}
             onCheckedChange={(v) => handleNotificationChange('knowledge', v)}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.update')}</SettingRowTitle>
+          <Switch
+            aria-label={t('settings.notification.update')}
+            checked={notificationSettings.update}
+            onCheckedChange={(v) => handleNotificationChange('update', v)}
           />
         </SettingRow>
       </SettingGroup>
