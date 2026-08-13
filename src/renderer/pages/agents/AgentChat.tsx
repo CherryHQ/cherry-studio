@@ -46,6 +46,7 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
+import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -602,6 +603,11 @@ const AgentChatSessionCenter = ({
         onOpenCitationsPanel={onOpenCitationsPanel}
         deleteMessage={runtime.deleteMessage}
         respondToolApproval={runtime.respondToolApproval}
+      />
+      <ApiGatewayRequiredDialog
+        sessionId={runtime.sessionId}
+        messages={runtime.uiMessages}
+        sendMessage={runtime.sendMessage}
       />
     </div>
   )

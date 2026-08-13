@@ -109,14 +109,6 @@ export const useApiGateway = () => {
     }
   }, [apiGatewayLoading, setApiGatewayEnabled, t])
 
-  // Keep the UI toggle in sync when Main auto-starts the gateway (e.g. when
-  // agents exist) while the persisted `enabled` flag is still false.
-  useEffect(() => {
-    if (apiGatewayRunning && !apiGatewayConfig.enabled) {
-      setApiGatewayEnabled(true)
-    }
-  }, [apiGatewayRunning, apiGatewayConfig.enabled, setApiGatewayEnabled])
-
   return {
     apiGatewayConfig,
     apiGatewayRunning,

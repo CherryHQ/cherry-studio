@@ -1151,6 +1151,11 @@
       "stopError": "停止 API 网关失败：",
       "stopSuccess": "API 网关停止成功"
     },
+    "required": {
+      "confirm": "启用",
+      "description": "该智能体使用的模型需要通过 Cherry Studio 的本地 API Gateway 桥接。启用后网关会在以后启动时自动运行,你可以随时在设置中再次关闭。",
+      "title": "启用 API Gateway?"
+    },
     "status": {
       "running": "运行中",
       "stopped": "已停止"
@@ -2494,6 +2499,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "该模型需要通过 Cherry Studio 的本地 API Gateway 桥接,但网关当前已禁用。启用后才能运行该智能体。",
     "availableProviders": "可用提供商",
     "availableTools": "可用工具",
     "backup": {

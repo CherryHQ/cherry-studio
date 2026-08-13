@@ -1151,6 +1151,11 @@
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
     },
+    "required": {
+      "confirm": "Enable",
+      "description": "This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "Enable the API Gateway?"
+    },
     "status": {
       "running": "Running",
       "stopped": "Stopped"
@@ -2494,6 +2499,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",
     "backup": {

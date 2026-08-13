@@ -1151,6 +1151,11 @@
       "stopError": "API サーバーの停止に失敗しました：",
       "stopSuccess": "API サーバーが正常に停止されました"
     },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
+    },
     "status": {
       "running": "実行中",
       "stopped": "停止中"
@@ -2494,6 +2499,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "利用可能なプロバイダー",
     "availableTools": "利用可能なツール",
     "backup": {

@@ -106,7 +106,9 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { ApiGatewayNotRunningError, buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import(
+  '../agentSessionWarmup'
+)
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -757,14 +759,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: modelId,
       apiModelId: `${modelId}-api`
     }))
-    mocks.apiGatewayIsRunning.mockReturnValue(false)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-key' })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
-    expect(mocks.apiGatewayStart).toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('openai:gpt-main-api')
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
@@ -779,6 +779,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token'
     )
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  // The gateway is never started implicitly (#18521); the caller turns this into the prompt that
+  // offers to enable it, and the failed route must leave no persisted key behind.
+  it('fails a gateway route instead of starting the gateway the user disabled', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toBeInstanceOf(
+      ApiGatewayNotRunningError
+    )
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
   })
 
   it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {

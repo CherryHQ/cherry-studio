@@ -14,15 +14,14 @@ const { mockStart, mockStop, mockGetActiveUsageContext, captured } = vi.hoisted(
   mockStart: vi.fn(),
   mockStop: vi.fn(),
   mockGetActiveUsageContext: vi.fn(),
-  captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
+  captured: {
+    prefHandler: undefined as ((enabled: boolean) => void) | undefined,
+    enabledPreference: false
+  }
 }))
 
 vi.mock('../server', () => ({
   ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
-}))
-
-vi.mock('@data/services/AgentService', () => ({
-  agentService: { listAgents: vi.fn(async () => ({ total: 0 })) }
 }))
 
 vi.mock('@application', async () => {
@@ -34,7 +33,12 @@ vi.mock('@application', async () => {
         return () => {}
       }),
       get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
-      getMultiple: vi.fn(() => ({ enabled: false, host: '127.0.0.1', port: 23333, apiKey: 'existing-key' })),
+      getMultiple: vi.fn(() => ({
+        enabled: captured.enabledPreference,
+        host: '127.0.0.1',
+        port: 23333,
+        apiKey: 'existing-key'
+      })),
       set: vi.fn(async () => {})
     },
     CacheService: { setShared: vi.fn() },
@@ -50,6 +54,7 @@ let rejectStart: boolean
 beforeEach(() => {
   BaseService.resetInstances()
   captured.prefHandler = undefined
+  captured.enabledPreference = false
   startResolvers = []
   rejectStart = false
   mockStart.mockReset()
@@ -122,6 +127,29 @@ describe('ApiGatewayService reconcile', () => {
         })
       )
     ).toBeUndefined()
+  })
+
+  // Regression for #18521: boot used to start the gateway whenever any agent existed, overriding a
+  // user who had turned it off — and nothing else may override it either.
+  it('stays stopped at boot when the preference is disabled', async () => {
+    const service = new ApiGatewayService()
+
+    await service._doInit()
+
+    expect(mockStart).not.toHaveBeenCalled()
+    expect(service.isActivated).toBe(false)
+  })
+
+  it('starts at boot when the preference is enabled', async () => {
+    captured.enabledPreference = true
+    const service = new ApiGatewayService()
+
+    const ready = service._doInit()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await ready
+
+    expect(service.isActivated).toBe(true)
   })
 
   it('honors an opposing toggle that lands during an in-flight activation (no dropped toggle)', async () => {

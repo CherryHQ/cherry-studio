@@ -1,7 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -23,7 +22,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
   private readonly internalRequestToken = uuidv4()
-  /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
+  /** Latest desired running state. The `enabled` preference is its ONLY source: nothing auto-starts
+   *  the gateway, so a user who turns it off keeps it off across restarts (issue #18521). */
   private desiredEnabled = false
   /**
    * Converges the gateway's running state to `desiredEnabled`. The reconciler is the SOLE caller
@@ -63,7 +63,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onReady(): Promise<void> {
-    this.desiredEnabled = this.shouldAutoStart()
+    const config = this.getCurrentConfig()
+    // Never log the raw API key — redact before emitting.
+    logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
+    this.desiredEnabled = config.enabled
     this.reconciler.request()
     await this.reconciler.flush()
   }
@@ -214,32 +217,5 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
-  }
-
-  private shouldAutoStart(): boolean {
-    try {
-      const config = this.getCurrentConfig()
-      // Never log the raw API key — redact before emitting.
-      logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
-
-      if (config.enabled) {
-        return true
-      }
-
-      try {
-        const { total } = agentService.listAgents({ limit: 1 })
-        if (total > 0) {
-          logger.info(`Detected ${total} agent(s), auto-starting API gateway`)
-          return true
-        }
-      } catch (error: any) {
-        logger.warn('Failed to check agent count:', error)
-      }
-
-      return false
-    } catch (error: any) {
-      logger.error('Failed to check API gateway auto-start condition:', error)
-      return false
-    }
   }
 }

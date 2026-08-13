@@ -843,6 +843,19 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   )
 }
 
+/**
+ * The route needs Cherry's local gateway to bridge the model, but the user keeps the gateway
+ * disabled. `i18nKey` survives `serializeError`, so the turn's error block renders localized copy;
+ * the connection driver additionally turns this into a prompt offering to enable it.
+ */
+export class ApiGatewayNotRunningError extends Error {
+  readonly i18nKey = 'api_gateway_required'
+  constructor() {
+    super('API Gateway is not running')
+    this.name = 'ApiGatewayNotRunningError'
+  }
+}
+
 async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   baseUrl: string
   apiKey: string
@@ -850,10 +863,12 @@ async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   internalRequestToken: string
 }> {
   const apiGatewayService = application.get('ApiGatewayService')
+  // Never start the gateway implicitly — the `enabled` preference is the only thing that may.
+  // The caller turns this into the prompt that asks the user to enable it (see the class doc).
+  if (!apiGatewayService.isRunning()) throw new ApiGatewayNotRunningError()
+  // Only after the running check: this persists a freshly generated key on first use, and a
+  // failing route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()
-  if (!apiGatewayService.isRunning()) {
-    await apiGatewayService.start()
-  }
   const config = apiGatewayService.getCurrentConfig()
   const host = config.host || '127.0.0.1'
   const port = config.port || 23333

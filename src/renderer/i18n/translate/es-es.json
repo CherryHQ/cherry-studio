@@ -1151,6 +1151,11 @@
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
     },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
+    },
     "status": {
       "running": "Ejecutándose",
       "stopped": "Detenido"
@@ -2494,6 +2499,7 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Proveedores disponibles",
     "availableTools": "Herramientas disponibles",
     "backup": {
