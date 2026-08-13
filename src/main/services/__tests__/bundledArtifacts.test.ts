@@ -15,6 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ resourcesRoot: '' }))
 
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs & { default: typeof fs }>()
+  return {
+    ...actual,
+    default: { ...actual, createReadStream: vi.fn(actual.createReadStream) }
+  }
+})
+
 vi.mock('@application', () => ({
   application: {
     getPath: vi.fn(() => state.resourcesRoot)
@@ -26,7 +34,8 @@ import {
   isBundledFileReady,
   isBundledTreeReady,
   materializeBundledFile,
-  materializeBundledTree
+  materializeBundledTree,
+  recoverStaleBundledArtifactPaths
 } from '../bundledArtifacts'
 
 const tmpDirs: string[] = []
@@ -65,7 +74,9 @@ async function writeTreeArtifact(): Promise<BundledTreeArtifact> {
   const treeRoot = path.join(sourceDirectory, 'git')
   const tarPath = path.join(sourceDirectory, 'mingit.tar')
   fs.mkdirSync(path.join(treeRoot, 'cmd'), { recursive: true })
+  fs.mkdirSync(path.join(treeRoot, 'mingw64', 'bin'), { recursive: true })
   fs.writeFileSync(path.join(treeRoot, 'cmd', 'git.exe'), 'git-runtime', 'utf8')
+  fs.writeFileSync(path.join(treeRoot, 'mingw64', 'bin', 'runtime.dll'), 'git-library', 'utf8')
   await createTar({ cwd: sourceDirectory, file: tarPath, noMtime: true, portable: true }, ['git'])
   const rawTar = fs.readFileSync(tarPath)
   const compressed = zstdCompressSync(rawTar)
@@ -79,7 +90,21 @@ async function writeTreeArtifact(): Promise<BundledTreeArtifact> {
     archiveSha256: sha256(compressed),
     sha256: sha256(rawTar),
     size: rawTar.length,
-    entrypoints: ['git/cmd/git.exe']
+    entrypoints: ['git/cmd/git.exe'],
+    files: [
+      {
+        path: 'git/cmd/git.exe',
+        sha256: sha256(Buffer.from('git-runtime')),
+        size: Buffer.byteLength('git-runtime'),
+        mode: fs.statSync(path.join(treeRoot, 'cmd', 'git.exe')).mode & 0o777
+      },
+      {
+        path: 'git/mingw64/bin/runtime.dll',
+        sha256: sha256(Buffer.from('git-library')),
+        size: Buffer.byteLength('git-library'),
+        mode: fs.statSync(path.join(treeRoot, 'mingw64', 'bin', 'runtime.dll')).mode & 0o777
+      }
+    ]
   }
 }
 
@@ -104,6 +129,18 @@ describe('materializeBundledFile', () => {
     expect(fs.readFileSync(destination)).toEqual(payload)
     expect(await isBundledFileReady(file, destination, true)).toBe(true)
     if (process.platform !== 'win32') expect(fs.statSync(destination).mode & 0o777).toBe(0o755)
+  })
+
+  it('reads a valid compressed archive only once while hashing and decompressing it', async () => {
+    const file = writeFileArtifact(Buffer.from('single-pass'))
+    const archivePath = path.join(state.resourcesRoot, 'linux-x64', file.archive)
+    const destination = path.join(makeTmpDir('bundled-file-single-pass-'), 'tool')
+    const createReadStream = vi.mocked(fs.createReadStream)
+    createReadStream.mockClear()
+
+    await materializeBundledFile(makeManifest(), file, destination)
+
+    expect(createReadStream.mock.calls.filter(([candidate]) => candidate === archivePath)).toHaveLength(1)
   })
 
   it.runIf(process.platform !== 'win32')('repairs a cache whose executable permission was removed', async () => {
@@ -192,6 +229,52 @@ describe('tree payloads and version cleanup', () => {
     expect(fs.readFileSync(path.join(destination, 'git', 'cmd', 'git.exe'), 'utf8')).toBe('git-runtime')
     expect(fs.existsSync(path.join(destination, 'git', 'partial.txt'))).toBe(false)
     expect(await isBundledTreeReady(artifact, destination)).toBe(true)
+  })
+
+  it('rejects a marked cache when an internal runtime file is deleted or an entrypoint is changed', async () => {
+    const artifact = await writeTreeArtifact()
+    const destination = path.join(makeTmpDir('bundled-tree-integrity-'), 'current')
+    await materializeBundledTree(makeManifest({ mingit: artifact }), artifact, destination)
+
+    fs.rmSync(path.join(destination, 'git', 'mingw64', 'bin', 'runtime.dll'))
+    expect(await isBundledTreeReady(artifact, destination)).toBe(false)
+
+    await materializeBundledTree(makeManifest({ mingit: artifact }), artifact, destination)
+    fs.writeFileSync(path.join(destination, 'git', 'cmd', 'git.exe'), 'evil-runtime', 'utf8')
+    expect(await isBundledTreeReady(artifact, destination)).toBe(false)
+  })
+
+  it('rejects a marked cache containing a file absent from the signed inventory', async () => {
+    const artifact = await writeTreeArtifact()
+    const destination = path.join(makeTmpDir('bundled-tree-extra-file-'), 'current')
+    await materializeBundledTree(makeManifest({ mingit: artifact }), artifact, destination)
+    fs.writeFileSync(path.join(destination, 'git', 'cmd', 'injected.dll'), 'unexpected', 'utf8')
+
+    expect(await isBundledTreeReady(artifact, destination)).toBe(false)
+  })
+
+  it('removes abandoned temporary siblings and preserves the published cache', async () => {
+    const directory = makeTmpDir('bundled-stale-siblings-')
+    const destination = path.join(directory, 'tool')
+    fs.writeFileSync(destination, 'current', 'utf8')
+    fs.writeFileSync(`${destination}.tmp-123-dead`, 'partial', 'utf8')
+    fs.writeFileSync(`${destination}.old-123-dead`, 'previous', 'utf8')
+
+    await recoverStaleBundledArtifactPaths(destination)
+
+    expect(fs.readFileSync(destination, 'utf8')).toBe('current')
+    expect(fs.readdirSync(directory)).toEqual(['tool'])
+  })
+
+  it('recovers the previous cache when a crash happened between the two atomic renames', async () => {
+    const directory = makeTmpDir('bundled-stale-backup-')
+    const destination = path.join(directory, 'tool')
+    fs.writeFileSync(`${destination}.old-123-dead`, 'previous', 'utf8')
+
+    await recoverStaleBundledArtifactPaths(destination)
+
+    expect(fs.readFileSync(destination, 'utf8')).toBe('previous')
+    expect(fs.readdirSync(directory)).toEqual(['tool'])
   })
 
   it('removes old versions only after the caller has installed the current version', async () => {

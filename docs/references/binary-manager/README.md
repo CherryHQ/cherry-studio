@@ -6,7 +6,7 @@
 
 ## Scope
 
-BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
+BinaryManager is for a CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on), plus the fixed tool payloads Cherry ships for startup use. It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
@@ -18,7 +18,11 @@ Only the main process writes `feature.binary.tools`, through `BinaryManager.addC
 
 mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. Custom Add writes the definition first: if that write fails, no backend work starts; if backend application fails afterward, the definition remains and the snapshot carries a retryable failed operation.
 
-Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+Bundled copies are a separate availability source. At startup the app verifies and streams the Zstd payloads for mise, bun, uv/uvx, and rg into `cherry.bin`; the signed manifest is authoritative for each artifact's file set. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+
+Windows MinGit is a signed `tar.zst` tree installed under the versioned `feature.binary.mingit` Toolchain path. Startup prewarms it, while `ensureBundledGit()` provides a deduplicated on-demand retry if startup extraction failed. A cache is reusable only when its marker and complete file inventory (paths, sizes, modes, and hashes) match. The synchronous `getBundledGitPath()` / `getBundledGitDir()` helpers only inspect an already-installed cache; they never extract it.
+
+The Claude Agent SDK binary uses the same atomic artifact materializer but remains owned by `ClaudeCodeBinaryService`: packaged builds install it lazily on first Agent use under the versioned `feature.agents.claude.binary` path. None of these runtime paths download a replacement when verification or extraction fails.
 
 ### Portable definitions and machine-local state
 
@@ -126,7 +130,7 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js`. Add its artifact name to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts` only when BinaryManager owns it; executable names and the version come from the generated manifest rather than a second runtime list.
 
 ## Consuming a tool
 

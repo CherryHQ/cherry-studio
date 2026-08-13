@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
   ensureClaudeExecutable: vi.fn(),
+  ensureBundledGit: vi.fn(),
+  autoDiscoverGitBash: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
@@ -182,7 +184,7 @@ vi.mock('@main/utils/binaryResolver', () => ({
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
-  autoDiscoverGitBash: vi.fn(() => null)
+  autoDiscoverGitBash: mocks.autoDiscoverGitBash
 }))
 
 vi.mock('@main/utils/rtk', () => ({
@@ -277,6 +279,9 @@ describe('buildClaudeCodeSessionSettings', () => {
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
+      if (name === 'BinaryManager') {
+        return { ensureBundledGit: mocks.ensureBundledGit }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
@@ -287,6 +292,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
+    mocks.ensureBundledGit.mockResolvedValue(null)
+    mocks.autoDiscoverGitBash.mockReturnValue(null)
     mocks.buildPrompt.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
@@ -310,6 +317,30 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(mocks.ensureClaudeExecutable).toHaveBeenCalledOnce()
     expect(settings.pathToClaudeCodeExecutable).toBe('/toolchain/claude')
+  })
+
+  it('retries MinGit materialization before building a Windows Agent environment', async () => {
+    mocks.isWin = true
+    mocks.ensureBundledGit.mockResolvedValue('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\cmd\\git.exe')
+    mocks.autoDiscoverGitBash
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\bin\\bash.exe')
+    mocks.getShellEnv
+      .mockResolvedValueOnce({ Path: 'C:\\Windows\\System32' })
+      .mockResolvedValueOnce({ Path: 'C:\\Windows\\System32;C:\\Toolchain\\MinGit\\git\\cmd' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: 'C:\\workspace\\project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.ensureBundledGit).toHaveBeenCalledOnce()
+    expect(mocks.autoDiscoverGitBash).toHaveBeenCalledTimes(2)
+    expect(settings.env?.CLAUDE_CODE_GIT_BASH_PATH).toBe('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\bin\\bash.exe')
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(

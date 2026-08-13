@@ -12,7 +12,7 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
-import { readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
+import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -43,7 +43,8 @@ import {
   isBundledFileReady,
   isBundledTreeReady,
   materializeBundledFile,
-  materializeBundledTree
+  materializeBundledTree,
+  recoverStaleBundledArtifactPaths
 } from './bundledArtifacts'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -147,29 +148,18 @@ function isPathWithin(root: string, candidate: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
-// Single source of truth for tools shipped inside the app and extracted at
-// boot. `internal` marks infrastructure (mise) excluded from the UI probe.
-// Binary names are base names; .exe is appended on Windows at use sites.
-// NOTE: the build-time list in scripts/download-binaries.js is intentionally
-// separate — it additionally carries per-platform download URLs and checksums.
-const BUNDLED_TOOLS: Array<{
-  name: string
-  binaries: string[]
-  windowsBinaries?: string[]
-  versionFile: string
-  internal?: boolean
-}> = [
-  {
-    name: 'mise',
-    binaries: ['mise'],
-    windowsBinaries: ['mise-shim'],
-    versionFile: '.mise-version',
-    internal: true
-  },
-  { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
-  { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
-  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
-]
+// Runtime ownership only. The signed manifest is authoritative for each
+// artifact's executable set; `internal` keeps infrastructure out of UI probes.
+const BUNDLED_TOOLS = [{ name: 'mise', internal: true }, { name: 'bun' }, { name: 'uv' }, { name: 'rg' }] as const
+
+function bundledVersionFile(name: string): string {
+  return `.${name}-version`
+}
+
+function bundledExecutableName(output: string): string {
+  const basename = path.basename(output)
+  return isWin && basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -'.exe'.length) : basename
+}
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
 
@@ -248,10 +238,12 @@ export class BinaryManager extends BaseService {
   private hasReachedAllReady = false
   private isShuttingDown = false
   private normalizationPromise: Promise<void> | null = null
+  private bundledGitPromise: Promise<string> | null = null
 
   protected async onInit() {
     this.isShuttingDown = false
     this.normalizationPromise = null
+    this.bundledGitPromise = null
     // Prime the process-wide login-shell snapshot for system tool discovery, CLIs, MCP, and agent
     // runtimes. Do not await it: consumers share shellEnv's memoized in-flight capture.
     void getRawShellEnv()
@@ -268,6 +260,11 @@ export class BinaryManager extends BaseService {
     // bootstrapped (always true by the time any restart runs).
     if (this.hasReachedAllReady) this.registerPreferenceInvalidation()
     await this.extractBundledBinaries()
+    if (isWin) {
+      await this.ensureBundledGit().catch((error) => {
+        logger.error('Failed to extract bundled MinGit', error as Error)
+      })
+    }
     this.miseBin = await this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, binary management disabled')
@@ -301,6 +298,7 @@ export class BinaryManager extends BaseService {
     this.isShuttingDown = true
     if (this.normalizationPromise) await this.normalizationPromise
     this.normalizationPromise = null
+    this.bundledGitPromise = null
   }
 
   /**
@@ -336,12 +334,19 @@ export class BinaryManager extends BaseService {
   private probeBundled(): Record<string, string | null> {
     const binDir = application.getPath('cherry.bin')
     const result: Record<string, string | null> = {}
-    // Skip mise (internal infrastructure). Record every shipped executable so
-    // aliases such as uvx resolve through the same bundled boundary as uv.
-    for (const tool of BUNDLED_TOOLS.filter((t) => !t.internal)) {
-      const version = this.readVersionMarker(path.join(binDir, tool.versionFile))
-      for (const binary of tool.binaries) {
-        if (fs.existsSync(path.join(binDir, getBinaryName(binary)))) result[binary] = version
+    let manifest
+    try {
+      manifest = readBundledArtifactManifest()
+    } catch {
+      return result
+    }
+    for (const tool of BUNDLED_TOOLS) {
+      if ('internal' in tool && tool.internal) continue
+      const artifact = manifest.artifacts[tool.name]
+      if (!artifact || artifact.kind !== 'files') continue
+      const version = this.readVersionMarker(path.join(binDir, bundledVersionFile(tool.name)))
+      for (const file of artifact.files) {
+        if (fs.existsSync(path.join(binDir, file.output))) result[bundledExecutableName(file.output)] = version
       }
     }
     return result
@@ -590,7 +595,8 @@ export class BinaryManager extends BaseService {
    */
   public async getToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
     const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
-    const bundledNames = new Set(BUNDLED_TOOLS.filter((tool) => !tool.internal).flatMap((tool) => tool.binaries))
+    const bundled = this.probeBundled()
+    const bundledNames = new Set(Object.keys(bundled))
     const definitions = new Map<string, CustomToolDefinition | FixedToolDefinition>([
       ...FIXED_CATALOG,
       ...customDefinitions.map((definition) => [definition.name, definition] as const)
@@ -629,7 +635,6 @@ export class BinaryManager extends BaseService {
       // A fresh profile has no shims directory until its first managed install.
     }
 
-    const bundled = this.probeBundled()
     const installedFor = (tool: string): MiseInstallEntry[] | undefined => {
       const normalized = normalizeToolIdentity(tool)
       const runtimeName = isRuntimeDependency(tool) ? normalized.split('@')[0] : undefined
@@ -672,7 +677,6 @@ export class BinaryManager extends BaseService {
   }
 
   private async extractBundledBinaries(): Promise<void> {
-    const platformKey = `${process.platform}-${process.arch}`
     const binDir = application.getPath('cherry.bin')
     await fsp.mkdir(binDir, { recursive: true })
     let manifest
@@ -685,31 +689,26 @@ export class BinaryManager extends BaseService {
 
     for (const tool of BUNDLED_TOOLS) {
       try {
-        const binaries = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
-          getBinaryName(bin)
-        )
         const artifact = manifest.artifacts[tool.name]
         if (!artifact || artifact.kind !== 'files') throw new Error(`Missing bundled ${tool.name} files artifact`)
-        const files = binaries.map((binary) => artifact.files.find((file) => file.output === binary))
-        if (files.some((file) => file === undefined) || artifact.files.length !== binaries.length) {
-          throw new Error(`Bundled ${tool.name} manifest does not match expected binaries: ${binaries.join(', ')}`)
-        }
-        const bundledFiles = files.filter((file) => file !== undefined)
 
         // Re-extract when any expected destination binary is missing, even if
         // the first one is present and the version marker matches — guards
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
-        const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        let changed = installedVersion !== artifact.version
-        for (const file of bundledFiles) {
+        const versionFile = path.join(binDir, bundledVersionFile(tool.name))
+        const installedVersion = this.readVersionMarker(versionFile)
+        const versionChanged = installedVersion !== artifact.version
+        let changed = versionChanged
+        for (const file of artifact.files) {
           const destination = path.join(binDir, file.output)
-          if (!changed && (await isBundledFileReady(file, destination))) continue
+          await recoverStaleBundledArtifactPaths(destination)
+          if (!versionChanged && (await isBundledFileReady(file, destination))) continue
           await materializeBundledFile(manifest, file, destination)
           changed = true
         }
         if (changed) {
-          await fsp.writeFile(path.join(binDir, tool.versionFile), artifact.version)
+          await fsp.writeFile(versionFile, artifact.version)
           logger.info(`Extracted bundled ${tool.name}`, { binDir, version: artifact.version })
         }
       } catch (err) {
@@ -718,22 +717,40 @@ export class BinaryManager extends BaseService {
         logger.error(`Failed to extract bundled ${tool.name}`, err as Error)
       }
     }
+  }
 
-    if (isWin) {
-      try {
-        const artifact = manifest.artifacts.mingit
-        if (!artifact || artifact.kind !== 'tree') throw new Error('Missing bundled MinGit tree artifact')
-        const root = application.getPath('feature.binary.mingit')
-        const destination = path.join(root, artifact.version, platformKey)
-        if (!(await isBundledTreeReady(artifact, destination))) {
-          await materializeBundledTree(manifest, artifact, destination)
-          logger.info('Extracted bundled MinGit', { destination, version: artifact.version })
-        }
-        await cleanupOtherArtifactVersions(root, artifact.version)
-      } catch (error) {
-        logger.error('Failed to extract bundled MinGit', error as Error)
-      }
+  public async ensureBundledGit(): Promise<string | null> {
+    if (!isWin) return null
+    if (this.bundledGitPromise) return this.bundledGitPromise
+
+    const task = this.materializeBundledGit()
+    this.bundledGitPromise = task
+    try {
+      return await task
+    } catch (error) {
+      if (this.bundledGitPromise === task) this.bundledGitPromise = null
+      throw error
     }
+  }
+
+  private async materializeBundledGit(): Promise<string> {
+    const manifest = readBundledArtifactManifest()
+    const artifact = manifest.artifacts.mingit
+    if (!artifact || artifact.kind !== 'tree') {
+      throw new Error(`Bundled MinGit payload missing for ${bundledArtifactPlatformKey()}`)
+    }
+    const entrypoint = artifact.entrypoints.find((candidate) => candidate.replaceAll('\\', '/').endsWith('/git.exe'))
+    if (!entrypoint) throw new Error('Bundled MinGit payload has no git.exe entrypoint')
+
+    const root = application.getPath('feature.binary.mingit')
+    const destination = path.join(root, artifact.version, bundledArtifactPlatformKey(manifest.platform, manifest.arch))
+    await recoverStaleBundledArtifactPaths(destination)
+    if (!(await isBundledTreeReady(artifact, destination))) {
+      await materializeBundledTree(manifest, artifact, destination)
+      logger.info('Extracted bundled MinGit', { destination, version: artifact.version })
+    }
+    await cleanupOtherArtifactVersions(root, artifact.version)
+    return path.join(destination, entrypoint)
   }
 
   private readVersionMarker(filePath: string): string | null {

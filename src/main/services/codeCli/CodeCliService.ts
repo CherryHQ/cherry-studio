@@ -431,6 +431,12 @@ export class CodeCliService extends BaseService {
     const executablePath = availability.path
     const usesCherryExecutionEnv = availability.source !== 'system'
 
+    if (isWin) {
+      await binaryManager.ensureBundledGit().catch((error) => {
+        logger.warn('Failed to prepare bundled MinGit for CLI launch; continuing with external Git sources', error)
+      })
+    }
+
     // Cherry's MISE_* variables are needed for currently available mise shims
     // and bundled binaries. A system CLI receives no Cherry environment: adding
     // it could redirect a user mise shim to Cherry's isolated data directory.

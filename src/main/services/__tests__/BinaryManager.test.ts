@@ -15,6 +15,7 @@ const {
   mockMaterializeBundledFile,
   mockMaterializeBundledTree,
   mockPreferenceService,
+  mockRecoverStaleBundledArtifactPaths,
   platformMock
 } = vi.hoisted(() => ({
   bundledManifestRef: { value: {} },
@@ -24,8 +25,9 @@ const {
   mockExecFileAsync: vi.fn(),
   mockIsBundledFileReady: vi.fn<(...args: unknown[]) => Promise<boolean>>(async () => true),
   mockIsBundledTreeReady: vi.fn(async () => true),
-  mockMaterializeBundledFile: vi.fn(async () => undefined),
-  mockMaterializeBundledTree: vi.fn(async () => undefined),
+  mockMaterializeBundledFile: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
+  mockMaterializeBundledTree: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
+  mockRecoverStaleBundledArtifactPaths: vi.fn(async () => undefined),
   mockFs: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(),
@@ -71,6 +73,7 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/utils/bundledArtifactManifest', () => ({
+  bundledArtifactPlatformKey: (platform = process.platform, arch = process.arch) => `${platform}-${arch}`,
   readBundledArtifactManifest: vi.fn(() => bundledManifestRef.value)
 }))
 
@@ -79,7 +82,8 @@ vi.mock('../bundledArtifacts', () => ({
   isBundledFileReady: mockIsBundledFileReady,
   isBundledTreeReady: mockIsBundledTreeReady,
   materializeBundledFile: mockMaterializeBundledFile,
-  materializeBundledTree: mockMaterializeBundledTree
+  materializeBundledTree: mockMaterializeBundledTree,
+  recoverStaleBundledArtifactPaths: mockRecoverStaleBundledArtifactPaths
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -173,6 +177,17 @@ const makeFilesArtifact = (version: string, outputs: string[]) => ({
   files: outputs.map(makeBundledFile)
 })
 
+const makeTreeArtifact = () => ({
+  kind: 'tree' as const,
+  version: '2.54.0',
+  archive: 'mingit.tar.zst',
+  archiveSha256: 'a'.repeat(64),
+  sha256: 'b'.repeat(64),
+  size: 100,
+  entrypoints: ['git/cmd/git.exe'],
+  files: [{ path: 'git/cmd/git.exe', sha256: 'c'.repeat(64), size: 50, mode: 0o755 }]
+})
+
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
   // and the OpenClaw gateway — it MUST keep the user's real HOME so they find
@@ -206,6 +221,7 @@ describe('BinaryManager', () => {
     mockIsBundledTreeReady.mockReset().mockResolvedValue(true)
     mockMaterializeBundledFile.mockReset().mockResolvedValue(undefined)
     mockMaterializeBundledTree.mockReset().mockResolvedValue(undefined)
+    mockRecoverStaleBundledArtifactPaths.mockReset().mockResolvedValue(undefined)
     mockCleanupOtherArtifactVersions.mockReset().mockResolvedValue(undefined)
     mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
@@ -3130,6 +3146,24 @@ describe('BinaryManager', () => {
       expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
     })
 
+    it('derives every runtime file from the signed manifest instead of a second binary list', async () => {
+      const service = new BinaryManager()
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise', 'mise-helper']) }
+      }
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      await (service as any).extractBundledBinaries()
+
+      expect(mockMaterializeBundledFile).toHaveBeenCalledTimes(2)
+      expect(mockMaterializeBundledFile.mock.calls.map(([, file]) => file.output)).toEqual(['mise', 'mise-helper'])
+    })
+
     it('repairs only mise-shim.exe on Windows when the primary binary and version marker are intact', async () => {
       platformMock.isWin = true
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
@@ -3177,15 +3211,7 @@ describe('BinaryManager', () => {
         platform: { value: 'win32' },
         arch: { value: 'x64' }
       })
-      const mingit = {
-        kind: 'tree' as const,
-        version: '2.54.0',
-        archive: 'mingit.tar.zst',
-        archiveSha256: 'a'.repeat(64),
-        sha256: 'b'.repeat(64),
-        size: 100,
-        entrypoints: ['git/cmd/git.exe']
-      }
+      const mingit = makeTreeArtifact()
 
       try {
         bundledManifestRef.value = {
@@ -3197,7 +3223,7 @@ describe('BinaryManager', () => {
         mockIsBundledTreeReady.mockResolvedValue(false)
         const service = new BinaryManager()
 
-        await (service as any).extractBundledBinaries()
+        await service.ensureBundledGit()
 
         expect(mockMaterializeBundledTree).toHaveBeenCalledWith(
           bundledManifestRef.value,
@@ -3205,6 +3231,77 @@ describe('BinaryManager', () => {
           '/mock/feature.binary.mingit/2.54.0/win32-x64'
         )
         expect(mockCleanupOtherArtifactVersions).toHaveBeenCalledWith('/mock/feature.binary.mingit', '2.54.0')
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
+
+    it('coalesces concurrent MinGit recovery and returns the materialized entrypoint', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+      let release: (() => void) | undefined
+
+      try {
+        bundledManifestRef.value = {
+          schemaVersion: 1,
+          platform: 'win32',
+          arch: 'x64',
+          artifacts: { mingit: makeTreeArtifact() }
+        }
+        mockIsBundledTreeReady.mockResolvedValue(false)
+        mockMaterializeBundledTree.mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              release = resolve
+            })
+        )
+        const service = new BinaryManager()
+
+        const first = service.ensureBundledGit()
+        const second = service.ensureBundledGit()
+        await vi.waitFor(() => expect(mockMaterializeBundledTree).toHaveBeenCalledOnce())
+        release?.()
+
+        await expect(Promise.all([first, second])).resolves.toEqual([
+          '/mock/feature.binary.mingit/2.54.0/win32-x64/git/cmd/git.exe',
+          '/mock/feature.binary.mingit/2.54.0/win32-x64/git/cmd/git.exe'
+        ])
+        expect(mockCleanupOtherArtifactVersions).toHaveBeenCalledOnce()
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
+
+    it('clears a failed MinGit task so a later caller can retry in the same session', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+
+      try {
+        bundledManifestRef.value = {
+          schemaVersion: 1,
+          platform: 'win32',
+          arch: 'x64',
+          artifacts: { mingit: makeTreeArtifact() }
+        }
+        mockIsBundledTreeReady.mockResolvedValue(false)
+        mockMaterializeBundledTree.mockRejectedValueOnce(new Error('temporary AV lock'))
+        const service = new BinaryManager()
+
+        await expect(service.ensureBundledGit()).rejects.toThrow('temporary AV lock')
+        await expect(service.ensureBundledGit()).resolves.toContain('/git/cmd/git.exe')
+
+        expect(mockMaterializeBundledTree).toHaveBeenCalledTimes(2)
+        expect(mockCleanupOtherArtifactVersions).toHaveBeenCalledOnce()
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }

@@ -149,7 +149,9 @@ describe('compressed artifact contract', () => {
     const { outputDir } = makeResourcesDir('win32-x64')
     const rootDir = path.join(outputDir, 'git')
     fs.mkdirSync(path.join(rootDir, 'cmd'), { recursive: true })
+    fs.mkdirSync(path.join(rootDir, 'mingw64', 'bin'), { recursive: true })
     fs.writeFileSync(path.join(rootDir, 'cmd', 'git.exe'), 'git', 'utf8')
+    fs.writeFileSync(path.join(rootDir, 'mingw64', 'bin', 'runtime.dll'), 'runtime', 'utf8')
 
     const artifact = await bundleTreeArtifact({
       version: '1.0.0',
@@ -160,6 +162,17 @@ describe('compressed artifact contract', () => {
     })
 
     expect(artifact).toMatchObject({ kind: 'tree', version: '1.0.0', entrypoints: ['git/cmd/git.exe'] })
+    expect(artifact.files.map((file) => file.path)).toEqual(['git/cmd/git.exe', 'git/mingw64/bin/runtime.dll'])
+    expect(artifact.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'git/cmd/git.exe', size: 3, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+        expect.objectContaining({
+          path: 'git/mingw64/bin/runtime.dll',
+          size: 7,
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+        })
+      ])
+    )
     expect(zstdDecompressSync(fs.readFileSync(path.join(outputDir, artifact.archive))).length).toBe(artifact.size)
   })
 

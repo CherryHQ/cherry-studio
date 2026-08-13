@@ -21,6 +21,13 @@ export type BundledFilesArtifact = {
   files: BundledArtifactFile[]
 }
 
+export type BundledTreeFile = {
+  path: string
+  sha256: string
+  size: number
+  mode: number
+}
+
 export type BundledTreeArtifact = {
   kind: 'tree'
   version: string
@@ -29,6 +36,7 @@ export type BundledTreeArtifact = {
   sha256: string
   size: number
   entrypoints: string[]
+  files: BundledTreeFile[]
 }
 
 export type BundledArtifact = BundledFilesArtifact | BundledTreeArtifact
@@ -75,6 +83,21 @@ function isBundledArtifactFile(value: unknown): value is BundledArtifactFile {
   )
 }
 
+function isBundledTreeFile(value: unknown): value is BundledTreeFile {
+  if (!isRecord(value)) return false
+  return (
+    isSafeRelativePath(value.path) &&
+    isSha256(value.sha256) &&
+    typeof value.size === 'number' &&
+    Number.isSafeInteger(value.size) &&
+    value.size >= 0 &&
+    typeof value.mode === 'number' &&
+    Number.isSafeInteger(value.mode) &&
+    value.mode >= 0 &&
+    value.mode <= 0o777
+  )
+}
+
 function parseArtifact(name: string, value: unknown): BundledArtifact {
   if (!isRecord(value) || !isSafePathSegment(value.version)) {
     throw new Error(`Invalid bundled artifact '${name}'`)
@@ -93,8 +116,15 @@ function parseArtifact(name: string, value: unknown): BundledArtifact {
     value.size >= 0 &&
     Array.isArray(value.entrypoints) &&
     value.entrypoints.length > 0 &&
-    value.entrypoints.every(isSafeRelativePath)
+    value.entrypoints.every(isSafeRelativePath) &&
+    Array.isArray(value.files) &&
+    value.files.length > 0 &&
+    value.files.every(isBundledTreeFile)
   ) {
+    const filePaths = new Set(value.files.map((file) => file.path))
+    if (filePaths.size !== value.files.length || !value.entrypoints.every((entrypoint) => filePaths.has(entrypoint))) {
+      throw new Error(`Invalid bundled tree inventory '${name}'`)
+    }
     return {
       kind: 'tree',
       version: value.version,
@@ -102,7 +132,8 @@ function parseArtifact(name: string, value: unknown): BundledArtifact {
       archiveSha256: value.archiveSha256,
       sha256: value.sha256,
       size: value.size,
-      entrypoints: value.entrypoints
+      entrypoints: value.entrypoints,
+      files: value.files
     }
   }
   throw new Error(`Unsupported bundled artifact '${name}'`)

@@ -66,7 +66,15 @@ describe('readBundledArtifactManifest', () => {
           archiveSha256: 'c'.repeat(64),
           sha256: 'd'.repeat(64),
           size: 20,
-          entrypoints: ['git/cmd/git.exe']
+          entrypoints: ['git/cmd/git.exe'],
+          files: [
+            {
+              path: 'git/cmd/git.exe',
+              sha256: 'e'.repeat(64),
+              size: 10,
+              mode: 0o755
+            }
+          ]
         }
       }
     })
@@ -110,5 +118,27 @@ describe('readBundledArtifactManifest', () => {
     })
 
     expect(() => readBundledArtifactManifest('linux', 'x64')).toThrow(/Invalid bundled files artifact/)
+  })
+
+  it('rejects a tree whose entrypoint is absent from its signed file inventory', () => {
+    writeManifest({
+      schemaVersion: 1,
+      platform: 'linux',
+      arch: 'x64',
+      artifacts: {
+        mingit: {
+          kind: 'tree',
+          version: '2.0.0',
+          archive: 'mingit.tar.zst',
+          archiveSha256: 'a'.repeat(64),
+          sha256: 'b'.repeat(64),
+          size: 20,
+          entrypoints: ['git/cmd/git.exe'],
+          files: [{ path: 'git/bin/bash.exe', sha256: 'c'.repeat(64), size: 10, mode: 0o755 }]
+        }
+      }
+    })
+
+    expect(() => readBundledArtifactManifest('linux', 'x64')).toThrow(/tree inventory/)
   })
 })

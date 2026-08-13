@@ -323,6 +323,7 @@ function createZstdStream() {
 async function writeZstdArchive(source, archivePath) {
   const tmpPath = `${archivePath}.tmp-${process.pid}`
   const rawHash = crypto.createHash('sha256')
+  const archiveHash = crypto.createHash('sha256')
   let rawSize = 0
   try {
     await pipeline(
@@ -331,12 +332,13 @@ async function writeZstdArchive(source, archivePath) {
         rawSize += size
       }),
       createZstdStream(),
+      hashingTransform(archiveHash),
       fs.createWriteStream(tmpPath)
     )
     fs.rmSync(archivePath, { force: true })
     fs.renameSync(tmpPath, archivePath)
     return {
-      archiveSha256: await sha256File(archivePath),
+      archiveSha256: archiveHash.digest('hex'),
       sha256: rawHash.digest('hex'),
       size: rawSize
     }
@@ -378,8 +380,34 @@ function listTarEntries(rootDir) {
   return entries
 }
 
+async function listTreeFiles(rootDir) {
+  const parent = path.dirname(rootDir)
+  const files = []
+
+  async function visit(absolutePath) {
+    const stat = fs.lstatSync(absolutePath)
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(absolutePath).sort()) {
+        await visit(path.join(absolutePath, entry))
+      }
+      return
+    }
+    if (!stat.isFile()) throw new Error(`Unsupported bundled tree entry: ${absolutePath}`)
+    files.push({
+      path: path.relative(parent, absolutePath).split(path.sep).join('/'),
+      sha256: await sha256File(absolutePath),
+      size: stat.size,
+      mode: stat.mode & 0o777
+    })
+  }
+
+  await visit(rootDir)
+  return files
+}
+
 async function bundleTreeArtifact({ version, rootDir, archive, entrypoints, outputDir }) {
   const archivePath = path.join(outputDir, archive)
+  const files = await listTreeFiles(rootDir)
   const source = tar.c(
     {
       cwd: path.dirname(rootDir),
@@ -390,7 +418,7 @@ async function bundleTreeArtifact({ version, rootDir, archive, entrypoints, outp
     listTarEntries(rootDir)
   )
   const metadata = await writeZstdArchive(source, archivePath)
-  return { kind: 'tree', version, archive, ...metadata, entrypoints }
+  return { kind: 'tree', version, archive, ...metadata, entrypoints, files }
 }
 
 function emptyManifest(platform, arch) {
@@ -446,6 +474,9 @@ function isBundledArtifactCurrent(tool, pkg, artifact, outputDir) {
       artifact.kind === 'tree' &&
       artifact.entrypoints?.length === pkg.binaries.length &&
       artifact.entrypoints.every((entrypoint) => pkg.binaries.includes(entrypoint)) &&
+      Array.isArray(artifact.files) &&
+      artifact.files.length > 0 &&
+      artifact.entrypoints.every((entrypoint) => artifact.files.some((file) => file.path === entrypoint)) &&
       fs.existsSync(path.join(outputDir, artifact.archive))
     )
   }

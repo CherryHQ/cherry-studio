@@ -8,7 +8,8 @@ import { isLinux, isWin } from '@main/core/platform'
 import {
   cleanupOtherArtifactVersions,
   isBundledFileReady,
-  materializeBundledFile
+  materializeBundledFile,
+  recoverStaleBundledArtifactPaths
 } from '@main/services/bundledArtifacts'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
@@ -69,6 +70,7 @@ export class ClaudeCodeBinaryService {
     const root = application.getPath('feature.agents.claude.binary')
     const platformKey = bundledArtifactPlatformKey(manifest.platform, manifest.arch)
     const destination = path.join(root, artifact.version, platformKey, file.output)
+    await recoverStaleBundledArtifactPaths(destination)
     if (!(await isBundledFileReady(file, destination, true))) {
       await materializeBundledFile(manifest, file, destination)
       logger.info('Extracted bundled Claude Code binary', { destination, version: artifact.version })

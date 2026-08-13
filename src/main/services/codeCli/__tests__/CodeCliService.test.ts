@@ -3,6 +3,7 @@ import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
+  ensureBundledGit: vi.fn(() => Promise.resolve(null)),
   installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn(() => Promise.resolve()),
   getToolSnapshots: vi.fn()
@@ -146,6 +147,7 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    binaryManagerMock.ensureBundledGit.mockResolvedValue(null)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -693,6 +695,7 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
+        expect(binaryManagerMock.ensureBundledGit).toHaveBeenCalledOnce()
         const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
         expect(spawnEnv.Path.split(';')).toContain('/mock/binary-data')
         expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)

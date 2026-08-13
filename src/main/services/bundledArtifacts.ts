@@ -12,7 +12,8 @@ import {
   bundledArtifactArchivePath,
   type BundledArtifactFile,
   type BundledArtifactManifest,
-  type BundledTreeArtifact
+  type BundledTreeArtifact,
+  type BundledTreeFile
 } from '@main/utils/bundledArtifactManifest'
 import { extract } from 'tar'
 
@@ -43,9 +44,88 @@ async function sha256File(filePath: string): Promise<string> {
   return hash.digest('hex')
 }
 
-async function assertArchiveHash(filePath: string, expected: string): Promise<void> {
-  const actual = await sha256File(filePath)
+function assertArchiveHash(actual: string, expected: string): void {
   if (actual !== expected) throw new Error(`Bundled archive checksum mismatch: expected ${expected}, got ${actual}`)
+}
+
+async function rethrowArchiveFailure(filePath: string, expected: string, error: unknown): Promise<never> {
+  let actual: string
+  try {
+    actual = await sha256File(filePath)
+  } catch {
+    throw error
+  }
+  if (actual !== expected) {
+    throw new Error(`Bundled archive checksum mismatch: expected ${expected}, got ${actual}`, { cause: error })
+  }
+  throw error
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fsp.lstat(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function removeStalePath(filePath: string): Promise<void> {
+  await fsp.rm(filePath, { recursive: true, force: true }).catch((error) => {
+    logger.warn('Failed to clean a stale bundled artifact path', { path: filePath, error })
+  })
+}
+
+export async function recoverStaleBundledArtifactPaths(destination: string): Promise<void> {
+  const directory = path.dirname(destination)
+  const basename = path.basename(destination)
+  let entries: fs.Dirent[]
+  try {
+    entries = await fsp.readdir(directory, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  const temporaryPaths = entries
+    .filter((entry) => entry.name.startsWith(`${basename}.tmp-`))
+    .map((entry) => path.join(directory, entry.name))
+  await Promise.all(temporaryPaths.map(removeStalePath))
+
+  const backupPaths = entries
+    .filter((entry) => entry.name.startsWith(`${basename}.old-`))
+    .map((entry) => path.join(directory, entry.name))
+  if (backupPaths.length === 0) return
+
+  let destinationExists = await pathExists(destination)
+  let restoredBackup: string | null = null
+  if (!destinationExists) {
+    const backupsByNewest = await Promise.all(
+      backupPaths.map(async (backupPath) => ({
+        backupPath,
+        modifiedAt: await fsp
+          .stat(backupPath)
+          .then((stat) => stat.mtimeMs)
+          .catch(() => 0)
+      }))
+    )
+    backupsByNewest.sort((left, right) => right.modifiedAt - left.modifiedAt)
+    for (const { backupPath } of backupsByNewest) {
+      try {
+        await fsp.rename(backupPath, destination)
+        restoredBackup = backupPath
+        destinationExists = true
+        break
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        logger.warn('Failed to recover a replaced bundled artifact', { path: backupPath, destination, error })
+        return
+      }
+    }
+  }
+
+  if (destinationExists) {
+    await Promise.all(backupPaths.filter((backupPath) => backupPath !== restoredBackup).map(removeStalePath))
+  }
 }
 
 async function replacePath(stagingPath: string, destination: string): Promise<void> {
@@ -100,21 +180,27 @@ export async function materializeBundledFile(
   destination: string
 ): Promise<void> {
   const archivePath = bundledArtifactArchivePath(manifest, file.archive)
-  await assertArchiveHash(archivePath, file.archiveSha256)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const temporaryPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
+  const archiveHash = crypto.createHash('sha256')
   const hash = crypto.createHash('sha256')
   let size = 0
 
   try {
-    await pipeline(
-      fs.createReadStream(archivePath),
-      createZstdDecompress(),
-      hashingTransform(hash, (chunkSize) => {
-        size += chunkSize
-      }),
-      fs.createWriteStream(temporaryPath)
-    )
+    try {
+      await pipeline(
+        fs.createReadStream(archivePath),
+        hashingTransform(archiveHash),
+        createZstdDecompress(),
+        hashingTransform(hash, (chunkSize) => {
+          size += chunkSize
+        }),
+        fs.createWriteStream(temporaryPath)
+      )
+    } catch (error) {
+      await rethrowArchiveFailure(archivePath, file.archiveSha256, error)
+    }
+    assertArchiveHash(archiveHash.digest('hex'), file.archiveSha256)
     const actualHash = hash.digest('hex')
     if (size !== file.size || actualHash !== file.sha256) {
       throw new Error(
@@ -133,10 +219,40 @@ function treeMarker(artifact: BundledTreeArtifact): string {
   return `${JSON.stringify({ version: artifact.version, sha256: artifact.sha256 })}\n`
 }
 
+async function collectTreeFiles(root: string, current: string, result: Map<string, fs.Stats>): Promise<void> {
+  for (const entry of await fsp.readdir(current, { withFileTypes: true })) {
+    if (current === root && entry.name === TREE_MARKER_FILE) continue
+    const absolutePath = path.join(current, entry.name)
+    const stat = await fsp.lstat(absolutePath)
+    if (stat.isDirectory()) {
+      await collectTreeFiles(root, absolutePath, result)
+      continue
+    }
+    if (!stat.isFile()) throw new Error(`Unsupported bundled tree entry: ${absolutePath}`)
+    result.set(path.relative(root, absolutePath).split(path.sep).join('/'), stat)
+  }
+}
+
+async function isBundledTreeContentReady(files: readonly BundledTreeFile[], destination: string): Promise<boolean> {
+  try {
+    const installedFiles = new Map<string, fs.Stats>()
+    await collectTreeFiles(destination, destination, installedFiles)
+    if (installedFiles.size !== files.length) return false
+    for (const file of files) {
+      const stat = installedFiles.get(file.path)
+      if (!stat || stat.size !== file.size || (!isWin && (stat.mode & 0o777) !== file.mode)) return false
+      if ((await sha256File(path.join(destination, file.path))) !== file.sha256) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function isBundledTreeReady(artifact: BundledTreeArtifact, destination: string): Promise<boolean> {
   try {
     if ((await fsp.readFile(path.join(destination, TREE_MARKER_FILE), 'utf8')) !== treeMarker(artifact)) return false
-    return artifact.entrypoints.every((entrypoint) => fs.existsSync(path.join(destination, entrypoint)))
+    return isBundledTreeContentReady(artifact.files, destination)
   } catch {
     return false
   }
@@ -148,32 +264,36 @@ export async function materializeBundledTree(
   destination: string
 ): Promise<void> {
   const archivePath = bundledArtifactArchivePath(manifest, artifact.archive)
-  await assertArchiveHash(archivePath, artifact.archiveSha256)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const stagingPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
+  const archiveHash = crypto.createHash('sha256')
   const hash = crypto.createHash('sha256')
   let size = 0
 
   try {
     await fsp.mkdir(stagingPath, { recursive: true })
-    await pipeline(
-      fs.createReadStream(archivePath),
-      createZstdDecompress(),
-      hashingTransform(hash, (chunkSize) => {
-        size += chunkSize
-      }),
-      extract({ cwd: stagingPath, preservePaths: false, strict: true })
-    )
+    try {
+      await pipeline(
+        fs.createReadStream(archivePath),
+        hashingTransform(archiveHash),
+        createZstdDecompress(),
+        hashingTransform(hash, (chunkSize) => {
+          size += chunkSize
+        }),
+        extract({ cwd: stagingPath, preservePaths: false, strict: true })
+      )
+    } catch (error) {
+      await rethrowArchiveFailure(archivePath, artifact.archiveSha256, error)
+    }
+    assertArchiveHash(archiveHash.digest('hex'), artifact.archiveSha256)
     const actualHash = hash.digest('hex')
     if (size !== artifact.size || actualHash !== artifact.sha256) {
       throw new Error(
         `Bundled tree checksum mismatch: expected ${artifact.sha256}/${artifact.size}, got ${actualHash}/${size}`
       )
     }
-    for (const entrypoint of artifact.entrypoints) {
-      if (!fs.existsSync(path.join(stagingPath, entrypoint))) {
-        throw new Error(`Bundled tree is missing entrypoint: ${entrypoint}`)
-      }
+    if (!(await isBundledTreeContentReady(artifact.files, stagingPath))) {
+      throw new Error('Bundled tree does not match its signed file inventory')
     }
     await fsp.writeFile(path.join(stagingPath, TREE_MARKER_FILE), treeMarker(artifact), 'utf8')
     await replacePath(stagingPath, destination)

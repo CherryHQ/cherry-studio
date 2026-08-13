@@ -757,8 +757,13 @@ export async function getClaudeCodeLoginShellEnvironment(
 
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
   const proxyEnvironment = getProxyEnvironment(process.env)
-  const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
-  const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+  let loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
+  let customGitBashPath = isWin ? autoDiscoverGitBash(loginShellEnv, false) : null
+  if (isWin && !customGitBashPath) {
+    await application.get('BinaryManager').ensureBundledGit()
+    loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
+    customGitBashPath = autoDiscoverGitBash(loginShellEnv)
+  }
   const bunPath = await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.
