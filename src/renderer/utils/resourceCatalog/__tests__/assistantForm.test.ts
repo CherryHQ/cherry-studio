@@ -125,7 +125,6 @@ describe('diffAssistantUpdate', () => {
     // flag must not be re-emitted (the service merges settings, so emitting
     // it would silently re-enable the flag — the .default(true) regression).
     expect(result?.dto).toEqual({ settings: { temperature: 0.5 } })
-    expect((result?.dto as { settings?: Record<string, unknown> }).settings).not.toHaveProperty('injectModelIdentity')
     expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
   })
 

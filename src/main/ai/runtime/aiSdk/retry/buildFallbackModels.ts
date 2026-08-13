@@ -25,8 +25,8 @@ import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } fro
 
 import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
-import { buildAgentParams } from '../params/buildAgentParams'
 import { buildIdentitySection } from '../params/assembleSystemPrompt'
+import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'

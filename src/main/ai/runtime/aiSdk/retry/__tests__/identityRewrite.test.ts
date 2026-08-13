@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildIdentitySection } from '../../params/assembleSystemPrompt'
 import { rewriteSystemIdentity, withIdentityRewrite } from '../identityRewrite'
 
-const primaryIdentity = buildIdentitySection({ id: 'openai::gpt-4', name: 'GPT-4' } as never, { id: 'openai', name: 'OpenAI' } as never)
+const primaryIdentity = buildIdentitySection(
+  { id: 'openai::gpt-4', name: 'GPT-4' } as never,
+  { id: 'openai', name: 'OpenAI' } as never
+)
 const fallbackIdentity = buildIdentitySection(
   { id: 'deepseek::deepseek-v4', name: 'DeepSeek-V4' } as never,
   { id: 'deepseek', name: 'DeepSeek' } as never
@@ -40,31 +43,37 @@ describe('withIdentityRewrite', () => {
   ]
 
   it('rewrites the system message content passed to the underlying model', async () => {
-    const doGenerate = vi.fn(async (_input: LanguageModelV3CallOptions) => ({ text: 'ok' }))
+    const doGenerate = vi.fn<(input: LanguageModelV3CallOptions) => Promise<{ text: string }>>(async () => ({
+      text: 'ok'
+    }))
     const base = { doGenerate } as unknown as LanguageModelV3
     const wrapped = withIdentityRewrite(base, fallbackIdentity)
 
     await wrapped.doGenerate({ prompt: makePrompt(primaryIdentity) } as LanguageModelV3CallOptions)
     expect(doGenerate).toHaveBeenCalledTimes(1)
-    const input = doGenerate.mock.calls[0][0] as LanguageModelV3CallOptions
+    const input = doGenerate.mock.calls[0][0]
     const systemMessage = input.prompt.find((m) => m.role === 'system')
     expect(systemMessage?.content).toBe(fallbackIdentity)
     expect(input.prompt).toHaveLength(2)
   })
 
   it('leaves non-system messages untouched', async () => {
-    const doGenerate = vi.fn(async (_input: LanguageModelV3CallOptions) => ({ text: 'ok' }))
+    const doGenerate = vi.fn<(input: LanguageModelV3CallOptions) => Promise<{ text: string }>>(async () => ({
+      text: 'ok'
+    }))
     const base = { doGenerate } as unknown as LanguageModelV3
     const wrapped = withIdentityRewrite(base, fallbackIdentity)
 
     await wrapped.doGenerate({ prompt: makePrompt(primaryIdentity) } as LanguageModelV3CallOptions)
-    const input = doGenerate.mock.calls[0][0] as LanguageModelV3CallOptions
+    const input = doGenerate.mock.calls[0][0]
     const userMessage = input.prompt.find((m) => m.role === 'user')
     expect(userMessage?.content).toEqual([{ type: 'text', text: 'hi' }])
   })
 
   it('passes the request through untouched when the prompt has no system message', async () => {
-    const doGenerate = vi.fn(async (_input: LanguageModelV3CallOptions) => ({ text: 'ok' }))
+    const doGenerate = vi.fn<(input: LanguageModelV3CallOptions) => Promise<{ text: string }>>(async () => ({
+      text: 'ok'
+    }))
     const base = { doGenerate } as unknown as LanguageModelV3
     const wrapped = withIdentityRewrite(base, fallbackIdentity)
 

@@ -3726,6 +3726,8 @@
         "inactive_badge": "Không hoạt động",
         "info_main": "MCP (Model Context Protocol) cho phép mô hình gọi các công cụ bên ngoài một cách an toàn.",
         "info_sub": "Chỉ bật các máy chủ cần thiết giúp cải thiện độ an toàn và tốc độ phản hồi.",
+        "inject_identity": "[to be translated]:Inject model identity",
+        "inject_identity_hint": "[to be translated]:Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)",
         "mode": {
           "auto": {
             "desc": "Mô hình quyết định gọi công cụ MCP nào đang được bật",

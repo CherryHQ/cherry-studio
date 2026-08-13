@@ -65,7 +65,10 @@ describe('assembleSystemPrompt', () => {
 
     it('omits the identity section when injectModelIdentity is off', async () => {
       const out = await assembleSystemPrompt({
-        assistant: makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, injectModelIdentity: false } }),
+        assistant: makeAssistant({
+          prompt: 'base',
+          settings: { ...makeAssistant().settings, injectModelIdentity: false }
+        }),
         model,
         provider
       })
@@ -75,7 +78,10 @@ describe('assembleSystemPrompt', () => {
 
     it('emits the identity section when injectModelIdentity is explicitly on', async () => {
       const out = await assembleSystemPrompt({
-        assistant: makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, injectModelIdentity: true } }),
+        assistant: makeAssistant({
+          prompt: 'base',
+          settings: { ...makeAssistant().settings, injectModelIdentity: true }
+        }),
         model,
         provider
       })

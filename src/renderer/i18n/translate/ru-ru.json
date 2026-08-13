@@ -3726,6 +3726,8 @@
         "inactive_badge": "Неактивный",
         "info_main": "MCP (Model Context Protocol) позволяет модели безопасно вызывать внешние инструменты.",
         "info_sub": "Включение только необходимых серверов повышает безопасность и скорость отклика.",
+        "inject_identity": "[to be translated]:Inject model identity",
+        "inject_identity_hint": "[to be translated]:Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)",
         "mode": {
           "auto": {
             "desc": "Модель решает, какие включённые инструменты MCP вызывать",

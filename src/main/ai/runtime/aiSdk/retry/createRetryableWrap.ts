@@ -145,7 +145,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         }
         // Local patch (model identity): rewrite the primary's identity section
         // to this fallback's own on every fallback call.
-        const model = fallback.identitySection ? withIdentityRewrite(fallback.model, fallback.identitySection) : fallback.model
+        const model = fallback.identitySection
+          ? withIdentityRewrite(fallback.model, fallback.identitySection)
+          : fallback.model
         return fallback.options ? { model, options: fallback.options } : { model }
       }
     })

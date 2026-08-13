@@ -659,12 +659,8 @@ function AssistantToolsFields({
           <FormItem>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <FormLabel className="font-normal text-[13px]">
-                  {t('library.config.tools.inject_identity')}
-                </FormLabel>
-                <p className="text-xs text-muted-foreground">
-                  {t('library.config.tools.inject_identity_hint')}
-                </p>
+                <FormLabel className="font-normal text-[13px]">{t('library.config.tools.inject_identity')}</FormLabel>
+                <p className="text-muted-foreground text-xs">{t('library.config.tools.inject_identity_hint')}</p>
               </div>
               <FormControl>
                 <Switch checked={field.value} onCheckedChange={field.onChange} />
