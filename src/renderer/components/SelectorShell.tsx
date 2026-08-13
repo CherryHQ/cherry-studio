@@ -547,7 +547,10 @@ export function SelectorShell({
                   ref={setFilterElement}
                   className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
                   data-selector-shell-chrome="filter">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
+                  {/* flex-nowrap, not flex-wrap: the inner chip list scrolls horizontally;
+                      wrap would let overflowed chips fall to a next row where they get
+                      clipped by the panel boundary with no visible scrollbar. */}
+                  <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">{filterContent}</div>
                 </div>
               ) : null}
 
