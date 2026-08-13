@@ -153,6 +153,12 @@ describe('OnboardingPage', () => {
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
     syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') return { items: [], total: 0 }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockResolvedValue(undefined)
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'openai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {
       id: 'openai::gpt-4o-mini',
@@ -195,6 +201,116 @@ describe('OnboardingPage', () => {
     )
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(LATEST_PRIVACY_POLICY_VERSION)
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(true)
+  })
+
+  it('waits for official resources to use the selected model before completing', async () => {
+    let resolveAgentUpdate: (() => void) | undefined
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAgentUpdate = resolve
+        })
+    )
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+    await waitFor(() => expect(dataApiMocks.patch).toHaveBeenCalledTimes(1))
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+
+    resolveAgentUpdate?.()
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+  })
+
+  it('configures official resources beyond the first page before completing', async () => {
+    let resolveSupportUpdate: (() => void) | undefined
+    dataApiMocks.get.mockImplementation(async (path: string, options?: { query?: { page?: number } }) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents' && options?.query?.page === 1) {
+        return {
+          items: Array.from({ length: 500 }, (_, index) => ({
+            id: `ordinary-agent-${index}`,
+            model: null,
+            configuration: {}
+          })),
+          total: 501
+        }
+      }
+      if (path === '/agents' && options?.query?.page === 2) {
+        return {
+          items: [{ id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }],
+          total: 501
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSupportUpdate = resolve
+        })
+    )
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+    await waitFor(() =>
+      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
+        body: { model: 'default-model' }
+      })
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+
+    resolveSupportUpdate?.()
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+  })
+
+  it('keeps onboarding pending when an official resource update fails and retries it', async () => {
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'assistant-agent', model: null, configuration: { builtin_role: 'assistant' } }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce(undefined)
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    const startButton = screen.getByRole('button', { name: /onboarding\.select_model\.start/ })
+    fireEvent.click(startButton)
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.complete_failed'))
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+    expect(startButton).toBeEnabled()
+
+    fireEvent.click(startButton)
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+    expect(dataApiMocks.patch).toHaveBeenCalledTimes(2)
   })
 
   it('does not allow CherryAI to satisfy the provider setup requirements', async () => {
@@ -267,8 +383,11 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: seededAgentModel, configuration: { builtin_role: 'assistant' } }],
-          total: 1
+          items: [
+            { id: 'assistant-agent', model: seededAgentModel, configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: seededAgentModel, configuration: { builtin_role: 'support' } }
+          ],
+          total: 2
         }
       }
       throw new Error(`Unexpected path: ${path}`)
@@ -284,11 +403,14 @@ describe('OnboardingPage', () => {
     })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', { query: { limit: 2 } })
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 2 } })
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 500, page: 1 } })
     expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/assistant-1', {
       body: { modelId: 'openai::gpt-4o' }
     })
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/agent-1', {
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
+      body: { model: 'openai::gpt-4o' }
+    })
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
       body: { model: 'openai::gpt-4o' }
     })
   })
@@ -306,8 +428,12 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: null, configuration: {} }],
-          total: 1
+          items: [
+            { id: 'ordinary-agent', model: null, configuration: {} },
+            { id: 'assistant-agent', model: 'anthropic::custom', configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: 'openai::custom', configuration: { builtin_role: 'support' } }
+          ],
+          total: 3
         }
       }
       throw new Error(`Unexpected path: ${path}`)

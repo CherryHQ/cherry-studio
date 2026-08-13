@@ -10,21 +10,21 @@ const {
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinAssistantFeedbackSession
+  createBuiltinSupportSession
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinAssistantFeedbackSession: vi.fn()
+  createBuiltinSupportSession: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
-vi.mock('@main/ai/agents/createBuiltinAssistantFeedbackSession', () => ({ createBuiltinAssistantFeedbackSession }))
+vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 
 import { aiHandlers } from '../ai'
 
@@ -77,7 +77,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
-  createBuiltinAssistantFeedbackSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-assistant' })
+  createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -114,10 +114,10 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
-  it('delegates feedback-session creation and returns its id', async () => {
-    const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
+  it('delegates Support-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
 
-    expect(createBuiltinAssistantFeedbackSession).toHaveBeenCalledTimes(1)
+    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 

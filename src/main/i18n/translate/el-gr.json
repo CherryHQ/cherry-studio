@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Ενσωματωμένος σύμβουλος του Cherry Studio. Διαγιγνώσκει προβλήματα, καθοδηγεί τις λειτουργίες, συλλέγει συχνές ερωτήσεις, υποβάλλει αναφορές σφαλμάτων ή αιτήματα λειτουργιών και αναζητά ή δημιουργεί Skills."
+      },
+      "cherry_support": {
+        "description": "Επίσημος Agent υποστήριξης του Cherry Studio για ρυθμίσεις, διάγνωση, FAQ και σχόλια"
       }
     },
     "session": {
@@ -22,13 +25,13 @@
         "count_tokens": "Υπολογίζει πόσα tokens εισόδου καταναλώνει ένα σύνολο μηνυμάτων σε μορφή Anthropic.",
         "generate_content": "Παράγει περιεχόμενο μέσω της μεθόδου `generateContent` του Gemini. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή του Gemini API· το `streamGenerateContent` εξυπηρετείται από την ίδια διαδρομή.",
         "get_knowledge_base": "Ανακτά μία βάση γνώσης με βάση το ID της.",
-        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
+        "get_mcp_server": "Λήψη λεπτομερειών ενός διακομιστή MCP και της λίστας εργαλείων του.",
         "health": "Κατάσταση υπηρεσίας, τρέχουσα ώρα και έκδοση. Δεν απαιτείται έλεγχος ταυτότητας.",
         "info": "Όνομα και έκδοση του API και τα βασικά endpoints. Δεν απαιτείται έλεγχος ταυτότητας.",
         "list_knowledge_bases": "Παραθέτει τις βάσεις γνώσης που είναι διαθέσιμες σε αυτή την εγκατάσταση του Cherry Studio.",
-        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
+        "list_mcp_servers": "Εμφάνιση των διακομιστών MCP που είναι ενεργοποιημένοι στο Cherry Studio, μαζί με το URL σύνδεσης για καθέναν.",
         "list_models": "Παραθέτει τα διαθέσιμα μοντέλα αυτής της πύλης, σε μορφή OpenAI models.",
-        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
+        "mcp_proxy": "Τελικό σημείο Model Context Protocol για έναν διακομιστή MCP (Streamable HTTP). Χρησιμοποιήστε αυτό το URL σε οποιονδήποτε πελάτη MCP για να χρησιμοποιήσετε τον διακομιστή μέσω του Cherry Studio.",
         "messages": "Δημιουργεί ένα μήνυμα. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή Anthropic Messages· με `stream: true` η έξοδος γίνεται σταδιακά.",
         "responses": "Δημιουργεί μια απόκριση. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή OpenAI Responses.",
         "search_knowledge_bases": "Αναζητά σε μία ή περισσότερες βάσεις γνώσης και επιστρέφει τα σχετικά τμήματα εγγράφων."
@@ -106,8 +109,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
-      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+      "document_size_limit_exceeded": "Η τρέχουσα υπηρεσία ανάλυσης εγγράφων απαιτεί αρχεία μικρότερα από {{maxSize}}. Συμπιέστε ή χωρίστε αυτό το αρχείο και έπειτα προσθέστε το ξανά.",
+      "pdf_page_limit_exceeded": "Αυτό το PDF υπερβαίνει το όριο των {{maxPages}} σελίδων για την τρέχουσα υπηρεσία ανάλυσης εγγράφων. Χωρίστε το PDF χειροκίνητα και έπειτα προσθέστε το ξανά."
     }
   },
   "openclaw": {

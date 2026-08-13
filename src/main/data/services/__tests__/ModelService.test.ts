@@ -25,6 +25,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 const { lookupModelMock } = vi.hoisted(() => ({
   // `list()` enriches every row by calling `lookupModel`. Default to an
   // empty registry hit (no preset / override) so the enrichment is a no-op
@@ -1754,12 +1757,14 @@ describe('ModelService.delete', () => {
       ])
     const targetPin = pinService.pin({ entityType: 'model', entityId: targetModelId })
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    notifyDataApiDataChangeMock.mockClear()
 
     modelService.delete('openai', 'gpt-4o')
 
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {

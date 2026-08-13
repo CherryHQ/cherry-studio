@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistant intégré Cherry Studio. Diagnostiquer les problèmes, guider les opérations, collecter les FAQ, soumettre des bugs/demandes de fonctionnalités, et rechercher/créer des Compétences"
+      },
+      "cherry_support": {
+        "description": "Agent d'assistance officiel de Cherry Studio pour la configuration, le diagnostic, les FAQ et les commentaires"
       }
     },
     "channels": {
@@ -97,6 +100,8 @@
         "clientSecret": "Secret client",
         "clientSecretPlaceholder": "Entrez votre Client Secret QQ Bot",
         "description": "Recevoir et répondre aux messages via l'API officielle QQ Bot.",
+        "mentionOnlyHint": "Lorsqu'il est activé, le bot ne répond qu'aux @mentions. Désactivez-le pour recevoir tous les messages de groupe (nécessite l'autorisation \"recevoir tous les messages\" sur QQ Open Platform).",
+        "mentionOnlyLabel": "@Mention seulement",
         "title": "QQ",
         "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir votre ID de chat au bon format."
       },
@@ -496,10 +501,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} canal",
+          "channels_count_other": "{{count}} chaînes",
+          "channels_empty": "Aucune chaîne ne sera changée.",
+          "channels_title": "Canaux changés en aucun répertoire de travail",
           "content": "La suppression de ce répertoire de travail supprimera également toutes les tâches qu’il contient. Seules les enregistrements de la base de données seront supprimés ; le dossier réel sur le disque ne sera pas supprimé.",
+          "disk_preserved": "Le dossier sur le disque et ses fichiers ne seront pas supprimés.",
           "error": {
             "failed": "Échec de la suppression du répertoire de travail"
           },
+          "more_count_one": "…et {{count}} élément supplémentaire",
+          "more_count_other": "...et {{count}} autres éléments",
+          "preview": "La suppression de «{{name}}» supprime ses sessions et définit les canaux et tâches planifiées associés sans répertoire de travail. Cette action est irréversible.",
+          "preview_failed": "L'impact de la suppression n'a pas pu être chargé, donc ce répertoire de travail ne peut pas encore être supprimé.",
+          "preview_loading": "Chargement de l'impact de la suppression…",
+          "sessions_count_one": "{{count}} session",
+          "sessions_count_other": "{{count}} sessions",
+          "sessions_empty": "Aucune session ne sera supprimée.",
+          "sessions_title": "Sessions à supprimer",
+          "tasks_count_one": "{{count}} tâche planifiée",
+          "tasks_count_other": "{{count}} tâches planifiées",
+          "tasks_empty": "Aucune tâche planifiée ne sera modifiée.",
+          "tasks_title": "Tâches planifiées modifiées pour n'avoir aucun répertoire de travail.",
           "title": "Supprimer le répertoire de travail",
           "trigger": "Supprimer le répertoire de travail"
         },
@@ -958,7 +981,6 @@
       "executing": "Exécution en cours...",
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
-      "pending": "En attente de confirmation",
       "pendingBadge": "En attente",
       "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
       "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
@@ -1544,18 +1566,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agents",
-          "files": "Fichiers",
+          "resources": "Fichiers et dossiers",
           "skills": "Compétences"
         },
         "description": "Sélectionner parmi les fichiers, les agents ou les compétences",
+        "load_failed": "Échec du chargement des ressources de l'espace de travail",
         "loading": "Chargement...",
-        "no_file_found": {
-          "description": "Aucun fichier disponible dans les répertoires accessibles",
-          "label": "Aucun fichier trouvé"
-        },
         "no_items_found": {
           "description": "Aucun fichier, agent ou compétence disponible",
           "label": "Aucun élément trouvé"
+        },
+        "no_resources_found": {
+          "description": "Aucun fichier ou dossier recherchable dans l'espace de travail actuel.",
+          "label": "Aucune ressource trouvée"
         },
         "title": "Ressources"
       },
@@ -2524,6 +2547,7 @@
       "ocr": "Moteur OCR non initialisé, vérifiez les paramètres OCR",
       "parse": "L'IA a renvoyé une réponse invalide, veuillez réessayer ou changer de modèle",
       "payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
+      "permission": "Le fournisseur a refusé cette demande. Vérifiez les détails de l'erreur, votre plan de compte, les autorisations de clé API ou l'accès à cette ressource.",
       "proxy": "Erreur de proxy ou de certificat SSL, vérifiez les paramètres proxy et réseau",
       "quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
       "rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",
@@ -2548,6 +2572,7 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n'a pas pu extraire de texte lisible de la pièce jointe. Choisissez un modèle compatible avec la vision ou supprimez l'image et réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3196,7 +3221,6 @@
       "updated_at": "Mis à jour {{time}}"
     },
     "name_required": "Le nom de la base de connaissances est requis",
-    "not_set": "Non défini",
     "provider_not_found": "Fournisseur introuvable",
     "rag": {
       "chunk_overlap": "Taille de chevauchement",
@@ -3211,12 +3235,13 @@
       "chunking": "Fragmentation",
       "default_separator": "Auto (recommandé)",
       "document_count": "Nombre de documents",
-      "download_local_embedding": "Télécharger le modèle local",
       "download_local_embedding_failed": "Échec du téléchargement du modèle d'embedding local",
+      "download_local_model": "Télécharger Modèle Local",
       "embedding_model": "Modèle d'embedding",
       "embedding_model_select": "Sélection de modèle",
       "file_processing": "Traitement de fichiers",
       "file_processing_hint": "Le traitement des fichiers s'exécute automatiquement lors de l'importation des documents. Choisir le bon fournisseur peut améliorer la qualité de l'analyse des documents.",
+      "file_processing_none": "N'utilisez pas",
       "hints": {
         "chunk_overlap": "Nombre de jetons chevauchants conservés entre les segments adjacents afin de réduire les ruptures sémantiques.",
         "chunk_separator": "Délimiteur sur lequel le texte est découpé, sous forme échappée. Avec le découpage intelligent activé, il ajoute un point de rupture ; avec celui-ci désactivé, le texte est divisé uniquement par ce délimiteur.",
@@ -3230,6 +3255,8 @@
       },
       "processor": "Fournisseur de traitement",
       "processor_not_configured": "Non configuré",
+      "processor_not_downloaded": "Non téléchargé",
+      "processor_unreachable": "Service non en cours d'exécution",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
       "reset_action": "Restaurer les paramètres par défaut",
@@ -3480,6 +3507,12 @@
         "context_compress_model": "Modèle de compression",
         "context_compress_model_follow": "Par défaut",
         "context_count": "Nombre de contextes",
+        "context_count_follow_global": "Suivre le réglage global ({{count}})",
+        "context_count_unlimited": "Illimité",
+        "context_globally_disabled": "La gestion du contexte est désactivée globalement ; les réglages de déchargement et de compression ci-dessous sont donc sans effet",
+        "context_inherited": "Suit les réglages globaux : {{compress}} ; les sorties d’outils dépassant {{threshold}} caractères sont déchargées",
+        "context_inherited_compress_off": "compression automatique désactivée",
+        "context_inherited_compress_on": "compression automatique activée",
         "context_management": "Gestion du contexte",
         "context_truncate_threshold": "Seuil de troncation de la sortie de l'outil (caractères)",
         "creative": "Créatif",
@@ -4021,6 +4054,14 @@
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
       },
+      "stream_admission": {
+        "execution_changed": "La réponse a changé avant que la nouvelle tentative ne commence. Veuillez réessayer.",
+        "execution_not_ready": "Cette réponse est encore en cours de génération et ne peut pas être retentée pour le moment.",
+        "model_already_in_live_group": "Ce modèle génère déjà dans le groupe de réponse actif.",
+        "single_model_required": "Sélectionnez un modèle à ajouter au groupe de réponses actif.",
+        "target_not_in_live_group": "La réponse sélectionnée n'est plus dans le groupe de réponse actif. Veuillez réessayer.",
+        "topic_busy": "Cette conversation est encore en cours de génération. Attendez qu'elle se termine et réessayez."
+      },
       "table": {
         "invalid": "Impossible de récupérer des données de table valides"
       },
@@ -4035,7 +4076,8 @@
         "content": "Supprimer toutes les réponses de l’assistant de ce groupe ? La question de l’utilisateur et les messages suivants seront conservés.",
         "title": "Supprimer les réponses groupées"
       },
-      "retry_failed": "message d'erreur de nouvelle tentative"
+      "retry_failed": "message d'erreur de nouvelle tentative",
+      "retry_skipped_same_model": "{{count}} réponses échouées supplémentaires ignorées car 'Tout réessayer' démarre au maximum une nouvelle tentative par modèle."
     },
     "ignore": {
       "knowledge": {
@@ -4467,27 +4509,27 @@
     },
     "pinned": "Épinglé",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "Ajouter un niveau de tarification",
+      "cache_fallback_help": "Laissez les prix du cache vides pour utiliser le prix d'entrée de ce niveau ; entrez 0 pour gratuit.",
       "cache_read": "Prix de lecture du cache",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "Prix d'écriture en cache",
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "{{champ}}, niveau {{index}}",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "Commence aux jetons d'entrée",
+      "min_input_tokens_help": "Limite inclusive ; doit être supérieure au palier précédent.",
       "output": "Prix de sortie",
       "price": "Prix",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "Supprimer le niveau tarifaire {{index}}",
+      "tier": "Niveau {{index}}",
+      "tier_from": "De {{boundary}} jetons d'entrée (inclus)",
+      "use_input_price": "Utilisez le prix d'entrée",
+      "validation_min_input_tokens": "Entrez un nombre entier positif.",
+      "validation_min_input_tokens_order": "Le niveau doit commencer après le niveau précédent.",
+      "validation_price": "Entrez un prix supérieur ou égal à 0."
     },
     "reasoning": "Raisonnement",
     "rerank_model": "Modèle de reranking",
@@ -4639,6 +4681,8 @@
         "font_size_medium": "Moyenne",
         "font_size_small": "petit",
         "font_title": "paramétrage des polices",
+        "line_breaks": "Mode de saut de ligne",
+        "line_breaks_description": "Afficher un simple saut de ligne comme une nouvelle ligne (style Obsidian). Lorsque désactivé, les sauts de ligne sont remplacés par des espaces jusqu'à ce qu'une ligne vide sépare les paragraphes.",
         "serif_font": "police à empattements",
         "show_table_of_contents": "Afficher le plan du sommaire",
         "show_table_of_contents_description": "Afficher la barre latérale de la table des matières pour faciliter la navigation dans le document",
@@ -5406,6 +5450,7 @@
         "insertRowBefore": "Insérer en haut"
       }
     },
+    "backToTop": "Retour en haut",
     "commands": {
       "blockMath": {
         "description": "insérer des formules mathématiques",
@@ -5952,10 +5997,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discutez avec Cherry Assistant pour partager vos commentaires.",
+          "description": "Discutez avec Cherry Support pour obtenir de l'aide ou partager vos commentaires.",
           "title": "Utiliser Agent"
         },
-        "agent_error": "Impossible d'ouvrir Cherry Assistant pour envoyer un commentaire. Veuillez réessayer.",
+        "agent_error": "Impossible d'ouvrir Cherry Support pour envoyer un commentaire. Veuillez réessayer.",
         "button": "Faire un retour",
         "dialog": {
           "description": "Choisissez comment partager votre retour d'expérience et aidez-nous à améliorer Cherry Studio.",
@@ -6682,6 +6727,10 @@
       "installingHint": "La première installation peut télécharger un runtime et prendre quelques minutes",
       "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
+        "acceleration": {
+          "description": "Utilisez DirectML ou CoreML pour accélérer l’embedding local et l’inférence OCR.",
+          "label": "Accélération matérielle"
+        },
         "cancel": "Annuler",
         "description": "Les modèles qui s'exécutent localement sur votre appareil — téléchargez une fois, puis utilisez hors ligne sans clé API.",
         "download": "Télécharger",
@@ -6989,6 +7038,7 @@
       },
       "command": "Commande",
       "config_description": "Configurer le modèle du protocole de contexte du serveur",
+      "copyLogs": "Copier les logs",
       "customRegistryPlaceholder": "Veuillez entrer l'adresse du registre privé, par exemple : https://npm.company.com",
       "deleteError": "Échec de la suppression du serveur",
       "deleteServer": "Supprimer le serveur",
@@ -7042,6 +7092,7 @@
       },
       "logoUrl": "URL du logo",
       "logs": "Journaux",
+      "logsHint": "Journaux du processus du serveur MCP",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
@@ -7428,6 +7479,20 @@
         "use_all_keys": "Utiliser toutes les clés"
       },
       "collapse_all": "Tout réduire",
+      "context_management": {
+        "compress_enabled": "Compression automatique",
+        "compress_enabled_description": "Résume automatiquement les tours plus anciens à l’approche de la limite de la fenêtre de contexte. Les assistants peuvent le remplacer",
+        "compress_model": "Modèle de compression",
+        "compress_model_follow": "Suivre le modèle actuel",
+        "enabled": "Activer la gestion du contexte",
+        "enabled_description": "Gère automatiquement le contexte de la conversation : décharge les sorties d’outils trop volumineuses et compresse l’historique à l’approche de la limite. Désactivée, rien n’est géré et les requêtes dépassant la fenêtre échouent",
+        "max_messages": "Messages récents conservés",
+        "max_messages_description": "N’envoie que les messages les plus récents ; les plus anciens sont exclus du contexte. Laissez vide pour ne pas limiter. Les assistants peuvent le remplacer",
+        "max_messages_unlimited": "Illimité",
+        "title": "Gestion du contexte",
+        "truncate_threshold": "Seuil de troncature des sorties d’outils (caractères)",
+        "truncate_threshold_description": "Les sorties d’outils dépassant ce nombre de caractères sont déchargées dans un fichier et tronquées ; le modèle peut les relire à la demande. Les assistants peuvent le remplacer"
+      },
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "docs": "Documentation du modèle",
@@ -8138,10 +8203,12 @@
       "label": "Touche",
       "move_tab_to_first": "Déplacer l'onglet en premier",
       "new_topic": "Nouveau sujet",
+      "next_tab": "Onglet suivant",
       "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
       "open_tab_in_new_window": "Ouvrir l'onglet dans une nouvelle fenêtre",
       "pin_tab": "Épingler/Désépingler l'onglet",
       "press_shortcut": "Appuyer sur raccourci clavier",
+      "prev_tab": "Onglet précédent",
       "print": "Imprimer",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
@@ -8257,6 +8324,10 @@
           "doc2x": {
             "description": "Moteur de restauration de fichiers avancé.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "Convertit les PDF en Markdown entièrement sur cette machine. Les documents avec une couche de texte sont analysés directement ; les scans utilisent le modèle OCR local en dernier recours.",
+            "name": "Document local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) fonctionnant en processus — entièrement hors ligne, sans clé API, avec une reconnaissance sur un thread en arrière-plan pour que l'interface utilisateur reste réactive. Téléchargez le modèle (~140 Mo) dans les dépendances d'environnement avant la première utilisation.",
