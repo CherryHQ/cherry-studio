@@ -2,12 +2,14 @@ import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
+import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
@@ -50,14 +52,9 @@ vi.mock('@application', () => ({
   }
 }))
 
-const {
-  applyCallOverrides,
-  buildAgentParams,
-  composeStopWhen,
-  resolveRequestedMaxOutputTokens,
-  resolveToolCallLimit,
-  resolveTools
-} = await import('../buildAgentParams')
+const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLimit, resolveTools } = await import(
+  '../buildAgentParams'
+)
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
@@ -1056,48 +1053,6 @@ describe('buildAgentParams — assistant context-settings passthrough (P2-D)', (
   })
 })
 
-describe('resolveRequestedMaxOutputTokens', () => {
-  const model = makeModel({ maxOutputTokens: 64_000 })
-
-  it('uses the model limit for Anthropic Messages when assistant max tokens are disabled', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
-
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(64_000)
-  })
-
-  it('uses an enabled assistant limit before the Anthropic model default', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(16_000)
-  })
-
-  it('uses a custom parameter before the assistant limit', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(resolveRequestedMaxOutputTokens(undefined, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      24_000
-    )
-  })
-
-  it('gives the per-request override highest precedence', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(resolveRequestedMaxOutputTokens(32_000, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      32_000
-    )
-  })
-
-  it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    ).toBeUndefined()
-  })
-})
-
 /**
  * Covers the first-class per-request override merge that replaced the old
  * `createGatewayOverrideFeature` plugin: assistant-less precedence, capability
@@ -1355,5 +1310,62 @@ describe('resolveTools citation provenance', () => {
 
     expect(result.tools?.web_search).toBe(customTool)
     expect(result.hasCitableTools).toBe(false)
+  })
+})
+
+describe('resolveTools fs_read gating', () => {
+  const OTHER_TOOL_NAME = 'test-plain-tool'
+  const otherEntry: ToolEntry = {
+    name: OTHER_TOOL_NAME,
+    namespace: 'test',
+    description: 'ungated test tool',
+    defer: 'never',
+    tool: {} as Tool
+  }
+
+  beforeEach(() => registry.register(createFsReadToolEntry()))
+  afterEach(() => {
+    registry.deregister(FS_READ_TOOL_NAME)
+    registry.deregister(OTHER_TOOL_NAME)
+  })
+
+  it('drops a lone fs_read when no markers exist (nothing else can be offloaded)', async () => {
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, true)
+    expect(tools).toBeUndefined()
+  })
+
+  it('keeps fs_read alongside another function tool when offload is possible', async () => {
+    registry.register(otherEntry)
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, true)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
+  })
+
+  it('keeps a lone fs_read when the conversation already has persisted-output markers', async () => {
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, true, false)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+  })
+
+  it('omits fs_read when offload is impossible and no markers exist, even with other tools', async () => {
+    registry.register(otherEntry)
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, false)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeUndefined()
+    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
+  })
+
+  it('keeps a lone fs_read when gateway client tools are present', async () => {
+    const { tools } = await resolveTools(
+      { callOverrides: { tools: { client_tool: {} as Tool } } },
+      undefined,
+      makeModel(),
+      false,
+      [],
+      undefined,
+      undefined,
+      false,
+      true
+    )
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+    expect(tools?.client_tool).toBeDefined()
   })
 })

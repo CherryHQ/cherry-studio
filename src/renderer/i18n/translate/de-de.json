@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Geben Sie Ihr QQ Bot Client Secret ein",
         "description": "Nachrichten über die offizielle QQ Bot API empfangen und beantworten.",
+        "mentionOnlyHint": "Wenn das Bot-Feature aktiviert ist, antwortet es nur auf @Erwähnungen. Deaktivieren Sie dieses Feature, um alle Gruppennachrichten zu erhalten (dafür ist die Erlaubnis „Alle Nachrichten empfangen“ auf der QQ Open Platform erforderlich).",
+        "mentionOnlyLabel": "[to be translated]:@Nur Erwähnungen",
         "title": "QQ",
         "whoamiTip": "💡 Tipp: Senden Sie /whoami an den Bot, um Ihre Chat-ID im richtigen Format zu erhalten."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[zu übersetzen]: {{count}} Kanäle",
+          "channels_count_other": "[ Zu übersetzen ): {{count}} Kanäle",
+          "channels_empty": "Keine Kanäle werden geändert.",
+          "channels_title": "Die Kanäle wurden so geändert, dass keine Arbeitsverzeichnisse verwendet werden.",
           "content": "Das Löschen dieses Arbeitsverzeichnisses löscht auch alle darin befindlichen Aufgaben. Es werden nur Datenbankeinträge entfernt; der tatsächliche Ordner auf der Festplatte wird nicht gelöscht.",
+          "disk_preserved": "Der Ordner auf der Festplatte sowie seine Dateien werden nicht gelöscht.",
           "error": {
             "failed": "Fehler beim Löschen des Arbeitsverzeichnisses"
           },
+          "more_count_one": "…und noch {{count}} weitere Artikel.",
+          "more_count_other": "…und weitere {{count}} Artikel.",
+          "preview": "[To be translated]: Das Lösen von „{{name}}“ führt dazu, dass seine Sitzungen sowie die damit verbundenen Channel- und Aufgaben in den Pfad „no work directory“ geändert werden. Diese Aktion kann nicht rückgängig gemacht werden.",
+          "preview_failed": "Der Auswirkung der Löschung konnte nicht abgerufen werden; daher kann dieser Arbeitskatalog noch nicht gelöscht werden.",
+          "preview_loading": "„ zu übersetzen “: Lade der Auswirkungen der Löschung ein…",
+          "sessions_count_one": "[zu übersetzen]: {{count}} Sitzungen",
+          "sessions_count_other": "[ zu übersetzen]: {{count}} Sitzungen",
+          "sessions_empty": "Keine Sitzungen werden gelöscht.",
+          "sessions_title": "[Zu übersetzen]: Sitzungen, die gelöscht werden sollen",
+          "tasks_count_one": "'[zu übersetzen]: {{count}} geplante Aufgabe'",
+          "tasks_count_other": "„[to be translated]: „[[Count]] geplante Aufgaben““",
+          "tasks_empty": "Es werden keine geplanten Aufgaben geändert.",
+          "tasks_title": "Zu den geplanten Aufgaben ist festgelegt, dass kein Arbeitsverzeichnis verwendet wird.",
           "title": "Arbeitsverzeichnis löschen",
           "trigger": "Arbeitsverzeichnis löschen"
         },
@@ -958,7 +978,6 @@
       "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
-      "pending": "Warten auf Bestätigung",
       "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warten auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
@@ -1544,18 +1563,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agenten",
-          "files": "Dateien",
+          "resources": "Dateien & Ordner",
           "skills": "Fähigkeiten"
         },
         "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
+        "load_failed": "[zu übersetzen]: Es gelang nicht, die Ressourcen des Arbeitsraums zu laden.",
         "loading": "Laden...",
-        "no_file_found": {
-          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
-          "label": "Keine Datei gefunden"
-        },
         "no_items_found": {
           "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
           "label": "Keine Artikel gefunden"
+        },
+        "no_resources_found": {
+          "description": "Im aktuellen Arbeitsbereich befinden sich keine suchbaren Dateien oder Ordner.",
+          "label": "Keine Ressourcen gefunden."
         },
         "title": "Ressourcen"
       },
@@ -2524,6 +2544,7 @@
       "ocr": "OCR-Engine nicht initialisiert, OCR-Einstellungen prüfen",
       "parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
       "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
+      "permission": "Der Anbieter lehnte diesen Antrag ab. Überprüfen Sie die Fehlerdetails, Ihren Accountplan, die Berechtigungen für die API-Schlüssel sowie den Zugriff auf diese Ressource.",
       "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
       "quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
       "rate_limit": "Zu viele Anfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen, oder zu einem Modell mit höherer Ratenbegrenzung wechseln",
@@ -2548,6 +2569,7 @@
       "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
       "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
+    "image_unreadable_for_non_vision_model": "Der ausgewählte Modell unterstützt keine Bilder, und Cherry Studio konnte keinen lesbaren Text aus der Anhangsdatei extrahieren. Wählen Sie ein Modell, das mit visuellen Daten arbeiten kann, oder entfernen Sie das Bild und versuchen Sie es erneut.",
     "lastError": "Letzter Fehler",
     "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
     "message": "Fehlermeldung",
@@ -3196,7 +3218,6 @@
       "updated_at": "Aktualisiert {{time}}"
     },
     "name_required": "Der Name der Wissensdatenbank ist erforderlich",
-    "not_set": "Nicht festgelegt",
     "provider_not_found": "Anbieter nicht gefunden",
     "rag": {
       "chunk_overlap": "Überlappungsgröße",
@@ -3211,12 +3232,13 @@
       "chunking": "Chunking",
       "default_separator": "Auto (empfohlen)",
       "document_count": "Dokumentanzahl",
-      "download_local_embedding": "Lokales Modell herunterladen",
       "download_local_embedding_failed": "Das lokale Embedding-Modell konnte nicht heruntergeladen werden",
+      "download_local_model": "„[ Zu übersetzen ]“: Lokales Modell herunterladen",
       "embedding_model": "Embedding-Modell",
       "embedding_model_select": "Modellauswahl",
       "file_processing": "Dateiverarbeitung",
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
+      "file_processing_none": "„Don’t use“",
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
         "chunk_separator": "Trennzeichen, an dem der Text aufgeteilt wird, in maskierter Form. Bei aktivierter intelligenter Segmentierung fügt es einen Trennpunkt hinzu; bei deaktivierter Segmentierung wird der Text nur an diesem Trennzeichen aufgeteilt.",
@@ -3230,6 +3252,8 @@
       },
       "processor": "Verarbeitungsanbieter",
       "processor_not_configured": "Nicht konfiguriert",
+      "processor_not_downloaded": "Nicht heruntergeladen.",
+      "processor_unreachable": "Der Dienst läuft nicht.",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Reranking-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -3480,6 +3504,12 @@
         "context_compress_model": "Komprimierungsmodell",
         "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_count_follow_global": "Global folgen ({{count}})",
+        "context_count_unlimited": "Unbegrenzt",
+        "context_globally_disabled": "Die Kontextverwaltung ist global deaktiviert, daher haben die Auslagerungs- und Komprimierungseinstellungen hier keine Wirkung",
+        "context_inherited": "Folgt den globalen Einstellungen: {{compress}}; Werkzeugausgaben über {{threshold}} Zeichen werden ausgelagert",
+        "context_inherited_compress_off": "automatische Komprimierung inaktiv",
+        "context_inherited_compress_on": "automatische Komprimierung aktiv",
         "context_management": "Kontextverwaltung",
         "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
@@ -4021,6 +4051,14 @@
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
+      "stream_admission": {
+        "execution_changed": "Der Antworttext änderte sich, bevor der erneute Versuch begann. Bitte versuchen Sie es noch einmal.",
+        "execution_not_ready": "[To be translated]: Diese Antwort wird noch erstellt und kann derzeit nicht erneut angefordert werden.",
+        "model_already_in_live_group": "Dieses Modell generiert bereits Inhalte für die aktive Antwortgruppe.",
+        "single_model_required": "Wählen Sie ein Modell aus, um es der aktiven Antwortgruppe hinzuzufügen.",
+        "target_not_in_live_group": "Die ausgewählte Antwort befindet sich nicht mehr in der aktiven Antwortgruppe. Bitte versuchen Sie es erneut.",
+        "topic_busy": "Diese Konversation wird noch weiter durchgeführt. Warten Sie ab, bis sie beendet ist, und versuchen Sie es dann noch einmal."
+      },
       "table": {
         "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
@@ -4035,7 +4073,8 @@
         "content": "Alle Assistentenantworten in dieser Gruppe löschen? Die Benutzerfrage und nachfolgenden Nachrichten bleiben erhalten.",
         "title": "Gruppenantworten löschen"
       },
-      "retry_failed": "Fehlgeschlagene Nachricht wiederholen"
+      "retry_failed": "Fehlgeschlagene Nachricht wiederholen",
+      "retry_skipped_same_model": "Es wurden {{count}} weitere fehlerhafte Antworten ignoriert, da die Option „Alle erneuten Versuche durchführen“ („Retry All“) für maximal einen erneuten Versuch pro Modell gilt."
     },
     "ignore": {
       "knowledge": {
@@ -4467,27 +4506,27 @@
     },
     "pinned": "Angeheftet",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "Zusätzlich sollen Preisspannen (Preisstufen) eingeführt werden.",
+      "cache_fallback_help": "Um den Eingabepreis dieser Ebene zu verwenden, lassen Sie die Cache-Preise leer. Geben Sie 0 ein, um die Nutzung kostenlos zu machen.",
       "cache_read": "Cache-Lesepreis",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": " Cache-Speicherungskosten („Cache Write Price“)",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "[zu übersetzen]: {{Feld}}, Stufe {{Index}}",
       "input": "Eingabepreis",
       "million_tokens": "Million Token",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "[Betreff der Übersetzung wird hier angegeben]  \n„Beginnt bei den Eingabetoken.“",
+      "min_input_tokens_help": "Inklusiver Grenzwert; muss größer als der vorherige Wert sein.",
       "output": "Ausgabepreis",
       "price": "Preis",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "[to be translated]: Entfernen Sie die Preisspanne „{{index}}“.",
+      "tier": "Tier {{index}}",
+      "tier_from": "Von den Eingabetoken aus dem Bereich {{boundary}} (einschließlich).",
+      "use_input_price": "„Use input price“",
+      "validation_min_input_tokens": "Geben Sie eine positive Ganzzahl ein.",
+      "validation_min_input_tokens_order": "Die neue Ebene muss nach der vorherigen Ebene beginnen.",
+      "validation_price": "[Betrieben Sie die Aktion nicht, da der Eingabewert „0“ nicht zulässig ist.]  \n*(Do not perform this action; the input value „0“ is not valid.)*"
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranking-Modell",
@@ -4639,6 +4678,8 @@
         "font_size_medium": "Mittel",
         "font_size_small": "Klein",
         "font_title": "Schrifteinstellungen",
+        "line_breaks": "[Betreff des zu übersetzenden Textes]: Zeilenumbruchmodus",
+        "line_breaks_description": "Zu übersetzen:  \nEinen Zeilenvorhang soll als neue Zeile dargestellt werden (im Stil von Obsidian). Wenn diese Funktion deaktiviert ist, werden Zeilenvorhänge in Leerzeichen umgewandelt, bis ein leerer Zeilenumbruch die Absätze trennt.",
         "serif_font": "Serifenschrift",
         "show_table_of_contents": "Inhaltsverzeichnis anzeigen",
         "show_table_of_contents_description": "Inhaltsverzeichnis-Seitenleiste anzeigen für einfache Navigation im Dokument",
@@ -5406,6 +5447,7 @@
         "insertRowBefore": "Oben einfügen"
       }
     },
+    "backToTop": "Zurück an die Spitze",
     "commands": {
       "blockMath": {
         "description": "Mathematische Formel einfügen",
@@ -6682,6 +6724,10 @@
       "installingHint": "Die erste Installation kann eine Laufzeitumgebung herunterladen und einige Minuten dauern",
       "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "localModels": {
+        "acceleration": {
+          "description": "„Use DirectML or CoreML to accelerate local embedding and OCR inference.“",
+          "label": "Hardware-Beschleunigung"
+        },
         "cancel": "Abbrechen",
         "description": "Modelle, die lokal auf Ihrem Gerät laufen — einmal herunterladen, dann offline ohne API-Schlüssel nutzbar.",
         "download": "Herunterladen",
@@ -6989,6 +7035,7 @@
       },
       "command": "Befehl",
       "config_description": "Model-Context-Protocol-Server konfigurieren",
+      "copyLogs": "[to be translated]: Protokolle kopieren",
       "customRegistryPlaceholder": "Privates Repository-Adresse eingeben, z. B. https://npm.company.com",
       "deleteError": "Server löschen fehlgeschlagen",
       "deleteServer": "Server löschen",
@@ -7042,6 +7089,7 @@
       },
       "logoUrl": "Logo-URL",
       "logs": "Protokolle",
+      "logsHint": "[To be translated]: Protokolle aus dem MPC-Server-Prozess",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -7428,6 +7476,20 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "collapse_all": "Alle einklappen",
+      "context_management": {
+        "compress_enabled": "Automatisch komprimieren",
+        "compress_enabled_description": "Ältere Gesprächsrunden automatisch zusammenfassen, wenn das Kontextfenster fast erreicht ist. Assistenten können dies überschreiben",
+        "compress_model": "Komprimierungsmodell",
+        "compress_model_follow": "Aktuellem Modell folgen",
+        "enabled": "Kontextverwaltung aktivieren",
+        "enabled_description": "Gesprächskontext automatisch verwalten: übergroße Werkzeugausgaben auslagern und den Verlauf nahe der Fenstergrenze komprimieren. Deaktiviert wird nichts verwaltet und Anfragen über die Fenstergröße schlagen fehl",
+        "max_messages": "Beibehaltene letzte Nachrichten",
+        "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
+        "max_messages_unlimited": "Unbegrenzt",
+        "title": "Kontextverwaltung",
+        "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
+        "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
+      },
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
@@ -8138,10 +8200,12 @@
       "label": "Taste",
       "move_tab_to_first": "Tab an erste Stelle verschieben",
       "new_topic": "Neues Thema",
+      "next_tab": "Nachdem Sie die gewünschten Informationen eingegeben haben, klicken Sie einfach auf die Schaltfläche „Weiter“ oder verwenden Sie die Pfeiltaste, um zum nächsten Tab zu gelangen.",
       "occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",
       "open_tab_in_new_window": "Registerkarte in neuem Fenster öffnen",
       "pin_tab": "Registerkarte anheften/anhängen umschalten",
       "press_shortcut": "Shortcut drücken",
+      "prev_tab": "Vorheriger Tab",
       "print": "Drucken",
       "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
@@ -8257,6 +8321,10 @@
           "doc2x": {
             "description": "Erweiterte Dateiwiederherstellungs-Engine.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "„Auf diesem Rechner werden PDFs vollständig in Markdown umgewandelt. Dokumente mit einem Textbereich werden direkt解析 ( analysiert); bei Scans wird auf das lokale OCR-Modell zurückgegriffen.“",
+            "name": "[to be translated]: Lokales Dokument"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) läuft im Prozess — vollständig offline, kein API-Key, mit Erkennung in einem Hintergrundthread, damit die Benutzeroberfläche reaktionsfähig bleibt. Laden Sie das Modell (~140MB) in den Umgebungsabhängigkeiten vor dem ersten Gebrauch herunter.",
