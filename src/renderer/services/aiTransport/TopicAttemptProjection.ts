@@ -23,7 +23,7 @@ function descriptorFor(topicId: string, execution: ActiveExecution): AttemptDesc
 
 /** Per-window projection for one topic. Main remains authoritative; this only
  * reconciles delayed snapshots, replayed terminals, and same-slot replacement. */
-export class TopicAttemptProjection {
+export class TopicStreamProjection {
   readonly attempts = new Map<AttemptId, RendererAttempt>()
   #activeBySlot = new Map<SlotKey, AttemptId>()
   #watermark: AttemptId | undefined

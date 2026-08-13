@@ -8,9 +8,12 @@
  */
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type { AttemptId } from '@shared/ai/attempt'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { DispatchCommandReceipt, StreamIntent } from '../../admission'
 
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
@@ -102,11 +105,26 @@ vi.mock('@application', async () => {
   base.application.get = vi.fn((name: string) => {
     if (name === 'AiStreamManager') {
       return {
-        issueDispatchTicket: (_topicId: string, intent: unknown) => ({
+        issueDispatchCommandReceipt: (_topicId: string, intent: StreamIntent) => ({
           intent,
           admission: { mode: 'start-new' },
           activeNodeDecision: { move: 'advance' }
-        })
+        }),
+        reserveDispatchCommand: (
+          _topicId: string,
+          intent: StreamIntent,
+          modelCount: number,
+          commit: (receipt: DispatchCommandReceipt) => unknown
+        ) => {
+          const receipt: DispatchCommandReceipt = {
+            intent,
+            admission: { mode: 'start-new' as const },
+            activeNodeDecision: { move: 'advance' as const },
+            reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => (index + 1) as AttemptId)
+          }
+          return { receipt, value: commit(receipt) }
+        },
+        failDispatchReservation: (_ticket: unknown, _topicId: string, _error: unknown, persist: () => void) => persist()
       }
     }
     if (name === 'FileManager') {

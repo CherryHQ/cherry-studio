@@ -18,8 +18,10 @@
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { toAttemptId } from '@shared/ai/attempt'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { TopicStreamAggregate } from '../TopicStreamAggregate'
 import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -139,7 +141,7 @@ function trackSettled<T>(promise: Promise<T>): { promise: Promise<T>; isSettled:
 
 /**
  * Seed a fake stream directly into `activeStreams` — the drain suite only needs
- * the fields `drainWaitSet` reads (listener `isPersistent` + `loopPromise`), not a
+ * the fields `drainWaitSet` reads (persistence ports + `loopPromise`), not a
  * real execution loop.
  */
 function seedFakeStream(
@@ -148,15 +150,21 @@ function seedFakeStream(
   opts: { listenerKey: string; loopPromise: Promise<void> }
 ): { abortController: AbortController } {
   const abortController = new AbortController()
+  const aggregate = new TopicStreamAggregate(topicId)
+  const attempt = aggregate.reserveAttempt(toAttemptId(1))
+  aggregate.transitionAttempt(attempt.id, { type: 'launch' })
+  aggregate.transitionAttempt(attempt.id, { type: 'chunk', at: 0 })
   const stream = {
     topicId,
+    aggregate,
     executions: new Map([
       [
         'provider::model',
         {
           modelId: 'provider::model',
+          attemptId: attempt.id,
+          attempt,
           abortController,
-          state: { phase: 'running', firstChunkAt: 0 },
           buffer: [],
           droppedChunks: 0,
           loopPromise: opts.loopPromise,
@@ -164,11 +172,12 @@ function seedFakeStream(
         }
       ]
     ]),
-    listeners: new Map([
-      [opts.listenerKey, { id: opts.listenerKey, isPersistent: opts.listenerKey.startsWith('persistence:') }]
-    ]),
+    listeners: new Map(),
+    persistencePorts: new Map(
+      opts.listenerKey.startsWith('persistence:') ? [[opts.listenerKey, { id: opts.listenerKey }]] : []
+    ),
+    cleanupPorts: new Map(),
     status: 'streaming',
-    lifecycleState: 'active',
     isMultiModel: false,
     lifecycle: {}
   } as unknown as ActiveStream

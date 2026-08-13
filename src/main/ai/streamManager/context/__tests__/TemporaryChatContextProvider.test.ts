@@ -28,12 +28,12 @@ vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: getByKeyMock }
 }))
 
-// prepareDispatch issues an admission ticket through the manager.
+// prepareDispatch issues an admission receipt through the manager.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiStreamManager: {
-      issueDispatchTicket: (_topicId: string, intent: unknown) => ({
+      issueDispatchCommandReceipt: (_topicId: string, intent: unknown) => ({
         intent,
         admission: { mode: 'start-new' },
         activeNodeDecision: { move: 'advance' }
@@ -213,13 +213,13 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
 
-    const listeners = prepared.listeners
-    expect(listeners).toHaveLength(2)
-    expect(listeners[0]).toBe(subscriber)
+    expect(prepared.listeners).toEqual([subscriber])
+    const persistencePorts = prepared.persistencePorts
+    expect(persistencePorts).toHaveLength(1)
     // Persistence is strategy-based: a PersistenceListener wrapping the
     // in-memory temp backend. We assert via the public `backendKind` getter
     // rather than reaching into private fields.
-    const persist = listeners[1]
+    const persist = persistencePorts?.[0]
     expect(persist).toBeInstanceOf(PersistenceListener)
     expect((persist as InstanceType<typeof PersistenceListener>).backendKind).toBe('temp')
 

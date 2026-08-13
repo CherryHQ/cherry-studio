@@ -79,6 +79,15 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
       })
     }
+    if (result.snapshot && !result.snapshot.topicOpen) {
+      const terminalError = result.snapshot.attempts.find((attempt) => attempt.outcome === 'error')?.error
+      return new ReadableStream<UIMessageChunk>({
+        start: (controller) => {
+          if (terminalError) controller.error(new Error(terminalError.message ?? 'Stream error'))
+          else controller.close()
+        }
+      })
+    }
 
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
     return this.buildListenerStream(topicId, result.bufferedChunks)

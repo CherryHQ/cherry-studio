@@ -25,10 +25,10 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
           anchorMessageId: exec.anchorMessageId,
           ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
         }
-        if (isAttemptRunning(exec.state)) activeExecutions.push(entry)
+        if (isAttemptRunning(exec.attempt.state)) activeExecutions.push(entry)
         // Main-side authoritative approval-anchor identity; renderer reads this
         // instead of inferring from `parts` / SWR-lagged status.
-        if (exec.pendingApprovalToolCallIds?.size) awaitingApprovalAnchors.push(entry)
+        if (exec.attempt.pendingApprovalToolCallIds.size) awaitingApprovalAnchors.push(entry)
       }
 
       const cacheService = application.get('CacheService')

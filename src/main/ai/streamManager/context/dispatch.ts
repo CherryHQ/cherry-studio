@@ -12,7 +12,7 @@ import { loadClaudeCodeSettingsBuilder } from '../../runtime/claudeCode'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
-import type { ChatContextProvider } from './ChatContextProvider'
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import { persistentChatContextProvider } from './PersistentChatContextProvider'
 import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
@@ -116,84 +116,92 @@ export async function dispatchStreamRequest(
     return { mode: 'blocked', ...prepared.blocked }
   }
 
-  // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
-  // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
-  // and `onExecutionDone` chains a `steer-continuation` to answer it.
-  if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(
-      req.topicId,
-      prepared.pendingSteerUserMessageId,
-      prepared.pendingSteerReasoningEffort,
-      prepared.pendingSteerFastMode === true
-    )
-  } else if (
-    provider.name === persistentChatContextProvider.name &&
-    prepared.models.length === 0 &&
-    req.trigger === 'submit-message'
-  ) {
-    // A persistent submit that resolved to zero models without taking the steer branch is a
-    // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
-    // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
-    // runtime's pendingTurns — so they're excluded by the provider check.)
-    logger.error(
-      'Persistent submit resolved to zero models and is not an enqueue-only steer — nothing will be answered',
-      {
-        topicId: req.topicId
-      }
-    )
-  }
+  const commitPrepared = (dispatch: PreparedDispatch): AiStreamOpenResponse => {
+    // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
+    // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
+    // and `onExecutionDone` chains a `steer-continuation` to answer it.
+    if (dispatch.pendingSteerUserMessageId) {
+      manager.enqueuePendingSteer(
+        req.topicId,
+        dispatch.pendingSteerUserMessageId,
+        dispatch.pendingSteerReasoningEffort,
+        dispatch.pendingSteerFastMode === true
+      )
+    } else if (
+      provider.name === persistentChatContextProvider.name &&
+      dispatch.models.length === 0 &&
+      req.trigger === 'submit-message'
+    ) {
+      // A persistent submit that resolved to zero models without taking the steer branch is a
+      // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
+      // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
+      // runtime's pendingTurns — so they're excluded by the provider check.)
+      logger.error(
+        'Persistent submit resolved to zero models and is not an enqueue-only steer — nothing will be answered',
+        {
+          topicId: req.topicId
+        }
+      )
+    }
 
-  const reservedAssistantIds =
-    prepared.reservedMessages
-      ?.filter((message) => message.role === 'assistant')
-      .map((message) => message.id)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
+    const reservedAssistantIds =
+      dispatch.reservedMessages
+        ?.filter((message) => message.role === 'assistant')
+        .map((message) => message.id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
 
-  // Multi-model topics are persistent-only with a placeholder per model. Keep
-  // those reservations aligned with the executions the manager will launch.
-  if (prepared.models.length > 1 && reservedAssistantIds.length !== prepared.models.length) {
-    throw new Error(
-      `Multi-model dispatch produced ${reservedAssistantIds.length} assistant reservations for ${prepared.models.length} models (topicId=${prepared.topicId})`
-    )
-  }
+    // Multi-model topics are persistent-only with a placeholder per model. Keep
+    // those reservations aligned with the executions the manager will launch.
+    if (dispatch.models.length > 1 && reservedAssistantIds.length !== dispatch.models.length) {
+      throw new Error(
+        `Multi-model dispatch produced ${reservedAssistantIds.length} assistant reservations for ${dispatch.models.length} models (topicId=${dispatch.topicId})`
+      )
+    }
 
-  const preparedChange = prepared.liveExecutionChange
-  const ticket =
-    prepared.ticket ??
-    manager.issueDispatchTicket(
-      prepared.topicId,
+    const intent =
       req.trigger === 'continue-conversation'
-        ? { kind: 'continue-conversation' }
+        ? ({ kind: 'continue-conversation', anchorMessageId: req.parentAnchorId } as const)
         : req.trigger === 'steer-continuation'
-          ? { kind: 'steer-continuation' }
-          : { kind: 'start', modelCount: prepared.models.length }
-    )
-  const liveExecutionChange =
-    preparedChange?.mode === 'replace' && ticket.admission.mode === 'replace-live'
-      ? preparedChange
-      : preparedChange?.mode === 'append' && ticket.admission.mode === 'append-live'
-        ? {
-            mode: 'append' as const,
-            groupAnchorMessageId: preparedChange.groupAnchorMessageId,
-            parentAnchorId: preparedChange.parentAnchorId,
-            siblingsGroupId: preparedChange.siblingsGroupId
-          }
-        : undefined
+          ? ({ kind: 'steer-continuation' } as const)
+          : ({ kind: 'start', modelCount: dispatch.models.length } as const)
+    const handoff = (receipt: NonNullable<PreparedDispatch['receipt']>): AiStreamOpenResponse => {
+      const preparedChange = dispatch.liveExecutionChange
+      const liveExecutionChange =
+        preparedChange?.mode === 'replace' && receipt.admission.mode === 'replace-live'
+          ? preparedChange
+          : preparedChange?.mode === 'append' && receipt.admission.mode === 'append-live'
+            ? {
+                mode: 'append' as const,
+                groupAnchorMessageId: preparedChange.groupAnchorMessageId,
+                parentAnchorId: preparedChange.parentAnchorId,
+                siblingsGroupId: preparedChange.siblingsGroupId
+              }
+            : undefined
 
-  const result = manager.send({
-    topicId: prepared.topicId,
-    models: prepared.models,
-    listeners: prepared.listeners,
-    siblingsGroupId: prepared.siblingsGroupId,
-    liveExecutionChange,
-    ticket,
-    lifecycle: prepared.lifecycle
-  })
+      const result = manager.send({
+        topicId: dispatch.topicId,
+        models: dispatch.models,
+        listeners: dispatch.listeners,
+        persistencePorts: dispatch.persistencePorts,
+        cleanupPorts: dispatch.cleanupPorts,
+        siblingsGroupId: dispatch.siblingsGroupId,
+        liveExecutionChange,
+        receipt,
+        lifecycle: dispatch.lifecycle
+      })
 
-  return {
-    mode: result.mode,
-    activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
-    activeNodeDecision: ticket.activeNodeDecision,
-    reservedMessages: prepared.reservedMessages
+      return {
+        mode: result.mode,
+        activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
+        activeNodeDecision: receipt.activeNodeDecision,
+        reservedMessages: dispatch.reservedMessages
+      }
+    }
+
+    return dispatch.receipt
+      ? handoff(dispatch.receipt)
+      : manager.commitDispatchCommand(dispatch.topicId, intent, handoff)
   }
+
+  return commitPrepared(prepared)
 }

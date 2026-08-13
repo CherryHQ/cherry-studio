@@ -8,6 +8,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -114,33 +115,37 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', sessionId, 'an active turn')
       }
-      const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, { kind: 'steer-inject' })
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId,
-        message: {
-          id: userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: userMessageParts }
-        }
-      })
+      const committed = application
+        .get('AiStreamManager')
+        .commitDispatchCommand(req.topicId, { kind: 'steer-inject' }, (receipt) => {
+          const savedUserMessage = agentSessionMessageService.saveMessage({
+            sessionId,
+            message: {
+              id: userMessageId,
+              role: 'user',
+              status: 'success',
+              data: { parts: userMessageParts }
+            }
+          })
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
-        headless: req.headless === true,
-        messageSnapshot,
-        reasoningEffort,
-        fastMode: req.fastMode
-      })
+          application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
+            headless: req.headless === true,
+            messageSnapshot,
+            reasoningEffort,
+            fastMode: req.fastMode
+          })
+          return { receipt, savedUserMessage }
+        })
 
       return {
         topicId: req.topicId,
         models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        reservedMessages: [toReservedAgentUIMessage(committed.savedUserMessage)],
         listeners: [subscriber],
-        ticket
+        receipt: committed.receipt
       }
     }
 
@@ -149,11 +154,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // distinguish them from the initial turn; persisted messages are the durable boundary.
     const shouldAutoNameInitialTurn = !agentSessionMessageService.hasSessionMessages(sessionId)
     const assistantMessageId = uuidv7()
-    const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, {
-      kind: 'start',
-      modelCount: 1
-    })
-
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
     // child under it; Claude Code child spans join via the connection's TRACEPARENT.
     const traceId = agentSessionService.ensureTraceId(sessionId)
@@ -175,89 +175,123 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
     let savedMessages: AgentSessionMessageEntity[]
+    let receipt: PreparedDispatch['receipt']
     try {
-      savedMessages = agentSessionMessageService.saveMessages(
-        {
-          sessionId,
-          messages: [
+      const committed = application
+        .get('AiStreamManager')
+        .reserveDispatchCommand(req.topicId, { kind: 'start', modelCount: 1 }, 1, () =>
+          agentSessionMessageService.saveMessages(
             {
-              id: userMessageId,
-              role: 'user',
-              status: 'success',
-              data: { parts: userMessageParts }
+              sessionId,
+              messages: [
+                {
+                  id: userMessageId,
+                  role: 'user',
+                  status: 'success',
+                  data: { parts: userMessageParts }
+                },
+                {
+                  id: assistantMessageId,
+                  role: 'assistant',
+                  status: 'pending',
+                  data: { parts: [] },
+                  modelId: uniqueModelId,
+                  messageSnapshot
+                }
+              ]
             },
-            {
-              id: assistantMessageId,
-              role: 'assistant',
-              status: 'pending',
-              data: { parts: [] },
-              modelId: uniqueModelId,
-              messageSnapshot
-            }
-          ]
-        },
-        ctx?.expectedAgentId
-      )
+            ctx?.expectedAgentId
+          )
+        )
+      savedMessages = committed.value
+      receipt = committed.receipt
     } catch (error) {
       turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
       throw error
     }
-    if (shouldAutoNameInitialTurn) {
-      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
-    }
+    try {
+      if (shouldAutoNameInitialTurn) {
+        // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
+        topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+      }
 
-    // Author the turn span's input/identity here (where the agent + user message live).
-    applyTurnInputAttributes(turnTrace.rootSpan, {
-      modelId: uniqueModelId,
-      topicId: req.topicId,
-      operation: 'invoke_agent',
-      messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
-      agentName: agent.name
-    })
+      // Author the turn span's input/identity here (where the agent + user message live).
+      applyTurnInputAttributes(turnTrace.rootSpan, {
+        modelId: uniqueModelId,
+        topicId: req.topicId,
+        operation: 'invoke_agent',
+        messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
+        agentName: agent.name
+      })
 
-    const runtime = application.get('AgentSessionRuntimeService').beginTurn({
-      sessionId,
-      topicId: req.topicId,
-      agentId,
-      agentType: agent.type,
-      modelId: uniqueModelId,
-      reasoningEffort,
-      fastMode: req.fastMode,
-      assistantMessageId,
-      userMessage,
-      headless: req.headless === true,
-      traceId,
-      messageSnapshot,
-      shouldAutoName: shouldAutoNameInitialTurn
-    })
+      const runtime = application.get('AgentSessionRuntimeService').beginTurn({
+        sessionId,
+        topicId: req.topicId,
+        agentId,
+        agentType: agent.type,
+        modelId: uniqueModelId,
+        reasoningEffort,
+        fastMode: req.fastMode,
+        assistantMessageId,
+        userMessage,
+        headless: req.headless === true,
+        traceId,
+        messageSnapshot,
+        shouldAutoName: shouldAutoNameInitialTurn
+      })
 
-    return {
-      topicId: req.topicId,
-      models: [
-        {
-          modelId: uniqueModelId,
-          request: {
-            chatId: req.topicId,
-            trigger: 'submit-message',
-            assistantId: agentId,
-            uniqueModelId,
-            messages: [
-              { id: userMessageId, role: 'user', parts: userMessageParts },
-              { id: assistantMessageId, role: 'assistant', parts: [] }
-            ],
-            messageId: assistantMessageId,
-            reasoningEffort,
-            fastMode: req.fastMode,
-            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
-          },
-          rootSpan: turnTrace.rootSpan,
-          abortController: runtime.abortController
-        }
-      ],
-      reservedMessages: savedMessages.map(toReservedAgentUIMessage),
-      listeners: [subscriber, ...runtime.listeners],
-      ticket
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: uniqueModelId,
+            request: {
+              chatId: req.topicId,
+              trigger: 'submit-message',
+              assistantId: agentId,
+              uniqueModelId,
+              messages: [
+                { id: userMessageId, role: 'user', parts: userMessageParts },
+                { id: assistantMessageId, role: 'assistant', parts: [] }
+              ],
+              messageId: assistantMessageId,
+              reasoningEffort,
+              fastMode: req.fastMode,
+              runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
+            },
+            rootSpan: turnTrace.rootSpan,
+            abortController: runtime.abortController
+          }
+        ],
+        reservedMessages: savedMessages.map(toReservedAgentUIMessage),
+        listeners: [subscriber, ...runtime.listeners],
+        persistencePorts: runtime.persistencePorts,
+        cleanupPorts: runtime.cleanupPorts,
+        receipt
+      }
+    } catch (error) {
+      if (receipt) {
+        application.get('AiStreamManager').failDispatchReservation(
+          receipt,
+          req.topicId,
+          serializeError(error),
+          () =>
+            agentSessionMessageService.saveMessage({
+              sessionId,
+              message: {
+                id: assistantMessageId,
+                role: 'assistant',
+                status: 'error',
+                data: { parts: [] },
+                modelId: uniqueModelId,
+                messageSnapshot
+              }
+            }),
+          [{ modelId: uniqueModelId, anchorMessageId: assistantMessageId }]
+        )
+      }
+      turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
+      throw error
     }
   }
 }

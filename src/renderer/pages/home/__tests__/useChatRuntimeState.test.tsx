@@ -3,7 +3,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, render } from '@testing-library/react'
-import { Activity, useMemo } from 'react'
+import { Activity, useEffect, useMemo, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
+  overlayRefreshOnQuiesced: null as (() => Promise<unknown>) | null
 }))
 
 vi.mock('@logger', () => ({
@@ -86,16 +87,48 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
-    _topicId: string,
+    topicId: string,
     executions: ActiveExecution[],
     _messages: CherryUIMessage[],
-    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+    options?: {
+      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+      refreshOnQuiesced?: () => Promise<unknown>
+    }
   ) => {
+    const [projection, setProjection] = useState<{
+      topicId: string
+      optimisticMessages: CherryUIMessage[]
+      optimisticExecutions: ActiveExecution[]
+      activeNodeOverride: { previousActiveNodeId: string | null; activeNodeId: string } | null
+    }>({ topicId, optimisticMessages: [], optimisticExecutions: [], activeNodeOverride: null })
+    useEffect(() => {
+      setProjection({ topicId, optimisticMessages: [], optimisticExecutions: [], activeNodeOverride: null })
+    }, [topicId])
     mocks.overlayExecutions = executions
     mocks.overlayOnFinish = options?.onFinish ?? null
+    mocks.overlayRefreshOnQuiesced = options?.refreshOnQuiesced ?? null
     return {
       overlay: {},
       liveAssistants: mocks.liveAssistants,
+      optimisticMessages: projection.topicId === topicId ? projection.optimisticMessages : [],
+      projectedExecutions: [...executions, ...(projection.topicId === topicId ? projection.optimisticExecutions : [])],
+      activeNodeOverride: projection.topicId === topicId ? projection.activeNodeOverride : null,
+      seedReservations: (
+        messages: CherryUIMessage[],
+        openedExecutions: ActiveExecution[],
+        activeNodeDecision: { move: 'advance' | 'keep' } | undefined,
+        previousActiveNodeId: string | null
+      ) => {
+        setProjection({
+          topicId,
+          optimisticMessages: messages,
+          optimisticExecutions: openedExecutions,
+          activeNodeOverride:
+            activeNodeDecision?.move === 'keep' || !messages.at(-1)?.id
+              ? null
+              : { previousActiveNodeId, activeNodeId: messages.at(-1)!.id }
+        })
+      },
       disposeOverlay: vi.fn(),
       reset: vi.fn()
     }

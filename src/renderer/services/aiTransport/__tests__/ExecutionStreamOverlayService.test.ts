@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     readonly terminalCbs = new Set<TerminalCb>()
     readonly retirementCbs = new Set<RetirementCb>()
     readonly topicStateCbs = new Set<() => void>()
+    readonly topicQuiescedCbs = new Set<(event: { throughAttemptId: number }) => void>()
     readonly cancelledBranchKeys: string[] = []
     listenCalls = 0
     disposed = false
@@ -146,6 +147,11 @@ const mocks = vi.hoisted(() => {
       return () => this.topicStateCbs.delete(cb)
     }
 
+    onTopicQuiesced(cb: (event: { throughAttemptId: number }) => void) {
+      this.topicQuiescedCbs.add(cb)
+      return () => this.topicQuiescedCbs.delete(cb)
+    }
+
     dispose() {
       this.disposed = true
       for (const branch of this.branches.values()) {
@@ -161,6 +167,7 @@ const mocks = vi.hoisted(() => {
       this.terminalCbs.clear()
       this.retirementCbs.clear()
       this.topicStateCbs.clear()
+      this.topicQuiescedCbs.clear()
     }
 
     // test helpers
@@ -216,6 +223,9 @@ const mocks = vi.hoisted(() => {
         }
         this.terminalByKey.set(key, { executionId, terminal })
         for (const cb of [...this.terminalCbs]) cb(executionId, terminal)
+      }
+      if (t.isTopicDone) {
+        for (const cb of [...this.topicQuiescedCbs]) cb({ throughAttemptId: attemptId ?? 0 })
       }
     }
 
@@ -310,6 +320,24 @@ afterEach(() => {
 })
 
 describe('ExecutionStreamOverlayService', () => {
+  it('owns optimistic command reservations until the topic projection retires them', () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const reserved = asst('anchor-reserved')
+    const execution = exec(A, 'anchor-reserved', 7, true)
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [], () => [reserved])
+
+    service.seedReservations(TOPIC, [reserved], [execution], { move: 'advance' }, 'anchor-old', () => [reserved])
+
+    expect(service.getView(TOPIC)).toMatchObject({
+      optimisticMessages: [reserved],
+      projectedExecutions: [execution],
+      activeNodeOverride: { previousActiveNodeId: 'anchor-old', activeNodeId: 'anchor-reserved' }
+    })
+    expect(mocks.subs.get(TOPIC)?.hasOpenBranch(A, 'anchor-reserved', 7)).toBe(true)
+  })
+
   it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {
     const service = new ExecutionStreamOverlayService()
     const consumer = {}
@@ -406,6 +434,30 @@ describe('ExecutionStreamOverlayService', () => {
 
     service.release(TOPIC, consumer)
     expect(sub.disposed).toBe(true)
+  })
+
+  it('keeps one attempt record when active status clears before its exact terminal arrives', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1)], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', 'final')
+    await nextCommit()
+    expect(service.getView(TOPIC).attempts).toEqual([
+      expect.objectContaining({ attemptId: 1, phase: 'active', message: expect.objectContaining({ id: 'anchor-a' }) })
+    ])
+
+    service.syncExecutions(TOPIC, consumer, [], getSeed)
+    expect(service.getView(TOPIC).attempts).toHaveLength(1)
+    expect(service.getView(TOPIC).attempts[0].phase).toBe('active')
+
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a', 1)
+    await drainStreamMicrotasks()
+    expect(service.getView(TOPIC).attempts).toEqual([
+      expect.objectContaining({ attemptId: 1, phase: 'settled', message: expect.objectContaining({ id: 'anchor-a' }) })
+    ])
   })
 
   it('retires watermark-covered sibling readers without reporting an implicit success', async () => {

@@ -111,6 +111,11 @@ export function writeTaskSessionReuse(
   return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
 }
 
+export interface AgentTaskReadModelImpact {
+  taskId: string
+  agentId?: string
+}
+
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
   if (!snapshot.enabled) return 'paused'
   if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
@@ -118,12 +123,24 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  addReadModelEffects(effects: DataApiEffectCollector, taskIds: readonly string[], fallbackAgentId?: string): void {
-    const entityIds = [...new Set(taskIds)]
+  captureReadModelImpactsTx(
+    tx: DbOrTx,
+    taskIds: readonly string[],
+    fallbackAgentId?: string
+  ): AgentTaskReadModelImpact[] {
+    return [...new Set(taskIds)].map((taskId) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, taskId)
+      const template = snapshot?.type === AGENT_TASK_TYPE ? normalizeAgentTaskTemplate(snapshot.jobInputTemplate) : null
+      return { taskId, agentId: template?.agentId ?? fallbackAgentId }
+    })
+  }
+
+  addReadModelEffects(effects: DataApiEffectCollector, impacts: readonly AgentTaskReadModelImpact[]): void {
+    const tasks = [...new Map(impacts.map((impact) => [impact.taskId, impact])).values()]
+    const entityIds = tasks.map((task) => task.taskId)
     if (entityIds.length === 0) return
     effects.add({ endpoint: '/agent-tasks', kind: 'projection', entityIds })
 
-    const tasks = entityIds.map((taskId) => ({ taskId, agentId: this.getTaskById(taskId)?.agentId ?? fallbackAgentId }))
     for (const { taskId, agentId } of tasks) {
       effects.add({ endpoint: '/agent-tasks/:taskId', routeParams: { taskId }, entityIds: [taskId] })
       if (!agentId) continue
@@ -143,7 +160,9 @@ export class AgentTaskService {
 
   /** Publish every DataApi projection backed by the composed task read model. */
   notifyReadModelChange(taskIds: readonly string[], fallbackAgentId?: string): void {
-    application.get('DbService').withEffects((effects) => this.addReadModelEffects(effects, taskIds, fallbackAgentId))
+    const dbService = application.get('DbService')
+    const impacts = this.captureReadModelImpactsTx(dbService.getDb(), taskIds, fallbackAgentId)
+    dbService.withEffects((effects) => this.addReadModelEffects(effects, impacts))
   }
 
   listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {

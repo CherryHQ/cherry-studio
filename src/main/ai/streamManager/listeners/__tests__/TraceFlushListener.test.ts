@@ -24,17 +24,17 @@ describe('TraceFlushListener', () => {
   it('flushes the topic trace cache when the topic turn is done', async () => {
     const listener = new TraceFlushListener('topic-1')
 
-    await listener.onDone({ status: 'success', isTopicDone: true })
+    await listener.onTopicQuiesced({ status: 'success', isTopicDone: true })
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
 
-  it('waits for the topic-level terminal event before flushing', async () => {
+  it('flushes when the cleanup port is invoked for a paused topic', async () => {
     const listener = new TraceFlushListener('topic-1')
 
-    await listener.onDone({ status: 'success', isTopicDone: false })
+    await listener.onTopicQuiesced({ status: 'paused', isTopicDone: true })
 
-    expect(mocks.saveSpans).not.toHaveBeenCalled()
+    expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
 
   it('does not throw when trace persistence fails', async () => {
@@ -42,7 +42,11 @@ describe('TraceFlushListener', () => {
     const listener = new TraceFlushListener('topic-1')
 
     await expect(
-      listener.onError({ status: 'error', isTopicDone: true, error: { name: 'Error', message: 'boom', stack: null } })
+      listener.onTopicQuiesced({
+        status: 'error',
+        isTopicDone: true,
+        error: { name: 'Error', message: 'boom', stack: null }
+      })
     ).resolves.toBe(undefined)
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')

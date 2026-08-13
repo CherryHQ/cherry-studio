@@ -170,6 +170,27 @@ describe('WebContentsListener coalescing', () => {
     ])
   })
 
+  it('emits the attempt terminal before the topic barrier with distinct control revisions', () => {
+    const wc = fakeWc()
+    const listener = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    listener.onDone({
+      modelId: 'openai::gpt-4o',
+      attemptId: 3,
+      topicAttemptWatermark: 3,
+      status: 'success',
+      isTopicDone: true,
+      cycleId: 7,
+      controlRevision: 5,
+      topicControlRevision: 6
+    })
+
+    expect(wc.send.mock.calls.filter((call) => call[1] === 'ai.stream.event').map((call) => call[2])).toEqual([
+      expect.objectContaining({ type: 'attempt-durably-settled', controlRevision: 5, attemptId: 3 }),
+      expect.objectContaining({ type: 'topic-quiesced', controlRevision: 6, throughAttemptId: 3 })
+    ])
+  })
+
   it('does not merge a delta that carries providerMetadata', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')

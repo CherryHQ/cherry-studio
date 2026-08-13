@@ -1,7 +1,4 @@
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -15,10 +12,11 @@ import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
+  type ReservedMessageSeedOptions,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -135,7 +133,7 @@ export function useAgentChatRuntimeState({
     hasOlder,
     loadOlder,
     refresh,
-    seedReservedMessages,
+    seedReservedMessages: seedSessionMessages,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
@@ -144,10 +142,26 @@ export function useAgentChatRuntimeState({
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
-    void seedReservedMessages(reservedMessages)
-  }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
+    void seedSessionMessages(reservedMessages)
+  }, [reservedMessages, seedSessionMessages, sessionMessagesEnabled])
 
   const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const {
+    overlay,
+    liveAssistants,
+    optimisticMessages,
+    projectedExecutions,
+    seedReservations: seedProjectionReservations
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+    refreshOnQuiesced: refresh
+  })
+  const seedReservedMessages = useCallback(
+    async (messages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
+      seedProjectionReservations(messages, options.activeExecutions ?? [], options.activeNodeDecision, null)
+      await seedSessionMessages(messages)
+    },
+    [seedProjectionReservations, seedSessionMessages]
+  )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -188,23 +202,15 @@ export function useAgentChatRuntimeState({
     [deleteSessionMessage, setMessages]
   )
 
-  const {
-    overlay,
-    liveAssistants,
-    reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: uiMessages,
     overlay,
-    executions: activeExecutions,
+    executions: projectedExecutions,
     liveAssistants
   })
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
-
-  // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
@@ -242,7 +248,10 @@ export function useAgentChatRuntimeState({
     })
   }, [])
 
-  const displayMessages = useMemo(() => mergeMessagesById(uiMessages, liveAssistants), [liveAssistants, uiMessages])
+  const displayMessages = useMemo(
+    () => mergeMessagesById(uiMessages, optimisticMessages, liveAssistants),
+    [liveAssistants, optimisticMessages, uiMessages]
+  )
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {

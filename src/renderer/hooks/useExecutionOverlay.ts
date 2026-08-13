@@ -7,17 +7,26 @@
  * switch) no longer tears the stream down, and remounting restores the live
  * overlay synchronously. Reader/seed semantics live in the service.
  */
+import { loggerService } from '@logger'
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ActiveExecution, ActiveNodeDecision } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
-import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+import type {
+  ExecutionFinishEvent,
+  ExecutionOverlayActiveNodeOverride,
+  ExecutionOverlayAttempt
+} from '@renderer/services/aiTransport'
 
 export interface UseExecutionOverlayOptions {
   onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+  /** Persistent projections refresh committed rows at TopicQuiesced, then retire final overlays. */
+  refreshOnQuiesced?: () => Promise<unknown>
 }
+
+const logger = loggerService.withContext('useExecutionOverlay')
 
 export interface ExecutionOverlayApi {
   /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
@@ -25,6 +34,18 @@ export interface ExecutionOverlayApi {
   overlay: Record<string, CherryMessagePart[]>
   /** Latest assistant snapshot per execution, in insertion order. */
   liveAssistants: CherryUIMessage[]
+  /** Attempt records whose message stays stable while phase changes active → settled. */
+  attempts: ExecutionOverlayAttempt[]
+  optimisticMessages: CherryUIMessage[]
+  projectedExecutions: ActiveExecution[]
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
+  refreshError: Error | null
+  seedReservations: (
+    messages: readonly CherryUIMessage[],
+    executions: readonly ActiveExecution[],
+    activeNodeDecision: ActiveNodeDecision | undefined,
+    previousActiveNodeId: string | null
+  ) => void
   /** Drop one overlay/snapshot entry by its message id (post-persist handoff). */
   disposeOverlay: (messageId: string) => void
   /** Drop settled overlay/snapshot entries (terminal handoff); live readers survive. */
@@ -46,6 +67,8 @@ export function useExecutionOverlay(
   uiMessagesRef.current = uiMessages
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish
+  const refreshOnQuiescedRef = useRef(options.refreshOnQuiesced)
+  refreshOnQuiescedRef.current = options.refreshOnQuiesced
   const topicIdRef = useRef(topicId)
   topicIdRef.current = topicId
 
@@ -56,8 +79,21 @@ export function useExecutionOverlay(
     const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
       onFinishRef.current?.(executionId, event)
     )
+    const offQuiesced = executionStreamOverlayService.onTopicQuiesced(topicId, ({ throughAttemptId }) => {
+      const refresh = refreshOnQuiescedRef.current
+      if (!refresh) return
+      executionStreamOverlayService.setRefreshError(topicId, null)
+      void refresh()
+        .then(() => executionStreamOverlayService.retireThrough(topicId, throughAttemptId))
+        .catch((error) => {
+          const refreshError = error instanceof Error ? error : new Error(String(error))
+          executionStreamOverlayService.setRefreshError(topicId, refreshError)
+          logger.warn('topic projection refresh failed; retaining final overlay', refreshError)
+        })
+    })
     return () => {
       offFinish()
+      offQuiesced()
       executionStreamOverlayService.release(topicId, consumer)
     }
   }, [consumer, topicId])
@@ -82,6 +118,20 @@ export function useExecutionOverlay(
     api.current = {
       overlay: view.overlay,
       liveAssistants: view.liveAssistants,
+      attempts: view.attempts,
+      optimisticMessages: view.optimisticMessages,
+      projectedExecutions: view.projectedExecutions,
+      activeNodeOverride: view.activeNodeOverride,
+      refreshError: view.refreshError,
+      seedReservations: (messages, executions, activeNodeDecision, previousActiveNodeId) =>
+        executionStreamOverlayService.seedReservations(
+          topicIdRef.current,
+          messages,
+          executions,
+          activeNodeDecision,
+          previousActiveNodeId,
+          getSeedMessages
+        ),
       disposeOverlay: (messageId: string) =>
         executionStreamOverlayService.disposeOverlay(topicIdRef.current, messageId),
       reset: () => executionStreamOverlayService.reset(topicIdRef.current),
@@ -90,5 +140,10 @@ export function useExecutionOverlay(
   }
   api.current.overlay = view.overlay
   api.current.liveAssistants = view.liveAssistants
+  api.current.attempts = view.attempts
+  api.current.optimisticMessages = view.optimisticMessages
+  api.current.projectedExecutions = view.projectedExecutions
+  api.current.activeNodeOverride = view.activeNodeOverride
+  api.current.refreshError = view.refreshError
   return api.current
 }

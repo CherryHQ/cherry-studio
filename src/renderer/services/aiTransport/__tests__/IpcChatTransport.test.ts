@@ -307,4 +307,16 @@ describe('IpcChatTransport', () => {
     const { done } = await reader.read()
     expect(done).toBe(true)
   })
+
+  it('reconnectToStream closes a quiescent v2 snapshot', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: { cycleId: 2, controlRevision: 4, topicOpen: false, attempts: [] }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+  })
 })

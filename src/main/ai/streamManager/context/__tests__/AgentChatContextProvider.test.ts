@@ -1,5 +1,7 @@
+import type { AttemptId } from '@shared/ai/attempt'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DispatchCommandReceipt, StreamIntent } from '../../admission'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -17,11 +19,13 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeValidateSession: vi.fn(),
-  issueDispatchTicket: vi.fn((_topicId: string, intent: unknown) => ({
-    intent,
-    admission: { mode: 'start-new' },
-    activeNodeDecision: { move: 'advance' }
-  }))
+  issueDispatchCommandReceipt: vi.fn(
+    (_topicId: string, intent: StreamIntent): DispatchCommandReceipt => ({
+      intent,
+      admission: { mode: 'start-new' },
+      activeNodeDecision: { move: 'advance' }
+    })
+  )
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -138,7 +142,26 @@ describe('AgentChatContextProvider', () => {
         }
       }
       if (name === 'AiStreamManager') {
-        return { issueDispatchTicket: mocks.issueDispatchTicket }
+        return {
+          issueDispatchCommandReceipt: mocks.issueDispatchCommandReceipt,
+          commitDispatchCommand: (
+            _topicId: string,
+            intent: StreamIntent,
+            commit: (receipt: DispatchCommandReceipt) => unknown
+          ) => commit(mocks.issueDispatchCommandReceipt(_topicId, intent)),
+          reserveDispatchCommand: (
+            _topicId: string,
+            intent: StreamIntent,
+            modelCount: number,
+            commit: (receipt: DispatchCommandReceipt) => unknown
+          ) => {
+            const receipt: DispatchCommandReceipt = {
+              ...mocks.issueDispatchCommandReceipt(_topicId, intent),
+              reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => (index + 1) as AttemptId)
+            }
+            return { receipt, value: commit(receipt) }
+          }
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })

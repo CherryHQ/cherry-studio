@@ -12,7 +12,7 @@ import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
-import { AiStreamAdmissionError, type DispatchTicket, type StreamIntent } from '../../admission'
+import { AiStreamAdmissionError, type DispatchCommandReceipt, type StreamIntent } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -24,13 +24,33 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
 const aiStreamManager = vi.hoisted(() => ({
   admitLiveExecutionChange: vi.fn(),
-  awaitDispatchTicket: vi.fn(),
-  issueDispatchTicket: vi.fn<(topicId: string, intent: StreamIntent) => DispatchTicket>((_topicId, intent) => ({
-    intent,
-    admission: { mode: 'start-new' },
-    activeNodeDecision: { move: 'advance' }
-  }))
+  awaitDispatchCommandReceipt: vi.fn(),
+  issueDispatchCommandReceipt: vi.fn<(topicId: string, intent: StreamIntent) => DispatchCommandReceipt>(
+    (_topicId, intent) => ({
+      intent,
+      admission: { mode: 'start-new' },
+      activeNodeDecision: { move: 'advance' }
+    })
+  ),
+  commitDispatchCommand: vi.fn(),
+  reserveDispatchCommand: vi.fn(),
+  failDispatchReservation: vi.fn(
+    (_ticket: DispatchCommandReceipt, _topicId: string, _error: unknown, persist: () => void) => persist()
+  )
 }))
+aiStreamManager.commitDispatchCommand.mockImplementation(
+  (topicId: string, intent: StreamIntent, commit: (receipt: DispatchCommandReceipt) => unknown) =>
+    commit(aiStreamManager.issueDispatchCommandReceipt(topicId, intent))
+)
+aiStreamManager.reserveDispatchCommand.mockImplementation(
+  (topicId: string, intent: StreamIntent, modelCount: number, commit: (receipt: DispatchCommandReceipt) => unknown) => {
+    const receipt: DispatchCommandReceipt = {
+      ...aiStreamManager.issueDispatchCommandReceipt(topicId, intent),
+      reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => index + 1) as never
+    }
+    return { receipt, value: commit(receipt) }
+  }
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')
@@ -163,6 +183,34 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ).rejects.toThrow('mentionedModelIds must not contain duplicate model ids')
 
     expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
+  })
+
+  it('durably errors the reserved placeholder when context preparation fails', async () => {
+    const contextProvider = provider as unknown as {
+      resolveCompactedHistory: (...args: unknown[]) => Promise<unknown>
+    }
+    const contextFailure = vi
+      .spyOn(contextProvider, 'resolveCompactedHistory')
+      .mockRejectedValueOnce(new Error('context failed'))
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'a1',
+          userMessageParts: [{ type: 'text', text: 'reserve before context' }]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('context failed')
+
+    contextFailure.mockRestore()
+    const [userMessage] = messageService.getChildrenByParentId('a1')
+    const [placeholder] = messageService.getChildrenByParentId(userMessage.id)
+    expect(placeholder).toMatchObject({ role: 'assistant', status: 'error' })
+    expect(aiStreamManager.failDispatchReservation).toHaveBeenCalledTimes(1)
   })
 
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
@@ -570,7 +618,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
 
     // One PersistenceListener per placeholder — no missing/extra/duplicate listener for a fan-out.
-    const persistenceListeners = prepared.listeners.filter((l) => l instanceof PersistenceListener)
+    const persistenceListeners = prepared.persistencePorts?.filter((port) => port instanceof PersistenceListener) ?? []
     expect(persistenceListeners).toHaveLength(2)
     // Each listener is keyed (via its sqlite-backed id `persistence:sqlite:<topicId>:<modelId>`) to the
     // model whose execution carries the matching placeholder messageId — so terminal events route to the
@@ -637,7 +685,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       updatedAt: 250
     })
     const userSelectedBranch = messageService.reserveBranch('a2', true)
-    aiStreamManager.issueDispatchTicket.mockReturnValueOnce({
+    aiStreamManager.issueDispatchCommandReceipt.mockReturnValueOnce({
       intent: {
         kind: 'append-live',
         change: {
@@ -674,7 +722,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         parentAnchorId: 'u1',
         siblingsGroupId: 1
       },
-      ticket: {
+      receipt: {
         admission: { mode: 'append-live', groupAnchorMessageId: 'a1' },
         activeNodeDecision: { move: 'keep' }
       },
@@ -686,7 +734,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('rejects an @-selected model when only another reply group is live', async () => {
-    aiStreamManager.issueDispatchTicket.mockImplementationOnce(() => {
+    aiStreamManager.issueDispatchCommandReceipt.mockImplementationOnce(() => {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     })
     await dbh.db.insert(messageTable).values({
@@ -720,7 +768,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('rejects a live anchor with the same sibling id under another parent', async () => {
-    aiStreamManager.issueDispatchTicket.mockImplementationOnce(() => {
+    aiStreamManager.issueDispatchCommandReceipt.mockImplementationOnce(() => {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     })
     await dbh.db.insert(messageTable).values([

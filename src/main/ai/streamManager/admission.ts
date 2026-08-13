@@ -1,3 +1,4 @@
+import type { AttemptId } from '@shared/ai/attempt'
 import type { AiStreamAdmissionReason } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -31,14 +32,17 @@ export type StreamIntent =
   | { kind: 'replace-live'; change: Extract<LiveExecutionChangeIntent, { mode: 'replace' }> }
   | { kind: 'steer-inject' }
   | { kind: 'steer-continuation' }
-  | { kind: 'continue-conversation' }
+  | { kind: 'continue-conversation'; anchorMessageId: string }
   | { kind: 'runtime-turn' }
   | { kind: 'prompt' }
 
-export interface DispatchTicket {
+/** Result of a synchronously committed topic command. */
+export interface DispatchCommandReceipt {
   readonly intent: StreamIntent
   readonly admission: LiveExecutionChangeAdmission
   readonly activeNodeDecision: { readonly move: 'advance' | 'keep' }
+  /** Attempts installed by a committed reservation, in model order. */
+  readonly reservedAttemptIds?: readonly AttemptId[]
 }
 
 export class AiStreamAdmissionError extends Error {

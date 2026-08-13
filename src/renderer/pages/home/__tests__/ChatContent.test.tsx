@@ -1,10 +1,10 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
-import type { ComposerChatTarget } from '@shared/ai/transport'
+import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
@@ -34,6 +34,47 @@ const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
 )
+
+function useExecutionOverlayMock(topicId: string, executions: ActiveExecution[]) {
+  const [seed, setSeed] = useState<{
+    topicId: string
+    messages: CherryUIMessage[]
+    executions: ActiveExecution[]
+    activeNodeOverride: { previousActiveNodeId: string | null; activeNodeId: string } | null
+  }>({ topicId, messages: [], executions: [], activeNodeOverride: null })
+  useEffect(() => {
+    setSeed({ topicId, messages: [], executions: [], activeNodeOverride: null })
+  }, [topicId])
+  const current = mockExecutionOverlay.current ?? {}
+  const topicSeed = seed.topicId === topicId ? seed : { messages: [], executions: [], activeNodeOverride: null }
+  return {
+    attempts: [],
+    clear: vi.fn(),
+    reset: vi.fn(),
+    disposeOverlay: vi.fn(),
+    ...current,
+    optimisticMessages: current.optimisticMessages ?? topicSeed.messages,
+    projectedExecutions: current.projectedExecutions ?? [...executions, ...topicSeed.executions],
+    activeNodeOverride: current.activeNodeOverride ?? topicSeed.activeNodeOverride,
+    seedReservations:
+      current.seedReservations ??
+      ((
+        messages: CherryUIMessage[],
+        openedExecutions: ActiveExecution[],
+        decision: { move: string } | undefined,
+        previous: string | null
+      ) =>
+        setSeed({
+          topicId,
+          messages,
+          executions: openedExecutions,
+          activeNodeOverride:
+            decision?.move === 'keep' || !messages.at(-1)?.id
+              ? null
+              : { previousActiveNodeId: previous, activeNodeId: messages.at(-1)!.id }
+        }))
+  }
+}
 type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
 type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
 const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
@@ -322,7 +363,7 @@ describe('ChatContent', () => {
       disposeOverlay: vi.fn(),
       reset: vi.fn()
     }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockUseExecutionOverlay.mockImplementation(useExecutionOverlayMock as never)
     mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
@@ -836,7 +877,7 @@ describe('ChatContent', () => {
       disposeOverlay: vi.fn(),
       reset: vi.fn()
     }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockUseExecutionOverlay.mockImplementation(useExecutionOverlayMock as never)
     view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await waitFor(() => {
@@ -1398,7 +1439,7 @@ describe('ChatContent', () => {
     )
   })
 
-  it('clears branch live state after all multi-model executions finish in the same tick', async () => {
+  it('defers multi-model retirement to the topic-quiesced refresh barrier', async () => {
     const onBranchLiveStateChange = vi.fn()
     const reservedUser = {
       id: 'reserved-user',
@@ -1471,30 +1512,16 @@ describe('ChatContent', () => {
       })
     })
 
-    await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [
-          {
-            executionId: 'provider::model-a',
-            attemptId: 1,
-            anchorMessageId: 'reserved-assistant-a'
-          },
-          {
-            executionId: 'provider::model-b',
-            attemptId: 2,
-            anchorMessageId: 'reserved-assistant-b'
-          }
-        ],
-        expect.any(Array),
-        expect.any(Object)
+    await waitFor(() =>
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ messageIds: ['reserved-user', 'reserved-assistant-a', 'reserved-assistant-b'] })
       )
-    })
+    )
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()
     const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
-    const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
+    const refreshOnQuiesced = (overlayCall![3] as any).refreshOnQuiesced as () => Promise<unknown>
     refresh.mockClear()
 
     act(() => {
@@ -1506,12 +1533,8 @@ describe('ChatContent', () => {
       })
     })
 
-    await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(1)
-      expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
-      expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
-    })
-    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(disposeOverlay.mock.invocationCallOrder[0])
+    expect(refresh).not.toHaveBeenCalled()
+    expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
 
     act(() => {
       finish('provider::model-b', {
@@ -1522,9 +1545,11 @@ describe('ChatContent', () => {
       })
     })
 
-    await waitFor(() => {
-      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
+    expect(refresh).not.toHaveBeenCalled()
+    await act(async () => {
+      await refreshOnQuiesced()
     })
+    expect(refresh).toHaveBeenCalledOnce()
   })
 
   it('regenerate within multi-model group keeps sibling bubbles in the list', async () => {

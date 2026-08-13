@@ -30,7 +30,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-const { PersistenceListener, TerminalPersistenceError } = await import('../PersistenceListener')
+const { PersistenceListener } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
@@ -321,9 +321,9 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
     const listener = makeListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toMatchObject({
+      durableErrorWritten: false
+    })
   })
 })
 
@@ -360,9 +360,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toMatchObject({
+      durableErrorWritten: true
+    })
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -401,9 +401,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toMatchObject({
+      durableErrorWritten: false
+    })
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -420,7 +420,8 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     })
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toMatchObject({
-      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') })
+      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') }),
+      durableErrorWritten: true
     })
   })
 })

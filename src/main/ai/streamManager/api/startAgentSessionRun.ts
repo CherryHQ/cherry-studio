@@ -121,8 +121,10 @@ export async function startAgentSessionRun(input: {
       listeners: input.requireIdle
         ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
         : [...prepared.listeners, ...extras],
+      persistencePorts: prepared.persistencePorts,
+      cleanupPorts: prepared.cleanupPorts,
       siblingsGroupId: prepared.siblingsGroupId,
-      ticket: prepared.ticket,
+      receipt: prepared.receipt,
       lifecycle: prepared.lifecycle
     })
     result = { mode: 'started' }

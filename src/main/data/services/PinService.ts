@@ -220,7 +220,11 @@ export class PinService {
 
   /** Publish after a caller-owned transaction purges pins through the Tx helpers below. */
   notifyPurged(): void {
-    application.get('DbService').withEffects((effects) => effects.add({ endpoint: '/pins', kind: 'membership' }))
+    application.get('DbService').withEffects((effects) => this.addPurgeReadModelEffect(effects))
+  }
+
+  addPurgeReadModelEffect(effects: DataApiEffectCollector): void {
+    effects.add({ endpoint: '/pins', kind: 'membership' })
   }
 
   /**

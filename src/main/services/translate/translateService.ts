@@ -28,6 +28,7 @@ import { isQwenMTModel } from '@shared/utils/model'
 import {
   PersistenceListener,
   type StreamListener,
+  type StreamPersistencePort,
   TranslationBackend,
   WebContentsListener
 } from '../../ai/streamManager'
@@ -106,13 +107,14 @@ export class TranslateService {
     const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
 
     const listeners: StreamListener[] = []
+    const persistencePorts: StreamPersistencePort[] = []
     // Built first so the persistence listener can surface a persist failure through it:
     // TranslationBackend has no markTerminalError, so without this a post-stream persist
     // failure would leave the renderer on a `success` it already received and silently lose
     // the translation on reload.
     const wcListener = new WebContentsListener(sender, req.streamId)
     if (req.messageId) {
-      listeners.push(
+      persistencePorts.push(
         new PersistenceListener({
           topicId: req.streamId,
           backend: new TranslationBackend({
@@ -131,6 +133,7 @@ export class TranslateService {
       uniqueModelId,
       prompt: content,
       listener: listeners,
+      persistencePorts,
       reasoningEffort: 'none'
     })
 

@@ -36,9 +36,15 @@ export type {
   ApprovalDecision,
   ComposerChatTarget,
   ComposerQueuedMessagePayload,
+  StreamAttachAttemptSnapshot,
+  StreamAttachSnapshot,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
+  StreamProtocolAttemptSettledEvent,
+  StreamProtocolChunkEvent,
+  StreamProtocolEvent,
+  StreamProtocolTopicQuiescedEvent,
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'

@@ -5,7 +5,13 @@ import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import type {
+  StreamChunkMetadata,
+  StreamDoneResult,
+  StreamErrorResult,
+  StreamListener,
+  StreamPausedResult
+} from '../types'
 
 const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
@@ -31,6 +37,7 @@ interface PendingDelta {
   sourceModelId: UniqueModelId | undefined
   anchorMessageId: string | undefined
   attemptId: number | undefined
+  metadata: StreamChunkMetadata | undefined
   text: string
 }
 
@@ -54,7 +61,13 @@ export class WebContentsListener implements StreamListener {
     this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    metadata?: StreamChunkMetadata
+  ): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -62,7 +75,7 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId)
+      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId, metadata)
       if (
         this.pending &&
         this.pending.type === next.type &&
@@ -72,6 +85,12 @@ export class WebContentsListener implements StreamListener {
         this.pending.attemptId === next.attemptId
       ) {
         this.pending.text += next.text
+        if (next.metadata && this.pending.metadata) {
+          this.pending.metadata = {
+            ...next.metadata,
+            chunkSeq: this.pending.metadata.chunkSeq
+          }
+        }
         if (
           performance.now() - this.pendingStartedAt >= MAX_COALESCE_AGE_MS ||
           this.pending.text.length >= MAX_COALESCE_CHARS
@@ -88,7 +107,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId)
+    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId, metadata)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -106,6 +125,7 @@ export class WebContentsListener implements StreamListener {
       status: result.status,
       isTopicDone: result.isTopicDone
     })
+    this.emitTerminalEvent(result, 'success')
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -123,6 +143,7 @@ export class WebContentsListener implements StreamListener {
       status: result.status,
       isTopicDone: result.isTopicDone
     })
+    this.emitTerminalEvent(result, 'paused')
   }
 
   onError(result: StreamErrorResult): void {
@@ -141,6 +162,7 @@ export class WebContentsListener implements StreamListener {
       isTopicDone: result.isTopicDone,
       error: result.error
     })
+    this.emitTerminalEvent(result, 'error')
   }
 
   isAlive(): boolean {
@@ -157,7 +179,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.metadata)
   }
 
   private discardPending(): void {
@@ -172,16 +194,59 @@ export class WebContentsListener implements StreamListener {
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: number
+    attemptId?: number,
+    metadata?: StreamChunkMetadata
   ): void {
     if (this.wc.isDestroyed()) return
+    const projectedChunk = projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     this.emit('ai.stream.chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
       ...(attemptId !== undefined ? { attemptId } : {}),
       anchorMessageId,
-      chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
+      chunk: projectedChunk
     })
+    if (sourceModelId && attemptId !== undefined && metadata) {
+      this.emit('ai.stream.event', {
+        type: 'chunk',
+        topicId: this.topicId,
+        executionId: sourceModelId,
+        attemptId,
+        anchorMessageId,
+        ...metadata,
+        chunk: projectedChunk
+      })
+    }
+  }
+
+  private emitTerminalEvent(
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    outcome: 'success' | 'paused' | 'error'
+  ): void {
+    if (result.cycleId === undefined || result.controlRevision === undefined) return
+    if (result.modelId && result.attemptId !== undefined) {
+      this.emit('ai.stream.event', {
+        type: 'attempt-durably-settled',
+        topicId: this.topicId,
+        cycleId: result.cycleId,
+        controlRevision: result.controlRevision,
+        executionId: result.modelId,
+        attemptId: result.attemptId,
+        anchorMessageId: result.anchorMessageId,
+        outcome,
+        ...('error' in result ? { error: result.error } : {})
+      })
+    }
+    if (result.isTopicDone && result.topicAttemptWatermark !== undefined) {
+      this.emit('ai.stream.event', {
+        type: 'topic-quiesced',
+        topicId: this.topicId,
+        cycleId: result.cycleId,
+        controlRevision: result.topicControlRevision ?? result.controlRevision,
+        throughAttemptId: result.topicAttemptWatermark,
+        outcome
+      })
+    }
   }
 
   /**
@@ -210,7 +275,8 @@ function normalizePending(
   chunk: CoalescableChunk,
   sourceModelId: UniqueModelId | undefined,
   anchorMessageId: string | undefined,
-  attemptId: number | undefined
+  attemptId: number | undefined,
+  metadata: StreamChunkMetadata | undefined
 ): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
@@ -219,6 +285,7 @@ function normalizePending(
       sourceModelId,
       anchorMessageId,
       attemptId,
+      metadata,
       text: chunk.inputTextDelta
     }
   }
@@ -228,6 +295,7 @@ function normalizePending(
     sourceModelId,
     anchorMessageId,
     attemptId,
+    metadata,
     text: chunk.delta
   }
 }

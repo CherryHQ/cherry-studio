@@ -4,7 +4,6 @@
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
-import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
@@ -88,11 +87,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
-    const ticket = application.get('AiStreamManager').issueDispatchTicket(req.topicId, {
-      kind: 'start',
-      modelCount: 1
-    })
-
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
     temporaryChatService.appendMessage(req.topicId, {
       role: 'user',
@@ -116,8 +110,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
 
     const messageId = uuidv7()
-    const listeners: StreamListener[] = [
-      subscriber,
+    const listeners: StreamListener[] = [subscriber]
+    const persistencePorts = [
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
@@ -141,7 +135,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],
       listeners,
-      ticket
+      persistencePorts
     }
   }
 }

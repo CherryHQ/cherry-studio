@@ -44,7 +44,69 @@ export interface StreamChunkPayload {
   attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
+  /** Topic lifecycle generation. A new aggregate always gets a new cycle. */
+  cycleId?: number
+  /** Monotonic sequence within one attempt. */
+  chunkSeq?: number
+  /** Last sequence represented by this payload after buffer coalescing. */
+  throughChunkSeq?: number
   chunk: UIMessageChunk
+}
+
+export interface StreamProtocolChunkEvent extends Omit<StreamChunkPayload, 'attemptId' | 'executionId'> {
+  type: 'chunk'
+  executionId: UniqueModelId
+  attemptId: number
+  cycleId: number
+  chunkSeq: number
+  /** Last raw sequence represented when adjacent deltas were coalesced for the wire. */
+  throughChunkSeq: number
+}
+
+export interface StreamProtocolAttemptSettledEvent {
+  type: 'attempt-durably-settled'
+  topicId: string
+  cycleId: number
+  controlRevision: number
+  executionId: UniqueModelId
+  attemptId: number
+  anchorMessageId?: string
+  outcome: 'success' | 'paused' | 'error'
+  error?: SerializedError
+}
+
+export interface StreamProtocolTopicQuiescedEvent {
+  type: 'topic-quiesced'
+  topicId: string
+  cycleId: number
+  controlRevision: number
+  throughAttemptId: number
+  outcome: 'success' | 'paused' | 'error'
+}
+
+export type StreamProtocolEvent =
+  | StreamProtocolChunkEvent
+  | StreamProtocolAttemptSettledEvent
+  | StreamProtocolTopicQuiescedEvent
+
+export interface StreamAttachAttemptSnapshot {
+  executionId: UniqueModelId
+  attemptId: number
+  anchorMessageId?: string
+  seedFromEmpty?: boolean
+  phase: 'reserved' | 'running' | 'finalizing' | 'persistence-blocked' | 'settled'
+  outcome?: 'success' | 'paused' | 'error'
+  error?: SerializedError
+  replayChunks: StreamProtocolChunkEvent[]
+  throughChunkSeq: number
+}
+
+export interface StreamAttachSnapshot {
+  cycleId: number
+  controlRevision: number
+  /** True while an attempt, approval, continuation, or command can still produce work. */
+  topicOpen: boolean
+  attempts: StreamAttachAttemptSnapshot[]
 }
 
 /**
@@ -282,7 +344,7 @@ export interface AiStreamAttachTerminal {
 }
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
+  | { status: 'attached'; bufferedChunks: StreamChunkPayload[]; snapshot?: StreamAttachSnapshot }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }

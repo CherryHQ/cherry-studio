@@ -3,7 +3,7 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { projectActiveExecutions, TopicAttemptProjection } from '../TopicAttemptProjection'
+import { projectActiveExecutions, TopicStreamProjection } from '../TopicAttemptProjection'
 
 const model = 'provider::model' as UniqueModelId
 
@@ -11,9 +11,9 @@ function execution(attemptId: number, anchorMessageId = 'assistant-1'): ActiveEx
   return { executionId: model, attemptId, anchorMessageId }
 }
 
-describe('TopicAttemptProjection', () => {
+describe('TopicStreamProjection', () => {
   it('keeps only the newest attempt active within one model-anchor slot', () => {
-    const projection = new TopicAttemptProjection('topic-1')
+    const projection = new TopicStreamProjection('topic-1')
 
     expect(projection.register(execution(1)).accepted).toBe(true)
     const replacement = projection.register(execution(2))
@@ -25,7 +25,7 @@ describe('TopicAttemptProjection', () => {
   })
 
   it('separates exact settlement from a monotonic topic watermark', () => {
-    const projection = new TopicAttemptProjection('topic-1')
+    const projection = new TopicStreamProjection('topic-1')
     projection.register(execution(3, 'assistant-a'))
     projection.register(execution(4, 'assistant-b'))
     projection.settle(execution(3, 'assistant-a'))

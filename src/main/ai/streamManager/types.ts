@@ -7,9 +7,9 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { AttemptState, StreamLifecycleState } from './attemptMachine'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import type { TopicAttempt, TopicStreamAggregate } from './TopicStreamAggregate'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -49,6 +49,10 @@ export interface StreamDoneResult {
   anchorMessageId?: string
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
+  cycleId?: number
+  controlRevision?: number
+  /** Separate monotonic revision for the derived TopicQuiesced barrier. */
+  topicControlRevision?: number
   timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
 }
@@ -61,6 +65,9 @@ export interface StreamPausedResult {
   topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
+  cycleId?: number
+  controlRevision?: number
+  topicControlRevision?: number
   timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
 }
@@ -75,6 +82,9 @@ export interface StreamErrorResult {
   topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
+  cycleId?: number
+  controlRevision?: number
+  topicControlRevision?: number
   timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
 }
@@ -84,17 +94,38 @@ export interface StreamErrorResult {
 export interface StreamListener {
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
-  /** Orders terminal persistence before notifications and cleanup work after them. */
-  readonly terminalPhase?: 'persistence' | 'cleanup'
-  /** True only when the listener owns durable writes that drainInFlight must await. */
-  readonly isPersistent?: boolean
-
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    metadata?: StreamChunkMetadata
+  ): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
+}
+
+/** Durable attempt projection. The aggregate does not settle until this port acknowledges. */
+export interface StreamPersistencePort {
+  readonly id: string
+  onDone(result: StreamDoneResult): void | Promise<void>
+  onPaused(result: StreamPausedResult): void | Promise<void>
+  onError(result: StreamErrorResult): void | Promise<void>
+}
+
+/** Topic-level post-barrier work; never participates in durable settlement. */
+export interface StreamCleanupPort {
+  readonly id: string
+  onTopicQuiesced(result: StreamDoneResult | StreamPausedResult | StreamErrorResult): void | Promise<void>
+}
+
+export interface StreamChunkMetadata {
+  cycleId: number
+  chunkSeq: number
+  throughChunkSeq: number
 }
 
 // ── StreamExecution ─────────────────────────────────────────────────
@@ -115,9 +146,11 @@ export interface StreamExecution {
   seedFromEmpty?: boolean
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
-  state: AttemptState
+  /** State record owned by the topic aggregate. */
+  attempt: TopicAttempt
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
+  nextChunkSeq: number
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
@@ -135,7 +168,6 @@ export interface StreamExecution {
   deferredOutputs?: Map<string, unknown>
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
-  pendingApprovalToolCallIds?: Set<string>
   error?: SerializedError
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
@@ -157,12 +189,14 @@ export interface StreamExecution {
  */
 export interface ActiveStream {
   topicId: string
+  aggregate: TopicStreamAggregate
+  persistencePorts: Map<string, StreamPersistencePort>
+  cleanupPorts: Map<string, StreamCleanupPort>
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */
   listeners: Map<string, StreamListener>
   status: TopicStreamStatus
-  lifecycleState: StreamLifecycleState
   isMultiModel: boolean
   lifecycle: StreamLifecycle
 

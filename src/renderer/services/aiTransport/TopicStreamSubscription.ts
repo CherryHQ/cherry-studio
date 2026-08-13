@@ -1,13 +1,13 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { type AttemptId, toAttemptId } from '@shared/ai/attempt'
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { StreamAttachSnapshot, StreamChunkPayload, StreamProtocolEvent } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import { TopicAttemptProjection } from './TopicAttemptProjection'
+import { TopicStreamProjection } from './TopicAttemptProjection'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 
@@ -20,6 +20,12 @@ export interface ExecutionTerminal {
 
 type TerminalListener = (executionId: UniqueModelId, terminal: ExecutionTerminal) => void
 type TopicStateListener = () => void
+export interface TopicQuiescedProjectionEvent {
+  cycleId?: number
+  throughAttemptId: number
+}
+
+type TopicQuiescedListener = (event: TopicQuiescedProjectionEvent) => void
 
 interface RetiredExecutionBranch {
   executionId: UniqueModelId
@@ -60,21 +66,29 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
 
 export class TopicStreamSubscription {
   readonly #topicId: string
-  readonly #projection: TopicAttemptProjection
+  readonly #projection: TopicStreamProjection
   readonly #branches = new Map<AttemptId, Branch>()
   readonly #terminalByAttemptId = new Map<AttemptId, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
   readonly #terminalListeners = new Set<TerminalListener>()
   readonly #branchRetirementListeners = new Set<BranchRetirementListener>()
   readonly #topicStateListeners = new Set<TopicStateListener>()
+  readonly #topicQuiescedListeners = new Set<TopicQuiescedListener>()
   #ipcUnsubs: Array<() => void> = []
   #attached = false
   #attachInFlight: Promise<void> | null = null
   #disposed = false
   #topicOpen = false
+  #lastQuiesced: TopicQuiescedProjectionEvent | undefined
+  #protocol: 'pending' | 'v2' | 'legacy' = 'pending'
+  #cycleId: number | undefined
+  #controlRevision = 0
+  readonly #lastChunkSeq = new Map<AttemptId, number>()
+  readonly #pendingProtocolEvents: StreamProtocolEvent[] = []
+  readonly #pendingLegacyEvents: Array<() => void> = []
 
   constructor(topicId: string) {
     this.#topicId = topicId
-    this.#projection = new TopicAttemptProjection(topicId)
+    this.#projection = new TopicStreamProjection(topicId)
   }
 
   listen(): void {
@@ -174,6 +188,18 @@ export class TopicStreamSubscription {
     return () => this.#topicStateListeners.delete(listener)
   }
 
+  onTopicQuiesced(listener: TopicQuiescedListener): () => void {
+    this.#topicQuiescedListeners.add(listener)
+    if (this.#lastQuiesced) {
+      try {
+        listener(this.#lastQuiesced)
+      } catch (err) {
+        logger.warn('topic quiesced listener threw during replay', { topicId: this.#topicId, err })
+      }
+    }
+    return () => this.#topicQuiescedListeners.delete(listener)
+  }
+
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -183,6 +209,9 @@ export class TopicStreamSubscription {
     this.#terminalListeners.clear()
     this.#branchRetirementListeners.clear()
     this.#topicStateListeners.clear()
+    this.#topicQuiescedListeners.clear()
+    this.#pendingProtocolEvents.length = 0
+    this.#pendingLegacyEvents.length = 0
     if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
@@ -311,6 +340,7 @@ export class TopicStreamSubscription {
     }
 
     for (const id of attemptIds) {
+      if (this.#terminalByAttemptId.has(id)) continue
       const branch = this.#branches.get(id)
       if (branch) this.#closeBranch(branch)
       const resolvedAnchorMessageId = anchorMessageId ?? branch?.anchorMessageId
@@ -411,50 +441,207 @@ export class TopicStreamSubscription {
     }
   }
 
+  #notifyTopicQuiesced(event: TopicQuiescedProjectionEvent): void {
+    this.#lastQuiesced = event
+    for (const listener of this.#topicQuiescedListeners) {
+      try {
+        listener(event)
+      } catch (err) {
+        logger.warn('topic quiesced listener threw', { topicId: this.#topicId, err })
+      }
+    }
+  }
+
+  #receiveLegacy(event: () => void): void {
+    if (this.#protocol === 'v2') return
+    if (this.#protocol === 'pending') {
+      this.#pendingLegacyEvents.push(event)
+      return
+    }
+    event()
+  }
+
+  #receiveProtocolEvent(event: StreamProtocolEvent): void {
+    if (event.topicId !== this.#topicId || this.#protocol === 'legacy') return
+    if (this.#protocol === 'pending') {
+      this.#pendingProtocolEvents.push(event)
+      return
+    }
+    this.#applyProtocolEvent(event)
+  }
+
+  #applyProtocolEvent(event: StreamProtocolEvent): void {
+    if (this.#cycleId !== undefined && event.cycleId < this.#cycleId) return
+    if (this.#cycleId === undefined || event.cycleId > this.#cycleId) {
+      this.#cycleId = event.cycleId
+      this.#controlRevision = 0
+      this.#lastChunkSeq.clear()
+      this.#lastQuiesced = undefined
+    }
+    if (event.type === 'chunk') {
+      const attemptId = toAttemptId(event.attemptId)
+      const lastChunkSeq = this.#lastChunkSeq.get(attemptId) ?? 0
+      if (event.throughChunkSeq <= lastChunkSeq) return
+      if (event.chunkSeq <= lastChunkSeq) {
+        logger.warn('overlapping stream chunk range dropped', {
+          topicId: this.#topicId,
+          attemptId,
+          chunkSeq: event.chunkSeq,
+          throughChunkSeq: event.throughChunkSeq,
+          lastChunkSeq
+        })
+        return
+      }
+      this.#lastChunkSeq.set(attemptId, event.throughChunkSeq)
+      const topicStateChanged = !this.#topicOpen
+      this.#topicOpen = true
+      this.#lastQuiesced = undefined
+      this.#routeChunk(event)
+      if (topicStateChanged) this.#notifyTopicStateChange()
+      return
+    }
+
+    if (event.controlRevision <= this.#controlRevision) return
+    this.#controlRevision = event.controlRevision
+
+    if (event.type === 'attempt-durably-settled') {
+      if (event.outcome === 'error' && event.error) {
+        this.#enqueueError(event.error, event.executionId, event.anchorMessageId, event.attemptId)
+      }
+      this.#emitTerminal(
+        event.executionId,
+        {
+          attemptId: toAttemptId(event.attemptId),
+          anchorMessageId: event.anchorMessageId,
+          isAbort: event.outcome === 'paused',
+          isError: event.outcome === 'error'
+        },
+        event.anchorMessageId,
+        event.attemptId
+      )
+      return
+    }
+
+    this.#projection.advanceWatermark(event.throughAttemptId)
+    const topicStateChanged = this.#topicOpen
+    this.#topicOpen = false
+    if (topicStateChanged) this.#notifyTopicStateChange()
+    this.#notifyTopicQuiesced({ cycleId: event.cycleId, throughAttemptId: event.throughAttemptId })
+  }
+
+  #selectV2Protocol(snapshot: StreamAttachSnapshot): void {
+    this.#protocol = 'v2'
+    this.#cycleId = snapshot.cycleId
+    this.#controlRevision = snapshot.controlRevision
+    this.#pendingLegacyEvents.length = 0
+    this.#topicOpen = snapshot.topicOpen
+    this.#lastQuiesced = undefined
+
+    for (const attempt of snapshot.attempts) {
+      for (const event of [...attempt.replayChunks].sort((left, right) => left.chunkSeq - right.chunkSeq)) {
+        this.#applyProtocolEvent(event)
+      }
+      const attemptId = toAttemptId(attempt.attemptId)
+      this.#lastChunkSeq.set(attemptId, Math.max(this.#lastChunkSeq.get(attemptId) ?? 0, attempt.throughChunkSeq))
+      if (attempt.phase === 'settled' && attempt.outcome) {
+        if (attempt.outcome === 'error' && attempt.error) {
+          this.#enqueueError(attempt.error, attempt.executionId, attempt.anchorMessageId, attempt.attemptId)
+        }
+        this.#emitTerminal(
+          attempt.executionId,
+          {
+            attemptId: toAttemptId(attempt.attemptId),
+            anchorMessageId: attempt.anchorMessageId,
+            isAbort: attempt.outcome === 'paused',
+            isError: attempt.outcome === 'error'
+          },
+          attempt.anchorMessageId,
+          attempt.attemptId
+        )
+      }
+    }
+
+    const pending = this.#pendingProtocolEvents.splice(0).filter((event) => event.cycleId >= snapshot.cycleId)
+    pending.sort((left, right) => {
+      if (left.type === 'chunk' && right.type === 'chunk' && left.attemptId === right.attemptId) {
+        return left.chunkSeq - right.chunkSeq
+      }
+      if (left.type !== 'chunk' && right.type !== 'chunk') return left.controlRevision - right.controlRevision
+      if (left.type === 'chunk') return -1
+      if (right.type === 'chunk') return 1
+      return 0
+    })
+    for (const event of pending) this.#applyProtocolEvent(event)
+    if (!this.#topicOpen && !this.#lastQuiesced) {
+      this.#notifyTopicQuiesced({
+        cycleId: snapshot.cycleId,
+        throughAttemptId: Math.max(0, ...snapshot.attempts.map((attempt) => attempt.attemptId))
+      })
+    }
+  }
+
+  #selectLegacyProtocol(bufferedChunks: readonly StreamChunkPayload[]): void {
+    this.#protocol = 'legacy'
+    this.#pendingProtocolEvents.length = 0
+    for (const payload of bufferedChunks) this.#routeChunk(payload)
+    for (const event of this.#pendingLegacyEvents.splice(0)) event()
+  }
+
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
-      ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
+      ipcApi.on('ai.stream.event', (data) => this.#receiveProtocolEvent(data)),
+      ipcApi.on('ai.stream.chunk', (data) => this.#receiveLegacy(() => this.#routeChunk(data))),
       ipcApi.on('ai.stream.done', (data) => {
         if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
-          isAbort: data.status === 'paused',
-          isError: false
-        }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        if (topicStateChanged) this.#notifyTopicStateChange()
+        this.#receiveLegacy(() => {
+          const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+          const terminal: ExecutionTerminal = {
+            ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
+            isAbort: data.status === 'paused',
+            isError: false
+          }
+          this.#applyTerminal(
+            data.executionId,
+            terminal,
+            data.anchorMessageId,
+            data.attemptId,
+            data.isTopicDone ? data.topicAttemptWatermark : undefined
+          )
+          if (topicStateChanged) this.#notifyTopicStateChange()
+          if (data.isTopicDone) {
+            this.#notifyTopicQuiesced({ throughAttemptId: data.topicAttemptWatermark ?? data.attemptId ?? 0 })
+          }
+        })
       }),
       ipcApi.on('ai.stream.error', (data) => {
         if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        this.#enqueueError(
-          data.error,
-          data.executionId,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
-          isAbort: false,
-          isError: true
-        }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        if (topicStateChanged) this.#notifyTopicStateChange()
+        this.#receiveLegacy(() => {
+          const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+          this.#enqueueError(
+            data.error,
+            data.executionId,
+            data.anchorMessageId,
+            data.attemptId,
+            data.isTopicDone ? data.topicAttemptWatermark : undefined
+          )
+          const terminal: ExecutionTerminal = {
+            ...(data.attemptId !== undefined ? { attemptId: toAttemptId(data.attemptId) } : {}),
+            isAbort: false,
+            isError: true
+          }
+          this.#applyTerminal(
+            data.executionId,
+            terminal,
+            data.anchorMessageId,
+            data.attemptId,
+            data.isTopicDone ? data.topicAttemptWatermark : undefined
+          )
+          if (topicStateChanged) this.#notifyTopicStateChange()
+          if (data.isTopicDone) {
+            this.#notifyTopicQuiesced({ throughAttemptId: data.topicAttemptWatermark ?? data.attemptId ?? 0 })
+          }
+        })
       })
     )
   }
@@ -473,16 +660,23 @@ export class TopicStreamSubscription {
         this.#attached = true
         switch (res.status) {
           case 'attached':
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+            if (res.snapshot) {
+              this.#selectV2Protocol(res.snapshot)
+            } else {
+              this.#selectLegacyProtocol(res.bufferedChunks)
+            }
             break
           case 'not-found':
           case 'done':
+            this.#selectLegacyProtocol([])
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: false })
             break
           case 'paused':
+            this.#selectLegacyProtocol([])
             this.#terminateBranches(branchesAtAttach, { isAbort: true, isError: false })
             break
           case 'error':
+            this.#selectLegacyProtocol([])
             if (res.error) {
               this.#enqueueErrorToBranches({ type: 'data-error', data: { ...res.error } }, branchesAtAttach)
             }

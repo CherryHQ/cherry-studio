@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   resolveToolApproval: vi.fn(),
-  terminateHeldTopicStream: vi.fn(),
+  failTopicContinuation: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -110,8 +110,8 @@ function terminalListener(handle: { listeners: any[] }) {
   return listener
 }
 
-function persistenceListener(handle: { listeners: any[] }) {
-  const listener = handle.listeners.find((item) => String(item.id).startsWith('persistence:agents-db:'))
+function persistenceListener(handle: { persistencePorts: any[] }) {
+  const listener = handle.persistencePorts.find((item) => String(item.id).startsWith('persistence:agents-db:'))
   if (!listener) throw new Error('persistence listener missing')
   return listener
 }
@@ -261,7 +261,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           reconcileCrashRecovery: (_count: number, persist: () => void) => persist(),
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          failTopicContinuation: mocks.failTopicContinuation
         }
       }
       if (name === 'CacheService')
@@ -4667,11 +4667,9 @@ describe('AgentSessionRuntimeService', () => {
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
       abortController: expect.any(AbortController),
-      listeners: [
-        expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),
-        expect.objectContaining({ id: 'agent-runtime:session-1' }),
-        expect.objectContaining({ id: 'trace-flush:agent-session:session-1' })
-      ]
+      listeners: [expect.objectContaining({ id: 'agent-runtime:session-1' })],
+      persistencePorts: [expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') })],
+      cleanupPorts: [expect.objectContaining({ id: 'trace-flush:agent-session:session-1' })]
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request
     expect(request.messageId).toBe(request.messages[1].id)
@@ -4776,9 +4774,9 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     // The prior turn kept this topic's stream alive for the continuation (willContinueTopic), skipping
-    // its terminal lifecycle — so the held stream must be terminalized/evicted, not merely error-broadcast
+    // its terminal lifecycle — so the continuation-gated stream must be terminalized/evicted, not merely error-broadcast
     // (a bare broadcast would leave its status cache stuck `streaming` and the stream re-attachable).
-    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+    expect(mocks.failTopicContinuation).toHaveBeenCalledWith(
       'agent-session:session-1',
       baseTurnInput.modelId,
       expect.anything()
@@ -4802,7 +4800,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.saveMessage.mockClear()
     mocks.applicationGet.mockClear()
     mocks.startRuntimeTurn.mockClear()
-    mocks.terminateHeldTopicStream.mockClear()
+    mocks.failTopicContinuation.mockClear()
 
     await (service as any).startNextTurn(entry)
 
@@ -4812,7 +4810,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.applicationGet).not.toHaveBeenCalled()
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-    expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
+    expect(mocks.failTopicContinuation).not.toHaveBeenCalled()
     void service.closeSession('session-1')
   })
 
@@ -4836,7 +4834,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(entry.pendingTurns).toEqual([])
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+    expect(mocks.failTopicContinuation).toHaveBeenCalledWith(
       entry.topicId,
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })
@@ -4867,7 +4865,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     expect(entry.runtimeState.execution.kind).toBe('idle')
-    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+    expect(mocks.failTopicContinuation).toHaveBeenCalledWith(
       entry.topicId,
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })

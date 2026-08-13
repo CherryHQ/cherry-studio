@@ -21,13 +21,16 @@ import {
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult, StreamPersistencePort } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
 /** Internal control signal: the persistence failure was already surfaced as an error event. */
 export class TerminalPersistenceError extends Error {
-  constructor(readonly serializedError: SerializedError) {
+  constructor(
+    readonly serializedError: SerializedError,
+    readonly durableErrorWritten: boolean
+  ) {
     super('Terminal persistence failed')
   }
 }
@@ -40,10 +43,8 @@ export interface PersistenceListenerOptions {
   backend: PersistenceBackend
 }
 
-export class PersistenceListener implements StreamListener {
+export class PersistenceListener implements StreamPersistencePort {
   readonly id: string
-  readonly terminalPhase = 'persistence' as const
-  readonly isPersistent = true
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
@@ -52,10 +53,6 @@ export class PersistenceListener implements StreamListener {
   /** Backend strategy tag (e.g. "sqlite", "temp", "agents-db"). */
   get backendKind(): string {
     return this.opts.backend.kind
-  }
-
-  onChunk(): void {
-    // Message timing is captured by the runtime collector, not inferred from chunks here.
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
@@ -73,10 +70,6 @@ export class PersistenceListener implements StreamListener {
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
     return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
-  }
-
-  isAlive(): boolean {
-    return true
   }
 
   private owns(modelId: UniqueModelId | undefined): boolean {
@@ -137,17 +130,21 @@ export class PersistenceListener implements StreamListener {
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
-      try {
-        this.opts.backend.markTerminalError?.()
-      } catch (markErr) {
-        logger.error('Failed to mark assistant message as terminal error after persist failure', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: markErr
-        })
+      let durableErrorWritten = false
+      if (this.opts.backend.markTerminalError) {
+        try {
+          this.opts.backend.markTerminalError()
+          durableErrorWritten = true
+        } catch (markErr) {
+          logger.error('Failed to mark assistant message as terminal error after persist failure', {
+            backend: this.opts.backend.kind,
+            topicId: this.opts.topicId,
+            status,
+            err: markErr
+          })
+        }
       }
-      throw new TerminalPersistenceError(serializeError(err))
+      throw new TerminalPersistenceError(serializeError(err), durableErrorWritten)
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {

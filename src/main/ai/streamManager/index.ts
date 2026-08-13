@@ -19,10 +19,12 @@ export type {
   AiStreamOpenRequest,
   CherryUIMessage,
   StreamChunkPayload,
+  StreamCleanupPort,
   StreamDonePayload,
   StreamDoneResult,
   StreamErrorPayload,
   StreamErrorResult,
   StreamListener,
-  StreamPausedResult
+  StreamPausedResult,
+  StreamPersistencePort
 } from './types'

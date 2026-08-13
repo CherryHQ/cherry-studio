@@ -6,12 +6,13 @@ import { type AttemptEvent, type AttemptState, executionStatus, reduceTopicStatu
 const error: SerializedError = { name: 'Error', message: 'boom', stack: null }
 const events: AttemptEvent[] = [
   { type: 'launch' },
+  { type: 'reservation-failed', error, durableErrorWritten: true },
   { type: 'chunk', at: 10 },
   { type: 'complete' },
   { type: 'fail', error },
   { type: 'abort', reason: 'user-requested' },
   { type: 'persisted' },
-  { type: 'persist-failed', error },
+  { type: 'persist-failed', error, durableErrorWritten: false },
   { type: 'approval-changed', pending: true }
 ]
 
@@ -39,13 +40,17 @@ describe('attemptMachine', () => {
   })
 
   it.each([
-    [{ phase: 'reserved' } as AttemptState, ['launch']],
+    [{ phase: 'reserved' } as AttemptState, ['launch', 'reservation-failed']],
     [
       { phase: 'running', firstChunkAt: null } as AttemptState,
       ['chunk', 'complete', 'fail', 'abort', 'approval-changed']
     ],
     [
       { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'done' } } as AttemptState,
+      ['persisted', 'persist-failed', 'approval-changed']
+    ],
+    [
+      { phase: 'persistence-blocked', firstChunkAt: null, outcome: { kind: 'error', error } } as AttemptState,
       ['persisted', 'persist-failed', 'approval-changed']
     ],
     [{ phase: 'settled', firstChunkAt: null, outcome: { kind: 'done' } } as AttemptState, []]
@@ -59,7 +64,7 @@ describe('attemptMachine', () => {
 
   it('turns a persistence failure into the settled error outcome', () => {
     const state: AttemptState = { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'done' } }
-    const result = transition(state, { type: 'persist-failed', error })
+    const result = transition(state, { type: 'persist-failed', error, durableErrorWritten: true })
 
     expect(result).toEqual({
       ok: true,
@@ -68,41 +73,45 @@ describe('attemptMachine', () => {
     if (result.ok) expect(executionStatus(result.state)).toBe('error')
   })
 
+  it('blocks topic settlement when both the final write and terminal marker fail', () => {
+    const state: AttemptState = { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'done' } }
+    const result = transition(state, { type: 'persist-failed', error, durableErrorWritten: false })
+
+    expect(result).toEqual({
+      ok: true,
+      state: { phase: 'persistence-blocked', firstChunkAt: null, outcome: { kind: 'error', error } }
+    })
+  })
+
   it('reduces running, approval, and terminal attempt sets deterministically', () => {
     const noApprovals = new Set<string>()
     expect(
-      reduceTopicStatus([{ state: { phase: 'running', firstChunkAt: null }, pendingApprovals: noApprovals }], 'active')
+      reduceTopicStatus([{ state: { phase: 'running', firstChunkAt: null }, pendingApprovals: noApprovals }])
     ).toBe('pending')
+    expect(reduceTopicStatus([{ state: { phase: 'running', firstChunkAt: 1 }, pendingApprovals: noApprovals }])).toBe(
+      'streaming'
+    )
     expect(
-      reduceTopicStatus([{ state: { phase: 'running', firstChunkAt: 1 }, pendingApprovals: noApprovals }], 'active')
-    ).toBe('streaming')
-    expect(
-      reduceTopicStatus(
-        [
-          {
-            state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'done' } },
-            pendingApprovals: new Set(['tool-1'])
-          }
-        ],
-        'grace'
-      )
+      reduceTopicStatus([
+        {
+          state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'done' } },
+          pendingApprovals: new Set(['tool-1'])
+        }
+      ])
     ).toBe('awaiting-approval')
     expect(
-      reduceTopicStatus(
-        [
-          { state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'done' } }, pendingApprovals: noApprovals },
-          {
-            state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'error', error } },
-            pendingApprovals: noApprovals
-          }
-        ],
-        'grace'
-      )
+      reduceTopicStatus([
+        { state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'done' } }, pendingApprovals: noApprovals },
+        {
+          state: { phase: 'settled', firstChunkAt: null, outcome: { kind: 'error', error } },
+          pendingApprovals: noApprovals
+        }
+      ])
     ).toBe('error')
   })
 
   it('never regresses phase across generated event sequences', () => {
-    const rank = { reserved: 0, running: 1, finalizing: 2, settled: 3 } as const
+    const rank = { reserved: 0, running: 1, finalizing: 2, 'persistence-blocked': 3, settled: 4 } as const
     let random = 0x18452
     const nextIndex = () => {
       random = (random * 1664525 + 1013904223) >>> 0

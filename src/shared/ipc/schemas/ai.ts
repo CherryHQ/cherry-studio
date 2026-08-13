@@ -7,7 +7,8 @@ import type {
   AiToolResultResponse,
   StreamChunkPayload,
   StreamDonePayload,
-  StreamErrorPayload
+  StreamErrorPayload,
+  StreamProtocolEvent
 } from '@shared/ai/transport'
 import {
   AgentBaseSchema,
@@ -352,6 +353,7 @@ export type AiEventSchemas = {
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
+  'ai.stream.event': StreamProtocolEvent
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
   'ai.topic.auto_renamed': { topicId: string }

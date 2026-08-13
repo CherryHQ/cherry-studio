@@ -68,6 +68,20 @@ describe('withWriteTx readiness guard — unit', () => {
     expect(notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([effect])
   })
 
+  it('keeps the committed result successful when effect publication fails', () => {
+    const service = bareDbService(true)
+    notifyDataApiDataChange.mockImplementationOnce(() => {
+      throw new Error('publisher unavailable')
+    })
+
+    expect(
+      service.withWriteTx((tx) => {
+        tx.effects.add({ endpoint: '/agents', kind: 'membership', entityIds: ['agent-1'] })
+        return 'committed'
+      })
+    ).toBe('committed')
+  })
+
   it('publishes no effects when the write rolls back', () => {
     const service = bareDbService(true)
 

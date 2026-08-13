@@ -1,4 +1,4 @@
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { StreamAttachSnapshot, StreamChunkPayload, StreamProtocolEvent } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -27,6 +27,7 @@ const STREAM_ERROR: SerializedError = { name: 'Error', message: 'boom', stack: n
 function createMockAiApi() {
   const listeners = {
     chunk: [] as Array<(d: StreamChunkPayload) => void>,
+    protocol: [] as Array<(d: StreamProtocolEvent) => void>,
     done: [] as Array<
       (d: {
         topicId: string
@@ -59,6 +60,10 @@ function createMockAiApi() {
       listeners.chunk.push(cb)
       return () => listeners.chunk.splice(listeners.chunk.indexOf(cb) >>> 0, 1)
     }),
+    onStreamEvent: vi.fn((cb) => {
+      listeners.protocol.push(cb)
+      return () => listeners.protocol.splice(listeners.protocol.indexOf(cb) >>> 0, 1)
+    }),
     onStreamDone: vi.fn((cb) => {
       listeners.done.push(cb)
       return () => listeners.done.splice(listeners.done.indexOf(cb) >>> 0, 1)
@@ -86,6 +91,8 @@ function createMockAiApi() {
     switch (event) {
       case 'ai.stream.chunk':
         return mockApi.onStreamChunk(cb)
+      case 'ai.stream.event':
+        return mockApi.onStreamEvent(cb)
       case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
       case 'ai.stream.error':
@@ -106,6 +113,9 @@ function createMockAiApi() {
       attemptId = 1
     ) => {
       for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
+    },
+    emitProtocol: (event: StreamProtocolEvent) => {
+      for (const cb of [...listeners.protocol]) cb(event)
     },
     emitDone: (
       topicId: string,
@@ -391,6 +401,119 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, undefined, 'success', true)
     expect(await readAll(sa)).toEqual([textChunk('replayA')])
     expect(await readAll(sb)).toEqual([textChunk('replayB')])
+    sub.dispose()
+  })
+
+  it('applies v2 replay before buffered live pushes and drops ranges covered by the cutoff', async () => {
+    let resolveAttach!: (res: {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      snapshot: StreamAttachSnapshot
+    }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{
+          status: 'attached'
+          bufferedChunks: StreamChunkPayload[]
+          snapshot: StreamAttachSnapshot
+        }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+    const event = (chunkSeq: number, delta: string): StreamProtocolEvent => ({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 7,
+      executionId: A,
+      attemptId: 1,
+      chunkSeq,
+      throughChunkSeq: chunkSeq,
+      chunk: textChunk(delta)
+    })
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const stream = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitProtocol(event(1, 'duplicate-push'))
+    mock.emitProtocol(event(2, 'live'))
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            phase: 'running',
+            replayChunks: [event(1, 'replay') as Extract<StreamProtocolEvent, { type: 'chunk' }>],
+            throughChunkSeq: 1
+          }
+        ]
+      }
+    })
+    await tick()
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 7,
+      controlRevision: 3,
+      executionId: A,
+      attemptId: 1,
+      outcome: 'success'
+    })
+
+    expect(await readAll(stream)).toEqual([textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
+  it('applies the topic barrier after the exact attempt terminal at the next control revision', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onQuiesced = vi.fn()
+    sub.onTopicQuiesced(onQuiesced)
+    const stream = sub.register(A, undefined, 1)
+    await tick()
+
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 7,
+      controlRevision: 2,
+      executionId: A,
+      attemptId: 1,
+      outcome: 'success'
+    })
+    mock.emitProtocol({
+      type: 'topic-quiesced',
+      topicId: TOPIC,
+      cycleId: 7,
+      controlRevision: 3,
+      throughAttemptId: 1,
+      outcome: 'success'
+    })
+
+    expect(await readAll(stream)).toEqual([])
+    expect(onQuiesced).toHaveBeenCalledWith({ cycleId: 7, throughAttemptId: 1 })
     sub.dispose()
   })
 

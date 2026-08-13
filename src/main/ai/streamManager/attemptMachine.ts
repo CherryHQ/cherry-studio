@@ -10,21 +10,23 @@ export type AttemptState =
   | { phase: 'reserved' }
   | { phase: 'running'; firstChunkAt: number | null }
   | { phase: 'finalizing'; firstChunkAt: number | null; outcome: AttemptOutcome }
+  | { phase: 'persistence-blocked'; firstChunkAt: number | null; outcome: Extract<AttemptOutcome, { kind: 'error' }> }
   | { phase: 'settled'; firstChunkAt: number | null; outcome: AttemptOutcome }
 
 export type AttemptEvent =
   | { type: 'launch' }
+  | { type: 'reservation-failed'; error: SerializedError; durableErrorWritten: boolean }
   | { type: 'chunk'; at: number }
   | { type: 'complete' }
   | { type: 'fail'; error: SerializedError }
   | { type: 'abort'; reason: string }
   | { type: 'persisted' }
-  | { type: 'persist-failed'; error: SerializedError }
+  | { type: 'persist-failed'; error: SerializedError; durableErrorWritten: boolean }
   | { type: 'approval-changed'; pending: boolean }
 
 export type TransitionResult = { ok: true; state: AttemptState } | { ok: false; kind: 'illegal' | 'stale' }
 
-export type StreamLifecycleState = 'active' | 'held' | 'grace' | 'evicted'
+export type StreamLifecycleState = 'active' | 'grace' | 'evicted'
 
 export interface AttemptStatusInput {
   state: AttemptState
@@ -40,10 +42,20 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
   switch (state.phase) {
     case 'reserved':
       if (event.type === 'launch') return { ok: true, state: { phase: 'running', firstChunkAt: null } }
+      if (event.type === 'reservation-failed') {
+        const outcome = { kind: 'error' as const, error: event.error }
+        return {
+          ok: true,
+          state: event.durableErrorWritten
+            ? { phase: 'settled', firstChunkAt: null, outcome }
+            : { phase: 'persistence-blocked', firstChunkAt: null, outcome }
+        }
+      }
       return illegal()
     case 'running':
       switch (event.type) {
         case 'chunk':
+          if (state.firstChunkAt !== null) return { ok: true, state }
           return {
             ok: true,
             state: { phase: 'running', firstChunkAt: state.firstChunkAt ?? event.at }
@@ -74,6 +86,7 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
         case 'approval-changed':
           return { ok: true, state }
         case 'launch':
+        case 'reservation-failed':
         case 'persisted':
         case 'persist-failed':
           return illegal()
@@ -86,15 +99,52 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
         case 'persist-failed':
           return {
             ok: true,
-            state: {
-              phase: 'settled',
-              firstChunkAt: state.firstChunkAt,
-              outcome: { kind: 'error', error: event.error }
-            }
+            state: event.durableErrorWritten
+              ? {
+                  phase: 'settled',
+                  firstChunkAt: state.firstChunkAt,
+                  outcome: { kind: 'error', error: event.error }
+                }
+              : {
+                  phase: 'persistence-blocked',
+                  firstChunkAt: state.firstChunkAt,
+                  outcome: { kind: 'error', error: event.error }
+                }
           }
         case 'approval-changed':
           return { ok: true, state }
         case 'launch':
+        case 'reservation-failed':
+        case 'chunk':
+        case 'complete':
+        case 'fail':
+        case 'abort':
+          return stale()
+      }
+      return illegal()
+    case 'persistence-blocked':
+      switch (event.type) {
+        case 'persisted':
+          return { ok: true, state: { phase: 'settled', firstChunkAt: state.firstChunkAt, outcome: state.outcome } }
+        case 'persist-failed':
+          return {
+            ok: true,
+            state: event.durableErrorWritten
+              ? {
+                  phase: 'settled',
+                  firstChunkAt: state.firstChunkAt,
+                  outcome: { kind: 'error', error: event.error }
+                }
+              : {
+                  phase: 'persistence-blocked',
+                  firstChunkAt: state.firstChunkAt,
+                  outcome: { kind: 'error', error: event.error }
+                }
+          }
+        case 'approval-changed':
+          return { ok: true, state }
+        case 'launch':
+        case 'reservation-failed':
         case 'chunk':
         case 'complete':
         case 'fail':
@@ -122,23 +172,18 @@ export function isAttemptSettled(state: AttemptState): boolean {
   return state.phase === 'settled'
 }
 
-export function reduceTopicStatus(
-  attempts: ReadonlyArray<AttemptStatusInput>,
-  lifecycle: Exclude<StreamLifecycleState, 'evicted'>
-): TopicStreamStatus {
-  if (attempts.some(({ state }) => state.phase === 'reserved')) return 'pending'
-
-  const running = attempts.filter(({ state }) => state.phase === 'running')
-  if (running.length > 0) {
+export function reduceTopicStatus(attempts: ReadonlyArray<AttemptStatusInput>): TopicStreamStatus {
+  const unsettled = attempts.filter(({ state }) => state.phase !== 'settled')
+  if (unsettled.length > 0) {
     const hasFirstChunk = attempts.some(({ state }) => state.phase !== 'reserved' && state.firstChunkAt !== null)
     return hasFirstChunk ? 'streaming' : 'pending'
   }
 
   if (attempts.some(({ pendingApprovals }) => pendingApprovals.size > 0)) return 'awaiting-approval'
-  if (lifecycle === 'held') return 'streaming'
-
   const outcomes = attempts.flatMap(({ state }) =>
-    state.phase === 'finalizing' || state.phase === 'settled' ? [state.outcome] : []
+    state.phase === 'finalizing' || state.phase === 'persistence-blocked' || state.phase === 'settled'
+      ? [state.outcome]
+      : []
   )
   if (outcomes.length === 0) return 'error'
   if (outcomes.some((outcome) => outcome.kind === 'error')) return 'error'

@@ -14,12 +14,7 @@ const mocks = vi.hoisted(() => ({
   agentCanHandle: vi.fn<(topicId: string) => boolean>(),
   agentPrepare: vi.fn(),
   persistentPrepare: vi.fn(),
-  isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
-  setActiveNode: vi.fn()
-}))
-
-vi.mock('@main/data/services/TopicService', () => ({
-  topicService: { setActiveNode: mocks.setActiveNode }
+  isWorkspaceErr: vi.fn<(error: unknown) => boolean>()
 }))
 
 vi.mock('../AgentChatContextProvider', () => ({
@@ -53,11 +48,14 @@ function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
     inspect: vi.fn(() => undefined),
-    issueDispatchTicket: vi.fn((_topicId, intent) => ({
+    issueDispatchCommandReceipt: vi.fn((_topicId, intent) => ({
       intent,
       admission: { mode: 'start-new' },
       activeNodeDecision: { move: 'advance' }
     })),
+    commitDispatchCommand: vi.fn((_topicId, intent, commit) =>
+      commit({ intent, admission: { mode: 'start-new' }, activeNodeDecision: { move: 'advance' } })
+    ),
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
@@ -198,31 +196,29 @@ describe('dispatchStreamRequest — steer', () => {
     expect(manager.send).not.toHaveBeenCalled()
   })
 
-  it('uses the immutable ticket when a live-group append settles during preparation', async () => {
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-append',
-      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      liveExecutionChange: {
-        mode: 'append',
-        groupAnchorMessageId: 'assistant-1',
-        parentAnchorId: 'user-1',
-        siblingsGroupId: 1
-      },
-      ticket: {
-        intent: {
-          kind: 'append-live',
-          change: {
-            mode: 'append',
-            modelId: 'p::m2',
-            targetMessageId: 'assistant-1',
-            parentAnchorId: 'user-1',
-            siblingsGroupId: 1
-          }
-        },
-        admission: { mode: 'start-new' },
-        activeNodeDecision: { move: 'advance' }
+  it('uses the provider command receipt without reclassifying it at send handoff', async () => {
+    mocks.persistentPrepare.mockImplementation(async (_subscriber, _req, ctx) => {
+      preparedWithCtx = ctx
+      return {
+        topicId: 'topic-append',
+        models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
+        listeners: [] as StreamListener[],
+        reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
+        receipt: {
+          intent: {
+            kind: 'append-live',
+            change: {
+              mode: 'append',
+              modelId: 'p::m2',
+              targetMessageId: 'assistant-1',
+              parentAnchorId: 'user-1',
+              siblingsGroupId: 1
+            }
+          },
+          admission: { mode: 'start-new' as const },
+          activeNodeDecision: { move: 'advance' as const },
+          reservedAttemptIds: [7]
+        }
       }
     })
     const manager = makeManager(true)
@@ -235,7 +231,7 @@ describe('dispatchStreamRequest — steer', () => {
       mentionedModelIds: ['p::m2']
     })
 
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
     expect(result).toMatchObject({ activeNodeDecision: { move: 'advance' } })
   })

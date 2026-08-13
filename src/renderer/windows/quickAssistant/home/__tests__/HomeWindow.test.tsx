@@ -15,7 +15,13 @@ const state = vi.hoisted(() => ({
   },
   messages: [] as never[],
   activeExecutions: [] as never[],
-  liveAssistants: [] as never[],
+  attempts: [] as Array<{
+    attemptId: number
+    phase: 'active' | 'settled'
+    message: { id: string; role: 'assistant'; parts: Array<{ type: 'text'; text: string }> }
+    isAbort: boolean
+    isError: boolean
+  }>,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   setMessages: vi.fn(),
@@ -78,7 +84,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
-    liveAssistants: state.liveAssistants,
+    attempts: state.attempts,
     reset: state.resetExecutionMessages,
     clear: state.clearExecutionMessages
   })
@@ -115,11 +121,17 @@ vi.mock('../components/InputBar', () => ({
 
 vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
-    ({ ref }: { ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null> }) => {
+    ({
+      ref,
+      setRoute
+    }: {
+      ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
+      setRoute: (route: 'chat') => void
+    }) => {
       if (ref) {
         ref.current = { useFeature: vi.fn(), resetSelectedIndex: vi.fn() }
       }
-      return <div data-testid="feature-menus" />
+      return <button type="button" data-testid="feature-menus" onClick={() => setRoute('chat')} />
     }
   )
 }))
@@ -134,7 +146,9 @@ vi.mock('../components/ClipboardPreview', () => ({
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+  default: ({ messages }: { messages: Array<{ id: string }> }) => (
+    <div data-testid="chat-window">{messages.map((message) => message.id).join(',')}</div>
+  )
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
@@ -144,6 +158,9 @@ vi.mock('../../translate/TranslateWindow', () => ({
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.messages = []
+    state.activeExecutions = []
+    state.attempts = []
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
@@ -165,5 +182,45 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('keeps one assistant record across active → settled and consecutive turns', () => {
+    state.messages = [{ id: 'user-1', role: 'user', parts: [] }] as never[]
+    state.activeExecutions = [{ attemptId: 1 }] as never[]
+    state.attempts = [
+      {
+        attemptId: 1,
+        phase: 'active',
+        message: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'one' }] },
+        isAbort: false,
+        isError: false
+      }
+    ]
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByTestId('feature-menus'))
+    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
+
+    state.activeExecutions = []
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
+
+    state.attempts = [{ ...state.attempts[0], phase: 'settled' }]
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window').textContent?.match(/assistant-1/g)).toHaveLength(1)
+
+    state.messages = [...state.messages, { id: 'user-2', role: 'user', parts: [] }] as never[]
+    state.attempts = [
+      ...state.attempts,
+      {
+        attemptId: 2,
+        phase: 'active',
+        message: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'two' }] },
+        isAbort: false,
+        isError: false
+      }
+    ]
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1,user-2,assistant-2')
+    expect(screen.getByTestId('chat-window').textContent?.match(/assistant-1/g)).toHaveLength(1)
   })
 })

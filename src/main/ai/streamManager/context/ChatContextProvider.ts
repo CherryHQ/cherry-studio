@@ -11,9 +11,9 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
-import type { DispatchTicket } from '../admission'
+import type { DispatchCommandReceipt } from '../admission'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
-import type { StreamListener } from '../types'
+import type { StreamCleanupPort, StreamListener, StreamPersistencePort } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
 type PreparedLiveExecutionChange =
@@ -37,6 +37,8 @@ export interface PreparedDispatch {
     abortController?: AbortController
   }>
   listeners: StreamListener[]
+  persistencePorts?: StreamPersistencePort[]
+  cleanupPorts?: StreamCleanupPort[]
   /**
    * Set only by the persistent provider's live-submit (steer) branch: the id of the steer user row to
    * enqueue. Its presence is the explicit signal that this dispatch is enqueue-only — the dispatcher
@@ -54,7 +56,7 @@ export interface PreparedDispatch {
   /** Change one execution in the current live reply group. */
   liveExecutionChange?: PreparedLiveExecutionChange
   /** Immutable admission result consumed by the synchronous send handoff. */
-  ticket?: DispatchTicket
+  receipt?: DispatchCommandReceipt
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
 }

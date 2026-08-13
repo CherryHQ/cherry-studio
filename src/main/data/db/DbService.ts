@@ -258,7 +258,7 @@ export class DbService extends BaseService {
           behavior: 'immediate'
         }
       )
-      if (isOutermost) notifyDataApiDataChange(this.dedupeEffects(effects))
+      if (isOutermost) this.publishEffectsBestEffort(effects)
       return result
     } catch (error) {
       effects.length = checkpoint
@@ -280,7 +280,7 @@ export class DbService extends BaseService {
 
     try {
       const result = fn(this.createEffectCollector(collected))
-      if (isOutermost) notifyDataApiDataChange(this.dedupeEffects(collected))
+      if (isOutermost) this.publishEffectsBestEffort(collected)
       return result
     } catch (error) {
       collected.length = checkpoint
@@ -295,6 +295,14 @@ export class DbService extends BaseService {
       add: (effect) => {
         target.push(effect)
       }
+    }
+  }
+
+  private publishEffectsBestEffort(effects: readonly DataApiDataChangeEffect[]): void {
+    try {
+      notifyDataApiDataChange(this.dedupeEffects(effects))
+    } catch (error) {
+      logger.warn('Failed to publish committed data change effects', error as Error)
     }
   }
 

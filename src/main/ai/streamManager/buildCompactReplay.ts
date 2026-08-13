@@ -126,6 +126,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      throughChunkSeq: incoming.throughChunkSeq ?? incoming.chunkSeq ?? tail.throughChunkSeq ?? tail.chunkSeq,
       chunk: {
         ...prev,
         delta: prev.delta + next.delta,
@@ -144,6 +145,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      throughChunkSeq: incoming.throughChunkSeq ?? incoming.chunkSeq ?? tail.throughChunkSeq ?? tail.chunkSeq,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }
     if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)

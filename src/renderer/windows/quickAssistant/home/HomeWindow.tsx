@@ -139,41 +139,26 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
   })
 
-  // Chunks are routed to the per-execution collector (Main tags every
-  // chunk with its modelId). Primary `useChat.state.messages`
-  // (chatMessages) only receives user messages pushed by `sendMessage` —
-  // no assistant content. We accumulate assistant turns across completed
-  // streams in `completedAssistants` so the multi-turn conversation
-  // renders properly. Cleared on `clear()` together with `setMessages([])`.
+  // Primary `useChat.state.messages` receives only user messages. Assistant
+  // content lives in one attempt record that changes phase active → settled;
+  // terminal handoff never copies the message into a second collection.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const {
-    liveAssistants,
-    reset: resetExecutionMessages,
-    clear: clearExecutionMessages
-  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES)
-  const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
-
-  const prevActiveCountRef = useRef(activeExecutions.length)
-  useEffect(() => {
-    const wasActive = prevActiveCountRef.current > 0
-    prevActiveCountRef.current = activeExecutions.length
-    if (activeExecutions.length === 0 && wasActive) {
-      // Snapshots are retained after a reader tears down, so the final
-      // frames are still in `liveAssistants` at this →0 transition.
-      if (liveAssistants.length) {
-        setCompletedAssistants((done) => [...done, ...finalizeLiveMessages(liveAssistants)])
-        resetExecutionMessages()
-      }
-    }
-  }, [activeExecutions, liveAssistants, resetExecutionMessages])
+  const { attempts, clear: clearExecutionMessages } = useExecutionOverlay(
+    temporaryTopicId ?? 'pending-temp',
+    activeExecutions,
+    EMPTY_UI_MESSAGES
+  )
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
   const allAssistants = useMemo<CherryUIMessage[]>(
-    () => [...completedAssistants, ...liveAssistants],
-    [completedAssistants, liveAssistants]
+    () =>
+      attempts.map((attempt) =>
+        attempt.phase === 'settled' ? finalizeLiveMessages([attempt.message])[0] : attempt.message
+      ),
+    [attempts]
   )
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
@@ -184,13 +169,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return next
   }, [allAssistants, chatMessages])
 
-  // Interleave user messages (from state.messages) with assistant turns
-  // (accumulated completed + live). The assumption: users and assistants
+  // Interleave user messages (from state.messages) with projected assistant
+  // attempts. The assumption: users and assistants
   // alternate strictly — user[i] precedes assistant[i]. Temporary topics
   // are always a clean linear chat, no branches.
   const displayMessages = useMemo<CherryUIMessage[]>(() => {
     const users = chatMessages.filter((m) => m.role === 'user')
-    const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
+    const latestAssistantId = attempts.findLast((attempt) => attempt.phase === 'active')?.message.id
     const out: CherryUIMessage[] = []
     const turns = Math.max(users.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
@@ -210,7 +195,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       }
     }
     return out
-  }, [chatMessages, allAssistants, liveAssistants, isPending])
+  }, [chatMessages, allAssistants, attempts, isPending])
 
   const messageItems = useMemo(
     () =>
@@ -235,7 +220,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const clear = useCallback(() => {
     void stopChat()
     setMessages([])
-    setCompletedAssistants([])
     clearExecutionMessages()
     setFlowError(null)
     setIsPreparing(false)

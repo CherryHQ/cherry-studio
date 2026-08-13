@@ -34,21 +34,6 @@ interface MessageStreamingLayersResult {
   streamingLayers: MessageStreamingLayers
 }
 
-/**
- * Canonical `onHandoff` callback for `useTopicOverlayHandoffOnTerminal`:
- * refresh the DB rows first so dropping the live overlay never flashes stale
- * base parts, and drop the overlay even when the refresh fails.
- */
-export function createOverlayRefreshHandoff(refresh: () => Promise<unknown>, resetOverlay: () => void) {
-  return async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  }
-}
-
 export function useMessageStreamingLayers({
   messages,
   overlay,

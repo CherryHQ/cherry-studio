@@ -16,15 +16,14 @@
  *   `TopicStreamSubscription`'s auto-created branches (attached) or are
  *   replayed from Main's bounded buffer on the next attach (entry dropped);
  *   SQLite persistence is the durable fallback past the buffer.
- * - Terminal handoff is dual-mode. With a consumer mounted, the
- *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
- *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
- *   would be unobservable (it is tracked per component instance), so a
+ * - Terminal handoff is driven by TopicQuiesced. Mounted persistent consumers
+ *   register a refresh port and retire snapshots only after it succeeds. With
+ *   `refCount === 0`, no refresh consumer exists, so a
  *   naturally-finished execution drops its overlay immediately — the
  *   persisted DB row owns it. The entry drops once the last reader ends
  *   only after Main says the topic is done; `isTopicDone=false` keeps the
  *   attachment across the gap before a continuation emits its first chunk.
- *   Finished attempts stay fenced in `TopicAttemptProjection`: a remount
+ *   Finished attempts stay fenced in `TopicStreamProjection`: a remount
  *   re-reporting a stale active set cannot restart them.
  * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop
  *   (lost terminal events, abandoned routing scopes); it cancels readers
@@ -41,7 +40,7 @@
  */
 import { loggerService } from '@logger'
 import { type AttemptId, toAttemptId } from '@shared/ai/attempt'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ActiveExecution, ActiveNodeDecision } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart, readUIMessageStream } from 'ai'
@@ -58,12 +57,33 @@ export interface ExecutionFinishEvent {
   isError: boolean
 }
 
+export interface ExecutionOverlayAttempt {
+  attemptId: number
+  phase: 'active' | 'settled'
+  message: CherryUIMessage
+  isAbort: boolean
+  isError: boolean
+}
+
+export interface ExecutionOverlayActiveNodeOverride {
+  previousActiveNodeId: string | null
+  activeNodeId: string
+}
+
 interface ExecutionOverlayView {
   /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
    *  start-chunk id when the execution has no pre-allocated row (temp topic). */
   overlay: Record<string, CherryMessagePart[]>
   /** Latest assistant snapshot per execution, in insertion order. */
   liveAssistants: CherryUIMessage[]
+  /** One record per attempt. Terminal handoff updates the existing record in place. */
+  attempts: ExecutionOverlayAttempt[]
+  /** Command reservations retained until the quiesced DB refresh succeeds. */
+  optimisticMessages: CherryUIMessage[]
+  /** Main status plus command-receipt attempts, reconciled by AttemptId. */
+  projectedExecutions: ActiveExecution[]
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
+  refreshError: Error | null
 }
 
 type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
@@ -99,10 +119,17 @@ interface Entry {
   dropped: boolean
   refCount: number
   desired: Map<object, ConsumerContribution>
+  optimisticMessages: Map<string, CherryUIMessage>
+  optimisticMessageWatermarks: Map<string, AttemptId>
+  optimisticExecutions: Map<AttemptId, ActiveExecution>
+  optimisticSeeds: Map<AttemptId, () => CherryUIMessage[]>
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
+  refreshError: Error | null
   /** attemptId -> latest message snapshot. Retained after a reader tears
    *  down (final frame / Phase 2 last-good) until the same execution
    *  restarts, an explicit dispose, or the entry is dropped. */
   snapshots: Map<AttemptId, CherryUIMessage>
+  settlements: Map<AttemptId, Pick<ExecutionFinishEvent, 'isAbort' | 'isError'>>
   view: ExecutionOverlayView
   pendingSnapshots: Map<AttemptId, PendingSnapshot>
   readerVersions: Map<AttemptId, number>
@@ -148,7 +175,12 @@ function commitIntervalMs(pending: Iterable<PendingSnapshot>): number {
 // so a consumer mutation would silently poison every topic in the window.
 const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
   overlay: Object.freeze({}),
-  liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
+  liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[],
+  attempts: Object.freeze([]) as unknown as ExecutionOverlayAttempt[],
+  optimisticMessages: Object.freeze([]) as unknown as CherryUIMessage[],
+  projectedExecutions: Object.freeze([]) as unknown as ActiveExecution[],
+  activeNodeOverride: null,
+  refreshError: null
 })
 
 function pickSeed(
@@ -232,13 +264,41 @@ function shareSettledPartReferences(
   return reusedAny ? shared : next
 }
 
-function computeView(snapshots: ReadonlyMap<AttemptId, CherryUIMessage>): ExecutionOverlayView {
+function computeView(
+  snapshots: ReadonlyMap<AttemptId, CherryUIMessage>,
+  settlements: ReadonlyMap<AttemptId, Pick<ExecutionFinishEvent, 'isAbort' | 'isError'>>,
+  optimisticMessages: ReadonlyMap<string, CherryUIMessage>,
+  projectedExecutions: ActiveExecution[],
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null,
+  refreshError: Error | null
+): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
   for (const snapshot of snapshots.values()) {
     if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
   }
   const liveAssistants = [...snapshots.values()].filter((s): s is CherryUIMessage => s?.role === 'assistant')
-  return { overlay, liveAssistants }
+  const attempts = [...snapshots].flatMap(([attemptId, message]) => {
+    if (message.role !== 'assistant') return []
+    const terminal = settlements.get(attemptId)
+    return [
+      {
+        attemptId,
+        phase: terminal ? ('settled' as const) : ('active' as const),
+        message,
+        isAbort: terminal?.isAbort ?? false,
+        isError: terminal?.isError ?? false
+      }
+    ]
+  })
+  return {
+    overlay,
+    liveAssistants,
+    attempts,
+    optimisticMessages: [...optimisticMessages.values()],
+    projectedExecutions,
+    activeNodeOverride,
+    refreshError
+  }
 }
 
 export class ExecutionStreamOverlayService {
@@ -283,6 +343,15 @@ export class ExecutionStreamOverlayService {
     entry.desired.set(consumer, { executions, getSeedMessages })
 
     const candidates = new Map<AttemptId, ExecutionCandidate>()
+    for (const [attemptId, execution] of entry.optimisticExecutions) {
+      const getSeedMessages = entry.optimisticSeeds.get(attemptId)
+      if (!getSeedMessages) continue
+      candidates.set(attemptId, {
+        execution,
+        seedFromEmpty: execution.seedFromEmpty,
+        seed: { executions: [execution], getSeedMessages }
+      })
+    }
     for (const contribution of entry.desired.values()) {
       for (const execution of contribution.executions) {
         const attemptId = toAttemptId(execution.attemptId)
@@ -308,6 +377,7 @@ export class ExecutionStreamOverlayService {
       for (const attemptId of entry.snapshots.keys()) {
         if (liveAttemptIds.has(attemptId)) continue
         entry.pendingSnapshots.delete(attemptId)
+        entry.settlements.delete(attemptId)
         entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
         if (next === entry.snapshots) next = new Map(entry.snapshots)
         next.delete(attemptId)
@@ -331,6 +401,7 @@ export class ExecutionStreamOverlayService {
       const { executionId, anchorMessageId } = item.execution
       this.#startReader(entry, attemptId, executionId, anchorMessageId, item.seedFromEmpty, item.seed.getSeedMessages)
     }
+    this.#publishView(entry)
   }
 
   subscribe(topicId: string, listener: () => void): () => void {
@@ -344,11 +415,61 @@ export class ExecutionStreamOverlayService {
     return this.#entries.get(topicId)?.view ?? EMPTY_VIEW
   }
 
+  seedReservations(
+    topicId: string,
+    messages: readonly CherryUIMessage[],
+    executions: readonly ActiveExecution[],
+    activeNodeDecision: ActiveNodeDecision | undefined,
+    previousActiveNodeId: string | null,
+    getSeedMessages: () => CherryUIMessage[]
+  ): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    const reservationWatermark = toAttemptId(Math.max(0, ...executions.map((execution) => execution.attemptId)))
+    for (const message of messages) {
+      entry.optimisticMessages.set(message.id, message)
+      entry.optimisticMessageWatermarks.set(message.id, reservationWatermark)
+    }
+    for (const execution of executions) {
+      const attemptId = toAttemptId(execution.attemptId)
+      entry.optimisticExecutions.set(attemptId, execution)
+      entry.optimisticSeeds.set(attemptId, getSeedMessages)
+      if (!entry.readers.has(attemptId) && !entry.sub.isSettled(attemptId)) {
+        this.#startReader(
+          entry,
+          attemptId,
+          execution.executionId,
+          execution.anchorMessageId,
+          execution.seedFromEmpty,
+          getSeedMessages
+        )
+      }
+    }
+    if (activeNodeDecision?.move !== 'keep') {
+      const activeNodeId = messages.at(-1)?.id
+      if (activeNodeId) entry.activeNodeOverride = { previousActiveNodeId, activeNodeId }
+    }
+    this.#publishView(entry)
+  }
+
   onFinish(topicId: string, listener: FinishListener): () => void {
     const entry = this.#entries.get(topicId)
     if (!entry) return () => {}
     entry.finishListeners.add(listener)
     return () => entry.finishListeners.delete(listener)
+  }
+
+  onTopicQuiesced(topicId: string, listener: Parameters<TopicStreamSubscription['onTopicQuiesced']>[0]): () => void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return () => {}
+    return entry.sub.onTopicQuiesced(listener)
+  }
+
+  setRefreshError(topicId: string, error: Error | null): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry || entry.refreshError === error) return
+    entry.refreshError = error
+    this.#publishView(entry)
   }
 
   /** Drop one overlay/snapshot entry by its message id (post-persist handoff).
@@ -363,6 +484,7 @@ export class ExecutionStreamOverlayService {
     const attemptId = snapshotEntry?.[0] ?? pendingEntry?.[0]
     if (attemptId === undefined || entry.readers.has(attemptId)) return
     entry.pendingSnapshots.delete(attemptId)
+    entry.settlements.delete(attemptId)
     entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
     if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
     if (snapshotEntry) {
@@ -376,25 +498,42 @@ export class ExecutionStreamOverlayService {
    *  Executions with a live reader are left untouched: a delayed handoff for a
    *  finished turn must not freeze a newer turn already streaming on this topic. */
   reset(topicId: string): void {
+    this.retireThrough(topicId, Number.MAX_SAFE_INTEGER)
+  }
+
+  /** Retire only records covered by one cycle's durable barrier. */
+  retireThrough(topicId: string, throughAttemptId: number): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
-    const liveAttemptIds = new Set(entry.readers.keys())
-    if (liveAttemptIds.size === 0) {
-      this.clear(topicId)
-      return
-    }
+    const watermark = toAttemptId(throughAttemptId)
     let next = entry.snapshots
     for (const attemptId of new Set([...entry.snapshots.keys(), ...entry.pendingSnapshots.keys()])) {
-      if (liveAttemptIds.has(attemptId)) continue
+      if (attemptId > watermark) continue
+      const handle = entry.readers.get(attemptId)
+      if (handle) {
+        handle.cancel()
+        handle.unregister()
+        entry.readers.delete(attemptId)
+      }
       entry.pendingSnapshots.delete(attemptId)
+      entry.settlements.delete(attemptId)
+      entry.optimisticExecutions.delete(attemptId)
+      entry.optimisticSeeds.delete(attemptId)
       entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
       if (next.has(attemptId)) {
         if (next === entry.snapshots) next = new Map(entry.snapshots)
         next.delete(attemptId)
       }
     }
+    for (const [messageId, messageWatermark] of entry.optimisticMessageWatermarks) {
+      if (messageWatermark > watermark) continue
+      entry.optimisticMessageWatermarks.delete(messageId)
+      entry.optimisticMessages.delete(messageId)
+      if (entry.activeNodeOverride?.activeNodeId === messageId) entry.activeNodeOverride = null
+    }
     if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
-    this.#commitSnapshots(entry, next)
+    if (next === entry.snapshots) this.#publishView(entry)
+    else this.#commitSnapshots(entry, next)
   }
 
   /** Destructively drop every overlay/snapshot entry, including live readers'
@@ -404,7 +543,15 @@ export class ExecutionStreamOverlayService {
     if (!entry) return
     this.#invalidatePending(entry)
     entry.readerVersions.clear()
+    entry.settlements.clear()
+    entry.optimisticMessages.clear()
+    entry.optimisticMessageWatermarks.clear()
+    entry.optimisticExecutions.clear()
+    entry.optimisticSeeds.clear()
+    entry.activeNodeOverride = null
+    entry.refreshError = null
     if (entry.snapshots.size > 0) this.#commitSnapshots(entry, new Map())
+    else this.#publishView(entry)
   }
 
   // ── internals ──────────────────────────────────────────────────────
@@ -421,7 +568,14 @@ export class ExecutionStreamOverlayService {
       dropped: false,
       refCount: 0,
       desired: new Map(),
+      optimisticMessages: new Map(),
+      optimisticMessageWatermarks: new Map(),
+      optimisticExecutions: new Map(),
+      optimisticSeeds: new Map(),
+      activeNodeOverride: null,
+      refreshError: null,
       snapshots: new Map(),
+      settlements: new Map(),
       view: EMPTY_VIEW,
       pendingSnapshots: new Map(),
       readerVersions: new Map(),
@@ -453,6 +607,7 @@ export class ExecutionStreamOverlayService {
           entry.readers.delete(attemptId)
         }
         entry.pendingSnapshots.delete(attemptId)
+        entry.settlements.delete(attemptId)
         entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
         if (entry.snapshots.has(attemptId)) {
           const next = new Map(entry.snapshots)
@@ -529,6 +684,7 @@ export class ExecutionStreamOverlayService {
     const readerVersion = (entry.readerVersions.get(attemptId) ?? 0) + 1
     entry.readerVersions.set(attemptId, readerVersion)
     entry.pendingSnapshots.delete(attemptId)
+    entry.settlements.delete(attemptId)
 
     let cancelled = false
     let readerFailed = false
@@ -595,6 +751,7 @@ export class ExecutionStreamOverlayService {
             // authority and the next mount rebuilds from it — this
             // execution's overlay is not worth carrying.
             entry.pendingSnapshots.delete(attemptId)
+            entry.settlements.delete(attemptId)
             entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
             if (entry.snapshots.has(attemptId)) {
               const next = new Map(entry.snapshots)
@@ -616,6 +773,7 @@ export class ExecutionStreamOverlayService {
                 isAbort: t.isAbort,
                 isError
               }
+              this.#settleAttempt(entry, event)
               for (const listener of [...entry.finishListeners]) {
                 try {
                   listener(executionId, event)
@@ -680,7 +838,30 @@ export class ExecutionStreamOverlayService {
     if (next === entry.snapshots) return
     entry.lastCommitAt = performance.now()
     entry.snapshots = next
-    entry.view = computeView(next)
+    this.#publishView(entry)
+  }
+
+  #settleAttempt(entry: Entry, event: ExecutionFinishEvent): void {
+    const attemptId = toAttemptId(event.attemptId)
+    entry.settlements.set(attemptId, { isAbort: event.isAbort, isError: event.isError })
+    entry.optimisticExecutions.delete(attemptId)
+    entry.optimisticSeeds.delete(attemptId)
+    this.#publishView(entry)
+  }
+
+  #publishView(entry: Entry): void {
+    const projectedExecutions = projectActiveExecutions(
+      [...entry.desired.values()].flatMap(({ executions }) => executions),
+      [...entry.optimisticExecutions.values()]
+    ).filter((execution) => !entry.sub.isSettled(execution.attemptId))
+    entry.view = computeView(
+      entry.snapshots,
+      entry.settlements,
+      entry.optimisticMessages,
+      projectedExecutions,
+      entry.activeNodeOverride,
+      entry.refreshError
+    )
     entry.lastActiveAt = Date.now()
     for (const listener of [...entry.listeners]) {
       try {

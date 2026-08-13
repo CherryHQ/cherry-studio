@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   useExecutionOverlay: vi.fn(),
   disposeOverlay: vi.fn(),
   resetOverlay: vi.fn(),
-  useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
@@ -49,8 +48,7 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
@@ -195,7 +193,7 @@ describe('useAgentChatRuntimeState', () => {
     })
   })
 
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
+  it('wires projection refresh without a per-attempt finish callback', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -204,7 +202,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toEqual({ refreshOnQuiesced: mocks.refresh })
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
@@ -226,7 +224,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
   })
 
-  it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
+  it('hands DB refresh ownership to the topic projection', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -235,18 +233,16 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    // The deterministic handoff (fires off the live→terminal status edge, where
-    // the overlay's onFinish is suppressed) must refresh the DB then drop the overlay.
-    const handoff = mocks.useTopicOverlayHandoffOnTerminal.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
-    expect(handoff).toEqual(expect.any(Function))
+    const options = mocks.useExecutionOverlay.mock.calls[0]?.[3] as
+      | { refreshOnQuiesced?: () => Promise<unknown> }
+      | undefined
+    expect(options?.refreshOnQuiesced).toBe(mocks.refresh)
 
     await act(async () => {
-      await handoff?.()
+      await options?.refreshOnQuiesced?.()
     })
 
     expect(mocks.refresh).toHaveBeenCalled()
-    expect(mocks.resetOverlay).toHaveBeenCalled()
-    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
 
   it('merges live assistant metadata into displayed session messages', () => {

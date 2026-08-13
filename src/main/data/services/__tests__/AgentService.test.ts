@@ -15,6 +15,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -1071,7 +1072,11 @@ describe('AgentService', () => {
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
+        { endpoint: '/pins', kind: 'membership' }
+      ])
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1117,7 +1122,9 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(publishedEffects).toHaveBeenNthCalledWith(1, [
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1130,10 +1137,9 @@ describe('AgentService', () => {
           routeParams: { sessionId: 'session-delete-with-agent' },
           entityIds: ['session-delete-with-agent']
         },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/pins', kind: 'membership' }
       ])
-      expect(publishedEffects).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(publishedEffects).toHaveBeenCalledTimes(2)
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {
@@ -1169,7 +1175,22 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
       expect(session).toEqual({ agentId: null, taskScheduleId: null })
-      expect(publishedEffects).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: task.id }, entityIds: [task.id] },
+        {
+          endpoint: '/agents/:agentId/tasks',
+          kind: 'projection',
+          routeParams: { agentId: id },
+          entityIds: [task.id]
+        },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId',
+          routeParams: { agentId: id, taskId: task.id },
+          entityIds: [task.id]
+        },
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
           endpoint: '/agent-sessions',
@@ -1182,8 +1203,51 @@ describe('AgentService', () => {
           routeParams: { sessionId: 'session-default-detach' },
           entityIds: ['session-default-detach']
         },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/pins', kind: 'membership' }
       ])
+    })
+
+    it('does not re-query task enrichment after commit and publishes the complete impact batch', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_effect_impact_001' })
+      const task = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'delete-impact-task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: id, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-delete-effect-impact',
+        name: 'Workspace',
+        path: '/tmp/delete-effect-impact',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-delete-effect-impact',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-delete-effect-impact',
+        taskScheduleId: task.id,
+        orderKey: 'a0'
+      })
+      const postCommitEnrichment = vi.spyOn(agentTaskService, 'getTaskById').mockImplementation(() => {
+        throw new Error('post-commit enrichment must not run')
+      })
+      publishedEffects.mockClear()
+
+      try {
+        expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+      } finally {
+        postCommitEnrichment.mockRestore()
+      }
+
+      expect(postCommitEnrichment).not.toHaveBeenCalled()
+      const endpoints = publishedEffects.mock.calls.flatMap(([effects]) => effects.map((effect) => effect.endpoint))
+      expect(endpoints).toEqual(
+        expect.arrayContaining(['/agents', '/agent-tasks', '/agents/:agentId/tasks', '/agent-sessions', '/pins'])
+      )
+      expect(publishedEffects).toHaveBeenCalledTimes(1)
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {

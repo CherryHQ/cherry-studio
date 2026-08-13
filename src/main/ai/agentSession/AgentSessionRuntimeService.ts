@@ -55,9 +55,11 @@ import type {
 import {
   finalizeInterruptedParts,
   PersistenceListener,
+  type StreamCleanupPort,
   type StreamErrorResult,
   type StreamListener,
   type StreamPausedResult,
+  type StreamPersistencePort,
   TraceFlushListener
 } from '../streamManager'
 import type { InProcessUsageContext } from '../types'
@@ -129,6 +131,8 @@ export interface BeginAgentSessionTurnInput {
 
 export interface AgentSessionRuntimeHandle {
   listeners: StreamListener[]
+  persistencePorts: StreamPersistencePort[]
+  cleanupPorts: StreamCleanupPort[]
   turnId: string
   abortController: AbortController
 }
@@ -467,11 +471,9 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
       return {
-        listeners: [
-          this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
-          new TraceFlushListener(input.topicId)
-        ],
+        listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId)],
+        persistencePorts: [this.createPersistenceListener(existing, userMessage)],
+        cleanupPorts: [new TraceFlushListener(input.topicId)],
         turnId,
         abortController: turn.abortController
       }
@@ -492,11 +494,9 @@ export class AgentSessionRuntimeService extends BaseService {
     this.entries.set(input.sessionId, entry)
 
     return {
-      listeners: [
-        this.createPersistenceListener(entry, userMessage),
-        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
-        new TraceFlushListener(input.topicId)
-      ],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId)],
+      persistencePorts: [this.createPersistenceListener(entry, userMessage)],
+      cleanupPorts: [new TraceFlushListener(input.topicId)],
       turnId,
       abortController: turn.abortController
     }
@@ -2417,7 +2417,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // `entry.modelId` still caches the deleted model. Re-read the live model before draining — starting the
     // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
     // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
-    // settle instead of starting a doomed turn. Terminalize the held topic stream directly:
+    // settle instead of starting a doomed turn. Terminalize the parked topic stream directly:
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
@@ -2425,7 +2425,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!liveAgent?.model) {
       application
         .get('AiStreamManager')
-        .terminateHeldTopicStream(
+        .failTopicContinuation(
           entry.topicId,
           entry.modelId,
           serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
@@ -2462,7 +2462,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // live renderer and settle the turn so the session doesn't sit idle on a doomed message.
       rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
-      application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
+      application.get('AiStreamManager').failTopicContinuation(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2511,11 +2511,9 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: nextTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      persistencePorts: [this.createPersistenceListener(entry, nextMessage)],
+      cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
   }
 
@@ -2587,11 +2585,9 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
       },
       abortController: turn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, turn.userMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId)],
+      persistencePorts: [this.createPersistenceListener(entry, turn.userMessage)],
+      cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
   }
 
@@ -2683,11 +2679,9 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: receiveOnlyTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, syntheticMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      persistencePorts: [this.createPersistenceListener(entry, syntheticMessage)],
+      cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
   }
 
@@ -2739,7 +2733,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // The A2 placeholder save failed — abandon the roll, drop the buffered post-steer chunks, and
       // surface the failure (mirrors `startNextTurn`'s doomed-placeholder handling).
       rootSpan?.end()
-      application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
+      application.get('AiStreamManager').failTopicContinuation(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2795,11 +2789,9 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: continuationTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, steerMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      persistencePorts: [this.createPersistenceListener(entry, steerMessage)],
+      cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
   }
 
@@ -2889,7 +2881,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private createPersistenceListener(
     entry: AgentSessionRuntimeEntry,
     userMessage: AgentSessionMessageEntity
-  ): StreamListener {
+  ): StreamPersistencePort {
     const currentTurn = this.currentTurn(entry)
     if (!currentTurn) {
       throw new Error(`Cannot create persistence listener without an active turn: ${entry.sessionId}`)

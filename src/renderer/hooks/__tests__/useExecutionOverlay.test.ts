@@ -5,6 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface ExecutionTerminal {
+  attemptId?: number
   anchorMessageId?: string
   isAbort: boolean
   isError: boolean
@@ -21,6 +22,8 @@ const { fake } = vi.hoisted(() => {
   }
   const branches = new Map<string, Branch>()
   const terminalCbs = new Set<(id: string, t: ExecutionTerminal) => void>()
+  const topicQuiescedCbs = new Set<(event: { throughAttemptId: number }) => void>()
+  const settledAttemptIds = new Set<number>()
   const keyOf = (executionId: string, anchorMessageId?: string) =>
     JSON.stringify([executionId, anchorMessageId ?? null])
   const findBranch = (executionId: string, anchorMessageId?: string) => {
@@ -55,6 +58,9 @@ const { fake } = vi.hoisted(() => {
     isTopicOpen() {
       return false
     },
+    isSettled(attemptId: number) {
+      return settledAttemptIds.has(attemptId)
+    },
     unregister(executionId: string, anchorMessageId?: string) {
       const key = keyOf(executionId, anchorMessageId)
       const b = branches.get(key)
@@ -84,6 +90,10 @@ const { fake } = vi.hoisted(() => {
     onTopicStateChange() {
       return () => {}
     },
+    onTopicQuiesced(cb: (event: { throughAttemptId: number }) => void) {
+      topicQuiescedCbs.add(cb)
+      return () => topicQuiescedCbs.delete(cb)
+    },
     // test helpers
     emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string) {
       findBranch(executionId, anchorMessageId)?.controller.enqueue(chunk)
@@ -98,14 +108,20 @@ const { fake } = vi.hoisted(() => {
       }
     },
     terminal(executionId: string, t: ExecutionTerminal, anchorMessageId?: string) {
-      for (const cb of terminalCbs) cb(executionId, { ...t, anchorMessageId })
+      settledAttemptIds.add(t.attemptId ?? 1)
+      for (const cb of terminalCbs) cb(executionId, { attemptId: 1, ...t, anchorMessageId })
       api.close(executionId, anchorMessageId)
+    },
+    quiesce() {
+      for (const cb of topicQuiescedCbs) cb({ throughAttemptId: 1 })
     },
     listen() {},
     dispose() {},
     reset() {
       branches.clear()
       terminalCbs.clear()
+      topicQuiescedCbs.clear()
+      settledAttemptIds.clear()
     }
   }
   return { fake: api }
@@ -485,13 +501,46 @@ describe('useExecutionOverlay', () => {
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeUndefined())
   })
 
-  it('does NOT fire onFinish when an execution leaves activeExecutions (why the status-driven handoff exists)', async () => {
+  it('retires persistent snapshots only after the TopicQuiesced refresh succeeds', async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() =>
+      useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { refreshOnQuiesced: refresh })
+    )
+    streamText(A, 't', 'durable')
+    await waitFor(() => expect(result.current.overlay['anchor-a']).toBeDefined())
+    fake.terminal(A, { attemptId: 1, isAbort: false, isError: false })
+    await drainStreamMicrotasks()
+
+    act(() => fake.quiesce())
+
+    await waitFor(() => expect(result.current.overlay['anchor-a']).toBeUndefined())
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('retains persistent snapshots when the TopicQuiesced refresh fails', async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() =>
+      useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { refreshOnQuiesced: refresh })
+    )
+    streamText(A, 't', 'last-good')
+    await waitFor(() => expect(result.current.overlay['anchor-a']).toBeDefined())
+    fake.terminal(A, { attemptId: 1, isAbort: false, isError: false })
+    await drainStreamMicrotasks()
+
+    act(() => fake.quiesce())
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('last-good')
+    expect(result.current.refreshError?.message).toBe('refresh failed')
+  })
+
+  it('does NOT fire onFinish when an execution leaves activeExecutions before its exact terminal', async () => {
     // When the topic goes terminal, the execution drops out of `activeExecutions`
     // and the teardown loop `cancel()`s the reader, which SUPPRESSES `onFinish`.
-    // So overlay disposal cannot ride `onFinish` — it must be driven off the
-    // terminal status (see `useTopicOverlayHandoffOnTerminal`). This locks that
-    // assumption: if someone "fixes" onFinish to fire here, the handoff design
-    // must be revisited.
+    // So settlement cannot be inferred from Shared Cache disappearance; the
+    // exact attempt terminal and TopicQuiesced barrier remain authoritative.
     const onFinish = vi.fn()
     const ui = [asst('anchor-a')]
     const { rerender } = renderHook(
