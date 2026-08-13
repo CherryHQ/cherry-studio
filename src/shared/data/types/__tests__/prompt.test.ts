@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { PROMPT_CONTENT_MAX, PromptContentSchema, PromptSchema, PromptTitleSchema } from '../prompt'
+import {
+  PROMPT_CONTENT_MAX,
+  PromptBindingRelationSchema,
+  PromptContentSchema,
+  PromptSchema,
+  PromptTitleSchema
+} from '../prompt'
 
 const prompt = {
   id: '550e8400-e29b-41d4-a716-446655440000',
@@ -30,6 +36,19 @@ describe('PromptSchema', () => {
   it('requires a supported visibility', () => {
     expect(() => PromptSchema.parse({ ...prompt, visibility: undefined })).toThrow()
     expect(() => PromptSchema.parse({ ...prompt, visibility: 'assistant' })).toThrow()
+  })
+})
+
+describe('PromptBindingRelationSchema', () => {
+  it('keeps Assistant IDs strict while accepting legacy Agent IDs', () => {
+    const binding = { promptId: prompt.id }
+
+    expect(
+      PromptBindingRelationSchema.parse({ ...binding, targetType: 'agent', targetId: 'legacy-agent-id' })
+    ).toMatchObject({ targetType: 'agent', targetId: 'legacy-agent-id' })
+    expect(() =>
+      PromptBindingRelationSchema.parse({ ...binding, targetType: 'assistant', targetId: 'legacy-agent-id' })
+    ).toThrow()
   })
 })
 

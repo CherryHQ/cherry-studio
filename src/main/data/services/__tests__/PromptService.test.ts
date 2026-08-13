@@ -238,6 +238,26 @@ describe('PromptService', () => {
       )
     })
 
+    it('should list every Assistant and Agent binding relation', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      await seedAgent()
+      const first = await seedPrompt('First', 'first', 'restricted')
+      const second = await seedPrompt('Second', 'second', 'restricted')
+      const assistantTarget = { type: 'assistant' as const, id: ASSISTANT_ID }
+
+      promptService.bindToTarget(first.id, assistantTarget)
+      promptService.bindToTarget(second.id, assistantTarget)
+      promptService.bindToTarget(first.id, { type: 'agent', id: AGENT_ID })
+
+      expect(promptService.listBindingRelations()).toEqual(
+        expect.arrayContaining([
+          { promptId: first.id, targetType: 'assistant', targetId: ASSISTANT_ID },
+          { promptId: second.id, targetType: 'assistant', targetId: ASSISTANT_ID },
+          { promptId: first.id, targetType: 'agent', targetId: AGENT_ID }
+        ])
+      )
+    })
+
     it('should keep independent prompt order for each target', async () => {
       await seedAssistant(ASSISTANT_ID, 'a0')
       await seedAssistant(OTHER_ASSISTANT_ID, 'a1')
@@ -499,6 +519,7 @@ describe('PromptService', () => {
 
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
+        { endpoint: '/prompt-bindings', kind: 'membership', entityIds: [prompt.id] },
         { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: [prompt.id] },
         { endpoint: '/prompts/:id/bindings', kind: 'membership' }
       ])

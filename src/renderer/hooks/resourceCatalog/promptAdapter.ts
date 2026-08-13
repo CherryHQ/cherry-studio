@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
-import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
+import type { CreatePromptDto, PromptBindingParams, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
 import { useCallback } from 'react'
 
@@ -48,10 +48,10 @@ export function usePromptMutationsById(id: string) {
   const path = `/prompts/${id}` as const
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    refresh: ['/prompts']
+    refresh: ['/prompts', '/prompt-bindings']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/prompts']
+    refresh: ['/prompts', '/prompt-bindings']
   })
 
   const updatePrompt = useCallback(
@@ -70,13 +70,25 @@ function getPromptBindingCollectionPath(target: PromptBindingTarget) {
   }) as ConcreteApiPaths
 }
 
+function getPromptBindingRefreshPaths(params: PromptBindingParams): ConcreteApiPaths[] {
+  const target: PromptBindingTarget =
+    params.targetType === 'assistant'
+      ? { type: 'assistant', id: params.targetId }
+      : { type: 'agent', id: params.targetId }
+  return [
+    '/prompts',
+    '/prompt-bindings',
+    getPromptBindingCollectionPath(target),
+    `/prompts/${params.id}/bindings` as ConcreteApiPaths
+  ]
+}
+
 export function usePromptBindingMutations(target: PromptBindingTarget) {
-  const collectionPath = getPromptBindingCollectionPath(target)
   const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ['/prompts', collectionPath]
+    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
   })
   const { trigger: unbindTrigger } = useMutation('DELETE', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ['/prompts', collectionPath]
+    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
   })
 
   const bindPrompt = useCallback(
@@ -91,4 +103,30 @@ export function usePromptBindingMutations(target: PromptBindingTarget) {
   )
 
   return { bindPrompt, unbindPrompt }
+}
+
+export function usePromptTargetMutations(promptId: string) {
+  const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
+    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
+  })
+  const { trigger: unbindTrigger } = useMutation('DELETE', '/prompts/:id/bindings/:targetType/:targetId', {
+    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
+  })
+
+  const bindTarget = useCallback(
+    (target: PromptBindingTarget): Promise<void> =>
+      bindTrigger({
+        params: { id: promptId, targetType: target.type, targetId: target.id }
+      }).then(() => undefined),
+    [bindTrigger, promptId]
+  )
+  const unbindTarget = useCallback(
+    (target: PromptBindingTarget): Promise<void> =>
+      unbindTrigger({
+        params: { id: promptId, targetType: target.type, targetId: target.id }
+      }).then(() => undefined),
+    [promptId, unbindTrigger]
+  )
+
+  return { bindTarget, unbindTarget }
 }

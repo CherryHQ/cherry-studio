@@ -7692,11 +7692,17 @@
       "add": "Prompt hinzufügen",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Inhalt",
       "contentPlaceholder": "Geben Sie den Prompt-Inhalt ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Fehler beim Erstellen der Eingabeaufforderung",
         "deleteFailed": "Fehler beim Löschen der Eingabeaufforderung",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Fehler beim Laden der Aufforderungen",
         "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

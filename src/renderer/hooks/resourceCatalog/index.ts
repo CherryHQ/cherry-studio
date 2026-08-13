@@ -9,7 +9,8 @@ export {
   promptAdapter,
   usePromptBindingMutations,
   usePromptMutations,
-  usePromptMutationsById
+  usePromptMutationsById,
+  usePromptTargetMutations
 } from './promptAdapter'
 export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'

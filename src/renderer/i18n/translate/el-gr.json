@@ -7692,11 +7692,17 @@
       "add": "Προσθήκη Prompt",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Περιεχόμενο",
       "contentPlaceholder": "Εισάγετε περιεχόμενο προτροπής. Υποστηρίζει ${variables}; πατήστε Tab για να μεταβείτε μεταξύ των μεταβλητών. Παράδειγμα:\nΒοηθήστε με να σχεδιάσω μια διαδρομή από ${from} προς ${to} και στείλτε την στο ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Αποτυχία δημιουργίας προτροπής",
         "deleteFailed": "Αποτυχία διαγραφής προτροπής",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Αποτυχία φόρτωσης προτροπών",
         "reorderFailed": "Αποτυχία αναδιάταξης προτροπών",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

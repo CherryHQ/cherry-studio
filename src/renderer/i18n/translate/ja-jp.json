@@ -7692,11 +7692,17 @@
       "add": "プロンプトを追加",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "内容",
       "contentPlaceholder": "プロンプトの内容を入力します。${variables} をサポート；Tab キーで変数間を移動します。例：\n${from} から ${to} へのルートを計画し、${email} に送信してください。",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "プロンプトの作成に失敗しました",
         "deleteFailed": "プロンプトの削除に失敗しました",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "プロンプトの読み込みに失敗しました",
         "reorderFailed": "プロンプトの並び替えに失敗しました",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

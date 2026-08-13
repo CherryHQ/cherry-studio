@@ -19,6 +19,10 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const promptHandlers: HandlersFor<PromptSchemas> = {
+  '/prompt-bindings': {
+    GET: async () => promptService.listBindingRelations()
+  },
+
   '/prompts': {
     GET: async ({ query }) => {
       const parsed = ListPromptsQuerySchema.parse(query ?? {})

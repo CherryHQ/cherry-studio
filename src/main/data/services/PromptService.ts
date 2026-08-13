@@ -19,7 +19,12 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import type { Prompt, PromptBindingTarget, PromptBindingTargetType } from '@shared/data/types/prompt'
+import type {
+  Prompt,
+  PromptBindingRelation,
+  PromptBindingTarget,
+  PromptBindingTargetType
+} from '@shared/data/types/prompt'
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -56,6 +61,7 @@ function bindingTargetCondition(target: PromptBindingTarget): SQL {
 
 function bindingMembershipEffects(promptIds?: readonly string[], includePromptList = true): DataApiDataChangeEffect[] {
   const effects: DataApiDataChangeEffect[] = [
+    { endpoint: '/prompt-bindings', kind: 'membership', entityIds: promptIds },
     { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: promptIds },
     { endpoint: '/prompts/:id/bindings', kind: 'membership' }
   ]
@@ -101,6 +107,18 @@ export class PromptService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const rows = this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey)).all()
     return rows.map(rowToPrompt)
+  }
+
+  listBindingRelations(): PromptBindingRelation[] {
+    return this.db
+      .select({
+        promptId: promptBindingTable.promptId,
+        targetType: promptBindingTable.targetType,
+        targetId: promptBindingTable.targetId
+      })
+      .from(promptBindingTable)
+      .orderBy(asc(promptBindingTable.targetType), asc(promptBindingTable.targetId), asc(promptBindingTable.promptId))
+      .all()
   }
 
   listBoundToTarget(target: PromptBindingTarget): Prompt[] {
@@ -409,6 +427,7 @@ export class PromptService {
     notifyDataApiDataChange([
       { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
       { endpoint: '/prompts/:id', entityIds: [id] },
+      { endpoint: '/prompt-bindings', kind: 'membership', entityIds: [id] },
       { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: [id] },
       { endpoint: '/prompts/:id/bindings', kind: 'membership' }
     ])

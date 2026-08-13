@@ -7692,11 +7692,17 @@
       "add": "添加提示词",
       "binding": {
         "bind": "绑定提示词",
+        "manageTargets": "管理“{{title}}”的可用对象",
         "noLinked": "暂未关联提示词",
         "noMore": "没有更多可用的提示词",
+        "noTargets": "暂无可用对象",
         "remove": "移除提示词“{{title}}”",
         "search": "搜索提示词",
-        "tabTitle": "提示词"
+        "searchTargets": "搜索助手或智能体",
+        "tabTitle": "提示词",
+        "targetCount": "{{count}} 个对象",
+        "targets": "可用对象",
+        "unassigned": "未指定"
       },
       "contentLabel": "内容",
       "contentPlaceholder": "请输入提示词内容",
@@ -7710,6 +7716,7 @@
         "bindFailed": "关联提示词失败",
         "createFailed": "创建提示词失败",
         "deleteFailed": "删除提示词失败",
+        "loadBindingsFailed": "加载可用对象失败",
         "loadFailed": "加载提示词失败",
         "reorderFailed": "调整提示词顺序失败",
         "unbindFailed": "取消关联提示词失败",

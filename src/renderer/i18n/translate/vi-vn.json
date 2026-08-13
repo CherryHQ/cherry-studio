@@ -7692,11 +7692,17 @@
       "add": "Thêm Lời Nhắc",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Nội dung",
       "contentPlaceholder": "Nhập nội dung lời nhắc. Hỗ trợ ${variables}; nhấn Tab để chuyển giữa các biến. Ví dụ:\nHãy giúp tôi lên kế hoạch lộ trình từ ${from} đến ${to}, và gửi nó tới ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Không thể tạo lời nhắc",
         "deleteFailed": "Không xóa được lời nhắc",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Không tải được lời nhắc",
         "reorderFailed": "Không thể sắp xếp lại các lời nhắc",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

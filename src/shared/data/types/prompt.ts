@@ -35,6 +35,19 @@ export const PromptBindingTargetSchema = z.discriminatedUnion('type', [
   PromptAgentBindingTargetSchema
 ])
 
+export const PromptBindingRelationSchema = z.discriminatedUnion('targetType', [
+  z.strictObject({
+    promptId: PromptIdSchema,
+    targetType: z.literal('assistant'),
+    targetId: AssistantIdSchema
+  }),
+  z.strictObject({
+    promptId: PromptIdSchema,
+    targetType: z.literal('agent'),
+    targetId: z.string().min(1)
+  })
+])
+
 /** Complete Prompt entity as returned by the API. */
 export const PromptSchema = z.strictObject({
   id: PromptIdSchema,
@@ -54,3 +67,4 @@ export type Prompt = z.infer<typeof PromptSchema>
 export type PromptVisibility = z.infer<typeof PromptVisibilitySchema>
 export type PromptBindingTargetType = z.infer<typeof PromptBindingTargetTypeSchema>
 export type PromptBindingTarget = z.infer<typeof PromptBindingTargetSchema>
+export type PromptBindingRelation = z.infer<typeof PromptBindingRelationSchema>

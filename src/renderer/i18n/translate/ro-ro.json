@@ -7692,11 +7692,17 @@
       "add": "Adaugă Prompt",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Conținut",
       "contentPlaceholder": "Introdu conținutul promptului. Acceptă ${variables}; apasă Tab pentru a trece între variabile. Exemplu:\nAjută-mă să planific un traseu de la ${from} la ${to} și trimite-l la ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Nu s-a reușit crearea promptului",
         "deleteFailed": "Nu s-a putut șterge promptul",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Nu s-au putut încărca prompturile",
         "reorderFailed": "Nu s-a reușit reordonarea solicitărilor",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

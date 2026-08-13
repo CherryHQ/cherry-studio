@@ -7692,11 +7692,17 @@
       "add": "Add Prompt",
       "binding": {
         "bind": "Bind prompt",
+        "manageTargets": "Manage targets for {{title}}",
         "noLinked": "No prompts linked",
         "noMore": "No more prompts available",
+        "noTargets": "No targets available",
         "remove": "Remove prompt {{title}}",
         "search": "Search prompts",
-        "tabTitle": "Prompts"
+        "searchTargets": "Search assistants or agents",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} targets",
+        "targets": "Available to",
+        "unassigned": "Not assigned"
       },
       "contentLabel": "Content",
       "contentPlaceholder": "Enter prompt content",
@@ -7710,6 +7716,7 @@
         "bindFailed": "Failed to link prompt",
         "createFailed": "Failed to create prompt",
         "deleteFailed": "Failed to delete prompt",
+        "loadBindingsFailed": "Failed to load available targets",
         "loadFailed": "Failed to load prompts",
         "reorderFailed": "Failed to reorder prompts",
         "unbindFailed": "Failed to unlink prompt",

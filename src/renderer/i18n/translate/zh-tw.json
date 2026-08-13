@@ -7692,11 +7692,17 @@
       "add": "新增提示詞",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "暫未關聯快捷提示詞",
         "noMore": "沒有更多可用的提示詞",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "移除快捷提示詞「{{title}}」",
         "search": "搜尋提示詞",
-        "tabTitle": "快捷提示詞"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "快捷提示詞",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "內容",
       "contentPlaceholder": "輸入提示詞內容。支援 ${variables}；按 Tab 可在變數間快速跳轉。例如：\n請幫我規劃從 ${from} 到 ${to} 的路線，並傳送至 ${email}。",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "建立提示詞失敗",
         "deleteFailed": "刪除提示詞失敗",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "載入提示詞失敗",
         "reorderFailed": "調整提示詞順序失敗",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

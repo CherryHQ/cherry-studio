@@ -7692,11 +7692,17 @@
       "add": "Añadir Prompt",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Contenido",
       "contentPlaceholder": "Introduce el contenido del aviso. Admite ${variables}; presiona Tab para saltar entre variables. Ejemplo:\nAyúdame a planificar una ruta desde ${from} hasta ${to}, y envíala a ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Error al crear el aviso",
         "deleteFailed": "Error al eliminar el aviso",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Error al cargar los prompts",
         "reorderFailed": "Error al reordenar los prompts",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

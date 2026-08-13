@@ -3,6 +3,11 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   Input,
   ReorderableList,
@@ -14,13 +19,21 @@ import { useReorder } from '@data/hooks/useReorder'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { usePromptMutations, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
+import {
+  agentAdapter,
+  assistantAdapter,
+  usePromptMutations,
+  usePromptMutationsById
+} from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, Plus, Search, Trash2, X } from 'lucide-react'
+import type { Prompt, PromptBindingRelation, PromptVisibility } from '@shared/data/types/prompt'
+import { GripVertical, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { type PromptTargetOption, PromptTargetPopover } from './PromptTargetPopover'
 
 type PromptDialogState = { prompt: Prompt | null } | null
 type PromptFormValue = { title: string; content: string; visibility: PromptVisibility }
@@ -42,6 +55,52 @@ export function PromptSettings() {
   const [deletingPrompt, setDeletingPrompt] = useState(false)
   const { data, error, isLoading, refetch } = useQuery('/prompts', {})
   const prompts = useMemo(() => data ?? [], [data])
+  const {
+    data: bindingsData,
+    error: bindingsError,
+    isLoading: isLoadingAllBindings,
+    refetch: refetchAllBindings
+  } = useQuery('/prompt-bindings', {})
+  const bindings = useMemo<PromptBindingRelation[]>(() => bindingsData ?? [], [bindingsData])
+  const bindingsByPrompt = useMemo(() => {
+    const groupedBindings = new Map<string, PromptBindingRelation[]>()
+    for (const binding of bindings) {
+      const promptBindings = groupedBindings.get(binding.promptId) ?? []
+      promptBindings.push(binding)
+      groupedBindings.set(binding.promptId, promptBindings)
+    }
+    return groupedBindings
+  }, [bindings])
+  const hasRestrictedPrompts = prompts.some((prompt) => prompt.visibility === 'restricted')
+  const {
+    data: assistantData,
+    error: assistantsError,
+    isLoading: isLoadingAssistants,
+    refetch: refetchAssistants
+  } = assistantAdapter.useList({ enabled: hasRestrictedPrompts })
+  const {
+    data: agentData,
+    error: agentsError,
+    isLoading: isLoadingAgents,
+    refetch: refetchAgents
+  } = agentAdapter.useList({ enabled: hasRestrictedPrompts })
+  const targetOptions = useMemo<PromptTargetOption[]>(
+    () => [
+      ...assistantData.map((assistant) => ({
+        type: 'assistant' as const,
+        id: assistant.id,
+        name: assistant.name,
+        avatar: assistant.emoji || '💬'
+      })),
+      ...agentData.map((agent) => ({
+        type: 'agent' as const,
+        id: agent.id,
+        name: agent.name,
+        avatar: getAgentAvatarFromConfiguration(agent.configuration)
+      }))
+    ],
+    [agentData, assistantData]
+  )
   const normalizedSearch = search.trim().toLowerCase()
   const visiblePrompts = useMemo(() => {
     if (!normalizedSearch) return prompts
@@ -69,6 +128,11 @@ export function PromptSettings() {
   const { updatePrompt, deletePrompt } = usePromptMutationsById(activePrompt?.id ?? '')
   const { applyReorderedList, isPending: isReordering } = useReorder('/prompts')
   useDataChange('/prompts', () => void refetch())
+  useDataChange('/prompt-bindings', () => void refetchAllBindings())
+  useDataChange(['/assistants', '/agents'], () => {
+    refetchAssistants()
+    refetchAgents()
+  })
   useDataChange('/prompts/:id/bindings', () => {
     if (deleteTarget) void refetchActiveBindings()
   })
@@ -144,6 +208,11 @@ export function PromptSettings() {
     },
     [t]
   )
+  const handleRetryBindingData = useCallback(() => {
+    void refetchAllBindings()
+    refetchAssistants()
+    refetchAgents()
+  }, [refetchAgents, refetchAllBindings, refetchAssistants])
 
   return (
     <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
@@ -217,9 +286,16 @@ export function PromptSettings() {
               renderItem={(prompt, _index, state) => (
                 <PromptRow
                   prompt={prompt}
+                  bindings={bindingsByPrompt.get(prompt.id) ?? []}
+                  bindingsError={bindingsError}
                   dragHandleProps={state.dragHandleProps}
+                  isLoadingBindings={isLoadingAllBindings}
+                  isLoadingTargets={isLoadingAssistants || isLoadingAgents}
                   onEdit={() => setPromptDialog({ prompt })}
                   onDelete={() => setDeleteTarget(prompt)}
+                  onRetry={handleRetryBindingData}
+                  targets={targetOptions}
+                  targetsError={assistantsError ?? agentsError}
                 />
               )}
             />
@@ -298,21 +374,35 @@ function PromptListSkeleton() {
 }
 
 function PromptRow({
+  bindings,
+  bindingsError,
   dragHandleProps,
+  isLoadingBindings,
+  isLoadingTargets,
   onDelete,
   onEdit,
-  prompt
+  onRetry,
+  prompt,
+  targets,
+  targetsError
 }: {
+  bindings: PromptBindingRelation[]
+  bindingsError?: Error
   dragHandleProps?: SortableDragHandleProps
+  isLoadingBindings: boolean
+  isLoadingTargets: boolean
   onDelete: () => void
   onEdit: () => void
+  onRetry: () => void
   prompt: Prompt
+  targets: PromptTargetOption[]
+  targetsError?: Error
 }) {
   const { t } = useTranslation()
   const summary = getPromptSummary(prompt)
 
   return (
-    <div className="group flex items-center gap-3 bg-card px-3 py-2.5 transition-colors hover:bg-accent/30">
+    <div className="group flex items-center gap-3 bg-card px-3 py-2 transition-colors hover:bg-accent/30">
       <button
         ref={dragHandleProps?.ref}
         type="button"
@@ -330,26 +420,44 @@ function PromptRow({
         className="h-auto min-w-0 flex-1 justify-start whitespace-normal rounded-md p-0 text-left hover:bg-transparent">
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-foreground text-sm leading-5">{prompt.title}</span>
-          <span className="wrap-anywhere mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-5">{summary}</span>
+          <span className="mt-0.5 block truncate text-muted-foreground text-xs leading-5">{summary}</span>
         </span>
       </Button>
-      <Badge variant="secondary" className="border-0 font-normal text-muted-foreground">
-        {t(
-          prompt.visibility === 'global'
-            ? 'settings.prompts.visibility.global.badge'
-            : 'settings.prompts.visibility.restricted.badge'
-        )}
-      </Badge>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`${t('common.delete')} ${prompt.title}`}
-          onClick={onDelete}
-          className="text-muted-foreground hover:bg-error-subtle hover:text-error-subtle-foreground">
-          <Trash2 size={12} />
-        </Button>
-      </div>
+      {prompt.visibility === 'global' ? (
+        <Badge variant="secondary" className="border-0 font-normal text-muted-foreground">
+          {t('settings.prompts.visibility.global.badge')}
+        </Badge>
+      ) : null}
+      {prompt.visibility === 'restricted' ? (
+        <PromptTargetPopover
+          bindings={bindings}
+          bindingsError={bindingsError}
+          isLoadingBindings={isLoadingBindings}
+          isLoadingTargets={isLoadingTargets}
+          onRetry={onRetry}
+          prompt={prompt}
+          targets={targets}
+          targetsError={targetsError}
+        />
+      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={`${t('common.more')} ${prompt.title}`}>
+            <MoreHorizontal size={13} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              variant="destructive"
+              aria-label={`${t('common.delete')} ${prompt.title}`}
+              onSelect={onDelete}>
+              <Trash2 />
+              {t('common.delete')}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

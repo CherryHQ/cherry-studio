@@ -35,6 +35,19 @@ const prompts = [
   }
 ]
 
+const promptBindings = [
+  {
+    promptId: prompts[1].id,
+    targetType: 'assistant',
+    targetId: 'assistant-1'
+  },
+  {
+    promptId: prompts[1].id,
+    targetType: 'agent',
+    targetId: 'agent-1'
+  }
+]
+
 const mocks = vi.hoisted(() => ({
   applyReorderedList: vi.fn(),
   createPrompt: vi.fn(),
@@ -55,6 +68,12 @@ vi.mock('@data/hooks/useReorder', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  agentAdapter: {
+    useList: () => ({ data: [], error: undefined, isLoading: false, refetch: vi.fn() })
+  },
+  assistantAdapter: {
+    useList: () => ({ data: [], error: undefined, isLoading: false, refetch: vi.fn() })
+  },
   usePromptMutations: () => ({ createPrompt: mocks.createPrompt }),
   usePromptMutationsById: () => ({ deletePrompt: mocks.deletePrompt, updatePrompt: mocks.updatePrompt })
 }))
@@ -86,6 +105,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         </button>
       </div>
     ) : null
+}))
+
+vi.mock('../PromptTargetPopover', () => ({
+  PromptTargetPopover: () => null
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
@@ -150,6 +173,28 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       </div>
     ) : null,
+  DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    variant,
+    ...props
+  }: {
+    children: ReactNode
+    onSelect?: () => void
+    variant?: string
+    'aria-label'?: string
+  }) => {
+    void variant
+    return (
+      <button type="button" onClick={onSelect} {...props}>
+        {children}
+      </button>
+    )
+  },
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   ReorderableList: ({
@@ -170,16 +215,20 @@ vi.mock('@cherrystudio/ui', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.useQuery.mockImplementation((path: string) =>
-    path === '/prompts'
-      ? { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
-      : {
-          data: [],
-          error: undefined,
-          isLoading: false,
-          refetch: mocks.refetchBindings
-        }
-  )
+  mocks.useQuery.mockImplementation((path: string) => {
+    if (path === '/prompts') {
+      return { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
+    }
+    if (path === '/prompt-bindings') {
+      return { data: promptBindings, error: undefined, isLoading: false, refetch: mocks.refetchBindings }
+    }
+    return {
+      data: [],
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchBindings
+    }
+  })
   mocks.createPrompt.mockResolvedValue(prompts[0])
   mocks.updatePrompt.mockResolvedValue(prompts[0])
   mocks.deletePrompt.mockResolvedValue(undefined)
@@ -194,7 +243,7 @@ describe('PromptSettings', () => {
     expect(screen.getByText('Global prompt')).toBeInTheDocument()
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.prompts.visibility.global.badge')).toBeInTheDocument()
-    expect(screen.getAllByText('settings.prompts.visibility.restricted.badge')).toHaveLength(2)
+    expect(screen.queryByText('settings.prompts.visibility.restricted.badge')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.edit Global prompt' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.delete Global prompt' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Global prompt' })).not.toBeInTheDocument()

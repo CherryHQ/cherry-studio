@@ -7692,11 +7692,17 @@
       "add": "Ajouter un prompt",
       "binding": {
         "bind": "[to be translated]:Bind prompt",
+        "manageTargets": "[to be translated]:Manage targets for {{title}}",
         "noLinked": "[to be translated]:No quick phrases linked",
         "noMore": "[to be translated]:No more prompts available",
+        "noTargets": "[to be translated]:No bound targets",
         "remove": "[to be translated]:Remove quick phrase {{title}}",
         "search": "[to be translated]:Search prompts",
-        "tabTitle": "[to be translated]:Quick Phrases"
+        "searchTargets": "[to be translated]:Search assistants or agents",
+        "tabTitle": "[to be translated]:Quick Phrases",
+        "targetCount": "[to be translated]:{{count}} targets",
+        "targets": "[to be translated]:Available to",
+        "unassigned": "[to be translated]:Not assigned"
       },
       "contentLabel": "Contenu",
       "contentPlaceholder": "Saisissez le contenu de l’invite. Prend en charge ${variables} ; appuyez sur Tab pour passer d’une variable à l’autre. Exemple :\nAidez-moi à planifier un itinéraire de ${from} à ${to}, et envoyez-le à ${email}.",
@@ -7710,6 +7716,7 @@
         "bindFailed": "[to be translated]:Failed to link prompt",
         "createFailed": "Échec de la création de l'invite",
         "deleteFailed": "Échec de la suppression de l'invite",
+        "loadBindingsFailed": "[to be translated]:Failed to load available targets",
         "loadFailed": "Échec du chargement des invites",
         "reorderFailed": "Échec du réordonnancement des invites",
         "unbindFailed": "[to be translated]:Failed to unlink prompt",

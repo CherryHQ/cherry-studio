@@ -43,6 +43,7 @@ describe('endpoint classification', () => {
       | '/notes'
       | '/paintings'
       | '/pins'
+      | '/prompt-bindings'
       | '/prompt-bindings/:targetType/:targetId'
       | '/prompts'
       | '/prompts/:id/bindings'

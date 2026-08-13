@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import type { Prompt, PromptBindingTarget } from '../../types/prompt'
+import type { Prompt, PromptBindingRelation, PromptBindingTarget } from '../../types/prompt'
 import {
   PromptAgentBindingTargetSchema,
   PromptAssistantBindingTargetSchema,
@@ -100,6 +100,13 @@ export type PromptBindingTargetParams = z.infer<typeof PromptBindingTargetParams
 // ============================================================================
 
 export type PromptSchemas = {
+  '/prompt-bindings': {
+    /** List membership edges for prompt usage summaries and binding controls. */
+    GET: {
+      response: PromptBindingRelation[]
+    }
+  }
+
   '/prompts': {
     /** List all prompts, ordered by `orderKey` */
     GET: {
