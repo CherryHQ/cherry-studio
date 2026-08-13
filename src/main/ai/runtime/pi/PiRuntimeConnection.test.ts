@@ -38,6 +38,10 @@ const mocks = vi.hoisted(() => ({
   listChannels: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
+  getAppLanguage: vi.fn(),
+  loadBuiltinAgentDefinition: vi.fn(),
+  provisionBuiltinAgent: vi.fn(),
+  replacePromptVariables: vi.fn(),
   captureConnectionSnapshot: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
@@ -92,6 +96,12 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: mocks.ensureAgentDataDirectory
 }))
+vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
+  loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
+  provisionBuiltinAgent: mocks.provisionBuiltinAgent
+}))
+vi.mock('@main/i18n', () => ({ getAppLanguage: mocks.getAppLanguage }))
+vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
@@ -126,7 +136,12 @@ vi.mock('./piSdk', () => ({
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
+
+function appendedSystemPrompt(): string {
+  return (mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()[0] ?? ''
+}
 
 const fakeSession = {
   get isStreaming() {
@@ -243,8 +258,12 @@ beforeEach(() => {
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
   mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   mocks.listChannels.mockReturnValue([])
-  mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
+  mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
+  mocks.getAppLanguage.mockReturnValue('en-US')
+  mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
+  mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
   mocks.captureConnectionSnapshot.mockImplementation(
     async (_sessionId: string, _agentId: string, modelId: string, knowledgeBaseIds?: readonly string[]) => {
       const agent = mocks.getAgent()
@@ -351,9 +370,10 @@ describe('PiRuntimeConnection', () => {
     expect(
       (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
     ).toBeUndefined()
-    expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual([
-      'AGENT PROMPT\n\nBe helpful.'
-    ])
+    expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
+    expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
+    expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
+    expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
   })
 
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
@@ -1241,9 +1261,8 @@ describe('PiRuntimeConnection', () => {
       expect(
         (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
       ).toBeUndefined()
-      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
-        ['AGENT PROMPT']
-      )
+      expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
+      expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
@@ -1261,14 +1280,51 @@ describe('PiRuntimeConnection', () => {
       ])
     })
 
-    it('trails plain agent instructions after the persona', async () => {
+    it('wraps agent instructions with the shared authority contract after the persona', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, {}, true, AGENT_DATA_PATH)
-      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
-        ['AGENT PROMPT\n\nBe terse.']
+      const prompt = appendedSystemPrompt()
+      expect(prompt).toContain('## Instruction Precedence')
+      expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
+      expect(prompt.indexOf('AGENT PROMPT')).toBeLessThan(prompt.indexOf('<agent_instructions>'))
+    })
+
+    it('resolves Agent System Prompt variables before injecting them', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        modelName: 'Pi Model',
+        instructions: 'Use {{model_name}}.',
+        configuration: {}
+      })
+      mocks.getById.mockReturnValue(agentSession)
+      mocks.replacePromptVariables.mockResolvedValue('Use Pi Model.')
+
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model')
+      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Model.\n</agent_instructions>')
+    })
+
+    it('resolves and provisions the bundled definition for a built-in Agent', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        instructions: '',
+        configuration: { builtin_role: 'assistant' }
+      })
+      mocks.getById.mockReturnValue(agentSession)
+      mocks.loadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled Assistant instructions.' })
+
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.loadBuiltinAgentDefinition).toHaveBeenCalledWith('assistant')
+      expect(mocks.provisionBuiltinAgent).toHaveBeenCalledWith(AGENT_DATA_PATH, 'assistant')
+      expect(appendedSystemPrompt()).toContain(
+        '<agent_instructions>\nBundled Assistant instructions.\n</agent_instructions>'
       )
     })
 
@@ -1290,6 +1346,7 @@ describe('PiRuntimeConnection', () => {
         AGENT_DATA_PATH,
         undefined
       )
+      expect(appendedSystemPrompt()).toContain(CHANNEL_SECURITY_PROMPT)
     })
 
     it('bakes a disabled autonomy tool into excludeTools and the live gate still blocks it', async () => {
@@ -1326,9 +1383,9 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.createOpts?.customTools).toHaveLength(4)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
-      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
-        ['AGENT PROMPT\n\nBe helpful.']
-      )
+      expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
+      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
+      expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
     })
   })
 })

@@ -3,6 +3,7 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -10,7 +11,6 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -298,7 +298,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
-    mocks.buildPrompt.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'soul prompt' })
+    mocks.buildPrompt.mockResolvedValue({ base: { kind: 'native' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false

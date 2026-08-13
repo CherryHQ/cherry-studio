@@ -98,17 +98,27 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **Stream adapter** — convert runtime-native events into
+3. **System prompt adapter** — call the runtime-neutral
+   `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
+   `{ base, append }` result into the SDK's native prompt representation. Pass resolved
+   channel state and capability-gated citation guidance into the common materializer.
+   Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
+   resolution, channel security, artifact reporting, or language guidance into the driver.
+   Keep only native mechanics in the adapter: the SDK base prompt, cwd/project-context
+   carrier, tool snippets, skills transport, and the representation of base/append.
+   See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
+
+4. **Stream adapter** — convert runtime-native events into
    `UIMessageChunk`s. Import your transport constant from the descriptor
    (single source), never re-declare the string. Reference implementations:
    `claudeCode/streamAdapter.ts`, `pi/piStreamAdapter.ts`.
 
-4. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
+5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
    side-effect `register.ts` module — an unimported side-effect module is
    how pi's registration was silently lost in a merge.
 
-5. **Path keys** — if the runtime needs disk state (config home, session
+6. **Path keys** — if the runtime needs disk state (config home, session
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
 
@@ -130,6 +140,11 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
+- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+  `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
+  supply native workspace/context mechanics, but it may not omit or fork instruction authority,
+  built-in Agent resolution, channel security, citation/artifact guidance, or response language.
+  Add common policy in the materializer and test that each driver carries it.
 - **Runtime-native tool identity.** Keep the runtime's own tool names and
   casing everywhere (catalog ids, `disabledTools` write-back, approval
   lookups). Renaming to another runtime's convention corrupts policy lookups.

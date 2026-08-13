@@ -28,6 +28,37 @@ queue, and `resume` handling are driver internals.
 | Usage capture | Direct/external routes emit one record input per Claude SDK assistant request; gateway routes use AiService provider-call middleware and ignore SDK aggregate usage. |
 | Runtime timing | `AiStreamManager` owns the message clock. Claude SDK `PostToolUse`/`PostToolUseFailure` hooks contribute tool spans for direct/external and gateway-backed routes using `duration_ms`; approval waits are captured independently from approval request to decision/abort. |
 
+## System prompt ownership
+
+`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+
+The common materializer owns both content and ordering for:
+
+1. instruction precedence when an Agent System Prompt exists;
+2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
+3. runtime-supplied root workspace instructions;
+4. variable-resolved Agent System Prompt text and its authority wrapper;
+5. context required when `system.md` replaces a native base;
+6. linked-channel security policy;
+7. citation markers for the lookup tools the runtime actually exposes;
+8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
+9. the configured app response language.
+
+Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
+
+Runtime adapters own only native mechanics:
+
+| Runtime-neutral Cherry policy | Runtime-specific carrier |
+|---|---|
+| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps native to the `claude_code` preset; pi leaves `systemPromptOverride` unset. Both pass custom content as the SDK base override. |
+| Common append text and block order | Claude uses the preset's `append`; pi uses `appendSystemPromptOverride`. |
+| Workspace instruction authority | Claude's `AgentsMdLoader` supplies root text and hooks load nested scopes; pi's `DefaultResourceLoader` supplies its native project-context section. |
+| Enabled managed skill content | Claude injects its plugin/config representation; pi uses `additionalSkillPaths`. |
+| Current workspace guarantee | Claude's preset owns cwd/git context and receives an explicit cwd block only when a custom base replaces it; pi's native builder always appends date and cwd. |
+| Coding/runtime handbook and native tool snippets | Owned by the Claude Code or pi base prompt, never copied into the common materializer. |
+
+Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+
 ## Fresh turn
 
 1. Renderer sends `Ai_Stream_Open` for topic `agent-session:<sessionId>`.
@@ -247,9 +278,11 @@ Allowed in v1:
   passed explicitly as `sessionDir`. The resume token is the pi session id;
   reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
   directory can be relocated without invalidating stored tokens.
-- Cherry's assembled agent prompt, injected through `systemPromptOverride` and
-  `appendSystemPromptOverride`. `PromptBuilder` reads workspace `system.md` and
-  the current agent data directory's `SOUL.md`, `USER.md`, and `memory/FACT.md`.
+- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentRuntimePrompt()` and injected
+  through `systemPromptOverride` and `appendSystemPromptOverride`. The materializer uses
+  `PromptBuilder` for workspace `system.md` and the current agent data directory's `SOUL.md`,
+  `USER.md`, and `memory/FACT.md`, and adds the same instruction authority, channel security,
+  citation, artifact-reporting, and language contracts as the Claude Code runtime.
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes
   apply when that connection is naturally rebuilt or the session is reopened.

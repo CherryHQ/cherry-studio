@@ -13,8 +13,8 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { PromptBuilder } from '@main/ai/agents/prompt'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import {
@@ -37,7 +37,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -82,9 +81,6 @@ const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
   ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
   ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
 ])
-/** Agent persona assembler, shared across pi connections (mtime-cached reads). */
-const promptBuilder = new PromptBuilder()
-
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -206,7 +202,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const additionalSkillPaths = [...initialSnapshot.additionalSkillPaths]
 
       const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
-      const instructions = agent.instructions?.trim()
+      const linkedChannel = initialSnapshot.linkedChannel
       const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
       const isToolEnabled = (serverName: string, toolName: string) =>
         !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
@@ -216,13 +212,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
           (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
       })
-      const promptOverrides = await buildAgentPromptOverrides(
+      const prompt = await buildAgentRuntimePrompt({
         workspacePath,
         agentDataPath,
-        agent.configuration,
-        instructions,
+        agent,
+        channelLinked: linkedChannel !== null,
         citationsGuidance
-      )
+      })
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -261,9 +257,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
-        systemPromptOverride: () => promptOverrides.systemPrompt,
-        appendSystemPromptOverride: () =>
-          promptOverrides.appendSystemPrompt ? [promptOverrides.appendSystemPrompt] : []
+        systemPromptOverride: () => (prompt.base.kind === 'custom' ? prompt.base.content : undefined),
+        appendSystemPromptOverride: () => (prompt.append ? [prompt.append] : [])
       })
       await resourceLoader.reload()
 
@@ -271,7 +266,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const linkedChannel = initialSnapshot.linkedChannel
       const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
@@ -661,25 +655,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!token || token === this.resumeToken) return
     this.resumeToken = token
     this.eventQueue.push({ type: 'resume-token', token })
-  }
-}
-
-/**
- * Assemble the same always-on agent persona used by the Claude runtime, with plain agent
- * instructions trailing it.
- */
-async function buildAgentPromptOverrides(
-  workspacePath: string,
-  agentDataPath: string,
-  config: AgentConfiguration | undefined,
-  instructions: string | undefined,
-  citationsGuidance: string | undefined
-): Promise<{ systemPrompt?: string; appendSystemPrompt?: string }> {
-  const parts = await promptBuilder.buildPromptParts(workspacePath, config, Boolean(instructions), agentDataPath)
-  const appendSystemPrompt = [parts.context, instructions, citationsGuidance].filter(Boolean).join('\n\n')
-  return {
-    ...(parts.base.kind === 'custom' ? { systemPrompt: parts.base.content } : {}),
-    ...(appendSystemPrompt ? { appendSystemPrompt } : {})
   }
 }
 
