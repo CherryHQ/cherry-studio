@@ -42,6 +42,8 @@ The storage-name candidates come from `legacyStorageNames(row)` and are rebuilt 
 
 When the match is a non-canonical candidate, the bytes are copied to `{id}.{normalizedExt}` before the row is prepared (#18187): `ext` is written normalized, and `resolvePhysicalPath` composes only the canonical name — without the copy the row migrates but every read of it is `ENOENT`. Copy, not rename, so a migration that aborts leaves v1's own `row.name` lookup working; the leftover raw blob is not swept, since `runFileSweep` keys orphans on the uuid stem. A failed copy warns and still migrates the row — skipping it instead would unreference the blob and hand it to the sweep.
 
+The copy goes through tmp + fsync + rename (`copyToCanonicalName`, the flow of file-manager-architecture §5.1) rather than straight onto the canonical path. A crash mid-copy must not publish a truncated file there: the next run's candidate walk prefers whatever occupies the canonical name over the intact raw blob, so the retry would migrate corrupted bytes under the v1 `size` and never repair itself. Residue is a `.tmp-{uuid}` in the same directory, which the FS orphan sweep already collects.
+
 ### Ext Normalization
 
 - Legacy v1 `ext` field may include a leading dot (`.pdf`, `.txt`) or be empty
