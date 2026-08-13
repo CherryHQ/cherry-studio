@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  ipcRequest: vi.fn(),
   language: 'en-US',
   openFeedback: vi.fn(),
   openReleaseNotes: vi.fn(),
@@ -15,12 +16,20 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ error: vi.fn() }) }
+}))
+
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
   useOpenReleaseNotes: () => mocks.openReleaseNotes
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -129,20 +138,19 @@ describe('HelpMenu', () => {
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
-  it('opens the repository in app content for the GitHub Star action', async () => {
+  it('opens the repository in the system browser for the GitHub Star action', async () => {
     render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.star' }))
 
     await waitFor(() =>
-      expect(mocks.openSmartMiniApp).toHaveBeenCalledWith({
-        appId: 'cherrystudio-github',
-        name: 'help.star',
-        url: 'https://github.com/CherryHQ/cherry-studio',
-        logo: 'github'
-      })
+      expect(mocks.ipcRequest).toHaveBeenCalledWith(
+        'system.shell.open_website',
+        'https://github.com/CherryHQ/cherry-studio'
+      )
     )
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
   })
 
   it('supports keyboard activation from the focused first action', async () => {

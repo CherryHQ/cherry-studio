@@ -1,13 +1,16 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
+import { ipcApi } from '@renderer/ipc'
 import { BookOpen, CircleQuestionMark, Github, MessageSquareText, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const GITHUB_REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
+const logger = loggerService.withContext('HelpMenu')
 
 export function HelpMenu({
   layout,
@@ -47,7 +50,11 @@ export function HelpMenu({
 
   const runAfterClose = (action: () => void | Promise<void>) => {
     handleMenuOpenChange(false)
-    window.setTimeout(() => void action(), 0)
+    window.setTimeout(() => {
+      void Promise.resolve()
+        .then(action)
+        .catch((error) => logger.error('Failed to run help menu action', error as Error))
+    }, 0)
   }
 
   const openDocs = () => {
@@ -65,12 +72,7 @@ export function HelpMenu({
   }
 
   const openGitHubRepository = () => {
-    openSmartMiniApp({
-      appId: 'cherrystudio-github',
-      name: t('help.star'),
-      url: GITHUB_REPOSITORY_URL,
-      logo: 'github'
-    })
+    return ipcApi.request('system.shell.open_website', GITHUB_REPOSITORY_URL)
   }
 
   const trigger =
