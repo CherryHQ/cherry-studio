@@ -432,6 +432,25 @@ describe('buildPiProviderInjection', () => {
     expect(injection.usageCapture.credentialReceipt).toEqual({ attribution: 'auth', method: 'oauth' })
   })
 
+  it('keeps the unversioned ChatGPT Codex base URL', () => {
+    const provider = makeProvider({
+      id: 'openai-codex',
+      name: 'OpenAI Codex',
+      authMethods: ['oauth'],
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://chatgpt.com/backend-api/codex' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ id: 'openai-codex::gpt-5-6-luna', apiModelId: 'gpt-5.6-luna' }),
+      PI_PLACEHOLDER_API_KEY
+    )
+
+    expect(injection.providerConfig.baseUrl).toBe('https://chatgpt.com/backend-api/codex')
+  })
+
   it('throws PiUnsupportedProviderError for a login-based external-CLI provider even with no key', () => {
     // Unsupported beats missing-key: claude-code has no adapter and no app-side key by design.
     const provider = makeProvider({

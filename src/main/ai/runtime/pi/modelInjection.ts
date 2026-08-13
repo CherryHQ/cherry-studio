@@ -17,6 +17,7 @@ import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
   ENDPOINT_TYPE,
@@ -163,7 +164,9 @@ export function buildPiProviderInjection(
   const transportAdapter = getProviderTransportAdapter(provider.id)
   if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
-  const baseUrl = formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
+  const baseUrl = isCodexProviderId(provider.id)
+    ? formatApiHost(resolvedEndpoint.baseUrl, false)
+    : formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api)
 
