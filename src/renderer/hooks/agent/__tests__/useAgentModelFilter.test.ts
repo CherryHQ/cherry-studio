@@ -10,6 +10,7 @@ function model(capabilities: Model['capabilities'] = []): Model {
     id: 'openai::gpt-4o',
     providerId: 'openai',
     name: 'GPT-4o',
+    contextWindow: 128_000,
     capabilities,
     supportsStreaming: true,
     isEnabled: true,
