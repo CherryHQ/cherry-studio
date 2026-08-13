@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import {
   isInputRequiredResult,
   SdkHttpError,
@@ -305,14 +307,23 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
   }
 
