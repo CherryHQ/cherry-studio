@@ -27,10 +27,12 @@ import mime from 'mime'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
-// `type/subtype`, per RFC 6838. Anything else (a bare extension like `.png`,
-// a token like `png`, `image`) gets replaced — providers throw
+// `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
+// placeholder the ai-sdk gateway converters emit for remote images with no
+// discoverable mime. Anything else (a bare extension like `.png`, a token
+// like `png`, `image`) gets replaced — providers throw
 // `file part media type <raw>` on the ai-sdk side otherwise.
-const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.-]+$/i
+const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
 
 /**
  * Last-line defense before provider dispatch: any FileUIPart heading out of the
