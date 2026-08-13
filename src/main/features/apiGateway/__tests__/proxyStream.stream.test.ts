@@ -22,6 +22,7 @@ const {
   mockToAiSdkTools,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
+  mockLoggerInfo,
   mockLoggerWarn,
   captured
 } = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ const {
   mockExtractProviderOptions: vi.fn<
     (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
   >(() => undefined),
+  mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
   captured: { listener: undefined as StreamListener | undefined }
 }))
@@ -67,7 +69,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: mockLoggerInfo, warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -411,6 +413,10 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       }
     ])
     expect(params).toEqual(snapshot)
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      'Appended assistant-tail continuation for internal agent request',
+      expect.objectContaining({ providerId: 'aihubmix', modelId: 'claude-opus-5' })
+    )
   })
 
   it('appends after conversion when a trailing empty user message is dropped', async () => {
@@ -501,6 +507,11 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 
     expect(messages).toHaveLength(1)
     expect(messages.at(-1)).toMatchObject({ role: 'user' })
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) => message === 'Appended assistant-tail continuation for internal agent request'
+      )
+    ).toBe(false)
   })
 
   it('leaves a trailing assistant tool_use block unchanged', async () => {

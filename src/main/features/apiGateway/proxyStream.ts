@@ -261,7 +261,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
-  if (messages !== convertedMessages) {
+  if (messages !== conversation) {
     logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
   }
   const aiStreamManager = application.get('AiStreamManager')
