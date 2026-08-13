@@ -1,11 +1,12 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
-import { SettingDivider, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { Bot, Check, File, Image, type LucideIcon, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -14,11 +15,32 @@ import {
   FileTrashSection,
   PaintingTrashSection,
   SessionTrashSection,
-  TopicTrashSection
+  TopicTrashSection,
+  type TrashDomainSectionProps
 } from './TrashDomainSections'
 import type { TrashItem } from './trashUtils'
 
 const logger = loggerService.withContext('TrashSettings')
+
+type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
+
+const CATEGORIES: { id: TrashCategory; labelKey: string; Icon: LucideIcon }[] = [
+  { id: 'topics', labelKey: 'settings.data.trash.domain.topics', Icon: MessageSquare },
+  { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: Bot },
+  { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions', Icon: MessagesSquare },
+  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: Sparkles },
+  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: Image },
+  { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: File }
+]
+
+const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {
+  topics: TopicTrashSection,
+  agents: AgentTrashSection,
+  sessions: SessionTrashSection,
+  assistants: AssistantTrashSection,
+  paintings: PaintingTrashSection,
+  files: FileTrashSection
+}
 
 const PURGE_INVALIDATE_PATHS = [
   '/topics',
@@ -44,6 +66,13 @@ const TrashSettings: FC = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [retentionDays] = usePreference('data.trash.retention_days')
+
+  const [category, setCategory] = useState<TrashCategory>('topics')
+  const categoryOptions = useMemo(
+    () => CATEGORIES.map(({ id, labelKey, Icon }) => ({ id, label: t(labelKey), Icon })),
+    [t]
+  )
+  const ActiveSection = SECTION_BY_CATEGORY[category]
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -102,13 +131,29 @@ const TrashSettings: FC = () => {
             ? t('settings.data.trash.retention_hint', { days: retentionDays })
             : t('settings.data.trash.retention_hint_never')}
         </SettingHelpText>
+        <div className="mt-3">
+          <SelectDropdown
+            items={categoryOptions}
+            selectedId={category}
+            onSelect={(id) => setCategory(id as TrashCategory)}
+            triggerClassName="w-56"
+            renderSelected={({ label, Icon }) => (
+              <>
+                <Icon size={16} className="shrink-0 text-muted-foreground" />
+                <span className="truncate">{label}</span>
+              </>
+            )}
+            renderItem={({ label, Icon }, isSelected) => (
+              <div className="flex w-full items-center gap-2">
+                <Icon size={16} className="shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate">{label}</span>
+                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
+              </div>
+            )}
+          />
+        </div>
       </SettingGroup>
-      <TopicTrashSection {...sectionProps} />
-      <AgentTrashSection {...sectionProps} />
-      <SessionTrashSection {...sectionProps} />
-      <AssistantTrashSection {...sectionProps} />
-      <PaintingTrashSection {...sectionProps} />
-      <FileTrashSection {...sectionProps} />
+      <ActiveSection {...sectionProps} />
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

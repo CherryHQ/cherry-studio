@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { Loader } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,6 @@ export type TrashSectionPagination =
     }
 
 interface TrashSectionProps {
-  title: string
   items: TrashItem[]
   isLoading: boolean
   error: Error | undefined
@@ -34,7 +33,6 @@ interface TrashSectionProps {
 }
 
 const TrashSection: FC<TrashSectionProps> = ({
-  title,
   items,
   isLoading,
   error,
@@ -47,20 +45,12 @@ const TrashSection: FC<TrashSectionProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  // Offset pages expose the true trashed total; cursor sections only know what
-  // has been loaded so far, so fall back to the loaded count there.
-  const headerCount = pagination?.kind === 'offset' ? pagination.totalCount : items.length
   // Show offset prev/next whenever more than one page exists OR the user has
   // been stranded on a now-empty page past the first (so Prev remains reachable).
   const showOffsetControls = pagination?.kind === 'offset' && (pagination.totalPages > 1 || pagination.page > 1)
 
   return (
     <SettingGroup>
-      <SettingTitle>
-        <span>{title}</span>
-        <span className="text-foreground-muted text-xs">{headerCount}</span>
-      </SettingTitle>
-      <SettingDivider />
       {isLoading ? (
         <div className="flex min-h-16 items-center justify-center">
           <Loader size={16} className="animate-spin text-foreground-muted" />

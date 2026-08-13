@@ -47,7 +47,6 @@ function useTrashActionRunner() {
 }
 
 export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -82,7 +81,6 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.topics')}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -97,7 +95,6 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 }
 
 export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -140,7 +137,6 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.agents')}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -164,7 +160,6 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 }
 
 export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -203,7 +198,6 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.sessions')}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -218,7 +212,6 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
 }
 
 export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -268,7 +261,6 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDa
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.assistants')}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -292,7 +284,6 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDa
 }
 
 export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -332,7 +323,6 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDay
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.paintings')}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -347,7 +337,6 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDay
 }
 
 export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
-  const { t } = useTranslation()
   const runAction = useTrashActionRunner()
   const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
@@ -392,7 +381,6 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
 
   return (
     <TrashSection
-      title={t('settings.data.trash.domain.files')}
       items={items}
       isLoading={isLoading}
       error={error}
