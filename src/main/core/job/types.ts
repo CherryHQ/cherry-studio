@@ -140,6 +140,7 @@ export interface JobCancelResult {
 export interface EnqueueOptions {
   queue?: string
   priority?: number
+  /** Must be non-empty when provided. */
   idempotencyKey?: string
   /** ms epoch — when to first attempt (default: now). */
   scheduledAt?: number
@@ -149,6 +150,27 @@ export interface EnqueueOptions {
   timeoutMs?: number
   maxAttempts?: number
   metadata?: Record<string, unknown>
+}
+
+export interface EnqueueBatchEntry<K extends JobType> {
+  input: JobPayloadOf<K>
+  options?: EnqueueOptions
+}
+
+export interface EnqueueBatchValidationFailure {
+  index: number
+  code: string
+  message: string
+  params?: Record<string, unknown>
+}
+
+export class EnqueueBatchValidationError extends Error {
+  readonly code = 'JOB_BATCH_VALIDATION_FAILED'
+
+  constructor(readonly failures: readonly EnqueueBatchValidationFailure[]) {
+    super(`Job batch validation failed for ${failures.length} entries`)
+    this.name = 'EnqueueBatchValidationError'
+  }
 }
 
 export interface JobScheduleRegistrationInput<K extends JobType = JobType> {

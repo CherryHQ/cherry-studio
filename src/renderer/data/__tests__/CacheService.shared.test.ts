@@ -10,7 +10,7 @@
  *    NOT notify subscribers; value changes and deletion tombstones do notify.
  *    Equality is judged against the raw physical entry, never TTL-aware.
  */
-import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheSyncBatchMessage, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL CacheService
@@ -18,6 +18,7 @@ vi.unmock('@data/CacheService')
 
 const broadcastSync = vi.fn()
 const onSync = vi.fn()
+const onSyncBatch = vi.fn()
 const getAllShared = vi.fn(async () => ({}))
 
 const BASE = 1_000_000
@@ -30,6 +31,7 @@ let now: number
 beforeEach(() => {
   broadcastSync.mockClear()
   onSync.mockClear()
+  onSyncBatch.mockClear()
   getAllShared.mockClear()
 
   now = BASE
@@ -41,6 +43,7 @@ beforeEach(() => {
       cache: {
         broadcastSync,
         onSync,
+        onSyncBatch,
         getAllShared
       }
     }
@@ -54,9 +57,9 @@ afterEach(() => {
 async function createService() {
   const { CacheService } = await import('../CacheService')
   const service = new CacheService()
-  // The inbound IPC handler registered by this instance (Main → this window).
   const inbound = onSync.mock.calls.at(-1)![0] as (message: CacheSyncMessage) => void
-  return { service, inbound }
+  const inboundBatch = onSyncBatch.mock.calls.at(-1)![0] as (message: CacheSyncBatchMessage) => void
+  return { service, inbound, inboundBatch }
 }
 
 describe('getSharedSnapshot (pure physical read)', () => {
@@ -107,6 +110,73 @@ describe('getSharedSnapshot (pure physical read)', () => {
 })
 
 describe('inbound sync gating (fix A3)', () => {
+  it('applies a batch and notifies each changed key', async () => {
+    const { service, inboundBatch } = await createService()
+    const secondKey = 'jobs.progress.job-2' as const
+    const firstSub = vi.fn()
+    const secondSub = vi.fn()
+    service.subscribe(
+      KEY,
+      vi.fn(() => {
+        firstSub(service.getSharedSnapshot(secondKey))
+      })
+    )
+    service.subscribe(secondKey, secondSub)
+
+    inboundBatch({
+      type: 'shared',
+      entries: [
+        { key: KEY, value: { progress: 25 }, expireAt: BASE + 60_000 },
+        { key: secondKey, value: { progress: 50 }, expireAt: BASE + 60_000 }
+      ]
+    })
+
+    expect(service.getSharedSnapshot(KEY)).toEqual({ progress: 25 })
+    expect(service.getSharedSnapshot(secondKey)).toEqual({ progress: 50 })
+    expect(firstSub).toHaveBeenCalledWith({ progress: 50 })
+    expect(secondSub).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies batch tombstones after all entries have been updated', async () => {
+    const { service, inbound, inboundBatch } = await createService()
+    const secondKey = 'jobs.progress.job-2' as const
+    inbound({ type: 'shared', key: KEY, value: { progress: 100 } })
+    inbound({ type: 'shared', key: secondKey, value: { progress: 100 } })
+    const firstSub = vi.fn(() => service.getSharedSnapshot(secondKey))
+    const secondSub = vi.fn()
+    service.subscribe(KEY, firstSub)
+    service.subscribe(secondKey, secondSub)
+
+    inboundBatch({
+      type: 'shared',
+      entries: [
+        { key: KEY, value: undefined },
+        { key: secondKey, value: undefined }
+      ]
+    })
+
+    expect(firstSub).toHaveReturnedWith(undefined)
+    expect(secondSub).toHaveBeenCalledTimes(1)
+    expect(service.getSharedSnapshot(KEY)).toBeUndefined()
+    expect(service.getSharedSnapshot(secondKey)).toBeUndefined()
+  })
+
+  it('renews equal-value TTL entries in a batch without notifying', async () => {
+    const { service, inbound, inboundBatch } = await createService()
+    inbound({ type: 'shared', key: KEY, value: { progress: 50 }, expireAt: BASE + 1_000 })
+    const snapshot = service.getSharedSnapshot(KEY)
+    const sub = vi.fn()
+    service.subscribe(KEY, sub)
+
+    inboundBatch({
+      type: 'shared',
+      entries: [{ key: KEY, value: { progress: 50 }, expireAt: BASE + 60_000 }]
+    })
+
+    expect(sub).not.toHaveBeenCalled()
+    expect(service.getSharedSnapshot(KEY)).toBe(snapshot)
+  })
+
   it('deletion tombstone physically deletes and always notifies', async () => {
     const { service, inbound } = await createService()
     inbound({ type: 'shared', key: KEY, value: { progress: 100 } })
