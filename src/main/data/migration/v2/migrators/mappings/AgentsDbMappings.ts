@@ -159,13 +159,6 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // scoped by agentId, ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),
-      // Start from the parent creation time. AgentsMigrator advances this to
-      // the latest activity-bearing legacy message after importing messages.
-      {
-        name: 'last_activity_at',
-        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
-        sourceColumn: 'created_at'
-      },
       {
         // Seed the required parent field from creation. AgentsMigrator replaces
         // it with the exact maximum imported message activity after message import.
