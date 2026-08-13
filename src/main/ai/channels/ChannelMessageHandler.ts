@@ -53,6 +53,14 @@ function conversationKeyFor(event: { chatId: string; conversationKey?: string })
   return event.conversationKey?.trim() || event.chatId
 }
 
+function deliveryOptionsFor(event: { conversationKey?: string; messageId?: string }): SendMessageOptions {
+  const conversationKey = event.conversationKey?.trim()
+  return {
+    replyToMessageId: event.messageId,
+    ...(conversationKey ? { conversationKey } : {})
+  }
+}
+
 export class ChannelMessageHandler {
   // TODO: in v2 use cacheService
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${conversationKey}` -> sessionId
@@ -261,9 +269,11 @@ export class ChannelMessageHandler {
         const chatId = merged.chatId
         if (adapter && chatId) {
           adapter
-            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
-              replyToMessageId: merged.messageId
-            })
+            .sendMessage(
+              chatId,
+              '⚠️ An error occurred while processing your message. Please try again later.',
+              deliveryOptionsFor(merged)
+            )
             .catch((sendErr) => {
               logger.debug('Failed to send error notification to channel', {
                 chatId,
@@ -310,20 +320,19 @@ export class ChannelMessageHandler {
     onAdmitted?: () => void
   ): Promise<void> {
     const { agentId } = adapter
+    const conversationKey = conversationKeyFor(message)
+    const deliveryOptions = deliveryOptionsFor(message)
 
     try {
-      const session = await this.resolveSession(
-        agentId,
-        adapter.channelId,
-        adapter.channelType,
-        conversationKeyFor(message)
-      )
+      const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, conversationKey)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
-          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.', {
-            replyToMessageId: message.messageId
-          })
+          .sendMessage(
+            message.chatId,
+            '⚠️ Failed to resolve a session for this agent. Please try again later.',
+            deliveryOptions
+          )
           .catch((err) => {
             logger.debug('Failed to send session-error notification to channel', {
               chatId: message.chatId,
@@ -357,9 +366,7 @@ export class ChannelMessageHandler {
           await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
-            await adapter
-              .sendMessage(message.chatId, error.message, { replyToMessageId: message.messageId })
-              .catch(() => {})
+            await adapter.sendMessage(message.chatId, error.message, deliveryOptions).catch(() => {})
           }
           throw error
         }
@@ -422,9 +429,9 @@ export class ChannelMessageHandler {
       this.activeAbortControllers.set(session.id, abortController)
 
       // Show typing indicator immediately and keep refreshing every 4s
-      adapter.sendTypingIndicator(message.chatId).catch(() => {})
+      adapter.sendTypingIndicator(message.chatId, deliveryOptions).catch(() => {})
       const typingInterval = setInterval(
-        () => adapter.sendTypingIndicator(message.chatId).catch(() => {}),
+        () => adapter.sendTypingIndicator(message.chatId, deliveryOptions).catch(() => {}),
         TYPING_INTERVAL_MS
       )
 
@@ -439,7 +446,7 @@ export class ChannelMessageHandler {
           abortController,
           adapter,
           message.chatId,
-          message.messageId,
+          deliveryOptions,
           onAdmitted
         )
       } catch (streamError) {
@@ -448,14 +455,10 @@ export class ChannelMessageHandler {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter
-            .sendMessage(message.chatId, streamErrorMessage, { replyToMessageId: message.messageId })
-            .catch(() => {})
+          adapter.sendMessage(message.chatId, streamErrorMessage, deliveryOptions).catch(() => {})
         } else {
           // Mid-stream error: let the adapter update its streaming UI.
-          adapter
-            .onStreamError(message.chatId, streamErrorMessage, { replyToMessageId: message.messageId })
-            .catch(() => {})
+          adapter.onStreamError(message.chatId, streamErrorMessage, deliveryOptions).catch(() => {})
         }
         throw streamError
       } finally {
@@ -489,13 +492,13 @@ export class ChannelMessageHandler {
       return
     }
     const { agentId } = adapter
-    const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
+    const conversationKey = conversationKeyFor(command)
+    const replyOpts = deliveryOptionsFor(command)
     try {
       switch (command.command) {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const conversationKey = conversationKeyFor(command)
           const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationKey)
           const trackerKey = `${agentId}:${adapter.channelId}:${conversationKey}`
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -504,20 +507,15 @@ export class ChannelMessageHandler {
           break
         }
         case 'compact': {
-          const session = await this.resolveSession(
-            agentId,
-            adapter.channelId,
-            adapter.channelType,
-            conversationKeyFor(command)
-          )
+          const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, conversationKey)
           if (!session) {
             await adapter.sendMessage(command.chatId, 'No active session.', replyOpts)
             return
           }
           const abortController = new AbortController()
-          adapter.sendTypingIndicator(command.chatId).catch(() => {})
+          adapter.sendTypingIndicator(command.chatId, replyOpts).catch(() => {})
           const typingInterval = setInterval(
-            () => adapter.sendTypingIndicator(command.chatId).catch(() => {}),
+            () => adapter.sendTypingIndicator(command.chatId, replyOpts).catch(() => {}),
             TYPING_INTERVAL_MS
           )
           try {
@@ -527,7 +525,7 @@ export class ChannelMessageHandler {
               abortController,
               adapter,
               command.chatId,
-              command.messageId
+              replyOpts
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
             // delivered any non-empty output; only send an explicit fallback when compact
@@ -544,7 +542,7 @@ export class ChannelMessageHandler {
           const agent = agentService.getAgent(agentId)
           const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
-          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, conversationKeyFor(command))
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, conversationKey)
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
@@ -577,9 +575,11 @@ export class ChannelMessageHandler {
         error: error instanceof Error ? error.message : String(error)
       })
       adapter
-        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
-          replyToMessageId: command.messageId
-        })
+        .sendMessage(
+          command.chatId,
+          '⚠️ An error occurred while processing the command. Please try again later.',
+          replyOpts
+        )
         .catch((sendErr) => {
           logger.debug('Failed to send error notification to channel', {
             chatId: command.chatId,
@@ -755,6 +755,8 @@ export class ChannelMessageHandler {
       if (session && session.agentId === agentId) {
         if (channelRow && channelRow.sessionId !== session.id) {
           try {
+            // Refresh the legacy last-active projection; linkConversationSessionTx is its other writer.
+            // The conversation mapping remains authoritative for routing.
             channelService.updateChannel(channelId, { sessionId: session.id })
           } catch (err) {
             logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
@@ -856,7 +858,7 @@ export class ChannelMessageHandler {
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
-    replyToMessageId?: string,
+    sendOptions: SendMessageOptions,
     onAdmitted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
@@ -892,7 +894,7 @@ export class ChannelMessageHandler {
       await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, sendOptions)],
         headless: true
       })
     } finally {

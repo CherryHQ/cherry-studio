@@ -634,6 +634,11 @@ describe('ChannelMessageHandler', () => {
     expect(runSessionIds[0]).not.toBe(runSessionIds[1])
     expect(runSessionIds[2]).toBe(runSessionIds[0])
     expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+    expect(adapter.sendMessage.mock.calls.map(([, , options]) => options?.conversationKey)).toEqual([
+      'ou_user_1',
+      'ou_user_2',
+      'ou_user_1'
+    ])
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {

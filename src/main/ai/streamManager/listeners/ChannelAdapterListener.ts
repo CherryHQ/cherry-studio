@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { type ChannelAdapter, sanitizeChannelOutput } from '@main/ai/channels'
+import { type ChannelAdapter, sanitizeChannelOutput, type SendMessageOptions } from '@main/ai/channels'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
@@ -22,16 +22,16 @@ export class ChannelAdapterListener implements StreamListener {
      * leaving this on would double-notify every subscribed channel.
      */
     private readonly suppressErrorMessage = false,
-    /** Inbound message id this run answers, so the reply targets it (e.g. QQ passive reply). */
-    private readonly replyToMessageId?: string | number
+    /** Per-turn delivery context, including reply target and stable conversation identity. */
+    private readonly sendOptions?: SendMessageOptions
   ) {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
 
-  /** Deliver a final message, threading the reply target only when this run has one. */
+  /** Deliver a final message with per-turn context when one is present. */
   private deliver(text: string): Promise<void> {
-    return this.replyToMessageId !== undefined
-      ? this.adapter.sendMessage(this.platformChatId, text, { replyToMessageId: this.replyToMessageId })
+    return this.sendOptions?.replyToMessageId !== undefined || this.sendOptions?.conversationKey
+      ? this.adapter.sendMessage(this.platformChatId, text, this.sendOptions)
       : this.adapter.sendMessage(this.platformChatId, text)
   }
 
@@ -44,9 +44,7 @@ export class ChannelAdapterListener implements StreamListener {
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
       void this.adapter
-        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''), {
-          replyToMessageId: this.replyToMessageId
-        })
+        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''), this.sendOptions)
         .catch(() => {})
     }
   }
@@ -64,9 +62,7 @@ export class ChannelAdapterListener implements StreamListener {
 
     try {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, {
-        replyToMessageId: this.replyToMessageId
-      })
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, this.sendOptions)
       if (!handled) {
         await this.deliver(text)
       }
@@ -85,9 +81,7 @@ export class ChannelAdapterListener implements StreamListener {
     if (!text) return
 
     try {
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, {
-        replyToMessageId: this.replyToMessageId
-      })
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, this.sendOptions)
       if (!handled) {
         await this.deliver(text + '\n\n_(stopped)_')
       }

@@ -77,9 +77,7 @@ describe('ChannelAdapterListener', () => {
 
     listener.onChunk(delta('Array [city'))
 
-    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', {
-      replyToMessageId: undefined
-    })
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[0].slice(0, 2)).toEqual(['chat-1', 'Array [city'])
   })
 
   it('preserves an incomplete citation-like suffix in the final delivery', async () => {
@@ -92,18 +90,28 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished')
   })
 
-  it('carries the inbound reply target through live and final delivery', async () => {
+  it('carries reply and conversation identity through live and final delivery', async () => {
     const adapter = makeAdapter()
-    const listener = new ChannelAdapterListener(adapter, 'chat-1', false, 'message-1')
+    const listener = new ChannelAdapterListener(adapter, 'chat-1', false, {
+      replyToMessageId: 'message-1',
+      conversationKey: 'sender-1'
+    })
 
     listener.onChunk(delta('Reply'))
     await listener.onDone({ status: 'success' } as StreamDoneResult)
 
-    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Reply', { replyToMessageId: 'message-1' })
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Reply', {
-      replyToMessageId: 'message-1'
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Reply', {
+      replyToMessageId: 'message-1',
+      conversationKey: 'sender-1'
     })
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Reply', { replyToMessageId: 'message-1' })
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Reply', {
+      replyToMessageId: 'message-1',
+      conversationKey: 'sender-1'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Reply', {
+      replyToMessageId: 'message-1',
+      conversationKey: 'sender-1'
+    })
   })
 
   it('does not deliver when the accumulated text is empty', async () => {

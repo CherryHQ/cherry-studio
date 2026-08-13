@@ -215,8 +215,30 @@ describe('FeishuAdapter', () => {
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(mockWsStart).toHaveBeenCalledTimes(2)
-    expect(capturedWsLoggers).toHaveLength(1)
+    expect(capturedWsLoggers).toHaveLength(2)
     expect(adapter.connected).toBe(true)
+  })
+
+  it('ignores a late failure log from the previous WebSocket generation', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    const statusSpy = vi.fn()
+    adapter.on('statusChange', statusSpy)
+    await adapter.connect()
+
+    const firstLogger = capturedWsLoggers[0]
+    firstLogger.error(['[ws]', 'ws error'])
+    expect(mockWsClose).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(capturedWsLoggers).toHaveLength(2)
+    expect(adapter.connected).toBe(true)
+
+    firstLogger.error(['[ws]', 'client closed'])
+
+    expect(mockWsClose).toHaveBeenCalledTimes(1)
+    expect(adapter.connected).toBe(true)
+    expect(statusSpy).toHaveBeenLastCalledWith({ channelId: 'ch-1', connected: true, state: 'connected' })
   })
 
   it('connect() with missing app_id starts background registration instead of WebSocket', async () => {
@@ -516,6 +538,33 @@ describe('FeishuAdapter', () => {
     })
   })
 
+  it('isolates streaming cards and reply targets for two p2p senders sharing a chat', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockCardCreate
+      .mockResolvedValueOnce({ code: 0, data: { card_id: 'card-user-1' } })
+      .mockResolvedValueOnce({ code: 0, data: { card_id: 'card-user-2' } })
+
+    await adapter.onTextUpdate('oc_123', 'first partial', {
+      conversationKey: 'ou_user1',
+      replyToMessageId: 'msg-user-1'
+    })
+    await adapter.onTextUpdate('oc_123', 'second partial', {
+      conversationKey: 'ou_user2',
+      replyToMessageId: 'msg-user-2'
+    })
+
+    expect(mockCardCreate).toHaveBeenCalledTimes(2)
+    expect(mockImReply.mock.calls.map(([input]) => input.path.message_id)).toEqual(['msg-user-1', 'msg-user-2'])
+
+    await vi.advanceTimersByTimeAsync(500)
+    await adapter.onStreamComplete('oc_123', 'first final', { conversationKey: 'ou_user1' })
+    await adapter.onStreamComplete('oc_123', 'second final', { conversationKey: 'ou_user2' })
+
+    expect(mockCardSettings.mock.calls.map(([input]) => input.path.card_id)).toEqual(['card-user-1', 'card-user-2'])
+  })
+
   it('sendTypingIndicator() is a no-op when no user message has been seen', async () => {
     const adapter = createAdapter()
     await adapter.connect()
@@ -523,10 +572,10 @@ describe('FeishuAdapter', () => {
     expect(mockReactionCreate).not.toHaveBeenCalled()
   })
 
-  async function deliverIncomingTextMessage(messageId = 'msg-in-1', chatId = 'oc_123') {
+  async function deliverIncomingTextMessage(messageId = 'msg-in-1', chatId = 'oc_123', openId = 'ou_user1') {
     const handler = capturedEventHandlers['im.message.receive_v1']
     await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
+      sender: { sender_id: { open_id: openId } },
       message: {
         message_id: messageId,
         chat_id: chatId,
@@ -543,8 +592,8 @@ describe('FeishuAdapter', () => {
 
     await deliverIncomingTextMessage()
 
-    await adapter.sendTypingIndicator('oc_123')
-    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
 
     expect(mockReactionCreate).toHaveBeenCalledTimes(1)
     expect(mockReactionCreate).toHaveBeenCalledWith({
@@ -553,16 +602,31 @@ describe('FeishuAdapter', () => {
     })
   })
 
+  it('isolates status reactions for two p2p senders sharing a chat', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await deliverIncomingTextMessage('msg-user-1', 'oc_123', 'ou_user1')
+    await deliverIncomingTextMessage('msg-user-2', 'oc_123', 'ou_user2')
+    mockReactionCreate
+      .mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-user-1' } })
+      .mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-user-2' } })
+
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user2' })
+
+    expect(mockReactionCreate.mock.calls.map(([input]) => input.path.message_id)).toEqual(['msg-user-1', 'msg-user-2'])
+  })
+
   it('sendMessage() promotes the typing reaction from INHALE to OK_HAND', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
     await deliverIncomingTextMessage()
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
 
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-done' } })
-    await adapter.sendMessage('oc_123', 'reply')
+    await adapter.sendMessage('oc_123', 'reply', { conversationKey: 'ou_user1' })
 
     expect(mockReactionDelete).toHaveBeenCalledWith({
       path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
@@ -590,11 +654,11 @@ describe('FeishuAdapter', () => {
 
     await deliverIncomingTextMessage()
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
 
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
     mockImCreate.mockClear()
-    await adapter.onStreamError('oc_123', 'boom')
+    await adapter.onStreamError('oc_123', 'boom', { conversationKey: 'ou_user1' })
 
     expect(mockReactionDelete).toHaveBeenCalledWith({
       path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
@@ -621,14 +685,14 @@ describe('FeishuAdapter', () => {
 
     await deliverIncomingTextMessage()
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
-    await adapter.onTextUpdate('oc_123', 'partial...')
+    await adapter.sendTypingIndicator('oc_123', { conversationKey: 'ou_user1' })
+    await adapter.onTextUpdate('oc_123', 'partial...', { conversationKey: 'ou_user1' })
     await vi.advanceTimersByTimeAsync(500)
 
     mockImCreate.mockClear()
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
 
-    await adapter.onStreamError('oc_123', 'boom')
+    await adapter.onStreamError('oc_123', 'boom', { conversationKey: 'ou_user1' })
 
     // The streaming card displays the error; no plain "Error" message should be sent
     expect(mockImCreate).not.toHaveBeenCalled()
@@ -832,6 +896,27 @@ describe('FeishuAdapter', () => {
         chat_type: 'group',
         message_type: 'text',
         content: JSON.stringify({ text: 'Hello everyone' })
+      }
+    })
+
+    expect(messageSpy).not.toHaveBeenCalled()
+  })
+
+  it('checks @all only in the parsed text field', async () => {
+    const adapter = createAdapter({ allowed_chat_ids: [] })
+    await adapter.connect()
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-json-decoy',
+        chat_id: 'oc_group1',
+        chat_type: 'group',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'Hello everyone', metadata: '@_all' })
       }
     })
 

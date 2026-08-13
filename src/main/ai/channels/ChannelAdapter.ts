@@ -40,6 +40,8 @@ export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
   /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
   replyToMessageId?: string | number
+  /** Stable conversation identity for adapter-owned delivery state. Defaults to chatId when omitted. */
+  conversationKey?: string
 }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
@@ -230,7 +232,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   protected abstract performDisconnect(): Promise<void>
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
-  abstract sendTypingIndicator(chatId: string): Promise<void>
+  abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
   /**
    * Send a file to a chat. Non-abstract so adapters can adopt outbound file

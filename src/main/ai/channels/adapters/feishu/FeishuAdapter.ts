@@ -41,6 +41,8 @@ type FeishuApiResponse<T = unknown> = {
   data?: T
 }
 
+type FeishuWebSocketLogSignal = 'opened' | 'heartbeat' | 'failure'
+
 // Feishu message event shape (im.message.receive_v1)
 type FeishuMessageEvent = {
   sender: {
@@ -110,6 +112,29 @@ function formatSdkLog(values: unknown[]): string {
     .flat(Number.POSITIVE_INFINITY)
     .map((value) => (value instanceof Error ? value.message : String(value)))
     .join(' ')
+}
+
+function classifyFeishuWebSocketLog(message: string): FeishuWebSocketLogSignal | null {
+  // node-sdk 1.60.0 lib/index.js WSClient.connect()/reConnect(): 'ws connect success', 'reconnect success'.
+  if (message.includes('ws connect success') || message.includes('reconnect success')) return 'opened'
+  // node-sdk 1.60.0 lib/index.js WSClient.handleControlData(): 'receive pong'.
+  if (message.includes('receive pong')) return 'heartbeat'
+  // node-sdk 1.60.0 lib/index.js WSClient.close(): 'client closed manually'; manual shutdown is healthy.
+  if (message.includes('manually')) return null
+  // node-sdk 1.60.0 lib/index.js connect()/reConnect()/communicate(): the four failure literals below.
+  if (
+    message.includes('client closed') ||
+    message.includes('ws connect failed') ||
+    message.includes('[ws] connect failed') ||
+    message.includes('ws error')
+  ) {
+    return 'failure'
+  }
+  return null
+}
+
+function deliveryConversationKey(chatId: string, opts?: SendMessageOptions): string {
+  return opts?.conversationKey?.trim() || chatId
 }
 
 function getHeaderValue(headers: unknown, name: string): string {
@@ -402,12 +427,12 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
-  /** Per-chat streaming controller. One stream at a time per chat. */
+  /** One streaming controller per routed conversation. */
   private readonly streamingControllers = new Map<string, FeishuStreamingController>()
-  /** Latest user message id per chat — used as the target for status reactions. */
-  private readonly latestUserMessageByChat = new Map<string, string>()
-  /** Active status reaction per chat, so we can swap or remove it. */
-  private readonly chatReactions = new Map<string, ChatReaction>()
+  /** Latest user message id per routed conversation, used as the status-reaction target. */
+  private readonly latestUserMessageByConversation = new Map<string, string>()
+  /** Active status reaction per routed conversation, so concurrent p2p senders stay isolated. */
+  private readonly conversationReactions = new Map<string, ChatReaction>()
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -460,25 +485,23 @@ class FeishuAdapter extends ChannelAdapter {
     if (signal.aborted) return
 
     this.startHealthMonitor()
-    await this.startWebSocketAttempt(signal, httpInstance)
+    await this.startWebSocketAttempt(signal)
   }
 
-  private async startWebSocketAttempt(signal: AbortSignal, httpInstance: Lark.HttpInstance): Promise<void> {
+  private async startWebSocketAttempt(signal: AbortSignal): Promise<void> {
     if (this.stopping || signal.aborted || !this.eventDispatcher) return
 
     const generation = ++this.wsGeneration
     this.wsAttemptActive = true
-    const wsClient =
-      this.wsClient ??
-      new Lark.WSClient({
-        appId: this.appId,
-        appSecret: this.appSecret,
-        domain: resolveDomain(this.domain),
-        httpInstance,
-        autoReconnect: false,
-        loggerLevel: Lark.LoggerLevel.trace,
-        logger: this.createWebSocketLogger()
-      })
+    const wsClient = new Lark.WSClient({
+      appId: this.appId,
+      appSecret: this.appSecret,
+      domain: resolveDomain(this.domain),
+      httpInstance: createFeishuHttpInstance(),
+      autoReconnect: false,
+      loggerLevel: Lark.LoggerLevel.trace,
+      logger: this.createWebSocketLogger(generation)
+    })
     this.wsClient = wsClient
     this.clearConnectionTimer()
     this.connectionTimer = setTimeout(
@@ -496,9 +519,9 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  private createWebSocketLogger() {
+  private createWebSocketLogger(generation: number) {
     const handle = (level: 'error' | 'warn' | 'info' | 'debug' | 'trace', values: unknown[]) => {
-      this.handleWebSocketLog(level, formatSdkLog(values))
+      this.handleWebSocketLog(generation, level, formatSdkLog(values))
     }
     return {
       error: (...values: unknown[]) => handle('error', values),
@@ -509,28 +532,23 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  private handleWebSocketLog(level: 'error' | 'warn' | 'info' | 'debug' | 'trace', message: string): void {
-    if (!this.wsAttemptActive || this.stopping) return
+  private handleWebSocketLog(
+    generation: number,
+    level: 'error' | 'warn' | 'info' | 'debug' | 'trace',
+    message: string
+  ): void {
+    if (generation !== this.wsGeneration || !this.wsAttemptActive || this.stopping) return
 
-    if (message.includes('ws connect success') || message.includes('reconnect success')) {
-      this.log.info('Feishu WebSocket opened; waiting for heartbeat')
-      return
-    }
-
-    if (message.includes('receive pong')) {
-      this.recordTransportActivity()
-      return
-    }
-
-    if (
-      !message.includes('manually') &&
-      (message.includes('client closed') ||
-        message.includes('ws connect failed') ||
-        message.includes('[ws] connect failed') ||
-        message.includes('ws error'))
-    ) {
-      this.handleTransportFailure(this.wsGeneration, `Feishu WebSocket unhealthy: ${message}`)
-      return
+    switch (classifyFeishuWebSocketLog(message)) {
+      case 'opened':
+        this.log.info('Feishu WebSocket opened; waiting for heartbeat')
+        return
+      case 'heartbeat':
+        this.recordTransportActivity()
+        return
+      case 'failure':
+        this.handleTransportFailure(generation, `Feishu WebSocket unhealthy: ${message}`)
+        return
     }
 
     if (level === 'error') {
@@ -559,6 +577,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.wsGeneration++
 
     const failedClient = this.wsClient
+    this.wsClient = null
     failedClient?.close({ force: true })
 
     const delay = WS_RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, WS_RECONNECT_DELAYS_MS.length - 1)]
@@ -568,7 +587,7 @@ class FeishuAdapter extends ChannelAdapter {
       this.reconnectTimer = null
       const signal = this.connectionSignal
       if (!signal || signal.aborted || this.stopping) return
-      void this.startWebSocketAttempt(signal, createFeishuHttpInstance())
+      void this.startWebSocketAttempt(signal)
     }, delay)
   }
 
@@ -693,8 +712,8 @@ class FeishuAdapter extends ChannelAdapter {
       controller.dispose()
     }
     this.streamingControllers.clear()
-    this.chatReactions.clear()
-    this.latestUserMessageByChat.clear()
+    this.conversationReactions.clear()
+    this.latestUserMessageByConversation.clear()
 
     if (this.wsClient) {
       this.wsClient.close({ force: true })
@@ -714,7 +733,7 @@ class FeishuAdapter extends ChannelAdapter {
     // Promote the typing reaction to DONE before delivering the reply,
     // so the user sees the lifecycle transition. No-op for messages that
     // weren't preceded by a typing indicator (e.g. /new acks).
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
+    await this.transitionConversationReaction(deliveryConversationKey(chatId, opts), REACTION_DONE, [REACTION_THINKING])
     await this.sendRawMessage(chatId, text, opts?.replyToMessageId)
   }
 
@@ -804,8 +823,8 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
-  async sendTypingIndicator(chatId: string): Promise<void> {
-    await this.setChatReaction(chatId, REACTION_THINKING)
+  async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
+    await this.setConversationReaction(deliveryConversationKey(chatId, opts), REACTION_THINKING)
   }
 
   /**
@@ -813,17 +832,17 @@ class FeishuAdapter extends ChannelAdapter {
    * reaction on the same user message. No-op if there is no recent user
    * message to react to. Idempotent for the same (messageId, emoji) pair.
    */
-  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
+  private async setConversationReaction(conversationKey: string, emoji: string): Promise<void> {
     if (!this.client) return
 
-    const messageId = this.latestUserMessageByChat.get(chatId)
+    const messageId = this.latestUserMessageByConversation.get(conversationKey)
     if (!messageId) return
 
-    const existing = this.chatReactions.get(chatId)
+    const existing = this.conversationReactions.get(conversationKey)
     if (existing?.messageId === messageId && existing.emoji === emoji) return
 
     if (existing) {
-      await this.clearChatReaction(chatId)
+      await this.clearConversationReaction(conversationKey)
     }
 
     try {
@@ -836,11 +855,11 @@ class FeishuAdapter extends ChannelAdapter {
       )
       const reactionId = res.data?.reaction_id
       if (reactionId) {
-        this.chatReactions.set(chatId, { messageId, reactionId, emoji })
+        this.conversationReactions.set(conversationKey, { messageId, reactionId, emoji })
       }
     } catch (error) {
       this.log.debug('Failed to add status reaction', {
-        chatId,
+        conversationKey,
         messageId,
         emoji,
         error: error instanceof Error ? error.message : String(error)
@@ -853,16 +872,16 @@ class FeishuAdapter extends ChannelAdapter {
    * transient reaction (e.g. THINKING). Used at completion/error so that
    * non-streaming sendMessage calls (e.g. /new) don't get a DONE reaction.
    */
-  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
-    const existing = this.chatReactions.get(chatId)
+  private async transitionConversationReaction(conversationKey: string, emoji: string, from: string[]): Promise<void> {
+    const existing = this.conversationReactions.get(conversationKey)
     if (!existing || !from.includes(existing.emoji)) return
-    await this.setChatReaction(chatId, emoji)
+    await this.setConversationReaction(conversationKey, emoji)
   }
 
-  private async clearChatReaction(chatId: string): Promise<void> {
-    const reaction = this.chatReactions.get(chatId)
+  private async clearConversationReaction(conversationKey: string): Promise<void> {
+    const reaction = this.conversationReactions.get(conversationKey)
     if (!reaction) return
-    this.chatReactions.delete(chatId)
+    this.conversationReactions.delete(conversationKey)
     if (!this.client) return
 
     try {
@@ -874,7 +893,7 @@ class FeishuAdapter extends ChannelAdapter {
       )
     } catch (error) {
       this.log.debug('Failed to remove status reaction', {
-        chatId,
+        conversationKey,
         error: error instanceof Error ? error.message : String(error)
       })
     }
@@ -883,30 +902,33 @@ class FeishuAdapter extends ChannelAdapter {
   override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     if (!this.client) return
 
-    let controller = this.streamingControllers.get(chatId)
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    let controller = this.streamingControllers.get(conversationKey)
     if (!controller) {
       const replyId = opts?.replyToMessageId === undefined ? undefined : String(opts.replyToMessageId)
       controller = new FeishuStreamingController(this.client, chatId, this.log, replyId)
-      this.streamingControllers.set(chatId, controller)
+      this.streamingControllers.set(conversationKey, controller)
     }
 
     await controller.onText(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string, _opts?: SendMessageOptions): Promise<boolean> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    const controller = this.streamingControllers.get(chatId)
+  override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    await this.transitionConversationReaction(conversationKey, REACTION_DONE, [REACTION_THINKING])
+    const controller = this.streamingControllers.get(conversationKey)
     if (!controller) return false
 
-    this.streamingControllers.delete(chatId)
+    this.streamingControllers.delete(conversationKey)
     return controller.complete(finalText)
   }
 
   override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
-    const controller = this.streamingControllers.get(chatId)
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    await this.transitionConversationReaction(conversationKey, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
+    const controller = this.streamingControllers.get(conversationKey)
     if (controller) {
-      this.streamingControllers.delete(chatId)
+      this.streamingControllers.delete(conversationKey)
       await controller.error(error)
       return
     }
@@ -952,7 +974,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     // Remember the latest user message so sendTypingIndicator can react to it.
     if (event.message.message_id) {
-      this.latestUserMessageByChat.set(chatId, event.message.message_id)
+      this.latestUserMessageByConversation.set(conversationKey, event.message.message_id)
     }
 
     const messageType = event.message.message_type
@@ -1013,7 +1035,12 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private mentionsBot(mentions: FeishuMessageEvent['message']['mentions'], rawContent: string): boolean {
-    if (rawContent.includes('@_all')) return true
+    try {
+      const content = JSON.parse(rawContent) as { text?: unknown }
+      if (typeof content.text === 'string' && content.text.includes('@_all')) return true
+    } catch {
+      // Invalid content is rejected by the message-type parser after the mention gate.
+    }
     return (mentions ?? []).some((mention) => this.mentionMatchesBot(mention))
   }
 

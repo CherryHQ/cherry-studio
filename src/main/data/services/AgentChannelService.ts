@@ -146,7 +146,8 @@ export class AgentChannelService {
       })
       .run()
 
-    // Keep the legacy single-session field as the last-active projection for existing consumers.
+    // This link write and ChannelMessageHandler tracker hits both refresh the legacy last-active projection.
+    // channel_conversations remains authoritative; channel.sessionId only reflects the latest active binding.
     tx.update(channelsTable).set({ sessionId }).where(eq(channelsTable.id, channelId)).run()
   }
 

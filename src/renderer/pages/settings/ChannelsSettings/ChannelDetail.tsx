@@ -34,6 +34,7 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelEventSchemas } from '@shared/ipc/schemas/channel'
 import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -46,13 +47,8 @@ const logger = loggerService.withContext('ChannelDetail')
 
 // --------------- Types ---------------
 
-type LogEntry = { timestamp: number; level: string; message: string; channelId: string }
-type StatusEvent = {
-  channelId: string
-  connected: boolean
-  state?: 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
-  error?: string
-}
+type LogEntry = ChannelEventSchemas['channel.log']
+type StatusEvent = ChannelEventSchemas['channel.status_changed']
 
 // --------------- Helpers ---------------
 
