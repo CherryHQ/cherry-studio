@@ -22,13 +22,13 @@
         "count_tokens": "Estima quantos tokens de entrada são consumidos por um conjunto de mensagens no formato Anthropic.",
         "generate_content": "Gera conteúdo através do método `generateContent` do Gemini. Os corpos do pedido e da resposta seguem o formato da API Gemini; `streamGenerateContent` é servido no mesmo caminho.",
         "get_knowledge_base": "Obtém uma base de conhecimento pelo respetivo ID.",
-        "get_mcp_server": "Obter os detalhes de um servidor MCP e a sua lista de ferramentas.",
+        "get_mcp_server": "Obter os detalhes de um servidor MCP e a respetiva lista de ferramentas.",
         "health": "Estado do serviço, hora atual e versão. Não requer autenticação.",
         "info": "Nome e versão da API e os seus principais endpoints. Não requer autenticação.",
         "list_knowledge_bases": "Lista as bases de conhecimento disponíveis nesta instância do Cherry Studio.",
-        "list_mcp_servers": "Liste os servidores MCP ativados no Cherry Studio, cada um com o URL para se conectar a eles.",
+        "list_mcp_servers": "Listar os servidores MCP ativados no Cherry Studio, cada um com o URL de ligação.",
         "list_models": "Lista os modelos disponíveis neste gateway, no formato de modelos da OpenAI.",
-        "mcp_proxy": "[Para ser traduzido]: Ponto final do Protocolo de Contexto de Modelo (Model Context Protocol) para um servidor MCP (HTTP transmissível – Streamable HTTP). Direcione qualquer cliente MCP para este URL para utilizar o servidor através do Cherry Studio.",
+        "mcp_proxy": "Endpoint do Model Context Protocol para um servidor MCP (Streamable HTTP). Aponte qualquer cliente MCP para este URL para usar o servidor através do Cherry Studio.",
         "messages": "Cria uma mensagem. Os corpos do pedido e da resposta seguem o formato Anthropic Messages; com `stream: true` a saída é incremental.",
         "responses": "Cria uma resposta. Os corpos do pedido e da resposta seguem o formato OpenAI Responses.",
         "search_knowledge_bases": "Pesquisa numa ou mais bases de conhecimento e devolve os excertos de documentos correspondentes."
@@ -106,8 +106,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "O serviço atual de análise de documentos exige arquivos menores que {{maxSize}}. Comprime ou divida esse arquivo e, em seguida, adicione-o novamente.",
-      "pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas para o serviço de análise de documentos atual. Divida o PDF manualmente e, em seguida, adicione-o novamente."
+      "document_size_limit_exceeded": "O serviço atual de análise de documentos requer ficheiros menores que {{maxSize}}. Comprima ou divida este ficheiro e adicione-o novamente.",
+      "pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente."
     }
   },
   "openclaw": {

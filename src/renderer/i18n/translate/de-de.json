@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Geben Sie Ihr QQ Bot Client Secret ein",
         "description": "Nachrichten über die offizielle QQ Bot API empfangen und beantworten.",
-        "mentionOnlyHint": "Wenn das Bot-Feature aktiviert ist, antwortet es nur auf @Erwähnungen. Deaktivieren Sie dieses Feature, um alle Gruppennachrichten zu erhalten (dafür ist die Erlaubnis „Alle Nachrichten empfangen“ auf der QQ Open Platform erforderlich).",
-        "mentionOnlyLabel": "[to be translated]:@Nur Erwähnungen",
+        "mentionOnlyHint": "Wenn aktiviert, antwortet der Bot nur auf @Erwähnungen. Deaktivieren, um alle Gruppennachrichten zu erhalten (erfordert die Berechtigung „Alle Nachrichten empfangen“ auf der QQ Open Platform).",
+        "mentionOnlyLabel": "Nur @Mention",
         "title": "QQ",
         "whoamiTip": "💡 Tipp: Senden Sie /whoami an den Bot, um Ihre Chat-ID im richtigen Format zu erhalten."
       },
@@ -498,28 +498,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[zu übersetzen]: {{count}} Kanäle",
-          "channels_count_other": "[ Zu übersetzen ): {{count}} Kanäle",
+          "channels_count_one": "{{count}} Kanal",
+          "channels_count_other": "{{count}} Kanäle",
           "channels_empty": "Keine Kanäle werden geändert.",
-          "channels_title": "Die Kanäle wurden so geändert, dass keine Arbeitsverzeichnisse verwendet werden.",
+          "channels_title": "Kanäle auf kein Arbeitsverzeichnis geändert",
           "content": "Das Löschen dieses Arbeitsverzeichnisses löscht auch alle darin befindlichen Aufgaben. Es werden nur Datenbankeinträge entfernt; der tatsächliche Ordner auf der Festplatte wird nicht gelöscht.",
-          "disk_preserved": "Der Ordner auf der Festplatte sowie seine Dateien werden nicht gelöscht.",
+          "disk_preserved": "Der Ordner auf der Festplatte und seine Dateien werden nicht gelöscht.",
           "error": {
             "failed": "Fehler beim Löschen des Arbeitsverzeichnisses"
           },
-          "more_count_one": "…und noch {{count}} weitere Artikel.",
-          "more_count_other": "…und weitere {{count}} Artikel.",
-          "preview": "[To be translated]: Das Lösen von „{{name}}“ führt dazu, dass seine Sitzungen sowie die damit verbundenen Channel- und Aufgaben in den Pfad „no work directory“ geändert werden. Diese Aktion kann nicht rückgängig gemacht werden.",
-          "preview_failed": "Der Auswirkung der Löschung konnte nicht abgerufen werden; daher kann dieser Arbeitskatalog noch nicht gelöscht werden.",
-          "preview_loading": "„ zu übersetzen “: Lade der Auswirkungen der Löschung ein…",
-          "sessions_count_one": "[zu übersetzen]: {{count}} Sitzungen",
-          "sessions_count_other": "[ zu übersetzen]: {{count}} Sitzungen",
-          "sessions_empty": "Keine Sitzungen werden gelöscht.",
-          "sessions_title": "[Zu übersetzen]: Sitzungen, die gelöscht werden sollen",
-          "tasks_count_one": "'[zu übersetzen]: {{count}} geplante Aufgabe'",
-          "tasks_count_other": "„[to be translated]: „[[Count]] geplante Aufgaben““",
-          "tasks_empty": "Es werden keine geplanten Aufgaben geändert.",
-          "tasks_title": "Zu den geplanten Aufgaben ist festgelegt, dass kein Arbeitsverzeichnis verwendet wird.",
+          "more_count_one": "…und {{count}} weiterer Artikel",
+          "more_count_other": "und {{count}} weitere Artikel",
+          "preview": "Das Löschen von „{{name}}“ entfernt dessen Sitzungen und setzt zugehörige Kanäle und geplante Aufgaben auf kein Arbeitsverzeichnis. Diese Aktion kann nicht rückgängig gemacht werden.",
+          "preview_failed": "Die Auswirkung der Löschung konnte nicht geladen werden, daher kann dieses Arbeitsverzeichnis noch nicht gelöscht werden.",
+          "preview_loading": "Lade Auswirkungen der Löschung…",
+          "sessions_count_one": "{{count}} Sitzung",
+          "sessions_count_other": "{{count}} Sitzungen",
+          "sessions_empty": "Es werden keine Sitzungen gelöscht.",
+          "sessions_title": "Zu löschende Sitzungen",
+          "tasks_count_one": "{{count}} geplante Aufgabe",
+          "tasks_count_other": "{{count}} geplante Aufgaben",
+          "tasks_empty": "Keine geplanten Aufgaben werden geändert.",
+          "tasks_title": "Geplante Aufgaben auf kein Arbeitsverzeichnis geändert",
           "title": "Arbeitsverzeichnis löschen",
           "trigger": "Arbeitsverzeichnis löschen"
         },
@@ -1567,15 +1567,15 @@
           "skills": "Fähigkeiten"
         },
         "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
-        "load_failed": "[zu übersetzen]: Es gelang nicht, die Ressourcen des Arbeitsraums zu laden.",
+        "load_failed": "Workspace-Ressourcen konnten nicht geladen werden.",
         "loading": "Laden...",
         "no_items_found": {
           "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
           "label": "Keine Artikel gefunden"
         },
         "no_resources_found": {
-          "description": "Im aktuellen Arbeitsbereich befinden sich keine suchbaren Dateien oder Ordner.",
-          "label": "Keine Ressourcen gefunden."
+          "description": "Keine durchsuchbaren Dateien oder Ordner im aktuellen Arbeitsbereich",
+          "label": "Keine Ressourcen gefunden"
         },
         "title": "Ressourcen"
       },
@@ -2544,7 +2544,7 @@
       "ocr": "OCR-Engine nicht initialisiert, OCR-Einstellungen prüfen",
       "parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
       "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
-      "permission": "Der Anbieter lehnte diesen Antrag ab. Überprüfen Sie die Fehlerdetails, Ihren Accountplan, die Berechtigungen für die API-Schlüssel sowie den Zugriff auf diese Ressource.",
+      "permission": "Der Anbieter hat diese Anfrage abgelehnt. Überprüfen Sie die Fehlerdetails, Ihren Account-Plan, die API-Schlüsselberechtigungen oder den Zugriff auf diese Ressource.",
       "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
       "quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
       "rate_limit": "Zu viele Anfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen, oder zu einem Modell mit höherer Ratenbegrenzung wechseln",
@@ -2569,7 +2569,7 @@
       "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
       "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
-    "image_unreadable_for_non_vision_model": "Der ausgewählte Modell unterstützt keine Bilder, und Cherry Studio konnte keinen lesbaren Text aus der Anhangsdatei extrahieren. Wählen Sie ein Modell, das mit visuellen Daten arbeiten kann, oder entfernen Sie das Bild und versuchen Sie es erneut.",
+    "image_unreadable_for_non_vision_model": "Das ausgewählte Modell unterstützt keine Bilder, und Cherry Studio konnte keinen lesbaren Text aus dem Anhang extrahieren. Wählen Sie ein bildfähiges Modell oder entfernen Sie das Bild und versuchen Sie es erneut.",
     "lastError": "Letzter Fehler",
     "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
     "message": "Fehlermeldung",
@@ -3233,12 +3233,12 @@
       "default_separator": "Auto (empfohlen)",
       "document_count": "Dokumentanzahl",
       "download_local_embedding_failed": "Das lokale Embedding-Modell konnte nicht heruntergeladen werden",
-      "download_local_model": "„[ Zu übersetzen ]“: Lokales Modell herunterladen",
+      "download_local_model": "Lokales Modell herunterladen",
       "embedding_model": "Embedding-Modell",
       "embedding_model_select": "Modellauswahl",
       "file_processing": "Dateiverarbeitung",
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
-      "file_processing_none": "„Don’t use“",
+      "file_processing_none": "Nicht verwenden",
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
         "chunk_separator": "Trennzeichen, an dem der Text aufgeteilt wird, in maskierter Form. Bei aktivierter intelligenter Segmentierung fügt es einen Trennpunkt hinzu; bei deaktivierter Segmentierung wird der Text nur an diesem Trennzeichen aufgeteilt.",
@@ -3252,8 +3252,8 @@
       },
       "processor": "Verarbeitungsanbieter",
       "processor_not_configured": "Nicht konfiguriert",
-      "processor_not_downloaded": "Nicht heruntergeladen.",
-      "processor_unreachable": "Der Dienst läuft nicht.",
+      "processor_not_downloaded": "Nicht heruntergeladen",
+      "processor_unreachable": "Dienst wird nicht ausgeführt",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Reranking-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -4052,12 +4052,12 @@
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
       "stream_admission": {
-        "execution_changed": "Der Antworttext änderte sich, bevor der erneute Versuch begann. Bitte versuchen Sie es noch einmal.",
-        "execution_not_ready": "[To be translated]: Diese Antwort wird noch erstellt und kann derzeit nicht erneut angefordert werden.",
-        "model_already_in_live_group": "Dieses Modell generiert bereits Inhalte für die aktive Antwortgruppe.",
-        "single_model_required": "Wählen Sie ein Modell aus, um es der aktiven Antwortgruppe hinzuzufügen.",
-        "target_not_in_live_group": "Die ausgewählte Antwort befindet sich nicht mehr in der aktiven Antwortgruppe. Bitte versuchen Sie es erneut.",
-        "topic_busy": "Diese Konversation wird noch weiter durchgeführt. Warten Sie ab, bis sie beendet ist, und versuchen Sie es dann noch einmal."
+        "execution_changed": "Die Antwort hat sich geändert, bevor der erneute Versuch gestartet wurde. Bitte versuchen Sie es erneut.",
+        "execution_not_ready": "Diese Antwort wird noch generiert und kann noch nicht erneut versucht werden.",
+        "model_already_in_live_group": "Dieses Modell generiert bereits in der aktiven Antwortgruppe.",
+        "single_model_required": "Wählen Sie ein Modell aus, um es zur aktiven Antwortgruppe hinzuzufügen.",
+        "target_not_in_live_group": "Die ausgewählte Antwort ist nicht mehr in der aktiven Antwortgruppe. Bitte versuchen Sie es erneut.",
+        "topic_busy": "Diese Unterhaltung wird noch generiert. Warte, bis sie abgeschlossen ist, und versuche es erneut."
       },
       "table": {
         "invalid": "Konnte keine gültigen Tabellendaten abrufen"
@@ -4074,7 +4074,7 @@
         "title": "Gruppenantworten löschen"
       },
       "retry_failed": "Fehlgeschlagene Nachricht wiederholen",
-      "retry_skipped_same_model": "Es wurden {{count}} weitere fehlerhafte Antworten ignoriert, da die Option „Alle erneuten Versuche durchführen“ („Retry All“) für maximal einen erneuten Versuch pro Modell gilt."
+      "retry_skipped_same_model": "{{count}} weitere fehlgeschlagene Antworten wurden übersprungen, da „Alle erneut versuchen“ höchstens einen erneuten Versuch pro Modell startet."
     },
     "ignore": {
       "knowledge": {
@@ -4506,27 +4506,27 @@
     },
     "pinned": "Angeheftet",
     "price": {
-      "add_tier": "Zusätzlich sollen Preisspannen (Preisstufen) eingeführt werden.",
-      "cache_fallback_help": "Um den Eingabepreis dieser Ebene zu verwenden, lassen Sie die Cache-Preise leer. Geben Sie 0 ein, um die Nutzung kostenlos zu machen.",
+      "add_tier": "Tarifstufe hinzufügen",
+      "cache_fallback_help": "Lassen Sie die Cache-Preise leer, um den Eingabepreis dieser Stufe zu verwenden; geben Sie 0 für kostenlos ein.",
       "cache_read": "Cache-Lesepreis",
-      "cache_write": " Cache-Speicherungskosten („Cache Write Price“)",
+      "cache_write": "Cache-Schreibpreis",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
-      "field_for_tier": "[zu übersetzen]: {{Feld}}, Stufe {{Index}}",
+      "field_for_tier": "{{field}}, Stufe {{index}}",
       "input": "Eingabepreis",
       "million_tokens": "Million Token",
-      "min_input_tokens": "[Betreff der Übersetzung wird hier angegeben]  \n„Beginnt bei den Eingabetoken.“",
-      "min_input_tokens_help": "Inklusiver Grenzwert; muss größer als der vorherige Wert sein.",
+      "min_input_tokens": "Beginnt bei Eingabe-Tokens",
+      "min_input_tokens_help": "Inklusive Grenze; muss größer als die vorherige Stufe sein.",
       "output": "Ausgabepreis",
       "price": "Preis",
-      "remove_tier": "[to be translated]: Entfernen Sie die Preisspanne „{{index}}“.",
+      "remove_tier": "Preisstufe {{index}} entfernen",
       "tier": "Tier {{index}}",
-      "tier_from": "Von den Eingabetoken aus dem Bereich {{boundary}} (einschließlich).",
-      "use_input_price": "„Use input price“",
-      "validation_min_input_tokens": "Geben Sie eine positive Ganzzahl ein.",
-      "validation_min_input_tokens_order": "Die neue Ebene muss nach der vorherigen Ebene beginnen.",
-      "validation_price": "[Betrieben Sie die Aktion nicht, da der Eingabewert „0“ nicht zulässig ist.]  \n*(Do not perform this action; the input value „0“ is not valid.)*"
+      "tier_from": "Ab {{boundary}} Eingabe-Tokens (einschließlich)",
+      "use_input_price": "Eingabepreis verwenden",
+      "validation_min_input_tokens": "Gib eine positive ganze Zahl ein.",
+      "validation_min_input_tokens_order": "Die Stufe muss nach der vorherigen Stufe beginnen.",
+      "validation_price": "Geben Sie einen Preis größer oder gleich 0 ein."
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranking-Modell",
@@ -4678,8 +4678,8 @@
         "font_size_medium": "Mittel",
         "font_size_small": "Klein",
         "font_title": "Schrifteinstellungen",
-        "line_breaks": "[Betreff des zu übersetzenden Textes]: Zeilenumbruchmodus",
-        "line_breaks_description": "Zu übersetzen:  \nEinen Zeilenvorhang soll als neue Zeile dargestellt werden (im Stil von Obsidian). Wenn diese Funktion deaktiviert ist, werden Zeilenvorhänge in Leerzeichen umgewandelt, bis ein leerer Zeilenumbruch die Absätze trennt.",
+        "line_breaks": "Zeilenumbruchmodus",
+        "line_breaks_description": "Einen einzelnen Zeilenumbruch als neue Zeile rendern (Obsidian-Stil). Wenn deaktiviert, werden Zeilenumbrüche zu Leerzeichen zusammengezogen, bis eine Leerzeile Absätze trennt.",
         "serif_font": "Serifenschrift",
         "show_table_of_contents": "Inhaltsverzeichnis anzeigen",
         "show_table_of_contents_description": "Inhaltsverzeichnis-Seitenleiste anzeigen für einfache Navigation im Dokument",
@@ -5447,7 +5447,7 @@
         "insertRowBefore": "Oben einfügen"
       }
     },
-    "backToTop": "Zurück an die Spitze",
+    "backToTop": "Zurück nach oben",
     "commands": {
       "blockMath": {
         "description": "Mathematische Formel einfügen",
@@ -6725,8 +6725,8 @@
       "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "localModels": {
         "acceleration": {
-          "description": "„Use DirectML or CoreML to accelerate local embedding and OCR inference.“",
-          "label": "Hardware-Beschleunigung"
+          "description": "Nutzen Sie DirectML oder CoreML, um lokale Embedding- und OCR-Inferenz zu beschleunigen.",
+          "label": "Hardwarebeschleunigung"
         },
         "cancel": "Abbrechen",
         "description": "Modelle, die lokal auf Ihrem Gerät laufen — einmal herunterladen, dann offline ohne API-Schlüssel nutzbar.",
@@ -7035,7 +7035,7 @@
       },
       "command": "Befehl",
       "config_description": "Model-Context-Protocol-Server konfigurieren",
-      "copyLogs": "[to be translated]: Protokolle kopieren",
+      "copyLogs": "Logs kopieren",
       "customRegistryPlaceholder": "Privates Repository-Adresse eingeben, z. B. https://npm.company.com",
       "deleteError": "Server löschen fehlgeschlagen",
       "deleteServer": "Server löschen",
@@ -7089,7 +7089,7 @@
       },
       "logoUrl": "Logo-URL",
       "logs": "Protokolle",
-      "logsHint": "[To be translated]: Protokolle aus dem MPC-Server-Prozess",
+      "logsHint": "Logs vom MCP-Serverprozess",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -8229,7 +8229,7 @@
       "label": "Taste",
       "move_tab_to_first": "Tab an erste Stelle verschieben",
       "new_topic": "Neues Thema",
-      "next_tab": "Nachdem Sie die gewünschten Informationen eingegeben haben, klicken Sie einfach auf die Schaltfläche „Weiter“ oder verwenden Sie die Pfeiltaste, um zum nächsten Tab zu gelangen.",
+      "next_tab": "Nächster Tab",
       "occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",
       "open_tab_in_new_window": "Registerkarte in neuem Fenster öffnen",
       "pin_tab": "Registerkarte anheften/anhängen umschalten",
@@ -8352,8 +8352,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "„Auf diesem Rechner werden PDFs vollständig in Markdown umgewandelt. Dokumente mit einem Textbereich werden direkt解析 ( analysiert); bei Scans wird auf das lokale OCR-Modell zurückgegriffen.“",
-            "name": "[to be translated]: Lokales Dokument"
+            "description": "Konvertiert PDFs vollständig auf diesem Rechner in Markdown. Dokumente mit einer Textebene werden direkt geparst; Scans fallen auf das lokale OCR-Modell zurück.",
+            "name": "Lokales Dokument"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) läuft im Prozess — vollständig offline, kein API-Key, mit Erkennung in einem Hintergrundthread, damit die Benutzeroberfläche reaktionsfähig bleibt. Laden Sie das Modell (~140MB) in den Umgebungsabhängigkeiten vor dem ersten Gebrauch herunter.",
