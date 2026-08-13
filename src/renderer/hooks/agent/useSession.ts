@@ -7,6 +7,7 @@
  * with `session.agentId`.
  */
 
+import { loggerService } from '@logger'
 import {
   useDataChange,
   useInfiniteFlatItems,
@@ -36,6 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const logger = loggerService.withContext('useSession')
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
@@ -318,9 +320,13 @@ export const useSessions = (
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
-        await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
-        closeConversationTabs('agents', [id])
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
+        closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
+        }
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
@@ -334,8 +340,14 @@ export const useSessions = (
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
         const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
-        await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
+            sessionIds: result.deletedIds
+          })
+        }
         return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))

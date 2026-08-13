@@ -83,7 +83,6 @@ const agentPageMocks = vi.hoisted(() => ({
   composerLaunchOptions: undefined as any,
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
-  dataApiDelete: vi.fn(),
   updateSession: vi.fn(),
   setSessionWorkspace: vi.fn(),
   invalidateCache: vi.fn(),
@@ -117,7 +116,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcO
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
-    delete: agentPageMocks.dataApiDelete,
     get: agentPageMocks.dataApiGet,
     post: agentPageMocks.dataApiPost
   }
@@ -731,7 +729,6 @@ describe('AgentPage', () => {
       return agentPageMocks.workspace
     })
     agentPageMocks.dataApiPost.mockResolvedValue(agentPageMocks.persistedSession)
-    agentPageMocks.dataApiDelete.mockResolvedValue({ deletedIds: [] })
     agentPageMocks.updateSession.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.setSessionWorkspace.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
@@ -777,7 +774,6 @@ describe('AgentPage', () => {
       `/agent-sessions/${previousSession.id}/messages`,
       expect.anything()
     )
-    expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
       initialDraft: {
         text: 'Use the issue-reporter skill.',
@@ -1530,8 +1526,8 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     await waitFor(() =>
-      expect(agentPageMocks.dataApiDelete).toHaveBeenCalledWith('/agent-sessions', {
-        query: { ids: 'session-empty-system-old' }
+      expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.session.delete', {
+        sessionIds: ['session-empty-system-old']
       })
     )
     expect(agentPageMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-empty-system-old'])
@@ -1685,8 +1681,8 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-active'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     await waitFor(() =>
-      expect(agentPageMocks.dataApiDelete).toHaveBeenCalledWith('/agent-sessions', {
-        query: { ids: 'session-empty-system-middle,session-empty-system-oldest' }
+      expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.session.delete', {
+        sessionIds: ['session-empty-system-middle', 'session-empty-system-oldest']
       })
     )
     expect(agentPageMocks.closeConversationTabs).toHaveBeenCalledWith('agents', [

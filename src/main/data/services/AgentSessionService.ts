@@ -28,7 +28,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -109,16 +109,24 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   return or(nameMatch, descriptionMatch)
 }
 
+export function agentSessionReadModelEffects(
+  sessionIds: readonly string[],
+  kind: 'membership' | 'projection'
+): DataApiDataChangeEffect[] {
+  if (sessionIds.length === 0) return []
+  const entityIds = [...new Set(sessionIds)]
+  return [
+    { endpoint: '/agent-sessions', kind, entityIds },
+    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    { endpoint: '/agent-sessions/:sessionId', entityIds },
+    { endpoint: '/agent-sessions/latest' }
+  ]
+}
+
 export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
-    if (sessionIds.length === 0) return
-    const entityIds = [...new Set(sessionIds)]
-    notifyDataApiDataChange([
-      { endpoint: '/agent-sessions', kind, entityIds },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      { endpoint: '/agent-sessions/:sessionId', entityIds },
-      { endpoint: '/agent-sessions/latest' }
-    ])
+    const effects = agentSessionReadModelEffects(sessionIds, kind)
+    if (effects.length > 0) notifyDataApiDataChange(effects)
   }
 
   listAddressableByCursor(query: {

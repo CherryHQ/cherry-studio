@@ -39,18 +39,21 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage({
-      sessionId: this.opts.sessionId,
-      ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-      ...(runtimeStats ? { runtimeStats } : {}),
-      message: {
-        id: finalMessage?.id ?? this.opts.assistantMessageId,
-        role: 'assistant',
-        status,
-        data: { parts: finalMessage?.parts ?? [] },
-        modelId: this.opts.modelId
-      }
-    })
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: this.opts.sessionId,
+        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+        ...(runtimeStats ? { runtimeStats } : {}),
+        message: {
+          id: finalMessage?.id ?? this.opts.assistantMessageId,
+          role: 'assistant',
+          status,
+          data: { parts: finalMessage?.parts ?? [] },
+          modelId: this.opts.modelId
+        }
+      },
+      { publishDataChange: true }
+    )
   }
 
   markTerminalError(): void {

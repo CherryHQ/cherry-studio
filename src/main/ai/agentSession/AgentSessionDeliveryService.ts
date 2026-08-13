@@ -390,6 +390,8 @@ export class AgentSessionDeliveryService extends BaseService {
         return
       }
 
+      agentSessionMessageService.publishDispatchChanges(current.sessionId, persisted.savedMessages)
+
       try {
         const prepared = agentChatContextProvider.activateDispatch(
           persisted,

@@ -666,6 +666,19 @@ describe('useSessions', () => {
     expect(deleted).toBe(true)
   })
 
+  it('keeps a committed session deletion successful when cache refresh fails', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['session-a'] })
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    const deleted = await act(async () => result.current.deleteSession('session-a'))
+
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
+    expect(deleted).toBe(true)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('deletes selected Sessions through the mixed-operation IPC command', async () => {
     const response = { deletedIds: ['session-a', 'session-b'] }
     mockIpcRequest.mockResolvedValue(response)
@@ -678,6 +691,20 @@ describe('useSessions', () => {
     })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
     expect(deleted).toBe(response)
+  })
+
+  it('returns committed batch deletion results when cache refresh fails', async () => {
+    const response = { deletedIds: ['session-a', 'session-b'] }
+    mockIpcRequest.mockResolvedValue(response)
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    const deleted = await act(async () => result.current.deleteSessions(['session-a', 'session-b']))
+
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
+    expect(deleted).toBe(response)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('returns the created session when refreshing the session list fails', async () => {

@@ -51,15 +51,18 @@ describe('AgentSessionMessageBackend', () => {
 
     await listener.onDone({ status: 'success', finalMessage: undefined })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [] },
-        modelId: undefined
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: undefined
+        }
+      },
+      { publishDataChange: true }
+    )
   })
 })

@@ -11,7 +11,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -635,7 +635,7 @@ export class AgentSessionMessageService {
         .run()
       return result
     })
-    if (changed.changes > 0) this.publishDeliveryChange(messageId, 'projection')
+    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -846,11 +846,12 @@ export class AgentSessionMessageService {
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
-    if (result.activityTimestamp !== null) {
+    if (result.activityTimestamp !== null && !publishDataChange) {
       agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
     }
     if (publishDataChange) {
       notifyDataApiDataChange([
+        ...agentSessionReadModelEffects(result.activityTimestamp !== null ? [params.sessionId] : [], 'projection'),
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: result.dataChange,
@@ -934,7 +935,10 @@ export class AgentSessionMessageService {
       .get('DbService')
       .withWriteTx((tx) => this.acceptSessionDeliveryTx(tx, { ...input, content }))
 
-    this.publishDeliveryChange(saved.id, 'membership')
+    this.publishDeliveryMutation(
+      [{ sessionId: saved.sessionId, messageId: saved.id, kind: 'membership' }],
+      [saved.sessionId]
+    )
     return saved
   }
 
@@ -1124,15 +1128,27 @@ export class AgentSessionMessageService {
   }
 
   publishDeliveryChanges(messages: readonly AgentSessionMessageEntity[]): void {
-    const ids = messages.map((message) => message.id)
-    if (ids.length === 0) return
-    notifyDataApiDataChange([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'membership',
-        entityIds: ids
-      }
-    ])
+    this.publishDeliveryMutation(
+      messages.map((message) => ({
+        sessionId: message.sessionId,
+        messageId: message.id,
+        kind: 'membership' as const
+      })),
+      messages.map((message) => message.sessionId)
+    )
+  }
+
+  /** Publish a delivery claim's existing request projection and new assistant placeholder. */
+  publishDispatchChanges(sessionId: string, messages: readonly AgentSessionMessageEntity[]): void {
+    if (messages.length === 0) return
+    this.publishDeliveryMutation(
+      messages.map((message, index) => ({
+        sessionId,
+        messageId: message.id,
+        kind: index === 0 ? ('projection' as const) : ('membership' as const)
+      })),
+      [sessionId]
+    )
   }
 
   listSessionDeliveries(
@@ -1223,7 +1239,7 @@ export class AgentSessionMessageService {
         .all()
       return row ? this.rowToEntity(row) : null
     })
-    if (updated) this.publishDeliveryChange(messageId, 'projection')
+    if (updated) this.publishDeliveryChange(sessionId, messageId, 'projection')
     return updated
   }
 
@@ -1364,8 +1380,17 @@ export class AgentSessionMessageService {
       return { requestId: request.id, result }
     })
 
-    if (finalized.requestId) this.publishDeliveryChange(finalized.requestId, 'projection')
-    if (finalized.result) this.publishDeliveryChange(finalized.result.id, 'membership')
+    this.publishDeliveryMutation(
+      [
+        ...(finalized.requestId
+          ? [{ sessionId: input.requestSessionId, messageId: finalized.requestId, kind: 'projection' as const }]
+          : []),
+        ...(finalized.result
+          ? [{ sessionId: finalized.result.sessionId, messageId: finalized.result.id, kind: 'membership' as const }]
+          : [])
+      ],
+      finalized.result ? [finalized.result.sessionId] : []
+    )
     return finalized.result
   }
 
@@ -1432,8 +1457,17 @@ export class AgentSessionMessageService {
         .run()
       return { requestId: request.id, result }
     })
-    if (failed.requestId) this.publishDeliveryChange(failed.requestId, 'projection')
-    if (failed.result) this.publishDeliveryChange(failed.result.id, 'membership')
+    this.publishDeliveryMutation(
+      [
+        ...(failed.requestId
+          ? [{ sessionId: message.sessionId, messageId: failed.requestId, kind: 'projection' as const }]
+          : []),
+        ...(failed.result
+          ? [{ sessionId: failed.result.sessionId, messageId: failed.result.id, kind: 'membership' as const }]
+          : [])
+      ],
+      failed.result ? [failed.result.sessionId] : []
+    )
     return failed.result
   }
 
@@ -1503,13 +1537,27 @@ export class AgentSessionMessageService {
     return results
   }
 
-  private publishDeliveryChange(messageId: string, kind: 'membership' | 'projection'): void {
+  private publishDeliveryChange(sessionId: string, messageId: string, kind: 'membership' | 'projection'): void {
+    this.publishDeliveryMutation([{ sessionId, messageId, kind }])
+  }
+
+  private publishDeliveryMutation(
+    changes: readonly {
+      sessionId: string
+      messageId: string
+      kind: 'membership' | 'projection'
+    }[],
+    activitySessionIds: readonly string[] = []
+  ): void {
+    if (changes.length === 0 && activitySessionIds.length === 0) return
     notifyDataApiDataChange([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
+      ...agentSessionReadModelEffects(activitySessionIds, 'projection'),
+      ...changes.map(({ sessionId, messageId, kind }) => ({
+        endpoint: '/agent-sessions/:sessionId/messages' as const,
         kind,
+        routeParams: { sessionId },
         entityIds: [messageId]
-      }
+      }))
     ])
   }
 

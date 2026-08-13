@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   findByTurnRef: vi.fn(),
   getMessage: vi.fn(),
   markTerminalError: vi.fn(),
+  publishDispatchChanges: vi.fn(),
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
   resolveCrash: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
     markAssistantMessageTerminalError: mocks.markTerminalError,
+    publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
     listRecoverableSessionDeliveries: mocks.listRecoverable,
     resolveCrashOrphanedMessages: mocks.resolveCrash
@@ -210,6 +212,7 @@ describe('AgentSessionDeliveryService', () => {
       type: 'claude-code'
     })
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
+    expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
     expect(mocks.send).toHaveBeenCalledOnce()
   })
 

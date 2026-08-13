@@ -258,6 +258,18 @@ describe('useAgents', () => {
 
       expect(toast.error).toHaveBeenCalled()
     })
+
+    it('reports success when deletion commits but cache refresh fails', async () => {
+      ipcRequestMock.mockResolvedValue({ deleted: true })
+      invalidateSpy.mockRejectedValueOnce(new Error('refresh failed'))
+      MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
+
+      const { result } = renderHook(() => useAgents())
+      await act(async () => result.current.deleteAgent('agent-1'))
+
+      expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+      expect(toast.error).not.toHaveBeenCalled()
+    })
   })
 })
 

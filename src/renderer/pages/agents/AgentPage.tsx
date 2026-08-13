@@ -28,6 +28,7 @@ import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab, useTabSelfVi
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -486,15 +487,19 @@ const AgentPage = () => {
       if (sessionIds.length === 0) return
 
       try {
-        await dataApiService.delete('/agent-sessions', {
-          query: { ids: sessionIds.join(',') }
-        })
+        await ipcApi.request('ai.agent.session.delete', { sessionIds })
         closeConversationTabs('agents', sessionIds)
-        await invalidateCache([
-          '/agent-sessions',
-          '/agent-workspaces',
-          ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
-        ])
+        try {
+          await invalidateCache([
+            '/agent-sessions',
+            '/agent-workspaces',
+            ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
+          ])
+        } catch (err) {
+          logger.warn('Failed to refresh after deleting duplicate empty system agent sessions', err as Error, {
+            sessionIds
+          })
+        }
       } catch (err) {
         logger.warn('Failed to delete duplicate empty system agent sessions', err as Error, { sessionIds })
       }

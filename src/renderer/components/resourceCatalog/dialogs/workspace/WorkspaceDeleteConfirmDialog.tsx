@@ -100,13 +100,16 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     let hasSucceeded = false
     try {
       const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId: workspace.id })
-      await Promise.all(
-        ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks'].map((key) =>
-          invalidateCache(key)
-        )
-      )
-
       closeConversationTabs('agents', result.deletedIds)
+      try {
+        await Promise.all(
+          ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks'].map((key) =>
+            invalidateCache(key)
+          )
+        )
+      } catch (error) {
+        logger.warn('Failed to refresh after deleting workspace', error as Error, { workspaceId: workspace.id })
+      }
       try {
         await invalidateCache(result.deletedIds.map((sessionId) => `/agent-sessions/${sessionId}`))
       } catch (error) {

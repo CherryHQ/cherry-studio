@@ -1145,25 +1145,35 @@ const Sessions = ({
           if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
         } else {
           const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          await Promise.all(
-            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
-              invalidate(key)
-            )
-          )
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
+          try {
+            await Promise.all(
+              ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+                invalidate(key)
+              )
+            )
+          } catch (err) {
+            logger.warn('Failed to refresh after deleting Agent from session group', { agentId, err })
+          }
         }
         if (currentActiveSession?.agentId === agentId) {
-          if (onActiveAgentDeleted) {
-            await onActiveAgentDeleted(agentId)
-          } else {
-            const remaining = sessionItemsRef.current.find((session) => session.agentId !== agentId)
-            setActiveSessionId(remaining?.id ?? null)
+          try {
+            if (onActiveAgentDeleted) {
+              await onActiveAgentDeleted(agentId)
+            } else {
+              const remaining = sessionItemsRef.current.find((session) => session.agentId !== agentId)
+              setActiveSessionId(remaining?.id ?? null)
+            }
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from session group', { agentId, err })
           }
         }
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reload()
-        await refetchWorkspaces()
+        try {
+          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload(), refetchWorkspaces()])
+        } catch (err) {
+          logger.warn('Failed to reload resources after deleting Agent from session group', { agentId, err })
+        }
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from session group', { agentId, err })
@@ -1213,9 +1223,6 @@ const Sessions = ({
 
       try {
         const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId })
-        await Promise.all(
-          ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) => invalidate(key))
-        )
         closeConversationTabs('agents', result.deletedIds)
         const affectedSessionIds = new Set(result.deletedIds)
 
@@ -1224,8 +1231,15 @@ const Sessions = ({
           setActiveSessionId(remaining?.id ?? null)
         }
 
-        await reload()
-        await refetchWorkspaces()
+        try {
+          await Promise.all([
+            ...['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) => invalidate(key)),
+            reload(),
+            refetchWorkspaces()
+          ])
+        } catch (err) {
+          logger.warn('Failed to reconcile after deleting workspace group', { err, sessionIds, workspaceId })
+        }
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })

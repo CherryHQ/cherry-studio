@@ -235,19 +235,30 @@ export function AgentResourceList({
           if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
         } else {
           const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          await Promise.all(
-            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
-              invalidate(key)
-            )
-          )
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
+          try {
+            await Promise.all(
+              ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+                invalidate(key)
+              )
+            )
+          } catch (err) {
+            logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
+          }
         }
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
+          try {
+            await onActiveAgentDeleted?.(agentId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+          }
         }
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reload()
+        try {
+          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
+        } catch (err) {
+          logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+        }
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })

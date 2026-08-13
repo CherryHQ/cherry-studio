@@ -124,6 +124,18 @@ describe('AgentSessionMessageService', () => {
       expect(
         agentSessionMessageService.listRecoverableSessionDeliveries('same-target').map((message) => message.id)
       ).toEqual([sameAgent.id])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'same-target' },
+          entityIds: [sameAgent.id]
+        }
+      ])
     })
 
     it('atomically creates a same-Agent Session with its first delivery', async () => {
@@ -335,6 +347,24 @@ describe('AgentSessionMessageService', () => {
         status: 'consumed',
         outcome: 'success'
       })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: 'target' },
+          entityIds: [request.id]
+        },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'sender' },
+          entityIds: [first!.id]
+        }
+      ])
       expect(
         agentSessionMessageService
           .listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
@@ -669,6 +699,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
@@ -800,14 +831,17 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'membership',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [USER_MESSAGE_ID]
-      }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [USER_MESSAGE_ID]
+        }
+      ])
+    )
 
     agentSessionMessageService.saveMessage(
       {
