@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
+      },
+      "cherry_support": {
+        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
       }
     },
     "channels": {
@@ -97,6 +100,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Introdu secretul clientului pentru botul QQ",
         "description": "Primește și răspunde la mesaje prin API-ul oficial QQ Bot.",
+        "mentionOnlyHint": "Când este activat, botul răspunde doar la @mențiuni. Dezactivați pentru a primi toate mesajele de grup (necesită permisiunea „primirea tuturor mesajelor\" pe QQ Open Platform).",
+        "mentionOnlyLabel": "@Menționează doar",
         "title": "QQ",
         "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
       },
@@ -455,7 +460,7 @@
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișarea",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Sarcini",
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
@@ -496,10 +501,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} canal",
+          "channels_count_other": "{{count}} canale",
+          "channels_empty": "Niciun canal nu va fi schimbat.",
+          "channels_title": "Canalele au fost schimbate fără director de lucru.",
           "content": "Ștergerea acestui director de lucru va șterge, de asemenea, toate sarcinile din cadrul său. Sunt eliminate doar înregistrările din baza de date; directorul real de pe disc nu va fi șters.",
+          "disk_preserved": "Folderul de pe disc și fișierele sale nu vor fi șterse.",
           "error": {
             "failed": "Nu s-a reușit ștergerea directorului de lucru"
           },
+          "more_count_one": "…și încă {{count}} articol",
+          "more_count_other": "…și încă {{count}} articole",
+          "preview": "Ștergerea „{{name}}” îi elimină sesiunile și modifică canalele asociate și sarcinile programate astfel încât să nu aibă director de lucru. Această acțiune nu poate fi anulată.",
+          "preview_failed": "Impactul ștergerii nu a putut fi încărcat, deci acest director de lucru nu poate fi încă șters.",
+          "preview_loading": "Se încarcă impactul ștergerii…",
+          "sessions_count_one": "{{count}} sesiune",
+          "sessions_count_other": "{{count}} sesiuni",
+          "sessions_empty": "Nicio sesiune nu va fi ștearsă.",
+          "sessions_title": "Sesiuni de șters",
+          "tasks_count_one": "{{count}} sarcină programată",
+          "tasks_count_other": "{{count}} sarcini programate",
+          "tasks_empty": "Nicio sarcină programată nu va fi modificată.",
+          "tasks_title": "Sarcinile programate au fost modificate pentru a nu avea director de lucru",
           "title": "Șterge directorul de lucru",
           "trigger": "Șterge directorul de lucru"
         },
@@ -958,7 +981,6 @@
       "executing": "Se execută...",
       "expired": "Expirat",
       "inputPreview": "Previzualizare intrare instrument",
-      "pending": "Se așteaptă confirmarea",
       "pendingBadge": "În așteptare",
       "permissionExpired": "Cererea de permisiune a expirat. Se așteaptă instrucțiuni noi...",
       "requiresElevatedPermissions": "Acest instrument necesită permisiuni elevate.",
@@ -1008,8 +1030,8 @@
           "label": "Notificare"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Convertește un document local (PDF, Office, EPUB, CSV) în Markdown pentru ca agentul să îl poată citi",
+          "label": "Document în Markdown"
         },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
@@ -1131,6 +1153,11 @@
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
       "stopSuccess": "Serverul API s-a oprit cu succes"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "Rulează",
@@ -1544,18 +1571,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agenți",
-          "files": "Fișiere",
+          "resources": "Fișiere și foldere",
           "skills": "Abilități"
         },
         "description": "Selectează dintre fișiere, agenți sau abilități",
+        "load_failed": "Eroare la încărcarea resurselor spațiului de lucru",
         "loading": "Se încarcă...",
-        "no_file_found": {
-          "description": "Nicio fișier disponibil în directoare accesibile",
-          "label": "Niciun fișier găsit"
-        },
         "no_items_found": {
           "description": "Niciun fișier, agent sau abilitate disponibilă",
           "label": "Niciun element găsit"
+        },
+        "no_resources_found": {
+          "description": "Nu există fișiere sau foldere căutabile în spațiul de lucru curent.",
+          "label": "Nu s-au găsit resurse"
         },
         "title": "Fișiere și sesiuni"
       },
@@ -1741,12 +1769,6 @@
       "top": "Înapoi sus"
     },
     "resend": "Retrimite",
-    "resource_view": {
-      "menu": {
-        "agent": "Agenți",
-        "assistant": "Asistenți"
-      }
-    },
     "save": {
       "file": {
         "title": "Salvează în fișier local"
@@ -1919,6 +1941,7 @@
         "time": "Timp",
         "title": "Mod afișare"
       },
+      "draft": "Proiect",
       "edit": {
         "placeholder": "Introdu noul nume",
         "title": "Editează numele",
@@ -2163,6 +2186,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "CLI Qoder",
       "qwen_code": "Cod Qwen"
     },
@@ -2478,6 +2502,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Furnizori disponibili",
     "availableTools": "Instrumente disponibile",
     "backup": {
@@ -2528,6 +2553,7 @@
       "ocr": "Motorul OCR nu este inițializat; verifică setările OCR",
       "parse": "AI a returnat un răspuns nevalid; încearcă din nou sau schimbă modelul",
       "payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
+      "permission": "Furnizorul a refuzat această cerere. Verificați detaliile erorii, planul contului, permisiunile cheii API sau accesul la această resursă.",
       "proxy": "Eroare de proxy sau certificat SSL; verifică setările de proxy și rețea",
       "quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
       "rate_limit": "Prea multe solicitări într-un timp scurt. Așteaptă puțin și încearcă din nou sau alege un model cu o limită de frecvență mai mare",
@@ -2552,6 +2578,7 @@
       "503": "Serviciu indisponibil. Te rugăm să încerci din nou mai târziu",
       "504": "Expirare gateway. Te rugăm să încerci din nou mai târziu"
     },
+    "image_unreadable_for_non_vision_model": "Modelul selectat nu suportă imagini, iar Cherry Studio nu a putut extrage text lizibil din atașament. Alegeți un model care suportă imagini sau eliminați imaginea și încercați din nou.",
     "lastError": "Ultima eroare",
     "maxEmbeddingsPerCall": "Max Embeddings per apel",
     "message": "Mesaj de eroare",
@@ -2989,26 +3016,26 @@
       "untitled_conversation": "Conversație fără titlu"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Import Claude",
+      "button": "Selectați fișierul",
+      "description": "Importuri text, gândire și utilizare instrumente; imaginile și atașamentele nu sunt incluse",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Format de fișier JSON nevalid",
+        "no_conversations": "Nu s-au găsit conversații în fișier",
+        "no_valid_conversations": "Nicio conversație validă de importat",
+        "unknown": "Import eșuat, vă rugăm să verificați formatul fișierului"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Conectează-te la Claude, mergi la Setări > Confidențialitate > Exportă date",
+        "step2": "2. Așteptați fișierul de export prin e-mail",
+        "step3": "3. Extrage fișierul descărcat și găsește conversations.json",
+        "title": "Cum se exportă conversațiile Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Se importă conversațiile...",
+      "selecting": "Selectare fișier...",
+      "success": "Importate cu succes {{topics}} conversații cu {{messages}} mesaje",
+      "title": "Importă conversațiile Claude",
+      "untitled_conversation": "Conversație fără titlu"
     },
     "confirm": {
       "button": "Selectează fișierul de import",
@@ -3049,18 +3076,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Conținut",
+            "content_placeholder": "Scrieți conținutul notei aici…",
+            "title_label": "Titlu",
+            "title_placeholder": "Dă un nume acestei note"
           },
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Creează notițe în funcția Notițe, apoi revino pentru a le selecta aici.",
           "empty_title": "Notele nu sunt încă conectate",
           "loading": "Se încarcă notițele…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Notă nouă",
+            "import": "Note de import"
           }
         },
         "placeholder": {
@@ -3200,7 +3227,6 @@
       "updated_at": "Actualizat {{time}}"
     },
     "name_required": "Numele bazei de cunoștințe este obligatoriu",
-    "not_set": "Nu este setat",
     "provider_not_found": "Furnizorul nu a fost găsit",
     "rag": {
       "chunk_overlap": "Dimensiune Suprapunere",
@@ -3215,12 +3241,13 @@
       "chunking": "Segmentare",
       "default_separator": "Auto (recomandat)",
       "document_count": "Număr de documente",
-      "download_local_embedding": "Descarcă Model Local",
       "download_local_embedding_failed": "Nu s-a putut descărca modelul local de embedding",
+      "download_local_model": "Descărcare Model Local",
       "embedding_model": "model de embedding",
       "embedding_model_select": "Selecția Modelului",
       "file_processing": "Procesare fișiere",
       "file_processing_hint": "Procesarea fișierelor se execută automat în timpul importului documentului. Alegerea furnizorului potrivit poate îmbunătăți calitatea analizei documentelor.",
+      "file_processing_none": "Nu folosi",
       "hints": {
         "chunk_overlap": "Numărul de token-uri suprapuse păstrate între fragmentele adiacente pentru a reduce rupturile semantice.",
         "chunk_separator": "Delimitatorul pe care este împărțit textul, în formă evadată. Cu fragmentarea inteligentă activată, adaugă un punct de întrerupere; cu ea dezactivată, textul este împărțit doar de acest delimitator.",
@@ -3234,6 +3261,8 @@
       },
       "processor": "Furnizor de procesare",
       "processor_not_configured": "Necunfigurat",
+      "processor_not_downloaded": "Nedescărcat",
+      "processor_unreachable": "Serviciul nu rulează",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -3320,7 +3349,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Gestionați bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
     "pin_to_sidebar": "Fixează în bara laterală",
@@ -3484,6 +3513,12 @@
         "context_compress_model": "Model de compresie",
         "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
+        "context_count_follow_global": "Urmează setarea globală ({{count}})",
+        "context_count_unlimited": "Nelimitat",
+        "context_globally_disabled": "Gestionarea contextului este dezactivată global, așa că setările de descărcare și comprimare de aici nu au efect",
+        "context_inherited": "Urmează setările globale: {{compress}}; rezultatele instrumentelor peste {{threshold}} de caractere sunt descărcate",
+        "context_inherited_compress_off": "comprimare automată dezactivată",
+        "context_inherited_compress_on": "comprimare automată activată",
         "context_management": "Gestionarea contextului",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
@@ -3520,7 +3555,7 @@
             "hint": "Lungimea răspunsului Caps când este activată"
           },
           "max_tool_calls": {
-            "hint": "Limitează buclele de apeluri ale funcțiilor când este activat"
+            "hint": "Limitează numărul de runde de apeluri de instrumente când este activat; altfel se aplică limita implicită de {{count}} runde"
           },
           "model": {
             "hint": "Suprascrie modelul implicit global pentru acest asistent"
@@ -3825,10 +3860,17 @@
     "skill_marketplace": {
       "empty_description": "Caută în registrele online abilități care pot fi instalate.",
       "empty_title": "Caută abilități",
+      "github_empty_description": "[to be translated]:Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "[to be translated]:Install from GitHub",
+      "github_url_invalid": "[to be translated]:Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "[to be translated]:GitHub SKILL.md URL",
+      "github_url_placeholder": "[to be translated]:GitHub link ending in /SKILL.md",
       "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",
       "no_results_title": "Nu au fost găsite abilități",
       "search_failed_description": "Căutarea a eșuat. Încearcă din nou mai târziu.",
+      "search_label": "[to be translated]:Search skills",
       "search_placeholder": "Căutare abilități...",
+      "source_label": "[to be translated]:Skill source",
       "title": "Căutare abilități online"
     },
     "sort": {
@@ -3855,13 +3897,6 @@
       "placeholder": "Nume nou pentru etichetă..."
     },
     "tag_sync_failed": "Nu s-au putut sincroniza etichetele",
-    "time_ago": {
-      "days": "acum {{count}} zi(zile)",
-      "hours": "{{count}} oră/oră în urmă",
-      "just_now": "Chiar acum",
-      "minutes": "acum {{count}} minut(e",
-      "months": "acum {{count}} lună/luni"
-    },
     "title": "Bibliotecă",
     "toolbar": {
       "add_group_placeholder": "Numele grupului...",
@@ -4025,6 +4060,14 @@
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
+      "stream_admission": {
+        "execution_changed": "Răspunsul s-a schimbat înainte de începerea reîncercării. Vă rugăm să încercați din nou.",
+        "execution_not_ready": "Acest răspuns este încă în curs de generare și nu poate fi reîncercat încă.",
+        "model_already_in_live_group": "Acest model generează deja în grupul de răspuns activ.",
+        "single_model_required": "Selectați un model pentru a-l adăuga la grupul de răspuns activ.",
+        "target_not_in_live_group": "Răspunsul selectat nu mai face parte din grupul de răspunsuri activ. Vă rugăm să încercați din nou.",
+        "topic_busy": "Această conversație se generează încă. Așteaptă să se termine și încearcă din nou."
+      },
       "table": {
         "invalid": "Imposibil de recuperat date valide din tabel"
       },
@@ -4039,7 +4082,8 @@
         "content": "Ștergeți toate răspunsurile asistentului din acest grup? Întrebarea utilizatorului și mesajele ulterioare vor fi păstrate.",
         "title": "Șterge răspunsurile grupate"
       },
-      "retry_failed": "Reîncearcă mesajele eșuate"
+      "retry_failed": "Reîncearcă mesajele eșuate",
+      "retry_skipped_same_model": "Au fost omise {{count}} răspunsuri eșuate suplimentare, deoarece Retry All pornește cel mult o reîncercare per model."
     },
     "ignore": {
       "knowledge": {
@@ -4099,6 +4143,9 @@
     "restore": {
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
+    },
+    "retry": {
+      "status": "Reîncercare cu {{model}} · încercarea {{attempt}}"
     },
     "save": {
       "success": {
@@ -4249,8 +4296,8 @@
         "taskOutput": "Vezi rezultatul sarcinii",
         "taskStop": "Oprește sarcina",
         "taskUpdate": "Actualizează sarcina",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Convertiți documentul",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Totul Scrie",
         "tool": "Unelte",
         "webFetch": "Preluare web",
@@ -4301,8 +4348,8 @@
       "thinkingHeader": "Se analizează",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} caractere",
+        "char_other": "{{count}} caractere",
         "done_one": "{{count}} finalizat",
         "done_other": "{{count}} finalizate",
         "file_one": "{{count}} fișier",
@@ -4468,14 +4515,27 @@
     },
     "pinned": "Fixat",
     "price": {
+      "add_tier": "Adaugă nivel de preț",
+      "cache_fallback_help": "Lăsați prețurile cache necompletate pentru a utiliza prețul de intrare al acestui nivel; introduceți 0 pentru gratuit.",
       "cache_read": "Preț Citire Cache",
+      "cache_write": "Preț scriere cache",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
+      "field_for_tier": "{{field}}, nivel {{index}}",
       "input": "Preț intrare",
       "million_tokens": "M Tokeni",
+      "min_input_tokens": "Începe de la tokeni de intrare",
+      "min_input_tokens_help": "Limită inclusivă; trebuie să fie mai mare decât nivelul anterior.",
       "output": "Preț ieșire",
-      "price": "Preț"
+      "price": "Preț",
+      "remove_tier": "Elimină nivelul de preț {{index}}",
+      "tier": "Nivel {{index}}",
+      "tier_from": "De la {{boundary}} tokenuri de intrare (inclusiv)",
+      "use_input_price": "Folosește prețul de intrare",
+      "validation_min_input_tokens": "Introduceți un număr întreg pozitiv.",
+      "validation_min_input_tokens_order": "Nivelul trebuie să înceapă după nivelul anterior.",
+      "validation_price": "Introduceți un preț mai mare sau egal cu 0."
     },
     "reasoning": "Raționament",
     "rerank_model": "Model de reranking",
@@ -4627,6 +4687,8 @@
         "font_size_medium": "Mediu",
         "font_size_small": "Mic",
         "font_title": "Setări font",
+        "line_breaks": "Mod de întrerupere a liniei",
+        "line_breaks_description": "Randează o singură întrerupere de linie ca o linie nouă (stil Obsidian). Când este dezactivată, întreruperile de linie sunt comprimate în spații până când o linie goală separă paragrafele.",
         "serif_font": "Font cu serife",
         "show_table_of_contents": "Afișează cuprinsul",
         "show_table_of_contents_description": "Afișează o bară laterală cu cuprinsul pentru o navigare ușoară în documente",
@@ -4759,7 +4821,7 @@
     },
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
+      "description": "A fost detectată o instalare externă OpenClaw în PATH, dar Cherry Studio folosește propriul binar OpenClaw gestionat. Instalați versiunea gestionată pentru a continua.",
       "install_button": "Reinstalați OpenClaw",
       "title": "OpenClaw necesită actualizare"
     },
@@ -5394,6 +5456,7 @@
         "insertRowBefore": "Inserează deasupra"
       }
     },
+    "backToTop": "Înapoi sus",
     "commands": {
       "blockMath": {
         "description": "Inserează formulă matematică",
@@ -5940,10 +6003,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Asistentul Cherry pentru a împărtăși feedback-ul tău.",
+          "description": "Discută cu Cherry Support pentru ajutor sau pentru a împărtăși feedback-ul tău.",
           "title": "Folosește agentul"
         },
-        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Încearcă din nou.",
+        "agent_error": "Nu se poate deschide Cherry Support pentru feedback. Încearcă din nou.",
         "button": "Feedback",
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
@@ -6124,7 +6187,7 @@
       "import_settings": {
         "button": "Importă fișier Json",
         "chatgpt": "Importă din ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Import din Claude",
         "title": "Importă datele aplicației"
       },
       "joplin": {
@@ -6670,6 +6733,10 @@
       "installingHint": "Prima instalare poate descărca un runtime și dura câteva minute",
       "invalidTool": "Nume de instrument sau cheie invalid",
       "localModels": {
+        "acceleration": {
+          "description": "Folosiți DirectML sau CoreML pentru a accelera inferența locală de embedding și OCR.",
+          "label": "accelerare hardware"
+        },
         "cancel": "Anulare",
         "description": "Modele care rulează local pe dispozitivul tău — descarcă o dată, apoi folosește offline fără cheie API.",
         "download": "Descărcare",
@@ -6680,7 +6747,7 @@
         "notice": {
           "downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
           "inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Fișierele modelului sunt incomplete. Reîncercați descărcarea pentru a le repara.",
           "removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii."
         },
         "ocr": {
@@ -6977,6 +7044,7 @@
       },
       "command": "Comandă",
       "config_description": "Configurează serverele Protocolului de Context Model",
+      "copyLogs": "Copiază jurnalele",
       "customRegistryPlaceholder": "Introdu URL registru privat, de ex.: https://npm.company.com",
       "deleteError": "Nu s-a putut șterge serverul",
       "deleteServer": "Șterge serverul",
@@ -7030,6 +7098,7 @@
       },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
+      "logsHint": "Jurnalizări de la procesul serverului MCP",
       "longRunning": "Mod rulare lungă",
       "longRunningTooltip": "Când este activat, serverul acceptă sarcini de lungă durată. La primirea notificărilor de progres, timpul de expirare va fi resetat, iar timpul maxim de execuție va fi extins la 10 minute.",
       "marketplaces": "Piețe",
@@ -7419,6 +7488,20 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
+      "context_management": {
+        "compress_enabled": "Comprimare automată",
+        "compress_enabled_description": "Rezumă automat schimburile mai vechi când se apropie limita ferestrei de context. Asistenții pot suprascrie această setare",
+        "compress_model": "Model de comprimare",
+        "compress_model_follow": "Urmează modelul curent",
+        "enabled": "Activează gestionarea contextului",
+        "enabled_description": "Gestionează automat contextul conversației: descarcă rezultatele prea mari ale instrumentelor și comprimă istoricul aproape de limita ferestrei. Dezactivată, nu se gestionează nimic, iar cererile care depășesc fereastra eșuează",
+        "max_messages": "Mesaje recente păstrate",
+        "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
+        "max_messages_unlimited": "Nelimitat",
+        "title": "Gestionarea contextului",
+        "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
+        "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
+      },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
@@ -7532,6 +7615,16 @@
         "setting_title": "Configurare model rapid",
         "tooltip": "Alege un model ușor și evită modelele de raționament."
       },
+      "retry": {
+        "backoff": "Așteptare exponențială",
+        "description": "Reîncearcă apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
+        "fallback_models": "Modele de rezervă",
+        "fallback_models_count": "{{count}} modele selectate",
+        "fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
+        "label": "Reîncercarea apelurilor către model",
+        "max_attempts": "Număr maxim de reîncercări",
+        "tooltip": "Reîncercările și mecanismele de rezervă se aplică numai înainte ca modelul să înceapă să transmită conținut în flux"
+      },
       "toolbar": {
         "custom_add": "Personalizat",
         "filter_close": "Închide filtrul",
@@ -7541,7 +7634,6 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
-        "model": "Model de denumire",
         "prompt": "Prompt numire subiect"
       },
       "translate_model": "Model traducere",
@@ -7564,7 +7656,8 @@
       "assistant": "Mesaj asistent",
       "backup": "Mesaj backup",
       "knowledge_embed": "Mesaj bază de cunoștințe",
-      "title": "Notificări"
+      "title": "Notificări",
+      "update": "[to be translated]:App Update"
     },
     "openai": {
       "service_tier": {
@@ -8119,10 +8212,12 @@
       "label": "Tastă",
       "move_tab_to_first": "Mută fila pe prima poziție",
       "new_topic": "Subiect nou",
+      "next_tab": "Următoarea filă",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
       "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
       "pin_tab": "Comutare fixare filă",
       "press_shortcut": "Apasă comanda rapidă",
+      "prev_tab": "Fila anterioară",
       "print": "Tipărire",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
@@ -8238,6 +8333,10 @@
           "doc2x": {
             "description": "Motor avansat de restaurare a fișierelor.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "Convertește PDF-uri în Markdown integral pe acest dispozitiv. Documentele cu strat de text sunt analizate direct; scanările revin la modelul OCR local.",
+            "name": "Document local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) rulează în proces, complet offline și fără cheie API; recunoașterea are loc pe un fir de fundal pentru ca interfața să rămână receptivă. Descarcă modelul (~140 MB) din Dependențe de mediu înainte de prima utilizare.",
@@ -8730,7 +8829,7 @@
       "aborted": "Traducere anulată"
     },
     "input": {
-      "placeholder": "Textul, fișierele text sau imaginile (cu suport OCR) pot fi lipite sau trase aici"
+      "placeholder": "Introduceți text..."
     },
     "language": {
       "not_pair": "Limba sursă este diferită de limba setată",

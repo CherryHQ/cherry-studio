@@ -440,13 +440,13 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
-    agent: { id: 'agent-1', model: 'provider:model-1' },
+    agent: { id: 'agent-1', model: 'provider::model-1' },
     isLoading: false
   }),
   useAgents: () => ({
     agents: [
-      { id: 'agent-1', model: 'provider:model-1' },
-      { id: 'agent-2', model: 'provider:model-2' }
+      { id: 'agent-1', model: 'provider::model-1' },
+      { id: 'agent-2', model: 'provider::model-2' }
     ],
     isLoading: false
   }),
@@ -643,9 +643,9 @@ describe('AgentChat artifact pane', () => {
     sessionLoading,
     sessionSource,
     resources: {
-      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider::model-1' } as any) : undefined,
       agentLoading: false,
-      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      model: session?.agentId ? ({ id: 'provider::model-1', name: 'Model 1' } as any) : undefined,
       modelLoading: false
     }
   })
@@ -1075,21 +1075,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByText('Agent')).not.toBeInTheDocument()
   })
 
-  it('keeps a visited trace tab keyed on the session traceId when developer mode is on', () => {
+  // Unlike every other visited pane, the trace tab unmounts once inactive so its retained span tree
+  // can be collected — see AgentRightPane's `unmounts a visited trace capability while inactive`.
+  it('unmounts a visited trace tab keyed on the session traceId when developer mode is on', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    const tracePane = screen.getByTestId('trace-pane')
+    const tracePane = await screen.findByTestId('trace-pane')
     expect(tracePane).toHaveAttribute('data-topic-id', 'agent-session:session-1')
     expect(tracePane).toHaveAttribute('data-trace-id', 'trace-a')
     expect(tracePane).toBeVisible()
 
     openFilesPane()
 
-    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
-    expect(tracePane).not.toBeVisible()
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
   })
 
   it('opens message file paths in the files tab overlay', async () => {

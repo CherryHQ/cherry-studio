@@ -43,6 +43,7 @@ describe('AgentWorkspaceEntitySchema', () => {
       workspaceId: workspace.id,
       workspace,
       orderKey: 'a0',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
@@ -62,6 +63,7 @@ describe('AgentWorkspaceEntitySchema', () => {
         workspaceId: null,
         workspace: null,
         orderKey: 'a0',
+        lastActivityAt: '2026-01-01T00:00:00.000Z',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
       }).success

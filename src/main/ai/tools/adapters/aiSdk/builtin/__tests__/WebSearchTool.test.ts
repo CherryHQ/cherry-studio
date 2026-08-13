@@ -307,7 +307,9 @@ describe('web_fetch', () => {
       expect(validated.success).toBe(true)
     })
 
-    it('keeps the `uri` format strict providers reject out of the provider-facing schema', () => {
+    // No builtin tool is `strict` any more, but `format: "uri"` stays out on purpose: it is what
+    // strict OpenAI-compatible endpoints reject, and `isHttpUrl` is narrower than `.url()` anyway.
+    it('keeps the `uri` format out of the provider-facing schema', () => {
       const { jsonSchema } = asSchema(fetchEntry.tool.inputSchema)
 
       // Whole-document rather than `properties.urls.items.format`: an optional chain that stops

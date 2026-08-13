@@ -198,7 +198,9 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
 }))
 
 vi.mock('../CliConfigEditor', () => ({
-  CliConfigEditor: () => <div data-testid="cli-config-editor" />
+  CliConfigEditor: ({ files }: { files: CliConfigFileDraft[] }) => (
+    <div data-testid="cli-config-editor">{files[0]?.content}</div>
+  )
 }))
 
 vi.mock('../tools/ClaudeConfigFields', () => ({
@@ -243,6 +245,23 @@ vi.mock('../tools/CodexConfigFields', () => ({
   )
 }))
 
+vi.mock('../tools/OpenCodeConfigFields', () => ({
+  OpenCodeConfigFields: ({
+    config,
+    onChange,
+    section = 'all'
+  }: {
+    config: Record<string, unknown>
+    onChange: (next: Record<string, unknown>) => void
+    section?: string
+  }) =>
+    section === 'advanced' ? null : (
+      <button type="button" onClick={() => onChange({ ...config, autoCompact: true })}>
+        toggle opencode auto compact
+      </button>
+    )
+}))
+
 const provider = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -271,10 +290,12 @@ function renderPanel(
     providerConfig?: CliProviderConfig | null
     provider?: Provider
     gateway?: { provider: Provider; apiKey: string }
+    files?: CliConfigFileDraft[]
   } = {}
 ) {
-  readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
-  readCliConfigDraftMock.mockResolvedValue(cliConfigFiles)
+  const files = options.files ?? cliConfigFiles
+  readCliConfigFilesMock.mockResolvedValue(files)
+  readCliConfigDraftMock.mockResolvedValue(files)
   extractConnectionFromCliConfigDraftMock.mockReturnValue({
     baseUrl: 'https://other.example.com',
     model: 'claude-other'
@@ -633,5 +654,30 @@ describe('ConfigEditPanel', () => {
     )
 
     expect(screen.queryByText('code.cli_config.unknown_provider')).not.toBeInTheDocument()
+  })
+
+  it('updates the OpenCode editor preview when auto compact is enabled', async () => {
+    const initialFile: CliConfigFileDraft = {
+      target: 'opencode-config',
+      label: 'OpenCode opencode.json',
+      path: '/tmp/opencode.json',
+      language: 'json',
+      content: '{"compaction":{"auto":false}}'
+    }
+    const updatedFile = { ...initialFile, content: '{"compaction":{"auto":true}}' }
+    renderPanel(vi.fn(), { cliTool: CodeCli.OPEN_CODE, isCurrentProvider: false, files: [initialFile] })
+
+    await waitFor(() => expect(readCliConfigDraftMock).toHaveBeenCalled())
+    readCliConfigDraftMock.mockResolvedValue([updatedFile])
+    fireEvent.click(screen.getByText('toggle opencode auto compact'))
+
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ configBlob: { autoCompact: true } })
+      )
+    )
+
+    fireEvent.click(screen.getByText('common.advanced_settings'))
+    await waitFor(() => expect(screen.getByTestId('cli-config-editor')).toHaveTextContent(updatedFile.content))
   })
 })

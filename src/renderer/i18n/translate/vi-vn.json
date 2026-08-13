@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cố vấn tích hợp Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, và tìm kiếm/tạo Kỹ năng"
+      },
+      "cherry_support": {
+        "description": "Agent hỗ trợ chính thức của Cherry Studio cho hướng dẫn cấu hình, chẩn đoán, FAQ và phản hồi"
       }
     },
     "channels": {
@@ -97,6 +100,8 @@
         "clientSecret": "Bí mật khách hàng",
         "clientSecretPlaceholder": "Nhập client secret của QQ Bot của bạn",
         "description": "Nhận và phản hồi tin nhắn qua API chính thức của QQ Bot.",
+        "mentionOnlyHint": "Khi bật, bot chỉ trả lời khi được @nhắc đến. Tắt để nhận tất cả tin nhắn nhóm (yêu cầu quyền \"nhận tất cả tin nhắn\" trên QQ Open Platform).",
+        "mentionOnlyLabel": "Chỉ @nhắc đến",
         "title": "QQ",
         "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID cuộc trò chuyện của bạn ở định dạng chính xác."
       },
@@ -147,7 +152,7 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_one": "{{count}} tác vụ nền đang chạy",
       "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
@@ -261,7 +266,7 @@
         }
       },
       "file_tree": "Cây tệp",
-      "items_one": "[to be translated]:{{count}} item",
+      "items_one": "{{count}} mục",
       "items_other": "{{count}} mục",
       "maximize": "Tối đa hóa",
       "minimize": "Thu nhỏ",
@@ -345,7 +350,7 @@
         "agent": "Agent",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
-        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_one": "{{count}} trực tiếp",
         "run_task_live_other": "{{count}} trực tiếp",
         "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
@@ -353,7 +358,7 @@
         "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
         "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
@@ -455,14 +460,14 @@
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Nhiệm vụ",
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Agent không xác định",
         "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
         "yesterday": "Hôm qua"
       },
-      "label_one": "[to be translated]:Session",
+      "label_one": "Phiên",
       "label_other": "Phiên",
       "list": {
         "title": "Nhiệm vụ"
@@ -496,10 +501,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} kênh",
+          "channels_count_other": "{{count}} kênh",
+          "channels_empty": "Không có kênh nào sẽ bị thay đổi.",
+          "channels_title": "Kênh được chuyển sang không có thư mục làm việc",
           "content": "Việc xóa thư mục công việc này cũng sẽ xóa toàn bộ các tác vụ bên trong nó. Chỉ các bản ghi trong cơ sở dữ liệu bị xóa; thư mục thực tế trên đĩa sẽ không bị xóa.",
+          "disk_preserved": "Thư mục trên ổ đĩa và các tệp bên trong sẽ không bị xóa.",
           "error": {
             "failed": "Không thể xóa thư mục làm việc"
           },
+          "more_count_one": "…và {{count}} mục nữa",
+          "more_count_other": "…và {{count}} mục nữa",
+          "preview": "Xóa “{{name}}” sẽ xóa các phiên của thư mục này, đồng thời chuyển các kênh và tác vụ đã lên lịch liên quan sang trạng thái không có thư mục làm việc. Không thể hoàn tác hành động này.",
+          "preview_failed": "Không thể tải tác động của việc xóa, nên hiện chưa thể xóa thư mục làm việc này",
+          "preview_loading": "Đang tải tác động của việc xóa…",
+          "sessions_count_one": "{{count}} phiên",
+          "sessions_count_other": "{{count}} phiên",
+          "sessions_empty": "Không có phiên nào sẽ bị xóa.",
+          "sessions_title": "Phiên sẽ bị xóa",
+          "tasks_count_one": "{{count}} tác vụ đã lên lịch",
+          "tasks_count_other": "{{count}} tác vụ đã lên lịch",
+          "tasks_empty": "Không có tác vụ đã lên lịch nào sẽ bị thay đổi.",
+          "tasks_title": "Tác vụ đã lên lịch được chuyển sang không có thư mục làm việc",
           "title": "Xóa thư mục làm việc",
           "trigger": "Xóa thư mục làm việc"
         },
@@ -958,7 +981,6 @@
       "executing": "Đang thực thi...",
       "expired": "Hết hạn",
       "inputPreview": "Xem trước đầu vào công cụ",
-      "pending": "Đang chờ phê duyệt",
       "pendingBadge": "Đang chờ xử lý",
       "permissionExpired": "Yêu cầu quyền đã hết hạn. Đang chờ hướng dẫn mới...",
       "requiresElevatedPermissions": "Công cụ này yêu cầu quyền truy cập nâng cao.",
@@ -1008,8 +1030,8 @@
           "label": "Thông báo"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Chuyển đổi tài liệu cục bộ (PDF, Office, EPUB, CSV) sang Markdown để agent có thể đọc",
+          "label": "Tài liệu sang Markdown"
         },
         "CherryWebFetch": {
           "description": "Tìm nạp và đọc một trang web",
@@ -1131,6 +1153,11 @@
       "startSuccess": "Máy chủ API đã khởi động thành công",
       "stopError": "Không thể dừng Máy chủ API:",
       "stopSuccess": "Máy chủ API đã dừng thành công"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "Chạy",
@@ -1544,18 +1571,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agent",
-          "files": "Tệp tin",
+          "resources": "Tệp & Thư mục",
           "skills": "Kỹ năng"
         },
         "description": "Chọn từ tệp, Agent hoặc kỹ năng",
+        "load_failed": "Không thể tải tài nguyên không gian làm việc",
         "loading": "Đang tải...",
-        "no_file_found": {
-          "description": "Không có tệp nào có sẵn trong các thư mục có thể truy cập",
-          "label": "Không tìm thấy tệp"
-        },
         "no_items_found": {
           "description": "Không có tệp, Agent hoặc kỹ năng nào khả dụng",
           "label": "Không tìm thấy mục nào"
+        },
+        "no_resources_found": {
+          "description": "Không có tệp hoặc thư mục có thể tìm kiếm trong không gian làm việc hiện tại",
+          "label": "Không tìm thấy tài nguyên"
         },
         "title": "Tài nguyên"
       },
@@ -1741,12 +1769,6 @@
       "top": "Quay lại đầu trang"
     },
     "resend": "Gửi lại",
-    "resource_view": {
-      "menu": {
-        "agent": "Agent",
-        "assistant": "Trợ lý"
-      }
-    },
     "save": {
       "file": {
         "title": "Lưu vào tệp cục bộ"
@@ -1919,6 +1941,7 @@
         "time": "Thời gian",
         "title": "Chế độ hiển thị"
       },
+      "draft": "Bản nháp",
       "edit": {
         "placeholder": "Nhập tên mới",
         "title": "Chỉnh sửa Tên",
@@ -2163,6 +2186,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Mã Qwen"
     },
@@ -2170,7 +2194,7 @@
     "config_json_hint": "Dán hoặc chỉnh sửa JSON thô; nó đồng bộ với các trường ở trên",
     "configure": "Cấu hình",
     "configuring_provider": "Cấu hình {{provider}}",
-    "count_one": "[to be translated]:{{count}} item",
+    "count_one": "{{count}} mục",
     "count_other": "{{count}} mục",
     "current_config": "Hiện tại",
     "current_config_settings": "Cấu hình hiện tại",
@@ -2299,12 +2323,12 @@
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
     "agent": "Agent",
-    "agent_one": "[to be translated]:Agent",
+    "agent_one": "Đại lý",
     "agent_other": "Agent",
     "all": "Tất cả",
     "and": "và",
     "assistant": "Trợ lý",
-    "assistant_one": "[to be translated]:Assistant",
+    "assistant_one": "Trợ lý",
     "assistant_other": "Trợ lý",
     "avatar": "Ảnh đại diện",
     "back": "Quay lại",
@@ -2478,6 +2502,7 @@
     "openai-response": "Phản hồi của OpenAI"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Nhà cung cấp có sẵn",
     "availableTools": "Công cụ có sẵn",
     "backup": {
@@ -2528,6 +2553,7 @@
       "ocr": "Công cụ OCR chưa được khởi tạo, hãy kiểm tra cài đặt OCR",
       "parse": "AI đã trả về phản hồi không hợp lệ, vui lòng thử lại hoặc chuyển sang mô hình khác",
       "payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
+      "permission": "Nhà cung cấp đã từ chối yêu cầu này. Hãy kiểm tra chi tiết lỗi, gói tài khoản, quyền của khóa API hoặc quyền truy cập vào tài nguyên này",
       "proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
       "quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
       "rate_limit": "Quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi thử lại, hoặc chuyển sang mô hình có giới hạn tốc độ cao hơn",
@@ -2552,6 +2578,7 @@
       "503": "Dịch vụ không khả dụng. Vui lòng thử lại sau.",
       "504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau."
     },
+    "image_unreadable_for_non_vision_model": "Mô hình đã chọn không hỗ trợ hình ảnh, và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy chọn mô hình có khả năng xử lý hình ảnh hoặc xóa hình ảnh rồi thử lại.",
     "lastError": "Lỗi Cuối Cùng",
     "maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
     "message": "Thông báo lỗi",
@@ -2989,26 +3016,26 @@
       "untitled_conversation": "Cuộc trò chuyện chưa có tiêu đề"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Claude Import",
+      "button": "Chọn Tệp",
+      "description": "Nhập khẩu văn bản, suy nghĩ và sử dụng công cụ; hình ảnh và tệp đính kèm không được bao gồm",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Định dạng tệp JSON không hợp lệ",
+        "no_conversations": "Không tìm thấy cuộc trò chuyện nào trong tệp",
+        "no_valid_conversations": "Không có cuộc trò chuyện hợp lệ để nhập",
+        "unknown": "Nhập thất bại, vui lòng kiểm tra định dạng tệp"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Đăng nhập vào Claude, đi tới Cài đặt > Quyền riêng tư > Xuất dữ liệu",
+        "step2": "2. Chờ nhận file xuất qua email",
+        "step3": "3. Giải nén tệp đã tải xuống và tìm conversations.json",
+        "title": "Cách xuất cuộc trò chuyện Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Đang nhập các cuộc trò chuyện...",
+      "selecting": "Đang chọn tệp...",
+      "success": "Đã nhập thành công {{topics}} cuộc hội thoại với {{messages}} tin nhắn",
+      "title": "Nhập các cuộc trò chuyện Claude",
+      "untitled_conversation": "Cuộc trò chuyện chưa đặt tên"
     },
     "confirm": {
       "button": "Chọn Tập tin Nhập",
@@ -3049,18 +3076,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Nội dung",
+            "content_placeholder": "Viết nội dung ghi chú tại đây…",
+            "title_label": "Tiêu đề",
+            "title_placeholder": "Đặt tên cho ghi chú này"
           },
           "description": "Chọn các ghi chú hiện có làm nguồn cơ sở tri thức",
           "empty_description": "Các ghi chú có thể chọn sẽ xuất hiện ở đây sau khi danh sách ghi chú thực tế được kết nối. Hiện tại, hãy sử dụng tệp, thư mục, URL hoặc sơ đồ trang web.",
           "empty_title": "Các ghi chú chưa được kết nối",
           "loading": "Đang tải ghi chú…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Ghi chú mới",
+            "import": "Ghi chú nhập khẩu"
           }
         },
         "placeholder": {
@@ -3200,7 +3227,6 @@
       "updated_at": "Cập nhật {{time}}"
     },
     "name_required": "Tên cơ sở tri thức là bắt buộc",
-    "not_set": "Chưa Thiết Lập",
     "provider_not_found": "Không tìm thấy nhà cung cấp",
     "rag": {
       "chunk_overlap": "Kích thước chồng lấp",
@@ -3215,12 +3241,13 @@
       "chunking": "Phân đoạn",
       "default_separator": "Tự động (khuyên dùng)",
       "document_count": "Số lượng tài liệu",
-      "download_local_embedding": "Tải xuống mô hình cục bộ",
       "download_local_embedding_failed": "Tải xuống mô hình embedding cục bộ thất bại",
+      "download_local_model": "Tải xuống mô hình cục bộ",
       "embedding_model": "Mô hình nhúng",
       "embedding_model_select": "Lựa chọn mô hình",
       "file_processing": "Xử lý tệp",
       "file_processing_hint": "Xử lý tệp chạy tự động trong quá trình nhập tài liệu. Việc chọn nhà cung cấp phù hợp có thể cải thiện chất lượng phân tích tài liệu.",
+      "file_processing_none": "Không sử dụng",
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
         "chunk_separator": "Dấu phân cách mà văn bản được chia theo, ở dạng đã thoát. Khi bật tính năng chia khối thông minh, nó thêm một điểm ngắt; khi tắt tính năng này, văn bản chỉ được chia bằng dấu phân cách này.",
@@ -3234,6 +3261,8 @@
       },
       "processor": "Nhà cung cấp xử lý",
       "processor_not_configured": "Chưa được cấu hình",
+      "processor_not_downloaded": "Chưa tải xuống",
+      "processor_unreachable": "Dịch vụ chưa chạy",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -3272,7 +3301,7 @@
       "action": "Xây dựng lại cơ sở tri thức",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Không thể xây dựng lại cơ sở tri thức",
-      "skipped_missing_sources_one": "[to be translated]:Skipped {{count}} item whose source no longer exists",
+      "skipped_missing_sources_one": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "skipped_missing_sources_other": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "submit": "Xây dựng lại",
       "title": "Xây dựng lại Cơ sở tri thức"
@@ -3320,7 +3349,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Quản lý Thanh bên",
     "minapps": "Mini-app",
     "miniApps": "Mini-app",
     "pin_to_sidebar": "Ghim vào thanh bên",
@@ -3484,6 +3513,12 @@
         "context_compress_model": "Mô hình nén",
         "context_compress_model_follow": "Mặc định",
         "context_count": "Số lượng ngữ cảnh",
+        "context_count_follow_global": "Theo cài đặt chung ({{count}})",
+        "context_count_unlimited": "Không giới hạn",
+        "context_globally_disabled": "Quản lý ngữ cảnh đang tắt ở phạm vi chung, nên các cài đặt lưu tách và nén ở đây không có tác dụng",
+        "context_inherited": "Đang theo cài đặt chung: {{compress}}; kết quả công cụ vượt quá {{threshold}} ký tự sẽ được lưu tách",
+        "context_inherited_compress_off": "tự động nén đang tắt",
+        "context_inherited_compress_on": "tự động nén đang bật",
         "context_management": "Quản lý ngữ cảnh",
         "context_truncate_threshold": "Ngưỡng cắt ngắn đầu ra của công cụ (ký tự)",
         "creative": "Sáng tạo",
@@ -3520,7 +3555,7 @@
             "hint": "Giới hạn độ dài phản hồi của Caps khi được bật"
           },
           "max_tool_calls": {
-            "hint": "Giới hạn vòng lặp gọi công cụ khi được bật"
+            "hint": "Giới hạn số vòng gọi công cụ khi bật; nếu tắt sẽ dùng giới hạn mặc định {{count}} vòng"
           },
           "model": {
             "hint": "Ghi đè mô hình mặc định toàn cục cho trợ lý này"
@@ -3825,10 +3860,17 @@
     "skill_marketplace": {
       "empty_description": "Tìm kiếm trong các sổ đăng ký trực tuyến để tìm các kỹ năng có thể cài đặt.",
       "empty_title": "Tìm kiếm kỹ năng",
+      "github_empty_description": "[to be translated]:Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "[to be translated]:Install from GitHub",
+      "github_url_invalid": "[to be translated]:Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "[to be translated]:GitHub SKILL.md URL",
+      "github_url_placeholder": "[to be translated]:GitHub link ending in /SKILL.md",
       "no_results_description": "Thử một từ khóa khác hoặc nhập tệp ZIP hoặc thư mục cục bộ.",
       "no_results_title": "Không tìm thấy kỹ năng nào",
       "search_failed_description": "Tìm kiếm thất bại. Vui lòng thử lại sau.",
+      "search_label": "[to be translated]:Search skills",
       "search_placeholder": "Kỹ năng tìm kiếm...",
+      "source_label": "[to be translated]:Skill source",
       "title": "Tìm kiếm kỹ năng trực tuyến"
     },
     "sort": {
@@ -3855,13 +3897,6 @@
       "placeholder": "Tên thẻ mới..."
     },
     "tag_sync_failed": "Không đồng bộ được thẻ",
-    "time_ago": {
-      "days": "{{count}} ngày trước",
-      "hours": "{{count}} giờ trước",
-      "just_now": "Vừa xong",
-      "minutes": "{{count}} phút trước",
-      "months": "{{count}} tháng trước"
-    },
     "title": "Thư viện",
     "toolbar": {
       "add_group_placeholder": "Tên nhóm...",
@@ -4025,6 +4060,14 @@
         "export": "Không xuất được sang Siyuan Note, vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu",
         "no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình"
       },
+      "stream_admission": {
+        "execution_changed": "Phản hồi đã thay đổi trước khi bắt đầu thử lại. Vui lòng thử lại.",
+        "execution_not_ready": "Phản hồi này vẫn đang được tạo nên chưa thể thử lại.",
+        "model_already_in_live_group": "Mô hình này đang tạo phản hồi trong nhóm trả lời đang hoạt động.",
+        "single_model_required": "Chọn một mô hình để thêm vào nhóm trả lời đang hoạt động.",
+        "target_not_in_live_group": "Phản hồi đã chọn không còn nằm trong nhóm trả lời đang hoạt động. Vui lòng thử lại.",
+        "topic_busy": "Cuộc trò chuyện này vẫn đang tạo phản hồi. Hãy chờ hoàn tất rồi thử lại."
+      },
       "table": {
         "invalid": "Không thể truy xuất dữ liệu bảng hợp lệ"
       },
@@ -4039,7 +4082,8 @@
         "content": "Xóa tất cả câu trả lời của trợ lý trong nhóm này? Câu hỏi của người dùng và các tin nhắn sau đó sẽ được giữ lại.",
         "title": "Xóa câu trả lời theo nhóm"
       },
-      "retry_failed": "Thử lại các tin nhắn không gửi được"
+      "retry_failed": "Thử lại các tin nhắn không gửi được",
+      "retry_skipped_same_model": "Đã bỏ qua {{count}} phản hồi lỗi bổ sung vì Thử lại tất cả chỉ bắt đầu tối đa một lần thử lại cho mỗi mô hình."
     },
     "ignore": {
       "knowledge": {
@@ -4099,6 +4143,9 @@
     "restore": {
       "failed": "Khôi phục thất bại",
       "success": "Đã khôi phục thành công"
+    },
+    "retry": {
+      "status": "Đang thử lại với {{model}} · lần thử {{attempt}}"
     },
     "save": {
       "success": {
@@ -4249,8 +4296,8 @@
         "taskOutput": "Xem kết quả nhiệm vụ",
         "taskStop": "Dừng nhiệm vụ",
         "taskUpdate": "Cập nhật nhiệm vụ",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Chuyển đổi Tài liệu",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Viết",
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
@@ -4301,19 +4348,19 @@
       "thinkingHeader": "Suy nghĩ",
       "truncated": "Đã cắt bớt đầu ra (bản gốc: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
-        "done_one": "[to be translated]:{{count}} Done",
+        "char_one": "{{count}} ký tự",
+        "char_other": "{{count}} ký tự",
+        "done_one": "{{count}} Đã xong",
         "done_other": "{{count}} Hoàn thành",
-        "file_one": "[to be translated]:{{count}} file",
+        "file_one": "{{count}} tệp",
         "file_other": "{{count}} tệp",
-        "item_one": "[to be translated]:{{count}} item",
+        "item_one": "{{count}} mục",
         "item_other": "{{count}} mục",
-        "line_one": "[to be translated]:{{count}} line",
+        "line_one": "{{count}} dòng",
         "line_other": "{{count}} dòng",
-        "plan_one": "[to be translated]:{{count}} plan",
+        "plan_one": "{{count}} gói",
         "plan_other": "{{count}} kế hoạch",
-        "result_one": "[to be translated]:{{count}} result",
+        "result_one": "{{count}} kết quả",
         "result_other": "{{count}} kết quả"
       },
       "workflow": {
@@ -4468,14 +4515,27 @@
     },
     "pinned": "Đã ghim",
     "price": {
+      "add_tier": "Thêm bậc giá",
+      "cache_fallback_help": "Để trống giá bộ nhớ đệm để dùng giá đầu vào của bậc này; nhập 0 nếu miễn phí.",
       "cache_read": "Giá Đọc Cache",
+      "cache_write": "Giá ghi bộ nhớ đệm",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
+      "field_for_tier": "{{field}}, bậc {{index}}",
       "input": "Giá đầu vào",
       "million_tokens": "Triệu token",
+      "min_input_tokens": "Bắt đầu từ số token đầu vào",
+      "min_input_tokens_help": "Ranh giới bao gồm giá trị này; phải lớn hơn bậc trước.",
       "output": "Giá đầu ra",
-      "price": "Giá"
+      "price": "Giá",
+      "remove_tier": "Xóa bậc giá {{index}}",
+      "tier": "Bậc {{index}}",
+      "tier_from": "Từ {{boundary}} token đầu vào (bao gồm)",
+      "use_input_price": "Dùng giá đầu vào",
+      "validation_min_input_tokens": "Nhập một số nguyên dương.",
+      "validation_min_input_tokens_order": "Bậc này phải bắt đầu sau bậc trước.",
+      "validation_price": "Nhập giá lớn hơn hoặc bằng 0."
     },
     "reasoning": "Lý luận",
     "rerank_model": "Công cụ xếp hạng lại",
@@ -4627,6 +4687,8 @@
         "font_size_medium": "Trung bình",
         "font_size_small": "Nhỏ",
         "font_title": "Cài đặt phông chữ",
+        "line_breaks": "Chế độ xuống dòng",
+        "line_breaks_description": "Hiển thị một lần xuống dòng đơn lẻ thành dòng mới (kiểu Obsidian). Khi tắt, các lần xuống dòng sẽ được gộp thành khoảng trắng cho đến khi một dòng trống tách các đoạn văn.",
         "serif_font": "Phông chữ Serif",
         "show_table_of_contents": "Hiển thị mục lục",
         "show_table_of_contents_description": "Hiển thị thanh bên mục lục để dễ dàng điều hướng trong tài liệu",
@@ -4759,7 +4821,7 @@
     },
     "installed_at": "OpenClaw đã được cài đặt tại",
     "migration": {
-      "description": "Đã phát hiện phiên bản OpenClaw lỗi thời được cài qua npm. Vui lòng cài lại để nhận phiên bản chính thức mới nhất.",
+      "description": "Đã phát hiện một bản cài đặt OpenClaw bên ngoài trong PATH, nhưng Cherry Studio chỉ sử dụng tệp nhị phân OpenClaw do chính nó quản lý. Hãy cài đặt phiên bản được quản lý để tiếp tục.",
       "install_button": "Cài đặt lại OpenClaw",
       "title": "OpenClaw Cần Cập Nhật"
     },
@@ -5188,11 +5250,11 @@
     "search_placeholder": "Tìm kiếm plugin...",
     "search_placeholder_skills": "Kỹ năng tìm kiếm...",
     "showing_results": "Hiển thị {{count}} plugin",
-    "showing_results_one": "[to be translated]:Showing {{count}} plugin",
+    "showing_results_one": "Hiển thị {{count}} plugin",
     "showing_results_other": "Hiển thị {{count}} plugin",
     "showing_results_plural": "Hiển thị {{count}} plugin",
     "showing_results_skills": "Hiển thị {{count}} kỹ năng",
-    "showing_results_skills_one": "[to be translated]:Showing {{count}} skill",
+    "showing_results_skills_one": "Hiển thị {{count}} kỹ năng",
     "showing_results_skills_other": "Hiển thị {{count}} kỹ năng",
     "showing_results_skills_plural": "Hiển thị {{count}} kỹ năng",
     "skills": "Kỹ năng",
@@ -5394,6 +5456,7 @@
         "insertRowBefore": "Chèn Phía Trên"
       }
     },
+    "backToTop": "Lên đầu trang",
     "commands": {
       "blockMath": {
         "description": "Chèn công thức toán học",
@@ -5914,7 +5977,7 @@
             "title": "Nhật ký ứng dụng"
           },
           "summary": "{{count}} tệp, khoảng {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_one": "{{count}} tệp, khoảng {{size}}",
           "summary_other": "{{count}} tệp, khoảng {{size}}",
           "system": {
             "description": "Bao gồm thông tin chi tiết về ứng dụng, hệ thống và thiết bị. Số lần xảy ra sự cố gần đây: {{crashCount}}. Không thu thập tệp kết xuất sự cố.",
@@ -5940,10 +6003,10 @@
       },
       "feedback": {
         "agent": {
-          "description": "Trò chuyện với Cherry Assistant để chia sẻ phản hồi.",
+          "description": "Trò chuyện với Cherry Support để nhận trợ giúp hoặc chia sẻ phản hồi.",
           "title": "Sử dụng Agent"
         },
-        "agent_error": "Không thể mở Cherry Assistant để gửi phản hồi. Vui lòng thử lại.",
+        "agent_error": "Không thể mở Cherry Support để gửi phản hồi. Vui lòng thử lại.",
         "button": "Phản hồi",
         "dialog": {
           "description": "Chọn cách chia sẻ phản hồi và giúp chúng tôi cải thiện Cherry Studio tốt hơn.",
@@ -6119,12 +6182,12 @@
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
       },
-      "hour_interval_one": "[to be translated]:{{count}} hour",
+      "hour_interval_one": "{{count}} giờ",
       "hour_interval_other": "{{count}} giờ",
       "import_settings": {
         "button": "Nhập tệp Json",
         "chatgpt": "Nhập từ ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Nhập từ Claude",
         "title": "Nhập dữ liệu ứng dụng từ bên ngoài"
       },
       "joplin": {
@@ -6209,14 +6272,14 @@
           "select_error_write_permission": "Đường dẫn mới không có quyền ghi",
           "select_title": "Chọn Thư Mục Sao Lưu"
         },
-        "hour_interval_one": "[to be translated]:{{count}} hour",
+        "hour_interval_one": "{{count}} giờ",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Sao lưu Cuối cùng",
         "maxBackups": {
           "label": "Số bản sao lưu tối đa",
           "unlimited": "Không giới hạn"
         },
-        "minute_interval_one": "[to be translated]:{{count}} minute",
+        "minute_interval_one": "{{count}} phút",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Đang chờ bản sao lưu tiếp theo",
         "restore": {
@@ -6263,7 +6326,7 @@
           "title": "Dùng mô hình nhanh để đặt tiêu đề cho thông điệp được xuất"
         }
       },
-      "minute_interval_one": "[to be translated]:{{count}} minute",
+      "minute_interval_one": "{{count}} phút",
       "minute_interval_other": "{{count}} phút",
       "notion": {
         "api_key": "Khóa API Notion",
@@ -6572,11 +6635,11 @@
           "label": "Máy chủ WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_one": "[to be translated]:{{count}} hour",
+        "hour_interval_one": "{{count}} giờ",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Bản sao lưu cuối cùng",
         "maxBackups": "Số bản sao lưu tối đa",
-        "minute_interval_one": "[to be translated]:{{count}} minute",
+        "minute_interval_one": "{{count}} phút",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Chờ bản sao lưu tiếp theo",
         "password": "Mật khẩu WebDAV",
@@ -6670,6 +6733,10 @@
       "installingHint": "Lần cài đặt đầu tiên có thể tải xuống một runtime và mất vài phút",
       "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
       "localModels": {
+        "acceleration": {
+          "description": "Dùng DirectML hoặc CoreML để tăng tốc suy luận embedding và OCR cục bộ.",
+          "label": "Tăng tốc phần cứng"
+        },
         "cancel": "Hủy",
         "description": "Các mô hình chạy trực tiếp trên thiết bị của bạn — tải xuống một lần, sau đó sử dụng ngoại tuyến không cần khóa API.",
         "download": "Tải xuống",
@@ -6680,7 +6747,7 @@
         "notice": {
           "downloadFailed": "Tải xuống thất bại. Kiểm tra kết nối của bạn và thử lại.",
           "inUse": "Vẫn được sử dụng bởi một cơ sở tri thức; các trọng số đã được giữ lại.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Các tệp mô hình không đầy đủ. Thử tải xuống lại để sửa chữa chúng.",
           "removeFailed": "Xóa không thành công. Kiểm tra nhật ký để biết chi tiết."
         },
         "ocr": {
@@ -6977,6 +7044,7 @@
       },
       "command": "Lệnh",
       "config_description": "Định cấu hình máy chủ Giao thức Ngữ cảnh Mô hình",
+      "copyLogs": "Sao chép nhật ký",
       "customRegistryPlaceholder": "Nhập URL của registry riêng, ví dụ: https://npm.company.com",
       "deleteError": "Không xóa được máy chủ",
       "deleteServer": "Xóa Máy chủ",
@@ -7030,6 +7098,7 @@
       },
       "logoUrl": "URL Logo",
       "logs": "Nhật ký",
+      "logsHint": "Nhật ký từ tiến trình máy chủ MCP",
       "longRunning": "Chế độ chạy dài",
       "longRunningTooltip": "Khi được bật, máy chủ hỗ trợ các tác vụ chạy lâu. Khi nhận được thông báo tiến độ, thời gian chờ sẽ được đặt lại và thời gian thực thi tối đa sẽ được kéo dài thành 10 phút.",
       "marketplaces": "Thị trường",
@@ -7419,6 +7488,20 @@
         "use_all_keys": "Tất cả khóa"
       },
       "collapse_all": "Thu gọn tất cả",
+      "context_management": {
+        "compress_enabled": "Tự động nén",
+        "compress_enabled_description": "Tự động tóm tắt các lượt cũ khi gần chạm giới hạn cửa sổ ngữ cảnh. Trợ lý có thể ghi đè cài đặt này",
+        "compress_model": "Mô hình nén",
+        "compress_model_follow": "Theo mô hình hiện tại",
+        "enabled": "Bật quản lý ngữ cảnh",
+        "enabled_description": "Tự động quản lý ngữ cảnh hội thoại: lưu tách kết quả công cụ quá lớn và nén lịch sử khi gần giới hạn cửa sổ. Khi tắt, không có gì được quản lý và các yêu cầu vượt cửa sổ sẽ thất bại",
+        "max_messages": "Số tin nhắn gần nhất được giữ",
+        "max_messages_description": "Chỉ gửi những tin nhắn gần nhất; các tin cũ hơn bị loại khỏi ngữ cảnh. Để trống nếu không giới hạn. Trợ lý có thể ghi đè cài đặt này",
+        "max_messages_unlimited": "Không giới hạn",
+        "title": "Quản lý ngữ cảnh",
+        "truncate_threshold": "Ngưỡng cắt bớt kết quả công cụ (ký tự)",
+        "truncate_threshold_description": "Kết quả công cụ vượt quá số ký tự này sẽ được lưu tách ra tệp và cắt bớt; mô hình có thể đọc lại khi cần. Trợ lý có thể ghi đè cài đặt này"
+      },
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
@@ -7532,6 +7615,16 @@
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Chọn mô hình nhẹ và tránh các mô hình suy luận."
       },
+      "retry": {
+        "backoff": "Tăng thời gian chờ theo cấp số nhân",
+        "description": "Thử lại các lệnh gọi chat, nhúng và xếp hạng lại; chat có thể chuyển sang mô hình khác",
+        "fallback_models": "Mô hình dự phòng",
+        "fallback_models_count": "Đã chọn {{count}} mô hình",
+        "fallback_models_description": "Các mô hình được thử theo thứ tự khi mô hình chính thất bại",
+        "label": "Thử lại lệnh gọi mô hình",
+        "max_attempts": "Số lần thử lại tối đa",
+        "tooltip": "Các lần thử lại và cơ chế dự phòng chỉ được áp dụng trước khi mô hình bắt đầu truyền nội dung theo luồng"
+      },
       "toolbar": {
         "custom_add": "Tùy chỉnh",
         "filter_close": "Đóng bộ lọc",
@@ -7541,7 +7634,6 @@
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
-        "model": "Mô hình đặt tên",
         "prompt": "Lời nhắc đặt tên cuộc trò chuyện"
       },
       "translate_model": "Mô hình Dịch",
@@ -7564,7 +7656,8 @@
       "assistant": "Tin nhắn Trợ lý",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
-      "title": "Thông báo"
+      "title": "Thông báo",
+      "update": "[to be translated]:App Update"
     },
     "openai": {
       "service_tier": {
@@ -8119,10 +8212,12 @@
       "label": "Khóa",
       "move_tab_to_first": "Di chuyển tab lên đầu tiên",
       "new_topic": "Chủ đề mới",
+      "next_tab": "Tab tiếp theo",
       "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
       "open_tab_in_new_window": "Mở tab trong cửa sổ mới",
       "pin_tab": "Chuyển đổi Ghim Tab",
       "press_shortcut": "Nhấn Phím tắt",
+      "prev_tab": "Tab trước",
       "print": "In",
       "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
@@ -8238,6 +8333,10 @@
           "doc2x": {
             "description": "Công cụ khôi phục tập tin nâng cao.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "Chuyển đổi PDF sang Markdown hoàn toàn trên máy này. Tài liệu có lớp văn bản sẽ được phân tích trực tiếp; bản quét sẽ dùng mô hình OCR cục bộ.",
+            "name": "Tài liệu cục bộ"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) chạy trong tiến trình — hoàn toàn offline, không cần API key, với nhận dạng trên luồng nền để giao diện người dùng luôn phản hồi. Tải xuống mô hình (~140MB) trong Phụ thuộc Môi trường trước khi sử dụng lần đầu.",
@@ -8490,7 +8589,7 @@
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_one": "{{count}} mục nhập",
         "totalEntries_other": "{{count}} mục"
       },
       "groupBy": {
@@ -8531,7 +8630,7 @@
       "title": "Phân tích sử dụng",
       "tooltip": {
         "cost": "Chi phí {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
+        "requests_one": "{{count}} yêu cầu",
         "requests_other": "{{count}} yêu cầu",
         "tokens": "{{value}} token"
       },
@@ -8730,7 +8829,7 @@
       "aborted": "Dịch bị hủy"
     },
     "input": {
-      "placeholder": "Văn bản, tệp văn bản hoặc hình ảnh (hỗ trợ OCR) có thể được dán hoặc kéo vào"
+      "placeholder": "Nhập văn bản..."
     },
     "language": {
       "not_pair": "Ngôn ngữ nguồn khác với ngôn ngữ đã đặt",

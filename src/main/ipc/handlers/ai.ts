@@ -4,10 +4,10 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
-import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
+import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import { WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type {
   AiStreamOpenRequest,
@@ -49,6 +49,17 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
       logger.error(`${route} failed`, serializeError(e))
     }
     throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+  }
+}
+
+async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof AiStreamAdmissionError) {
+      throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    throw error
   }
 }
 
@@ -164,7 +175,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    return exposeAiStreamAdmission(() =>
+      application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    )
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -193,19 +206,19 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
-  // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
-  // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-  // Trace mode is no exception: the primed connection resolves the session's container trace up front
-  // and spawns with TRACEPARENT, and the one thing a traced turn must not reuse — a trace-less warm
-  // query — is refused by the driver itself.
-  'ai.agent.session.prewarm': ({ sessionId }) =>
-    application.get('AgentSessionRuntimeService').primeConnection(sessionId),
-  'ai.agent.session.close_warm': async ({ sessionId }) => {
-    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
-    // Prewarm now opens a real runtime connection, so releasing the warm-query park alone would leak
-    // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
-    application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
+  'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
+  // session's slash-command catalog is read into the cache before the first message — the
+  // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
+  // the session's container trace up front and spawns with TRACEPARENT, and the one thing a traced
+  // turn must not reuse — a trace-less warm query — is refused by the driver itself.
+  // The per-session connection is shared across windows, so the runtime service aggregates leases
+  // by (session × sender WebContents) and tears down only once no window holds the session.
+  'ai.agent.session.prewarm': async ({ sessionId }, { senderId }) => {
+    application.get('AgentSessionRuntimeService').acquireWarmLease(sessionId, senderWebContents(senderId))
+  },
+  'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
+    application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
 
   // ── Agent session runtime queries & commands. ──

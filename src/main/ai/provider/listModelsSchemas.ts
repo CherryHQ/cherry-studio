@@ -56,6 +56,7 @@ export const OllamaTagsResponseSchema = z.object({
       modified_at: z.string().optional(),
       size: z.number().optional(),
       digest: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
       details: z
         .looseObject({
           parent_model: z.string().optional(),

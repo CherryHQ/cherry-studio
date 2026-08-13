@@ -2,15 +2,14 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
   resolveDefaultCollapsedGroupIds,
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
   type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
+  type ResourceListPresentation,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -22,12 +21,10 @@ import { SessionResourceList } from '@renderer/components/chat/resourceList/Sess
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -42,22 +39,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
-import {
-  type AgentSessionExportOptions,
-  agentSessionToMarkdown,
-  copyAgentSessionAsMarkdown,
-  copyAgentSessionAsPlainText,
-  exportAgentSessionAsMarkdown,
-  getAgentSessionExportTitle,
-  getAgentSessionMessagesForExport
-} from '@renderer/services/agentSessionExport'
-import {
-  exportContentToNotes,
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessagesToNotion
-} from '@renderer/services/ExportService'
+import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
@@ -93,7 +75,7 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
-import { cn } from '@renderer/utils/style'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -128,18 +110,19 @@ type SessionsBaseProps = {
   agentIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAgentsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAgents?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onCreateSession?: (
     defaults: CreateAgentSessionDefaults
   ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
   onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
 }
 
 type ControlledSessionsProps = SessionsBaseProps & {
@@ -295,24 +278,24 @@ export function buildCreateSessionSeedIndex(
   sessions: readonly SessionListItem[],
   getGroupId: (session: SessionListItem) => string | null | undefined
 ) {
-  let latestSession: { session: SessionListItem; updatedAtMs: number } | null = null
-  const latestSessionByGroupId = new Map<string, { session: SessionListItem; updatedAtMs: number }>()
+  let latestSession: { session: SessionListItem; lastActivityAtMs: number } | null = null
+  const latestSessionByGroupId = new Map<string, { session: SessionListItem; lastActivityAtMs: number }>()
 
   for (const session of sessions) {
     if (session.pinned) continue
 
-    const parsedUpdatedAtMs = Date.parse(session.updatedAt)
-    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
-    if (!latestSession || updatedAtMs > latestSession.updatedAtMs) {
-      latestSession = { session, updatedAtMs }
+    const parsedLastActivityAtMs = Date.parse(session.lastActivityAt)
+    const lastActivityAtMs = Number.isFinite(parsedLastActivityAtMs) ? parsedLastActivityAtMs : Number.NEGATIVE_INFINITY
+    if (!latestSession || lastActivityAtMs > latestSession.lastActivityAtMs) {
+      latestSession = { session, lastActivityAtMs }
     }
 
     const groupId = getGroupId(session)
     if (!groupId) continue
 
     const latestGroupSession = latestSessionByGroupId.get(groupId)
-    if (!latestGroupSession || updatedAtMs > latestGroupSession.updatedAtMs) {
-      latestSessionByGroupId.set(groupId, { session, updatedAtMs })
+    if (!latestGroupSession || lastActivityAtMs > latestGroupSession.lastActivityAtMs) {
+      latestSessionByGroupId.set(groupId, { session, lastActivityAtMs })
     }
   }
 
@@ -343,16 +326,17 @@ const Sessions = ({
   agentIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAgentsActive = false,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
+  onManageAgents,
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
   panePosition,
-  presentation = 'sidebar',
+  presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
@@ -395,7 +379,6 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
-    deleteSessions,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -667,7 +650,12 @@ const Sessions = ({
   )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
   const sessionGroupByForDisplay = useMemo(
-    () => (displayMode === 'time' ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions) : sessionGroupBy),
+    () =>
+      displayMode === 'time'
+        ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions, {
+            ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+          })
+        : sessionGroupBy,
     [displayMode, filteredGroupedSessions, sessionGroupBy]
   )
   const createSessionSeedIndex = useMemo(
@@ -826,6 +814,7 @@ const Sessions = ({
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
+      const { getAgentSessionMessagesForExport } = await import('@renderer/services/agentSessionExport')
       const messages = await getAgentSessionMessagesForExport(session)
       if (messages.length < 2) return
 
@@ -884,6 +873,10 @@ const Sessions = ({
 
   const handleSaveSessionToNotes = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportContentToNotes }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportContentToNotes(title, markdown, notesPath)
@@ -894,6 +887,11 @@ const Sessions = ({
   const handleSaveSessionToKnowledge = useCallback(
     async (session: AgentSessionEntity) => {
       try {
+        const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: SaveToKnowledgePopup }] =
+          await Promise.all([
+            import('@renderer/services/agentSessionExport'),
+            import('@renderer/components/SaveToKnowledgePopup')
+          ])
         const title = getAgentSessionExportTitle(session)
         const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
@@ -909,24 +907,32 @@ const Sessions = ({
   )
 
   const handleCopySessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsMarkdown(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsMarkdown(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleCopySessionPlainText = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsPlainText(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsPlainText } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsPlainText(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdownReason = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -934,6 +940,9 @@ const Sessions = ({
 
   const handleExportSessionWord = useCallback(
     async (session: AgentSessionEntity) => {
+      const { agentSessionToMarkdown, getAgentSessionExportTitle } = await import(
+        '@renderer/services/agentSessionExport'
+      )
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await ipcApi.request('export.word.from_markdown', {
@@ -946,6 +955,8 @@ const Sessions = ({
 
   const handleExportSessionNotion = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMessagesToNotion }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMessagesToNotion(title, messages)
@@ -955,6 +966,10 @@ const Sessions = ({
 
   const handleExportSessionYuque = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToYuque }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToYuque(title, markdown)
@@ -964,6 +979,11 @@ const Sessions = ({
 
   const handleExportSessionObsidian = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: ObsidianExportPopup }] =
+        await Promise.all([
+          import('@renderer/services/agentSessionExport'),
+          import('@renderer/components/ObsidianExportPopup')
+        ])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
@@ -973,6 +993,8 @@ const Sessions = ({
 
   const handleExportSessionJoplin = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMarkdownToJoplin }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMarkdownToJoplin(title, messages)
@@ -982,6 +1004,10 @@ const Sessions = ({
 
   const handleExportSessionSiyuan = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToSiyuan }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToSiyuan(title, markdown)
@@ -1018,6 +1044,9 @@ const Sessions = ({
   })
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
@@ -1117,10 +1146,7 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
-      const sessionIds = deleteTasksOnly
-        ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
-        : []
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role)
 
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
@@ -1142,7 +1168,8 @@ const Sessions = ({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
           const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
@@ -1171,7 +1198,7 @@ const Sessions = ({
       closeConversationTabs,
       agentById,
       deleteAgent,
-      deleteSessions,
+      deleteAgentSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
@@ -1536,7 +1563,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
-                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
+                deleteTasksOnly={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1651,13 +1678,11 @@ const Sessions = ({
   // Which headers name a task's owner (an agent, a folder) and which merely gather rows. Declared by
   // id rather than inferred from "does this header happen to have buttons": a group that is still
   // loading, or one that legitimately has no actions, is not thereby a bucket.
-  // "No workdir" is a state a user picks — a task deliberately left without a directory — so it is a
-  // module of its own like any other bucket. An agent that no longer exists is not a state anyone
-  // chose: that bucket stands in the agent run and keeps its rhythm.
+  // Pinned, time, missing-owner and no-workspace groups all use the recessed bucket voice while
+  // staying on the shared row rhythm.
   const getGroupHeaderKind = useCallback((group: ResourceListGroup): ResourceListGroupHeaderKind => {
-    if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return 'inline-bucket'
-
-    return group.id === SESSION_PINNED_GROUP_ID ||
+    return group.id === SESSION_UNKNOWN_AGENT_GROUP_ID ||
+      group.id === SESSION_PINNED_GROUP_ID ||
       group.id === SESSION_NO_PROJECT_GROUP_ID ||
       group.id === SESSION_NO_WORKDIR_GROUP_ID ||
       group.id.startsWith('session:time:')
@@ -1712,7 +1737,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
-          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
+          deleteTasksOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
@@ -1829,9 +1854,7 @@ const Sessions = ({
       : visibleGroupedSessions.length === 0
         ? 'empty'
         : 'idle'
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
+  const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
     displayMode === 'agent'
@@ -1842,8 +1865,8 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
-      key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-sidebar'}
-      className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
+      key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
+      presentation={presentation}
       items={visibleGroupedSessions}
       status={listStatus}
       selectedId={hasActiveCenterSurface ? null : activeSessionId}
@@ -1878,13 +1901,11 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}>
-      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
+      <ResourceList.Header>
         {isRightPanel ? (
           <ResourceList.Search
             aria-label={t('agent.session.search.title')}
-            className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
             placeholder={t('agent.session.search.placeholder')}
-            wrapperClassName="pt-1"
           />
         ) : (
           <>
@@ -1899,10 +1920,10 @@ const Sessions = ({
               actions={
                 <SessionListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAgentsActive={manageAgentsMenuItem?.active}
+                  manageAgentsActive={manageAgentsActive}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-                  onManageAgents={manageAgentsMenuItem?.onSelect}
+                  onManageAgents={onManageAgents}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={
                     displayMode === 'agent'
@@ -1924,7 +1945,6 @@ const Sessions = ({
         displayMode={displayMode}
         error={listError}
         isDraggable={isDraggableMode && !isRightPanel}
-        isRightPanel={isRightPanel}
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
@@ -1986,7 +2006,6 @@ interface SessionListBodyProps {
   displayMode: AgentSessionDisplayMode
   error?: unknown
   isDraggable: boolean
-  isRightPanel: boolean
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
@@ -2007,7 +2026,6 @@ function SessionListBody({
   displayMode,
   error,
   isDraggable,
-  isRightPanel,
   isValidating,
   listRef,
   onDeleteSession,
@@ -2067,7 +2085,6 @@ function SessionListBody({
     <ResourceList.Body<SessionListItem>
       listRef={listRef}
       draggable={isDraggable}
-      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={
         <ResourceList.ErrorState>
           <div className="flex flex-col gap-2">

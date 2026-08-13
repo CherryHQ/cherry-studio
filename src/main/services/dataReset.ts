@@ -451,6 +451,13 @@ function shouldWipe(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
 }
 
+/**
+ * Budget for clearing Chromium session state. Unrelated to the lifecycle
+ * shutdown deadline — it happens before `shutdown()` is even called — it merely
+ * borrowed the same number back when both were `SHUTDOWN_TIMEOUT_MS`.
+ */
+const CHROMIUM_CLEAR_TIMEOUT_MS = 5000
+
 /** Clears known sessions with a timeout so shutdown cannot hang. */
 async function clearChromiumState(): Promise<void> {
   const clearOperation = async (sessionName: string, stateName: string, operation: () => Promise<void>) => {
@@ -479,7 +486,7 @@ async function clearChromiumState(): Promise<void> {
         timeout = setTimeout(() => {
           logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
           resolve()
-        }, SHUTDOWN_TIMEOUT_MS)
+        }, CHROMIUM_CLEAR_TIMEOUT_MS)
       })
     ])
   } finally {

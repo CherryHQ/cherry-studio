@@ -38,14 +38,40 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `model.preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
- * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit endpoint (see
- * `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * Priority: caller `preferredEndpointType` → `model.preferredEndpointType` → `model.endpointTypes[0]`
+ * → gateway per-model route → `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves
+ * the wire endpoint from the model id for multi-backend gateways (AiHubMix, …) whose models carry no
+ * explicit endpoint (see `gatewayRouting`). `getBaseUrl` applies its own fallback among
+ * `endpointConfigs`.
+ *
+ * Two preferences meet here and they are not the same thing. The `preferredEndpointType` argument
+ * serves callers that speak exactly one dialect — the Claude Agent SDK speaks Anthropic Messages and
+ * nothing else, so it asks for that rather than the in-app-chat default `endpointTypes[0]` expresses.
+ * It wins only when the model declares that endpoint AND the provider configures a base URL for it;
+ * otherwise the normal order applies and the caller sees the declined preference in the returned
+ * `endpointType`. The base-URL condition is not redundant: `getBaseUrl` cascades across
+ * `endpointConfigs`, so an unconfigured preference would resolve to another endpoint's host instead
+ * of failing.
+ *
+ * `model.preferredEndpointType` is the user's own routing choice, persisted per model. It is not
+ * screened the same way: the drawer only ever offers endpoints the model or provider declares, and
+ * silently ignoring a choice the user can see selected is worse than honoring it. A caller that can
+ * only speak one dialect still outranks it — that is a hard constraint, not a preference.
  */
-export function resolveEffectiveEndpoint(provider: Provider, model: Model): ResolvedEndpoint {
+export function resolveEffectiveEndpoint(
+  provider: Provider,
+  model: Model,
+  preferredEndpointType?: EndpointType
+): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
+  const callerPreferred =
+    preferredEndpointType &&
+    model.endpointTypes?.includes(preferredEndpointType) &&
+    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
+      ? preferredEndpointType
+      : undefined
   const endpointType =
+    callerPreferred ??
     model.preferredEndpointType ??
     model.endpointTypes?.[0] ??
     gatewayRoute?.endpointType ??
@@ -136,4 +162,19 @@ export function resolveProviderOptionsKey(
     default:
       return providerId
   }
+}
+
+/**
+ * Single derivation of the providerOptions namespace for a resolved endpoint:
+ * adapter id via {@link resolveAiSdkProviderId}, then its namespace via
+ * {@link resolveProviderOptionsKey}. Gateway consumers must use this instead of
+ * composing the two calls themselves so reasoning options and other
+ * provider-option writers can never disagree on the namespace.
+ */
+export function resolveEndpointProviderOptionsKey(provider: Provider, resolvedEndpoint: ResolvedEndpoint): string {
+  return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
+    actualProviderId: provider.id,
+    endpointType: resolvedEndpoint.endpointType,
+    gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+  })
 }
