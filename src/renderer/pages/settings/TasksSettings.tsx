@@ -368,7 +368,7 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   return labels[status] ?? status
 }
 
-function formatRunSummaryTime(value: string) {
+function formatTaskCardTime(value: string) {
   return new Date(value).toLocaleString(undefined, {
     month: 'numeric',
     day: 'numeric',
@@ -390,7 +390,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
     )
   }
 
-  const time = formatRunSummaryTime(summary.finishedAt ?? summary.startedAt)
+  const time = formatTaskCardTime(summary.finishedAt ?? summary.startedAt)
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-success">
@@ -412,6 +412,32 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
       <CircleStop aria-hidden className="size-3" />
       {t('agent.tasks.runSummary.cancelled', { time })}
     </span>
+  )
+}
+
+const TaskCardRunStatus: FC<{ task: ScheduledTaskEntity }> = ({ task }) => {
+  const { t } = useTranslation()
+  const nextRun = task.status === 'active' ? task.nextRun : null
+
+  if (!task.runSummary && !nextRun) return null
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 whitespace-nowrap text-xs">
+      {task.runSummary && (
+        <Link
+          to="/settings/scheduled-tasks/$taskId"
+          params={{ taskId: task.id }}
+          search={{ tab: 'history', runId: task.runSummary.id }}
+          className="pointer-events-auto relative z-2 rounded-sm outline-none hover:underline focus-visible:underline focus-visible:underline-offset-2">
+          <TaskRunSummaryLine summary={task.runSummary} />
+        </Link>
+      )}
+      {nextRun && (
+        <span className="text-muted-foreground">
+          {t('agent.tasks.nextRun')} · {formatTaskCardTime(nextRun)}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -1703,23 +1729,19 @@ const TasksSettings: FC = () => {
                       <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
                     </div>
                     <ItemContent className="pointer-events-none relative z-1 min-w-0">
-                      <ItemTitle className="truncate">{task.name}</ItemTitle>
+                      <ItemTitle className="min-w-0 max-w-full">
+                        <span className="truncate">{task.name}</span>
+                        <Badge variant="secondary" className="shrink-0">
+                          {getTaskStatusLabel(task.status, t)}
+                        </Badge>
+                      </ItemTitle>
                       <ItemDescription className="truncate text-xs leading-4">
                         {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
                         {getTriggerSummary(task.trigger, t)}
                       </ItemDescription>
-                      {task.runSummary && (
-                        <Link
-                          to="/settings/scheduled-tasks/$taskId"
-                          params={{ taskId: task.id }}
-                          search={{ tab: 'history', runId: task.runSummary.id }}
-                          className="pointer-events-auto relative z-2 w-fit rounded-sm text-xs outline-none hover:underline focus-visible:underline focus-visible:underline-offset-2">
-                          <TaskRunSummaryLine summary={task.runSummary} />
-                        </Link>
-                      )}
                     </ItemContent>
-                    <ItemActions className="pointer-events-none relative z-1 shrink-0">
-                      <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
+                    <ItemActions className="pointer-events-none relative z-1 ml-auto shrink-0">
+                      <TaskCardRunStatus task={task} />
                       <ChevronRight size={16} className="text-foreground-tertiary" />
                     </ItemActions>
                   </Item>
