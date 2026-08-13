@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   setActiveNode: vi.fn().mockResolvedValue(undefined),
   topicPending: false,
   eventEmit: vi.fn(),
+  useDataChange: vi.fn(),
   useQuery: vi.fn(),
   useMutation: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: mocks.useDataChange,
   useMutation: mocks.useMutation,
   useQuery: mocks.useQuery
 }))
@@ -235,6 +237,18 @@ describe('TopicBranchPanel', () => {
       params: { topicId: 'topic-1' },
       query: { depth: -1 }
     })
+  })
+
+  it('refetches an open tree after a cross-window tree change', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/topics/:topicId/tree', expect.any(Function), {
+      routeParams: { topicId: 'topic-1' }
+    })
+    const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    listener?.()
+
+    expect(mocks.refetchTree).toHaveBeenCalledOnce()
   })
 
   it('sets the active branch to the latest leaf passing through the selected node', async () => {

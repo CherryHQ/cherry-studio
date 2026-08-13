@@ -53,7 +53,11 @@ const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
+/** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
+ *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
 const STREAMING_PREVIEW_REFRESH_MS = 250
+const STREAMING_PREVIEW_MAX_REFRESH_MS = 4000
+const STREAMING_PREVIEW_CHARS_PER_MS = 2000
 const SCROLL_ACTIVATION_DELAY_MS = 300
 
 interface HtmlArtifactViewProps {
@@ -331,13 +335,23 @@ function useStreamingPacedHtml(html: string, isStreaming: boolean): string {
   useEffect(() => {
     if (!isStreaming) return
 
-    // Show whatever has arrived by the time generation starts, then rebuild on a fixed cadence.
+    // Show whatever has arrived by the time generation starts, then rebuild on a
+    // cadence that stretches as the document grows.
     setPacedHtml(latestHtmlRef.current)
-    const timer = setInterval(() => {
-      setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
-    }, STREAMING_PREVIEW_REFRESH_MS)
+    let timer: number
+    const schedule = () => {
+      const interval = Math.min(
+        STREAMING_PREVIEW_MAX_REFRESH_MS,
+        Math.max(STREAMING_PREVIEW_REFRESH_MS, latestHtmlRef.current.length / STREAMING_PREVIEW_CHARS_PER_MS)
+      )
+      timer = window.setTimeout(() => {
+        setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
+        schedule()
+      }, interval)
+    }
+    schedule()
 
-    return () => clearInterval(timer)
+    return () => window.clearTimeout(timer)
   }, [isStreaming])
 
   return isStreaming ? pacedHtml : html

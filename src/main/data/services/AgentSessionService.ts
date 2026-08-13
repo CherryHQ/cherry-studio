@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -67,6 +68,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspace: rowToAgentWorkspace(row.workspace),
     traceId: clean.traceId,
     orderKey: clean.orderKey,
+    lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -84,6 +86,17 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (sessionIds.length === 0) return
+    const entityIds = [...new Set(sessionIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind, entityIds },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' }
+    ])
+  }
+
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -100,12 +113,12 @@ export class AgentSessionService {
         agentId: sessionsTable.agentId,
         agentName: agentsTable.name,
         name: sessionsTable.name,
-        updatedAt: sessionsTable.updatedAt
+        lastActivityAt: sessionsTable.lastActivityAt
       })
       .from(sessionsTable)
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(limit)
       .all()
 
@@ -114,7 +127,7 @@ export class AgentSessionService {
       id: row.id,
       title: row.name,
       subtitle: row.agentName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { sessionId: row.id, agentId: row.agentId }
     }))
   }
@@ -125,6 +138,7 @@ export class AgentSessionService {
       ...defaultHandlersFor('Session', id),
       foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
+    this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
 
@@ -173,13 +187,23 @@ export class AgentSessionService {
     })
   }
 
-  /**
-   * Bump the session's `updatedAt` from a foreign service's transaction —
-   * message writes call this so the session surfaces in recency-ordered lists.
-   * Lives here because this service owns the session table's invariants.
-   */
+  /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
+  }
+
+  /** Monotonically advance a session's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
+    const updated = tx
+      .update(sessionsTable)
+      .set({
+        lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${sessionsTable.updatedAt}, ${timestamp})`
+      })
+      .where(eq(sessionsTable.id, sessionId))
+      .returning({ id: sessionsTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
@@ -273,9 +297,31 @@ export class AgentSessionService {
     return this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.taskScheduleId, taskScheduleId))
   }
 
-  /** Clear bindings before an agent FK detaches its sessions. */
-  clearTaskSchedulesForAgentTx(tx: DbOrTx, agentId: string): string[] {
-    const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+  /** Prepare session-owned changes before the caller deletes an agent row. */
+  prepareForAgentDeletionTx(
+    tx: DbOrTx,
+    agentId: string,
+    options: { deleteSessions: boolean }
+  ): {
+    sessionIds: string[]
+    taskScheduleIds: string[]
+    changeKind: 'membership' | 'projection'
+  } {
+    const sessions = tx
+      .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.agentId, agentId))
+      .all()
+    const taskScheduleIds = sessions.flatMap((session) => (session.taskScheduleId ? [session.taskScheduleId] : []))
+
+    if (options.deleteSessions) {
+      return {
+        sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false }),
+        taskScheduleIds,
+        changeKind: 'membership'
+      }
+    }
+
     if (taskScheduleIds.length > 0) {
       this.updateTaskScheduleRelationTx(
         tx,
@@ -283,7 +329,11 @@ export class AgentSessionService {
         and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
-    return taskScheduleIds
+    return {
+      sessionIds: sessions.map((session) => session.id),
+      taskScheduleIds,
+      changeKind: 'projection'
+    }
   }
 
   /** Relation maintenance is not session activity and must not affect recency restore. */
@@ -299,21 +349,21 @@ export class AgentSessionService {
   }
 
   /**
-   * The single most-recently-updated session, or `null` when there are none.
+   * The single most-recently-active session, or `null` when there are none.
    *
    * First-entry restore resumes the last-touched session. It cannot read the
    * regular first page of `listByCursor` for this: that pages pinned-first then
    * by `orderKey ASC` (creation/manual order, newest-created first), so a
    * recently-active session is not guaranteed to be on it. This
-   * `updatedAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   * `lastActivityAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
    */
-  getLatestUpdated(): AgentSessionEntity | null {
+  getLatestActive(): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
     return row ? rowToSession(row) : null
@@ -452,6 +502,7 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
+    this.notifyReadModelChange([id], 'projection')
     return this.getById(id)
   }
 
@@ -488,6 +539,7 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
+    this.notifyReadModelChange([id], 'projection')
     return this.getById(id)
   }
 
@@ -555,12 +607,21 @@ export class AgentSessionService {
       updatedAt: number
     }
   ): void {
-    insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
+    insertWithOrderKey(
+      tx,
+      sessionsTable,
+      { ...values, lastActivityAt: values.createdAt },
+      {
+        pkColumn: sessionsTable.id,
+        position: 'first'
+      }
+    )
   }
 
   delete(id: string): void {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
     publishTaskReadModelChanges(taskScheduleIds)
+    this.notifyReadModelChange([id], 'membership')
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -592,6 +653,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -607,6 +669,7 @@ export class AgentSessionService {
       return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -635,6 +698,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(result.deletedIds, 'membership')
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }

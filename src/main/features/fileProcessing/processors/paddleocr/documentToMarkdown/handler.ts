@@ -1,12 +1,10 @@
-import fs from 'node:fs/promises'
-
 import type { JobStatus } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
-import { createPaddleClient, PADDLE_MAX_FILE_SIZE } from '../client'
+import { createPaddleClient } from '../client'
 
 /** API host and key used to authenticate PaddleOCR requests. */
 type PaddleQueryContext = {
@@ -28,10 +26,6 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
     return {
       mode: 'remote-poll',
       async startRemote(startSignal) {
-        const stat = await fs.stat(file.path)
-        if (stat.size >= PADDLE_MAX_FILE_SIZE) {
-          throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
-        }
         const client = await createPaddleClient(apiHost, apiKey)
         const job = await client.submitDocumentParsing({ filePath: file.path, model }, { signal: startSignal })
         return {

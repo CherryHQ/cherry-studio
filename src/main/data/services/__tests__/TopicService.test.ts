@@ -15,13 +15,16 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
-import { describe, expect, it, type Mock } from 'vitest'
+import { describe, expect, it, type Mock, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
   describe('search', () => {
-    it('returns lean topic items with assistant names resolved inline', async () => {
+    it('orders matching topics and exposes timestamps by conversation activity', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values({
         id: 'asst-search',
@@ -36,20 +39,23 @@ describe('TopicService', () => {
           name: 'Needle Old Topic',
           assistantId: 'asst-search',
           orderKey: 'a0',
-          updatedAt: 100
+          lastActivityAt: 100,
+          updatedAt: 300
         },
         {
           id: 'topic-search-new',
           name: 'Needle New Topic',
           assistantId: 'asst-search',
           orderKey: 'a1',
-          updatedAt: 200
+          lastActivityAt: 200,
+          updatedAt: 100
         },
         {
           id: 'topic-search-miss',
           name: 'Other Topic',
           assistantId: 'asst-search',
           orderKey: 'a2',
+          lastActivityAt: 300,
           updatedAt: 300
         }
       ])
@@ -62,7 +68,7 @@ describe('TopicService', () => {
           id: 'topic-search-new',
           title: 'Needle New Topic',
           subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.200Z',
+          lastActivityAt: '1970-01-01T00:00:00.200Z',
           target: { topicId: 'topic-search-new', assistantId: 'asst-search' }
         },
         {
@@ -70,12 +76,28 @@ describe('TopicService', () => {
           id: 'topic-search-old',
           title: 'Needle Old Topic',
           subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.100Z',
+          lastActivityAt: '1970-01-01T00:00:00.100Z',
           target: { topicId: 'topic-search-old', assistantId: 'asst-search' }
         }
       ])
       expect(result[0]).not.toHaveProperty('orderKey')
     })
+  })
+
+  it('keeps audit and activity timestamps unchanged for an older activity signal', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-stale-activity',
+      name: 'Stale activity',
+      orderKey: 'a0',
+      lastActivityAt: 500,
+      createdAt: 100,
+      updatedAt: 700
+    })
+
+    dbh.db.transaction((tx) => topicService.advanceLastActivityAtTx(tx, 'topic-stale-activity', 400))
+
+    const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-stale-activity'))
+    expect(row).toMatchObject({ lastActivityAt: 500, updatedAt: 700 })
   })
 
   it('creates and reuses a topic-level trace id', async () => {
@@ -96,6 +118,7 @@ describe('TopicService', () => {
       orderKey: 'a0'
     })
 
+    notifyDataApiDataChangeMock.mockClear()
     const updated = topicService.update('topic-name-only', {
       name: 'Manual topic name'
     })
@@ -105,6 +128,12 @@ describe('TopicService', () => {
       name: 'Manual topic name',
       isNameManuallyEdited: true
     })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics/:id', entityIds: ['topic-name-only'] },
+      { endpoint: '/topics/latest' }
+    ])
   })
 
   it('routes topic updates through serialized write transactions', async () => {
@@ -471,11 +500,18 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
+      notifyDataApiDataChangeMock.mockClear()
       topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
@@ -877,7 +913,15 @@ describe('TopicService', () => {
 
   describe('create', () => {
     it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
+      notifyDataApiDataChangeMock.mockClear()
       const result = topicService.create({ name: 'fresh' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
+        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/latest' }
+      ])
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
@@ -1011,8 +1055,15 @@ describe('TopicService', () => {
         }
       ])
 
+      notifyDataApiDataChangeMock.mockClear()
       const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
+        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/latest' }
+      ])
       expect(result.id).not.toBe('src-t')
       expect(result.name).toBe('Source')
       expect(result.isNameManuallyEdited).toBe(true)
@@ -1627,22 +1678,30 @@ describe('TopicService', () => {
     })
   })
 
-  describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated non-deleted topic, independent of pin/order', async () => {
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active non-deleted topic, independent of pin/order/updatedAt', async () => {
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
-        { id: 'old', name: 'old', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        // Highest updatedAt but soft-deleted → must be excluded.
-        { id: 'deleted-newest', name: 'deleted', orderKey: 'a1', deletedAt: 999, createdAt: 2, updatedAt: 900 },
-        { id: 'latest', name: 'latest', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
-        { id: 'mid', name: 'mid', orderKey: 'a3', createdAt: 4, updatedAt: 200 }
+        { id: 'old', name: 'old', orderKey: 'a0', lastActivityAt: 100, createdAt: 1, updatedAt: 900 },
+        // Highest activity but soft-deleted → must be excluded.
+        {
+          id: 'deleted-newest',
+          name: 'deleted',
+          orderKey: 'a1',
+          deletedAt: 999,
+          lastActivityAt: 900,
+          createdAt: 2,
+          updatedAt: 200
+        },
+        { id: 'latest', name: 'latest', orderKey: 'a2', lastActivityAt: 300, createdAt: 3, updatedAt: 100 },
+        { id: 'mid', name: 'mid', orderKey: 'a3', lastActivityAt: 200, createdAt: 4, updatedAt: 300 }
       ])
 
-      expect(service.getLatestUpdated()?.id).toBe('latest')
+      expect(service.getLatestActive()?.id).toBe('latest')
     })
 
     it('returns null when there are no topics', () => {
-      expect(new TopicService().getLatestUpdated()).toBeNull()
+      expect(new TopicService().getLatestActive()).toBeNull()
     })
   })
 })

@@ -7,8 +7,11 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadInput: vi.fn()
+  loadInput: vi.fn(),
+  notifyDataApiDataChange: vi.fn()
 }))
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataApiDataChange }))
 
 vi.mock('../ensureBuiltinAssistant', () => ({
   loadBuiltinAssistantEnsureInput: mocks.loadInput
@@ -46,6 +49,12 @@ describe('createBuiltinAssistantFeedbackSession', () => {
     expect(dbh.db.select().from(agentTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
   })
 
   it('rolls back the restored assistant when session creation fails', () => {
@@ -67,5 +76,6 @@ describe('createBuiltinAssistantFeedbackSession', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
     expect(onAgentCreated).not.toHaveBeenCalled()
+    expect(mocks.notifyDataApiDataChange).not.toHaveBeenCalled()
   })
 })

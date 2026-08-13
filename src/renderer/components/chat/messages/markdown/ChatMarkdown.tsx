@@ -31,6 +31,12 @@ export type InlineHtmlPreviewMode = 'generating' | 'ready'
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
 const EMPTY_CITATION_REGISTRY: ReadonlyMap<number, Citation> = new Map()
+/** Streamdown's fadeIn animation wraps every word in a span; past this size that
+ *  DOM amplification (and per-commit re-split) costs more than the effect is worth. */
+const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
+/** While streaming, the latex/svg regex transforms re-scan the whole content on every
+ *  commit (O(n) full-string passes). Past this size, defer them to stream completion. */
+const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 
 const ChatMarkdown: FC<Props> = ({
   block,
@@ -51,6 +57,9 @@ const ChatMarkdown: FC<Props> = ({
   const content = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
+    }
+    if (block.status === 'streaming' && block.content.length > MAX_STREAMING_TRANSFORM_LENGTH) {
+      return block.content
     }
     const transform = (source: string) => {
       let text = removeSvgEmptyLines(processLatexBrackets(source))
@@ -85,7 +94,7 @@ const ChatMarkdown: FC<Props> = ({
       remarkPlugins={remarkPlugins}
       components={mergedComponents}
       footnoteLabel={footnoteLabel}
-      animated={isStreaming ? undefined : false}
+      animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
       parseIncompleteMarkdown={isStreaming}>
       {content}
     </StreamingMarkdown>
