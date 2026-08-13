@@ -958,7 +958,6 @@
       "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
-      "pending": "Warten auf Bestätigung",
       "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warten auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
@@ -3480,6 +3479,12 @@
         "context_compress_model": "Komprimierungsmodell",
         "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_count_follow_global": "Global folgen ({{count}})",
+        "context_count_unlimited": "Unbegrenzt",
+        "context_globally_disabled": "Die Kontextverwaltung ist global deaktiviert, daher haben die Auslagerungs- und Komprimierungseinstellungen hier keine Wirkung",
+        "context_inherited": "Folgt den globalen Einstellungen: {{compress}}; Werkzeugausgaben über {{threshold}} Zeichen werden ausgelagert",
+        "context_inherited_compress_off": "automatische Komprimierung inaktiv",
+        "context_inherited_compress_on": "automatische Komprimierung aktiv",
         "context_management": "Kontextverwaltung",
         "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
@@ -4639,6 +4644,8 @@
         "font_size_medium": "Mittel",
         "font_size_small": "Klein",
         "font_title": "Schrifteinstellungen",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Serifenschrift",
         "show_table_of_contents": "Inhaltsverzeichnis anzeigen",
         "show_table_of_contents_description": "Inhaltsverzeichnis-Seitenleiste anzeigen für einfache Navigation im Dokument",
@@ -5406,6 +5413,7 @@
         "insertRowBefore": "Oben einfügen"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Mathematische Formel einfügen",
@@ -7428,6 +7436,20 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "collapse_all": "Alle einklappen",
+      "context_management": {
+        "compress_enabled": "Automatisch komprimieren",
+        "compress_enabled_description": "Ältere Gesprächsrunden automatisch zusammenfassen, wenn das Kontextfenster fast erreicht ist. Assistenten können dies überschreiben",
+        "compress_model": "Komprimierungsmodell",
+        "compress_model_follow": "Aktuellem Modell folgen",
+        "enabled": "Kontextverwaltung aktivieren",
+        "enabled_description": "Gesprächskontext automatisch verwalten: übergroße Werkzeugausgaben auslagern und den Verlauf nahe der Fenstergrenze komprimieren. Deaktiviert wird nichts verwaltet und Anfragen über die Fenstergröße schlagen fehl",
+        "max_messages": "Beibehaltene letzte Nachrichten",
+        "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
+        "max_messages_unlimited": "Unbegrenzt",
+        "title": "Kontextverwaltung",
+        "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
+        "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
+      },
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
