@@ -1,5 +1,5 @@
 {
-  "doNotTranslate": ["Cherry Studio", "MCP", "OpenAI", "Ollama", "WebDAV", "GitHub", "Markdown", "OCR"],
+  "doNotTranslate": ["Cherry Studio", "MCP", "OpenAI", "Ollama", "WebDAV", "GitHub"],
   "terms": {
     "Provider": {
       "note": "A model vendor such as OpenAI or Anthropic, not a generic supplier or a service provider in the telecom sense.",

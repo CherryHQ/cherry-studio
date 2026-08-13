@@ -4812,7 +4812,7 @@
     },
     "installed_at": "OpenClaw đã được cài đặt tại",
     "migration": {
-      "description": "Đã phát hiện phiên bản OpenClaw lỗi thời được cài qua npm. Vui lòng cài lại để nhận phiên bản chính thức mới nhất.",
+      "description": "Đã phát hiện một bản cài đặt OpenClaw bên ngoài trong PATH, nhưng Cherry Studio chỉ sử dụng tệp nhị phân OpenClaw do chính nó quản lý. Hãy cài đặt phiên bản được quản lý để tiếp tục.",
       "install_button": "Cài đặt lại OpenClaw",
       "title": "OpenClaw Cần Cập Nhật"
     },
@@ -8817,7 +8817,7 @@
       "aborted": "Dịch bị hủy"
     },
     "input": {
-      "placeholder": "Văn bản, tệp văn bản hoặc hình ảnh (hỗ trợ OCR) có thể được dán hoặc kéo vào"
+      "placeholder": "Nhập văn bản..."
     },
     "language": {
       "not_pair": "Ngôn ngữ nguồn khác với ngôn ngữ đã đặt",

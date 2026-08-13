@@ -51,8 +51,6 @@ const LANGUAGE_NAMES: Record<string, string> = {
   'vi-vn': 'Vietnamese'
 }
 
-const NON_LATIN_LOCALES = new Set(['zh-cn', 'zh-tw', 'ja-jp', 'ru-ru', 'el-gr'])
-
 // ---------------------------------------------------------------- json helpers
 
 const flatten = (obj: I18N, prefix = '', out: Record<string, string> = {}): Record<string, string> => {
@@ -97,19 +95,21 @@ const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
 const tagPlaceholders = (text: string) => (text.match(/<\/?\d+\s*\/?>/g) ?? []).sort()
 const nestedKeys = (text: string) => (text.match(/\$t\([^)]*\)/g) ?? []).sort()
 
+/** Case and separators vary legitimately: "Github", "Cherry-Studio-Diagnose". Spelling does not. */
+const foldForTermMatch = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+
 /**
  * Returns a rejection reason, or null when the translation is safe to write.
- * Every rule here corresponds to a failure this pipeline has actually shipped.
+ *
+ * Every rule corresponds to a failure this pipeline has actually shipped, and each one is
+ * checked against the whole existing catalog (see the test) — a rule that rejects a correct
+ * translation strands that key on its placeholder forever, which is worse than what it prevents.
  */
-export const validate = (
-  english: string,
-  translation: string,
-  locale: string,
-  doNotTranslate: string[] = []
-): string | null => {
+export const validate = (english: string, translation: string, doNotTranslate: string[] = []): string | null => {
   const text = translation.trim()
 
-  if (!text) return 'empty'
+  // A base string that is only punctuation ("." as a sentence terminator) may translate to nothing.
+  if (!text) return /[\p{L}\p{N}]/u.test(english) ? 'empty' : null
   if (/to be translated/i.test(text)) return 'placeholder marker leaked into the translation'
   if (text.startsWith('[') && !english.trim().startsWith('['))
     return 'starts with a bracketed note instead of the translation'
@@ -127,12 +127,11 @@ export const validate = (
     return `$t() reference mismatch: expected ${nestedKeys(english).join(' ') || '(none)'}`
   }
 
+  const foldedTranslation = foldForTermMatch(text)
   for (const term of doNotTranslate) {
-    if (english.includes(term) && !text.includes(term)) return `dropped untranslatable term "${term}"`
-  }
-
-  if (NON_LATIN_LOCALES.has(locale) && english.trim().split(/\s+/).length >= 3 && text === english.trim()) {
-    return 'identical to the English source'
+    if (english.includes(term) && !foldedTranslation.includes(foldForTermMatch(term))) {
+      return `dropped untranslatable term "${term}"`
+    }
   }
 
   return null
@@ -373,7 +372,7 @@ const translateTarget = async (target: Target, briefs: Map<string, Brief>, gloss
         rejected.push({ key, reason: 'missing from the model response' })
         continue
       }
-      const reason = validate(english, text, target.locale, glossary.doNotTranslate)
+      const reason = validate(english, text, glossary.doNotTranslate)
       if (reason) {
         rejected.push({ key, reason })
         continue

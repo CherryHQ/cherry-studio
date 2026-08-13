@@ -4812,7 +4812,7 @@
     },
     "installed_at": "OpenClaw installé à",
     "migration": {
-      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "description": "Une installation externe d'OpenClaw a été détectée dans le PATH, mais Cherry Studio utilise son propre binaire OpenClaw géré. Installez la version gérée pour continuer.",
       "install_button": "Réinstaller OpenClaw",
       "title": "OpenClaw nécessite une mise à jour"
     },
@@ -6763,7 +6763,7 @@
       "removeDefinitionOnlyDependents": "Les outils installés en dépendent : {{dependents}}.",
       "removeError": "Échec de la suppression de l'outil",
       "removeErrorHint": "La commande de nettoyage a échoué. Copiez le journal ci-dessous pour résoudre le problème ou partagez-le pour obtenir de l'aide.",
-      "removeRuntimeConfirmMessage": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ? La désinstallation de cet environnement d'exécution peut endommager les outils npm ou pip qui en dépendent.",
+      "removeRuntimeConfirmMessage": "Supprimer « {{name}} » de Cherry Studio ? Cherry ne nettoiera que la copie exacte gérée par mise. Les runtimes système et intégrés ne sont jamais modifiés. Les outils npm ou pip installés peuvent bloquer la suppression s'ils dépendent de ce runtime.",
       "runtimeDependency": "Dépendance d'exécution",
       "runtimeDependencyHint": "Runtime pour les outils npm/pip",
       "searchFailed": "Échec de la recherche. Consultez les journaux.",
@@ -8817,7 +8817,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "Peut coller ou glisser du texte, des fichiers texte ou des images (avec prise en charge de l'OCR)"
+      "placeholder": "Entrez du texte..."
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

@@ -7061,7 +7061,7 @@
       },
       "fetch": {
         "button": "取得伺服器",
-        "success": "伺服器取得成功"
+        "success": "已成功取得 MCP 伺服器"
       },
       "filter": {
         "allStatuses": "所有狀態",
