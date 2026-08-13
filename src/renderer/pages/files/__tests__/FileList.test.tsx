@@ -30,7 +30,6 @@ const file: FileItem = {
 const menuActions: FileContextMenuActions = {
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
   onShowInFolder: vi.fn()
 }
 
@@ -43,10 +42,8 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     onSelectAll: vi.fn(),
     visibleSelectionState: false,
     onDelete: vi.fn(),
-    onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
-    isTrash: false,
     menuActions,
     sortKey: 'name',
     sortDir: 'asc',

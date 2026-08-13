@@ -35,7 +35,6 @@ export const FileGrid = memo(function FileGrid({
   onSelect,
   onOpen,
   onDelete,
-  isTrash,
   menuActions,
   renamingId,
   onRenameConfirm,
@@ -46,7 +45,6 @@ export const FileGrid = memo(function FileGrid({
   onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
@@ -90,7 +88,7 @@ export const FileGrid = memo(function FileGrid({
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions}>
             <div
               onClick={() => {
                 if (isRenaming) return

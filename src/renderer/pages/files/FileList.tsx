@@ -1,14 +1,5 @@
 import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FolderOpen,
-  Pencil,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  Trash2
-} from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -60,10 +51,8 @@ export const FileList = memo(function FileList({
   onSelectAll,
   visibleSelectionState,
   onDelete,
-  onRestore,
   onRename,
   onShowInFolder,
-  isTrash,
   menuActions,
   sortKey,
   sortDir,
@@ -79,10 +68,8 @@ export const FileList = memo(function FileList({
   onSelectAll: (checked: boolean) => void
   visibleSelectionState: CheckedState
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onRename: (id: string) => void
   onShowInFolder: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   sortKey: SortKey
   sortDir: SortDir
@@ -131,19 +118,14 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
-        const canRestore = isTrash && canUseFileActions
-        const canOpen = !isTrash && canUseFileActions
-        const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions
-        const deleteLabel = isTrash
-          ? t('files.permanent_delete')
-          : file.origin === 'external'
-            ? t('files.remove_from_library')
-            : t('files.delete.label')
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="h-7 w-7" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions}>
             <div
               onDoubleClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -217,20 +199,7 @@ export const FileList = memo(function FileList({
                 ) : (
                   renderActionPlaceholder('rename')
                 )}
-                {canRestore ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('files.restore')}
-                    title={t('files.restore')}
-                    className="text-muted-foreground/55 hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRestore(file.id)
-                    }}>
-                    <RotateCcw size={12} />
-                  </Button>
-                ) : canShowInFolder ? (
+                {canShowInFolder ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"

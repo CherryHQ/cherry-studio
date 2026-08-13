@@ -1,11 +1,6 @@
 import {
   Button,
   Checkbox,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -45,7 +40,7 @@ type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
-type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
+type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_permanent_delete'
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
@@ -99,8 +94,6 @@ async function requestBatchedFileMutation(
       switch (route) {
         case 'file.batch_trash':
           return ipcApi.request('file.batch_trash', { ids: chunk })
-        case 'file.batch_restore':
-          return ipcApi.request('file.batch_restore', { ids: chunk })
         case 'file.batch_permanent_delete':
           return ipcApi.request('file.batch_permanent_delete', { ids: chunk })
       }
@@ -211,16 +204,6 @@ function warnMutationFailures(
   return true
 }
 
-function reportMutationFailures(
-  action: string,
-  result: { failed: Array<{ id: string; error: string }> } | null,
-  message: string
-): void {
-  if (warnMutationFailures(action, result)) {
-    window.toast?.error(message)
-  }
-}
-
 function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
@@ -243,30 +226,22 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
 const FileToolbar = memo(function FileToolbar({
   showSelectionControls,
   selectionControlsDisabled,
-  isTrash,
   showUpload,
-  canEmptyTrash,
   selectedCount,
   visibleSelectionState,
   batchDeleteLabel,
   onUpload,
-  onEmptyTrash,
   onBatchDelete,
-  onBatchRestore,
   onSelectAll
 }: {
   showSelectionControls: boolean
   selectionControlsDisabled: boolean
-  isTrash: boolean
   showUpload: boolean
-  canEmptyTrash: boolean
   selectedCount: number
   visibleSelectionState: boolean | 'indeterminate'
   batchDeleteLabel: string
   onUpload: () => void
-  onEmptyTrash: () => void
   onBatchDelete: () => void
-  onBatchRestore: () => void
   onSelectAll: (checked: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -310,11 +285,6 @@ const FileToolbar = memo(function FileToolbar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-36">
-              {isTrash && selectedCount > 1 && (
-                <DropdownMenuItem onSelect={onBatchRestore}>
-                  {t('files.restore')} ({selectedCount})
-                </DropdownMenuItem>
-              )}
               {selectedCount > 1 && (
                 <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
                   {batchDeleteLabel} ({selectedCount})
@@ -326,16 +296,7 @@ const FileToolbar = memo(function FileToolbar({
         </div>
       )}
       <div className="flex-1" />
-      {isTrash ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={!canEmptyTrash}
-          onClick={onEmptyTrash}
-          className="h-8 px-2.5 text-destructive/65 text-xs hover:bg-destructive/[0.08] hover:text-destructive disabled:text-muted-foreground/35">
-          {t('files.empty_trash')}
-        </Button>
-      ) : showUpload ? (
+      {showUpload ? (
         <Button
           variant="outline"
           size="sm"
@@ -363,7 +324,6 @@ function FilesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [pendingPermanentDeleteIds, setPendingPermanentDeleteIds] = useState<Set<string> | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
 
@@ -372,10 +332,6 @@ function FilesPage() {
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
   const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
-  const trashedFilesQuery = useMemo(
-    () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
-    [serverSortKey, sortDir]
-  )
 
   const {
     pages: activeFilePages,
@@ -392,20 +348,6 @@ function FilesPage() {
     swrOptions: { keepPreviousData: true }
   })
   const {
-    pages: trashedFilePages,
-    isLoading: isTrashedFilesLoading,
-    isRefreshing: isTrashedFilesRefreshing,
-    error: trashedFilesError,
-    hasNext: hasMoreTrashedFiles,
-    loadNext: loadMoreTrashedFiles,
-    refresh: refreshTrashedFiles,
-    reset: resetTrashedFiles
-  } = useInfiniteQuery('/files/entries', {
-    query: trashedFilesQuery,
-    limit: FILES_PAGE_LIMIT,
-    swrOptions: { keepPreviousData: true }
-  })
-  const {
     data: fileStats,
     error: fileStatsError,
     refetch: refetchFileStats
@@ -413,13 +355,11 @@ function FilesPage() {
     swrOptions: { keepPreviousData: true }
   })
 
-  const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
-  const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
+  const isFilesLoading = isActiveFilesLoading
+  const isFilesRefreshing = isActiveFilesRefreshing
   const activeEntries = useInfiniteFlatItems(activeFilePages)
-  const trashedEntries = useInfiniteFlatItems(trashedFilePages)
   const activeFilesTotal = activeFilePages[0]?.total ?? activeEntries.length
-  const trashedFilesTotal = trashedFilePages[0]?.total ?? trashedEntries.length
-  const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
+  const entries = activeEntries
   const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
   const isFileQueryPending = isFilesLoading || isFilesRefreshing
   const displayEntryCandidate =
@@ -434,16 +374,11 @@ function FilesPage() {
 
   useEffect(() => {
     resetActiveFiles()
-    resetTrashedFiles()
-  }, [resetActiveFiles, resetTrashedFiles, serverSortKey, sortDir])
+  }, [resetActiveFiles, serverSortKey, sortDir])
 
   useEffect(() => {
     if (activeFilesError) logger.error('Failed to load active files', activeFilesError)
   }, [activeFilesError])
-
-  useEffect(() => {
-    if (trashedFilesError) logger.error('Failed to load trashed files', trashedFilesError)
-  }, [trashedFilesError])
 
   useEffect(() => {
     if (fileStatsError) logger.error('Failed to load file stats', fileStatsError)
@@ -490,17 +425,14 @@ function FilesPage() {
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
-    resetTrashedFiles()
-    await Promise.all([refreshActiveFiles(), refreshTrashedFiles(), refetchFileStats()])
-  }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
+    await Promise.all([refreshActiveFiles(), refetchFileStats()])
+  }, [refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
-  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const showUploadButton = filter.kind === 'library' && filter.value === 'all'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
-  const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
+  const hasMoreCurrentFiles = hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
-  const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
-  const isLoadingMoreCurrentFiles = isTrash ? isLoadingMoreTrashedFiles : isLoadingMoreActiveFiles
+  const isLoadingMoreCurrentFiles = isLoadingMoreActiveFiles
 
   useEffect(() => {
     pendingLoadMoreRef.current = false
@@ -527,17 +459,9 @@ function FilesPage() {
       !pendingLoadMoreRef.current &&
       el.scrollHeight - el.scrollTop - el.clientHeight < 160
     ) {
-      const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
-      requestLoadMore(loadMoreFiles)
+      requestLoadMore(loadMoreActiveFiles)
     }
-  }, [
-    hasMoreCurrentFiles,
-    isLoadingMoreCurrentFiles,
-    isTrash,
-    loadMoreActiveFiles,
-    loadMoreTrashedFiles,
-    requestLoadMore
-  ])
+  }, [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, loadMoreActiveFiles, requestLoadMore])
 
   const maybeFillClientFilteredViewport = useCallback(() => {
     // Type filters are applied client-side over the loaded active pages.
@@ -612,16 +536,8 @@ function FilesPage() {
   }, [handleImportPaths, t])
 
   const filteredFiles = useMemo(() => {
-    let result = files
-
-    if (filter.kind === 'library') {
-      if (filter.value === 'trash') result = result.filter((f) => f.trashed)
-      else result = result.filter((f) => !f.trashed)
-    } else if (filter.kind === 'type') {
-      result = result.filter((f) => !f.trashed && f.type === filter.value)
-    }
-
-    return result
+    if (filter.kind === 'type') return files.filter((f) => f.type === filter.value)
+    return files
   }, [files, filter])
 
   useEffect(() => {
@@ -630,8 +546,7 @@ function FilesPage() {
 
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      all: fileStats?.activeTotal ?? activeFilesTotal,
-      trash: fileStats?.trashTotal ?? trashedFilesTotal
+      all: fileStats?.activeTotal ?? activeFilesTotal
     }
 
     if (!fileStats) return counts
@@ -644,22 +559,21 @@ function FilesPage() {
       counts[`type_${type}`] = (counts[`type_${type}`] ?? 0) + count
     }
     return counts
-  }, [activeFilesTotal, fileStats, trashedFilesTotal])
+  }, [activeFilesTotal, fileStats])
 
   const footerFileCount = useMemo(() => {
-    if (filter.kind === 'library') return filter.value === 'trash' ? fileCounts.trash : fileCounts.all
+    if (filter.kind === 'library') return fileCounts.all
     return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
   }, [fileCounts, filter, filteredFiles.length])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {
-    if (isTrash) return t('files.permanent_delete')
     if (selectedFiles.length > 0 && selectedFiles.every((file) => file.origin === 'external')) {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
     return t('files.delete.label')
-  }, [isTrash, selectedFiles, t])
+  }, [selectedFiles, t])
 
   const handleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -694,26 +608,18 @@ function FilesPage() {
       if (targets.length === 0) return
 
       try {
-        if (isTrash) {
-          const result = await requestBatchedFileMutation(
-            'file.batch_permanent_delete',
-            targets.map((file) => file.id)
-          )
-          reportMutationFailures('file permanent delete', result, t('files.error.delete_partial_failed'))
-        } else {
-          const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
-          const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
-          const [trashResult, removeResult] = await Promise.all([
-            trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
-            removeIds.length > 0
-              ? requestBatchedFileMutation('file.batch_permanent_delete', removeIds)
-              : Promise.resolve(null)
-          ])
-          const trashFailed = warnMutationFailures('file trash', trashResult)
-          const removeFailed = warnMutationFailures('file remove external entries', removeResult)
-          if (trashFailed || removeFailed) {
-            window.toast?.error(t('files.error.delete_partial_failed'))
-          }
+        const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
+        const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
+        const [trashResult, removeResult] = await Promise.all([
+          trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
+          removeIds.length > 0
+            ? requestBatchedFileMutation('file.batch_permanent_delete', removeIds)
+            : Promise.resolve(null)
+        ])
+        const trashFailed = warnMutationFailures('file trash', trashResult)
+        const removeFailed = warnMutationFailures('file remove external entries', removeResult)
+        if (trashFailed || removeFailed) {
+          window.toast?.error(t('files.error.delete_partial_failed'))
         }
 
         setSelectedIds(new Set())
@@ -723,7 +629,7 @@ function FilesPage() {
         window.toast?.error(t('files.error.delete_failed'))
       }
     },
-    [files, isTrash, refetchFiles, t]
+    [files, refetchFiles, t]
   )
 
   const handleDelete = useCallback(
@@ -732,58 +638,9 @@ function FilesPage() {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
-      if (isTrash) {
-        setPendingPermanentDeleteIds(new Set(targets.map((file) => file.id)))
-        return
-      }
-
       void performDelete(new Set(targets.map((file) => file.id)))
     },
-    [files, isTrash, performDelete, selectedIds]
-  )
-
-  const emptyTrash = useCallback(async () => {
-    try {
-      const result = await ipcApi.request('file.empty_trash')
-      reportMutationFailures('file empty trash', result, t('files.error.delete_partial_failed'))
-      setSelectedIds(new Set())
-      await refetchFiles()
-    } catch (error) {
-      logger.error('Failed to empty trash', error as Error)
-      window.toast?.error(t('files.error.delete_failed'))
-    }
-  }, [refetchFiles, t])
-
-  const handlePermanentDeleteConfirm = useCallback(() => {
-    const ids = pendingPermanentDeleteIds
-    if (!ids) return
-
-    setPendingPermanentDeleteIds(null)
-    if (ids.size === 0) {
-      void emptyTrash()
-      return
-    }
-    void performDelete(ids)
-  }, [emptyTrash, pendingPermanentDeleteIds, performDelete])
-
-  const handleEmptyTrash = useCallback(() => {
-    if (!isTrash || filteredFiles.length === 0) return
-    setPendingPermanentDeleteIds(new Set())
-  }, [filteredFiles, isTrash])
-
-  const handleRestore = useCallback(
-    async (ids: Set<string>) => {
-      try {
-        const result = await requestBatchedFileMutation('file.batch_restore', [...ids])
-        reportMutationFailures('file restore', result, t('files.error.restore_partial_failed'))
-        setSelectedIds(new Set())
-        await refetchFiles()
-      } catch (error) {
-        logger.error('Failed to restore files', error as Error)
-        window.toast?.error(t('files.error.restore_failed'))
-      }
-    },
-    [refetchFiles, t]
+    [files, performDelete, selectedIds]
   )
 
   const handleRename = useCallback(
@@ -825,10 +682,9 @@ function FilesPage() {
     () => ({
       onRename: startInlineRename,
       onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+    [handleDelete, handleShowInFolder, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -841,8 +697,6 @@ function FilesPage() {
     },
     [sortKey]
   )
-  const isEmptyTrashConfirm = pendingPermanentDeleteIds?.size === 0
-  const permanentDeleteConfirmCount = isEmptyTrashConfirm ? fileCounts.trash : (pendingPermanentDeleteIds?.size ?? 0)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -872,49 +726,20 @@ function FilesPage() {
           setFilter(f)
           setSelectedIds(new Set())
           setRenamingId(null)
-          setPendingPermanentDeleteIds(null)
         }}
         fileCounts={fileCounts}
       />
-
-      <Dialog
-        open={pendingPermanentDeleteIds !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingPermanentDeleteIds(null)
-        }}>
-        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground text-sm">
-            {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
-              {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <div
         className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
         onDragOver={(e) => {
           e.preventDefault()
-          if (isTrash) {
-            setDragOver(false)
-            return
-          }
           setDragOver(true)
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault()
           setDragOver(false)
-          if (isTrash) return
           const paths = Array.from(e.dataTransfer.files)
             .map((file) => window.api.file.getPathForFile(file))
             .filter((path): path is string => Boolean(path))
@@ -924,16 +749,12 @@ function FilesPage() {
           <FileToolbar
             showSelectionControls
             selectionControlsDisabled={filteredFiles.length === 0}
-            isTrash={isTrash}
             showUpload={showUploadButton}
-            canEmptyTrash={filteredFiles.length > 0}
             selectedCount={selectedIds.size}
             visibleSelectionState={visibleSelectionState}
             batchDeleteLabel={batchDeleteLabel}
             onUpload={() => void handleUploadClick()}
-            onEmptyTrash={handleEmptyTrash}
             onBatchDelete={() => handleDelete()}
-            onBatchRestore={() => void handleRestore(new Set(selectedIds))}
             onSelectAll={handleSelectAllVisible}
           />
         )}
@@ -960,7 +781,7 @@ function FilesPage() {
           }}>
           {filteredFiles.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-              {!isFilesLoading && files.filter((f) => !f.trashed).length === 0 ? (
+              {!isFilesLoading && files.length === 0 ? (
                 <EmptyState preset="no-file" />
               ) : (
                 <EmptyState
@@ -979,7 +800,6 @@ function FilesPage() {
                   onSelect={() => {}}
                   onOpen={handleOpen}
                   onDelete={(id) => handleDelete(new Set([id]))}
-                  isTrash={isTrash}
                   menuActions={listMenuActions}
                   renamingId={renamingId}
                   onRenameConfirm={(id, name) => void handleRename(id, name)}
@@ -993,10 +813,8 @@ function FilesPage() {
                   onOpen={handleOpen}
                   onSelectAll={handleSelectAllVisible}
                   visibleSelectionState={visibleSelectionState}
-                  isTrash={isTrash}
                   menuActions={listMenuActions}
                   onDelete={(id) => handleDelete(new Set([id]))}
-                  onRestore={(id) => void handleRestore(new Set([id]))}
                   onRename={startInlineRename}
                   onShowInFolder={handleShowInFolder}
                   sortKey={sortKey}

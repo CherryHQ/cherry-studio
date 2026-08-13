@@ -6,7 +6,7 @@ import type { FileEntry } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -60,17 +60,6 @@ const externalEntry = {
   ext: 'txt',
   size: null,
   externalPath: '/tmp/external.txt',
-  createdAt: 1_719_216_000_000,
-  updatedAt: 1_719_216_000_000
-} as unknown as FileEntry
-
-const trashedEntry = {
-  id: 'file-trash',
-  origin: 'internal',
-  name: 'trashed',
-  ext: 'txt',
-  size: 256,
-  deletedAt: 1_719_216_000_000,
   createdAt: 1_719_216_000_000,
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
@@ -204,28 +193,6 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByDisplayValue('external.txt')).not.toBeInTheDocument()
   })
 
-  it('does not start inline rename for a selected trash file', () => {
-    mockFileStats(statsForEntries([trashedEntry]))
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    selectFileAt(0)
-    fireEvent.keyDown(document, { key: 'Enter' })
-
-    expect(screen.queryByDisplayValue('trashed.txt')).not.toBeInTheDocument()
-  })
-
   it('does not call rename when inline rename value is unchanged', () => {
     renderFilesPage()
 
@@ -277,27 +244,22 @@ describe('FilesPage keyboard rename', () => {
     })
   })
 
-  it('uses server totals for all/trash counts', () => {
-    mockFileStats({ activeTotal: 123, trashTotal: 4, extCounts: [] })
-    mockUseInfiniteQuery.mockImplementation((_path, options) => {
-      const query = options?.query as { inTrash?: boolean } | undefined
-      return {
-        pages: query?.inTrash ? [{ items: [], total: 4 }] : [{ items: [entry], total: 123 }],
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        hasNext: false,
-        loadNext: vi.fn(),
-        refresh: vi.fn().mockResolvedValue(undefined),
-        reset: vi.fn(),
-        mutate: vi.fn().mockResolvedValue(undefined)
-      }
-    })
+  it('uses the server total for the all-files count', () => {
+    mockFileStats({ activeTotal: 123, trashTotal: 0, extCounts: [] })
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: [{ items: [entry], total: 123 }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
     render(<FilesPage />)
 
     expect(screen.getAllByText('123').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByText('files.trash'))
-    expect(screen.getAllByText('4').length).toBeGreaterThan(0)
   })
 
   it('disables selection controls when the current view has no files', () => {
@@ -448,33 +410,6 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('hides upload and shows empty trash in the trash view', async () => {
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-
-    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('files.empty_trash'))
-
-    expect(screen.getByText('files.permanent_delete_confirm.title')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByText('files.empty_trash')[0])
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.empty_trash')
-    })
-  })
-
   it('only shows upload in the all files tab', () => {
     mockFiles([entry])
     mockFileStats(statsForEntries([entry]))
@@ -620,115 +555,6 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('confirms before permanent delete in the trash view', async () => {
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    selectFileAt(0)
-    fireEvent.keyDown(document, { key: 'Delete' })
-
-    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
-    expect(screen.getByText('files.permanent_delete_confirm.title')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('files.permanent_delete'))
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
-    })
-  })
-
-  it('restores a trashed file from the context menu', () => {
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
-
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [trashedEntry.id] })
-  })
-
-  it('shows a toast when restore partially fails', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.batch_restore') {
-        return Promise.resolve({ succeeded: [], failed: [{ id: trashedEntry.id, error: 'denied' }] })
-      }
-      return Promise.resolve(input)
-    })
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
-
-    await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
-    })
-  })
-
-  it('shows a toast when restore rejects', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.batch_restore') return Promise.reject(new Error('restore failed'))
-      return Promise.resolve(input)
-    })
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
-
-    await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_failed')
-    })
-  })
-
   it('strips the current extension when renaming inline', async () => {
     renderFilesPage()
 
@@ -810,39 +636,6 @@ describe('FilesPage file operations', () => {
       })
       expect(refetchStats).toHaveBeenCalled()
     })
-  })
-
-  it('cancels native file drops in the trash view without importing', () => {
-    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
-    fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.trash'))
-    const target = screen.getByText('trashed.txt')
-    const file = new File(['content'], 'import.md', { type: 'text/markdown' })
-    const dragOverEvent = createEvent.dragOver(target, { dataTransfer: { files: [file] } })
-    const dropEvent = createEvent.drop(target, { dataTransfer: { files: [file] } })
-    const preventDragOverDefault = vi.spyOn(dragOverEvent, 'preventDefault')
-    const preventDropDefault = vi.spyOn(dropEvent, 'preventDefault')
-
-    fireEvent(target, dragOverEvent)
-    fireEvent(target, dropEvent)
-
-    expect(preventDragOverDefault).toHaveBeenCalled()
-    expect(preventDropDefault).toHaveBeenCalled()
-    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
-    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_create_internal_entries', expect.anything())
   })
 
   it('chunks dropped file imports at the create-route batch cap', async () => {
