@@ -7874,9 +7874,9 @@
       "balance": "Balance",
       "base_url": {
         "invalid": "Enter a valid HTTP or HTTPS URL",
-        "label": "Base URL",
-        "placeholder": "Base URL: https://example.com",
-        "required": "Please enter the Base URL"
+        "label": "API URL",
+        "placeholder": "e.g. https://example.com or https://api.example.com/v1/chat/completions",
+        "required": "Please enter the API URL"
       },
       "basic_auth": {
         "label": "HTTP authentication",
