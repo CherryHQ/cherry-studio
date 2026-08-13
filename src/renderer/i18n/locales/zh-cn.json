@@ -5998,7 +5998,7 @@
       },
       "feedback": {
         "agent": {
-          "description": "与产品反馈对话，获取使用帮助或提交反馈。",
+          "description": "与产品反馈对话，答疑解惑、获取使用帮助、排查问题或提交反馈。",
           "title": "使用 Agent 提交"
         },
         "agent_error": "无法打开产品反馈，请重试。",
