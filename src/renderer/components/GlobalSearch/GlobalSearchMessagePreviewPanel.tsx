@@ -201,7 +201,8 @@ export function GlobalSearchMessagePreviewPanel({
     params: { topicId },
     query: { includeSiblings: false, nodeId: target.sourceType === 'topic' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,
-    enabled: target.sourceType === 'topic'
+    enabled: target.sourceType === 'topic',
+    retentionPolicy: 'conversation-history'
   })
   const {
     pages: sessionPages,
@@ -217,7 +218,8 @@ export function GlobalSearchMessagePreviewPanel({
       deferToolOutputs: true
     },
     limit: PREVIEW_PAGE_SIZE,
-    enabled: target.sourceType === 'session'
+    enabled: target.sourceType === 'session',
+    retentionPolicy: 'conversation-history'
   })
 
   const topicBranchItems = useInfiniteFlatItems(topicPages, { reversePages: true })

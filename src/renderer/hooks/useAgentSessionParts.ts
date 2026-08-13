@@ -80,6 +80,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     query: { deferToolOutputs: true },
     limit: PAGE_SIZE,
     enabled,
+    retentionPolicy: 'conversation-history',
     swrOptions: {
       keepPreviousData: false,
       ...(!fetchOnMount && {

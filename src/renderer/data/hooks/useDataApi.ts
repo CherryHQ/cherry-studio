@@ -35,6 +35,7 @@
  */
 
 import { dataApiService } from '@data/DataApiService'
+import { infiniteQueryCacheManager } from '@data/InfiniteQueryCacheManager'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/utils/platform'
 import type {
@@ -52,11 +53,11 @@ import {
   type OffsetPaginationResponse,
   type PaginationResponse
 } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
-import useSWRInfinite from 'swr/infinite'
+import useSWRInfinite, { unstable_serialize as unstableSerializeInfinite } from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
 
@@ -789,6 +790,7 @@ export function useWriteCache() {
  * @param options.query - Additional query parameters (cursor/limit are managed internally)
  * @param options.limit - Items per page (default: 10)
  * @param options.enabled - Set to false to disable fetching (default: true)
+ * @param options.retentionPolicy - Optional bounded retention policy for inactive conversation history
  * @param options.swrOptions - Override SWR infinite configuration
  * @returns Infinite query result with full pages, pagination controls, and loading states
  *
@@ -829,12 +831,17 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     limit?: number
     /** Set to false to disable fetching (default: true) */
     enabled?: boolean
+    /** Bound inactive cache retention for conversation message history. */
+    retentionPolicy?: 'conversation-history'
     /** Override SWR infinite configuration */
     swrOptions?: SWRInfiniteConfiguration
   }
 ): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+  const retentionPolicy = options?.retentionPolicy
+  const isParallel = options?.swrOptions?.parallel === true
+  const { cache } = useSWRConfig()
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
@@ -859,17 +866,34 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     },
     [resolvedPath, options?.query, limit, enabled]
   )
+  const infiniteKey = unstableSerializeInfinite(getKey)
 
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
-      ResponseForPath<TPath, 'GET'>
-    >
+    const fetchPage = () =>
+      getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
+        ResponseForPath<TPath, 'GET'>
+      >
+    if (retentionPolicy !== 'conversation-history') return fetchPage()
+
+    const finishRequest = infiniteQueryCacheManager.beginRequest(cache, infiniteKey, unstable_serialize(key))
+    try {
+      return fetchPage().finally(finishRequest)
+    } catch (error) {
+      finishRequest()
+      throw error
+    }
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
     ...DEFAULT_SWR_OPTIONS,
     ...options?.swrOptions
   })
+
+  // Acquire during commit so a pending eviction cannot run before passive effects.
+  useLayoutEffect(() => {
+    if (!enabled || retentionPolicy !== 'conversation-history') return
+    return infiniteQueryCacheManager.acquire(cache, infiniteKey)
+  }, [cache, enabled, infiniteKey, retentionPolicy])
 
   const { error, isLoading, isValidating, mutate, setSize } = swrResult
 
@@ -880,6 +904,22 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     () => (swrResult.data as ResponseForPath<TPath, 'GET'>[] | undefined) ?? [],
     [swrResult.data]
   )
+
+  useEffect(() => {
+    if (!enabled || retentionPolicy !== 'conversation-history') return
+
+    let previousPage: CursorPaginationResponse<unknown> | null = null
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+      const pageKey = getKey(pageIndex, isParallel ? null : previousPage)
+      if (!pageKey) break
+      const serializedPageKey = unstable_serialize(pageKey)
+      // keepPreviousData may expose the prior group's pages during a key change.
+      if (cache.get(serializedPageKey) !== undefined) {
+        infiniteQueryCacheManager.registerPage(cache, infiniteKey, serializedPageKey)
+      }
+      previousPage = pages[pageIndex] as CursorPaginationResponse<unknown>
+    }
+  }, [cache, enabled, getKey, infiniteKey, isParallel, pages, retentionPolicy])
 
   const hasNext = useMemo(() => {
     if (!pages.length) return false

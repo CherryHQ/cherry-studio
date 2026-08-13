@@ -160,6 +160,7 @@ export function useTopicMessages(
     query: { includeSiblings: true },
     limit: pageSize,
     enabled,
+    retentionPolicy: 'conversation-history',
     swrOptions: {
       dedupingInterval: 0,
       ...(!fetchOnMount && {

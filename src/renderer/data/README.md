@@ -14,6 +14,7 @@ This directory contains the renderer process data services.
 ```
 src/renderer/data/
 ├── DataApiService.ts       # User Data API service
+├── InfiniteQueryCacheManager.ts # Bounded retention for inactive infinite-query groups
 ├── PreferenceService.ts    # Preferences management
 ├── CacheService.ts         # Three-tier caching system
 └── hooks/

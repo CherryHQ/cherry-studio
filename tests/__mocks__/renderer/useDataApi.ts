@@ -264,6 +264,7 @@ export const mockUseInfiniteQuery = vi.fn(
       query?: Record<string, unknown>
       limit?: number
       enabled?: boolean
+      retentionPolicy?: 'conversation-history'
       swrOptions?: any
     }
   ) => ({
