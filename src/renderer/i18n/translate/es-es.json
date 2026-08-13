@@ -958,7 +958,6 @@
       "executing": "Ejecutando...",
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
-      "pending": "Esperando confirmación",
       "pendingBadge": "Pendiente",
       "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
       "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
