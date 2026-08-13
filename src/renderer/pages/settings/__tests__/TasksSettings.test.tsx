@@ -882,6 +882,7 @@ describe('TasksSettings routing and creation', () => {
     navigationMocks.taskId = undefined
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
+      nextRun: '2026-06-26T09:00:00.000Z',
       runSummary: {
         id: 'log-1',
         status: 'failed',
@@ -893,6 +894,7 @@ describe('TasksSettings routing and creation', () => {
     render(<TasksSettings />)
 
     expect((await screen.findAllByText('agent.tasks.status.active')).length).toBeGreaterThan(1)
+    expect(screen.getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
     const runLink = screen.getByRole('link', { name: /agent.tasks.runSummary.failed/ })
     expect(runLink).toHaveAttribute('href', '/settings/scheduled-tasks/task-1?tab=history&runId=log-1')
     fireEvent.click(runLink)
@@ -901,6 +903,46 @@ describe('TasksSettings routing and creation', () => {
       params: { taskId: 'task-1' },
       search: { tab: 'history', runId: 'log-1' }
     })
+  })
+
+  it('shows only valid next-run information for each task state', async () => {
+    navigationMocks.taskId = undefined
+    taskDataMock.tasks = [
+      {
+        ...taskDataMock.defaultTask,
+        id: 'running-task',
+        name: 'Running task',
+        nextRun: '2026-06-26T09:00:00.000Z',
+        runSummary: {
+          id: 'running-log',
+          status: 'running',
+          startedAt: '2026-06-25T00:00:00.000Z',
+          finishedAt: null
+        }
+      },
+      {
+        ...taskDataMock.defaultTask,
+        id: 'never-run-task',
+        name: 'Never-run task',
+        nextRun: '2026-06-26T10:00:00.000Z'
+      },
+      {
+        ...taskDataMock.defaultTask,
+        id: 'paused-task',
+        name: 'Paused task',
+        status: 'paused',
+        nextRun: '2026-06-26T11:00:00.000Z'
+      }
+    ]
+
+    render(<TasksSettings />)
+
+    expect(await screen.findByRole('link', { name: 'agent.tasks.runSummary.running' })).toHaveAttribute(
+      'href',
+      '/settings/scheduled-tasks/running-task?tab=history&runId=running-log'
+    )
+    expect(screen.getAllByText(/agent.tasks.nextRun/)).toHaveLength(2)
+    expect((await screen.findAllByText('agent.tasks.status.paused')).length).toBeGreaterThan(1)
   })
 
   it('navigates all task-list pages instead of stopping at the first page', async () => {
