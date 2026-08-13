@@ -22,7 +22,14 @@ describe('detectDestructiveCommand', () => {
     'killall node',
     'crontab -r',
     'docker system prune -a',
-    'npm publish'
+    'npm publish',
+    'git restore .',
+    'git checkout .',
+    'truncate -s 0 important.txt',
+    'cat ~/.ssh/config',
+    "sed -i '' 's/a/b/' ~/.zshrc",
+    'echo export X=1 >> $HOME/.zshrc',
+    'cp dist/app ${HOME}/bin/app'
   ])('flags %s', (command) => {
     expect(detectDestructiveCommand(command)).not.toBeNull()
   })
@@ -37,7 +44,16 @@ describe('detectDestructiveCommand', () => {
     'mkdir -p build',
     'node scripts/build.mjs',
     'echo "rm is only a word here"',
-    'npm run build'
+    'npm run build',
+    // Inspecting services and dry runs are debugging, not mutation — prompting on these would make
+    // auto mode nag constantly.
+    'systemctl status nginx',
+    'service nginx status',
+    'launchctl list',
+    'crontab -l',
+    'npm publish --dry-run',
+    'git checkout feature/new-branch',
+    'mv old.txt new.txt'
   ])('lets %s through', (command) => {
     expect(detectDestructiveCommand(command)).toBeNull()
   })
@@ -49,6 +65,12 @@ describe('detectDestructiveCommand', () => {
 
   it('flags a destructive segment hidden behind a harmless one', () => {
     expect(detectDestructiveCommand('echo cleaning; rm -rf dist')).toBe('file deletion (rm)')
+  })
+
+  it('does not pretend to contain bash inside the workspace', () => {
+    // The home-directory rule is the common case, not a boundary: relative traversal is invisible
+    // to it, which is exactly why auto mode must not be described as containment.
+    expect(detectDestructiveCommand('cat ../../../.ssh/id_rsa')).toBeNull()
   })
 
   it('does not pretend to catch obfuscation', () => {

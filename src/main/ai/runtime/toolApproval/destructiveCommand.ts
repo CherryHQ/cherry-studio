@@ -17,6 +17,8 @@
 /** Prefixes that delegate to the real command behind them. */
 const WRAPPERS = new Set(['time', 'nohup', 'env', 'command', 'exec', 'builtin', 'xargs'])
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish'])
+/** Service-manager subcommands that only report state. */
+const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list|show|is-active|is-enabled|cat|-l)(?:\s|$)/
 
 interface Stage {
   /** The resolved command word, lowercased and stripped of any path (`/bin/rm` → `rm`). */
@@ -45,11 +47,18 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
     reason: 'raw disk or filesystem operation'
   },
   {
-    // History rewrites and working-tree wipes discard uncommitted or unpushed work.
+    // History rewrites and working-tree wipes discard uncommitted or unpushed work. `restore` and a
+    // path-form `checkout` are the ones an agent reaches for most and they are just as final.
     test: (s) =>
       s.command === 'git' &&
-      /\s(?:clean\b.*\s-[a-zA-Z]*[fx]|reset\s+--hard|checkout\s+--\s|push\b.*--force)/.test(s.text),
+      /\s(?:clean\b.*\s-[a-zA-Z]*[fx]|reset\s+--hard|restore\b|checkout\s+(?:--\s|\.(?:\s|$))|push\b.*--force)/.test(
+        s.text
+      ),
     reason: 'destructive git operation'
+  },
+  {
+    test: (s) => s.command === 'truncate',
+    reason: 'file truncation'
   },
   {
     test: (s) =>
@@ -65,7 +74,9 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
     reason: 'mass process termination'
   },
   {
-    test: (s) => ['launchctl', 'systemctl', 'crontab', 'service'].includes(s.command),
+    // Inspecting services is what an agent does while debugging; only mutations are worth a prompt.
+    test: (s) =>
+      ['launchctl', 'systemctl', 'crontab', 'service'].includes(s.command) && !READ_ONLY_SERVICE_ARG.test(s.text),
     reason: 'system service or scheduled-job change'
   },
   {
@@ -73,8 +84,16 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
     reason: 'docker resource removal'
   },
   {
-    test: (s) => ['npm', 'pnpm', 'yarn'].includes(s.command) && /\bpublish\b/.test(s.text),
+    test: (s) =>
+      ['npm', 'pnpm', 'yarn'].includes(s.command) && /\bpublish\b/.test(s.text) && !/\s--dry-run\b/.test(s.text),
     reason: 'package publish'
+  },
+  {
+    // Bash is opaque to the workspace containment check that gates the file tools, so a command that
+    // names the user's home explicitly is the one shape worth intercepting: `cat ~/.ssh/config`,
+    // `sed -i ~/.zshrc`, `>> $HOME/.config/…`. It catches the common case, not every escape.
+    test: (s) => /(?:^|[\s'"=<>|])(?:~\/|\$HOME\b|\$\{HOME\})/.test(s.text),
+    reason: 'command reaching into the home directory'
   },
   {
     test: (s) => s.elevated,

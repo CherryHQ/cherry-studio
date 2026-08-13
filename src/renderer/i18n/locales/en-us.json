@@ -667,9 +667,10 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
-            "description_pi": "Works on its own. Asks only before deleting things or touching files outside the workspace.",
+            "description_pi": "Works on its own. Asks when it recognizes a risky action.",
             "title": "Approve for Me",
-            "warning": "Needs a model that supports it; others may ignore it or keep asking."
+            "warning": "Needs a model that supports it; others may ignore it or keep asking.",
+            "warning_pi": "Recognition is best-effort; an unusual command can still slip through."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",

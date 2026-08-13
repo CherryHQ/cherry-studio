@@ -191,11 +191,13 @@ async function requiresApproval(
   alwaysPrompt: boolean
 ): Promise<boolean> {
   if (alwaysPrompt) return true
-  // `auto` runs unattended by default and only stops for the two things a wrong call cannot undo:
-  // touching a file outside the allowed roots, and a destructive shell command. Everything else —
-  // including every MCP tool — goes through. The path check is the real boundary; the command
-  // patterns are a best-effort net (see destructiveCommand.ts), so this mode is convenience, not
-  // containment.
+  // `auto` runs unattended and only stops for the two things a wrong call cannot undo: a file tool
+  // reaching outside the allowed roots, and a shell command that looks destructive. Everything else
+  // — including every MCP tool — goes through.
+  //
+  // The two halves are NOT equally strong. Path containment binds the file tools exactly; bash is
+  // opaque to it, so `cat ../../secret` runs. The mode is convenience, not containment — it must
+  // never be described to the user as a sandbox.
   if (mode === 'auto') {
     if (toolName === 'bash') {
       const command = typeof input.command === 'string' ? input.command : ''

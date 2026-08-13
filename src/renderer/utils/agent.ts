@@ -107,9 +107,12 @@ const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionM
   auto: {
     // t('agent.settings.tooling.permissionMode.auto.description_pi')
     descriptionKey: 'agent.settings.tooling.permissionMode.auto.description_pi',
-    descriptionFallback: 'Works on its own. Asks only before deleting things or touching files outside the workspace.',
-    warningKey: undefined,
-    warningFallback: undefined
+    descriptionFallback: 'Works on its own. Asks when it recognizes a risky action.',
+    // File tools are held to the workspace, but a shell command is only pattern-matched — the copy
+    // must not imply the agent is contained.
+    // t('agent.settings.tooling.permissionMode.auto.warning_pi')
+    warningKey: 'agent.settings.tooling.permissionMode.auto.warning_pi',
+    warningFallback: 'Recognition is best-effort; an unusual command can still slip through.'
   },
   bypassPermissions: {
     // t('agent.settings.tooling.permissionMode.bypassPermissions.warning_pi')

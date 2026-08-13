@@ -61,9 +61,11 @@ describe('getPermissionModeCards', () => {
     const piBypass = getPermissionModeCards('pi').find((card) => card.mode === 'bypassPermissions')
     const claudeBypass = getPermissionModeCards('claude-code').find((card) => card.mode === 'bypassPermissions')
 
-    // pi's auto is deterministic, so it must not carry claude's "depends on the model" caveat.
+    // pi's auto is deterministic, so it carries its own caveat (recognition is best-effort) rather
+    // than claude's "depends on the model" one.
     expect(claudeAuto?.warningKey).toBeTruthy()
-    expect(piAuto?.warningKey).toBeUndefined()
+    expect(piAuto?.warningKey).toBeTruthy()
+    expect(piAuto?.warningKey).not.toBe(claudeAuto?.warningKey)
     expect(piAuto?.descriptionKey).not.toBe(claudeAuto?.descriptionKey)
     // pi's bypass lifts every gate but disabled tools, so it cannot promise "safety blocks apply".
     expect(piBypass?.warningKey).not.toBe(claudeBypass?.warningKey)
