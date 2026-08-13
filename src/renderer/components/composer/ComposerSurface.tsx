@@ -215,15 +215,16 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     ) : (
       <SendMessageButton disabled={props.sendDisabled} sendMessage={() => void props.onSendDraft(getFallbackDraft())} />
     )
+  const isCompact = props.compactWhenSingleLine && props.text.trim().length <= 1 && !props.isExpanded
   const inputbarElement = (
     <div
       id="inputbar"
       data-ui="chat.composer"
       data-composer-inputbar=""
-      data-composer-presentation="regular"
+      data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
-        belowControls ? 'mb-0.5' : 'mb-3'
-      }`}>
+        isCompact ? 'pt-1' : 'pt-2'
+      } ${props.isExpanded ? 'expanded' : ''} ${belowControls ? 'mb-0.5' : 'mb-3'}`}>
       {props.topContent}
       <div className={props.leadingContent ? 'flex items-start' : 'contents'}>
         {props.leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{props.leadingContent}</div> : null}
