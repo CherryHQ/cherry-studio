@@ -11788,6 +11788,33 @@
       }
     },
     {
+      "capabilities": ["video-generation"],
+      "id": "i2v-01",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "I2V-01",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "i2v-01-director",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "I2V-01 Director",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "i2v-01-live",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "I2V-01 Live",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "image-01",
       "imageGeneration": {
@@ -11978,12 +12005,38 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "video-generation", "file-input"],
-      "family": "minimax",
+      "capabilities": ["video-generation"],
       "id": "minimax-h3",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video", "audio"],
       "metadata": {},
       "name": "MiniMax H3",
+      "outputModalities": ["video", "audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "minimax-hailuo-02",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "MiniMax Hailuo 02",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "minimax-hailuo-2-3",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "MiniMax Hailuo 2.3",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "minimax-hailuo-2-3-fast",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "MiniMax Hailuo 2.3 Fast",
       "outputModalities": ["video"],
       "ownedBy": "minimax"
     },
@@ -12284,6 +12337,24 @@
         ],
         "supportedEfforts": ["none", "auto"]
       }
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "t2v-01",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "T2V-01",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "t2v-01-director",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "T2V-01 Director",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
     },
     {
       "capabilities": ["function-call", "structured-output", "file-input"],
