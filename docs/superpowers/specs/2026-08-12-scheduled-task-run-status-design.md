@@ -2,13 +2,15 @@
 
 **Date:** 2026-08-12
 
+**UI revision:** 2026-08-13
+
 ## Problem
 
 The scheduled-task overview currently exposes only schedule state (`active`, `paused`, or `completed`). It does not tell users whether a task is executing now or how its most recent execution ended. The removed v1 header card showed schedule metadata and last/next run times, but it did not expose the underlying Job execution state, so restoring it would not answer this feedback.
 
 ## Goals
 
-- Show a compact execution summary on every scheduled-task overview card that has run at least once.
+- Show the current or latest execution result and the next valid run time on scheduled-task overview cards.
 - Keep schedule state and execution state visually and semantically separate.
 - Reuse the existing Job lifecycle and task-run history as the source of truth.
 - Let users open the relevant history entry directly from the execution summary.
@@ -66,14 +68,41 @@ Manual “run now” already invalidates task reads immediately after the pendin
 
 ## Overview UI
 
-Each overview card keeps its existing structure and right-side schedule badge. A third, independently clickable line appears below the Agent and schedule description when `runSummary` is non-null:
+### Information hierarchy
 
-- Active: spinner plus `Running`
-- Completed: success icon plus `Last run succeeded · <time>`
-- Failed: error icon plus `Last run failed · <time>`
-- Cancelled: neutral icon plus `Last run cancelled · <time>`
+Each overview card separates three concepts by position:
 
-The compact card does not show the raw error summary. Complete errors and results remain in run history. The status line uses existing `@cherrystudio/ui` primitives and semantic design tokens. Card content outside this line continues to open the task’s default detail view.
+1. The task name remains the primary content.
+2. The schedule state (`active`, `paused`, or `completed`) moves from the card's right edge to a compact badge beside the task name.
+3. Current/latest execution state and the next valid run time occupy a right-aligned, lightweight two-line group where the schedule-state badge previously appeared.
+
+The schedule-state badge uses one neutral treatment for all three values. It identifies lifecycle state without competing with the execution result. The title truncates before the badge; the badge does not shrink or wrap.
+
+### Execution and next-run display
+
+The right-side group follows this matrix:
+
+| Task situation | First line | Second line |
+| --- | --- | --- |
+| Never run | Omitted | `Next run · <time>` when valid |
+| Active Job exists | Spinner plus `Running` | `Next run · <time>` when valid |
+| Latest Job completed | Success icon plus `Last run succeeded · <time>` | `Next run · <time>` when valid |
+| Latest Job failed | Error icon plus `Last run failed · <time>` | `Next run · <time>` when valid |
+| Latest Job cancelled | Neutral stop icon plus `Last run cancelled · <time>` | `Next run · <time>` when valid |
+| Paused or one-shot completed | Latest result when one exists | Omitted |
+
+A next-run time is valid only when the schedule is `active` and `nextRun` is non-null. Running tasks continue to show their next run so current work and future scheduling remain independently visible. A task with neither a run summary nor a valid next run leaves the right-side group empty.
+
+The execution icon and its text use the same semantic foreground color:
+
+- Running: info/blue
+- Completed: success/green
+- Failed: error/red
+- Cancelled: muted neutral
+
+The next-run line uses muted foreground text. Execution results do not use a pill, tinted panel, or colored background; this keeps the list calm and prevents the execution state from competing with the task name or schedule-state badge. The compact card does not show raw error details. Complete errors and results remain in run history.
+
+The execution-result line remains independently clickable and opens its run-history entry. The next-run line is informational and does not introduce a separate action. Card content outside the execution-result line continues to open the task's default detail view. At constrained widths, the right-side group may move below the primary task copy, preserving title, badge, and status readability without overlapping content.
 
 ## History Navigation
 
@@ -103,9 +132,22 @@ Rejected. This duplicates `jobTable`, creates two sources of truth, and requires
 
 Rejected for this scope. A generic cross-consumer event would be an infrastructure extension justified by one feature. The owning `agent.task` handler already has start and settlement boundaries where its business read model can be refreshed.
 
+### Put execution information in a right-side panel
+
+Rejected. A fixed tinted or bordered panel makes the execution state easy to scan but gives every card a second competing container and adds unnecessary visual weight to a dense settings list.
+
+### Put execution information in a bottom status band
+
+Rejected. The separation is clear and adapts well to narrow widths, but it increases every card's height and reduces the number of visible tasks.
+
+### Use colored pills for execution results
+
+Rejected. Repeating colored pills across the task list creates more visual noise and competes with the schedule-state badge. Semantic icon and text color provides sufficient status recognition without another shape.
+
 ## Error Handling and Edge Cases
 
-- A task with no runs has no execution-summary line.
+- A task with no runs omits the execution-result line and shows only its valid next-run time.
+- A paused schedule or completed one-shot does not show a stale `nextRun`, even if persistence still contains one.
 - A failed Job may have no Session; navigation always targets run history first.
 - Sticky Session reuse does not affect run identity because the summary and route use Job id.
 - Deleted tasks retain historical Jobs with a null schedule id, but no deleted task card exists to display them.
@@ -118,13 +160,15 @@ At the user's explicit request, implementation proceeds before the regression te
 
 1. Data-service tests using the real test database protect the projection rules: active-over-terminal precedence, newest-active selection, newest-terminal selection, state collapsing, and the no-run case.
 2. Agent-task handler tests protect read-model invalidation at execution start and settlement without testing generic JobManager internals.
-3. Renderer component tests protect user-visible card labels and the distinct history link.
+3. Renderer component tests protect the display matrix, semantic icon/text treatment, schedule-state placement, next-run validity rule, and distinct history link.
 4. Route/component tests protect `tab=history`, target-row reveal, and preservation of the default detail route for the rest of the card.
 5. Targeted tests run after each implementation area. Before completion, run `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm build:check`, and `pnpm test:lint`, then verify the overview and history navigation in the tracked Electron instance.
 
 ## Success Criteria
 
-- A user viewing scheduled tasks can tell whether each previously run task is active, succeeded, failed, or was cancelled.
+- A user viewing scheduled tasks can distinguish schedule state, current/latest execution result, and the next valid run time without opening task details.
+- A never-run task shows only its next valid run time; a running task shows both `Running` and its next valid run time.
+- Schedule state appears beside the task name in a neutral compact badge, while the right side is reserved for execution and scheduling information.
 - The displayed state updates after automatic execution starts and settles without reopening the page.
 - Schedule state remains visible and is never replaced by execution state.
 - Clicking the execution summary opens and locates the corresponding run-history entry.
