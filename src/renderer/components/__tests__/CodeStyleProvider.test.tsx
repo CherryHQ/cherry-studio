@@ -37,7 +37,12 @@ vi.mock('@renderer/services/ShikiStreamService', () => ({
 }))
 
 vi.mock('@renderer/utils/shiki', () => ({
-  getShiki: vi.fn(async () => ({ bundledThemesInfo: [{ id: 'one-light', displayName: 'One Light', type: 'light' }] })),
+  getShiki: vi.fn(async () => ({
+    bundledThemesInfo: [
+      { id: 'one-light', displayName: 'One Light', type: 'light' },
+      { id: 'nord', displayName: 'Nord', type: 'dark' }
+    ]
+  })),
   getHighlighter: vi.fn(),
   getMarkdownIt: vi.fn(),
   loadLanguageIfNeeded: vi.fn(),
@@ -129,13 +134,24 @@ describe('CodeStyleProvider', () => {
     await waitFor(() => expect(screen.getByTestId('cm-theme-type').textContent).toBe('object'), { timeout: 15000 })
   })
 
-  it('falls back to a bundled shiki theme once the catalog shows the saved one is gone', async () => {
+  // AgentFileDiffRenderer reads activeShikiTheme synchronously and hands it to a resolver that
+  // throws on an unknown id, without ever asking the provider to load its catalog.
+  it('never hands a stale shiki id to consumers that do not load the catalog themselves', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
 
     renderProvider()
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('theme-deleted-upstream')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
-    await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light'))
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
+    await waitFor(() => expect(vi.mocked(getShiki)).toHaveBeenCalled())
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
+  })
+
+  it('activates a stored shiki theme once the catalog confirms it', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'nord')
+
+    renderProvider()
+
+    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
+    await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('nord'))
   })
 })

@@ -1,15 +1,19 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ComposerSurface, { type ComposerDeferredIntent, type ComposerSurfaceProps } from '../ComposerSurface'
+import ComposerSurface, {
+  type ComposerDeferredIntent,
+  type ComposerSurfaceActions,
+  type ComposerSurfaceProps
+} from '../ComposerSurface'
+import type { ComposerDraftToken } from '../tokens'
 
 const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
   runtimeLoads: 0,
-  runtimeIntent: undefined as ComposerDeferredIntent | undefined,
-  failNextLoad: false
+  runtimeIntent: undefined as ComposerDeferredIntent | undefined
 }))
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
@@ -22,10 +26,6 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
 
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
-  if (mocks.failNextLoad) {
-    mocks.failNextLoad = false
-    throw new Error('chunk load failed')
-  }
   return {
     default: ({ initialTextSelection, text, deferredIntent }: ComposerSurfaceProps) => {
       mocks.runtimeIntent = deferredIntent
@@ -94,6 +94,7 @@ describe('deferred ComposerSurface', () => {
   beforeEach(() => {
     vi.stubGlobal('DataTransfer', FakeDataTransfer)
     mocks.runtimeIntent = undefined
+    mocks.onSendDraft.mockClear()
     MockUsePreferenceUtils.resetMocks()
   })
 
@@ -223,6 +224,43 @@ describe('deferred ComposerSurface', () => {
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
     expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+  })
+
+  it('replays a programmatic first token insertion through the runtime', async () => {
+    let actions: ComposerSurfaceActions | undefined
+    const quote = { id: 'q1', kind: 'quote', promptText: 'Quoted line' } as ComposerDraftToken
+    const onTokensChange = vi.fn()
+    render(
+      <Harness
+        onActionsChange={(next) => {
+          actions = next
+        }}
+        onTokensChange={onTokensChange}
+      />
+    )
+
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' }).setSelectionRange(2, 2)
+    act(() => actions!.insertToken(quote))
+
+    await screen.findByTestId('composer-runtime')
+    // Writing the token straight into draftTokens leaves it without prompt text at that offset,
+    // which the reconcilers and the document builder both discard.
+    expect(onTokensChange).not.toHaveBeenCalled()
+    expect(mocks.runtimeIntent?.insertToken).toEqual({ token: quote, textOffset: 2 })
+  })
+
+  it('does not swap the toolbar out from under a click when the runtime chunk is already warm', async () => {
+    const warm = render(<Harness />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), { target: { value: 'warm' } })
+    await screen.findByTestId('composer-runtime')
+    warm.unmount()
+
+    render(<Harness />)
+    const send = screen.getByRole('button', { name: 'Send' })
+    fireEvent.pointerDown(send)
+    fireEvent.click(send)
+
+    expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
   })
 
   it('names the fallback pause action for screen readers', () => {

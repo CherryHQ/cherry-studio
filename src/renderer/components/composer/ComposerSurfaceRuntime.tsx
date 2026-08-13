@@ -207,6 +207,7 @@ export interface ComposerSurfaceProps {
 export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
+  insertToken?: { token: ComposerDraftToken; textOffset: number }
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -2108,15 +2109,20 @@ export default function ComposerSurfaceRuntime({
   const unifiedPanelOpen = unifiedPanelControl.open
   useEffect(() => {
     if (!deferredIntent || !editor) return
-    const { transfer, openPanel } = deferredIntent
+    const { transfer, openPanel, insertToken: pendingToken } = deferredIntent
     delete deferredIntent.transfer
     delete deferredIntent.openPanel
-    if (!transfer && !openPanel) return
+    delete deferredIntent.insertToken
+    if (!transfer && !openPanel && !pendingToken) return
 
     return setTimeoutTimer(
       'composerDeferredIntent',
       () => {
         if (editor.isDestroyed) return
+        if (pendingToken) {
+          editor.commands.setTextSelection(getComposerPositionAtTextOffset(editor, pendingToken.textOffset))
+          insertComposerTokenAtCursor(editor, pendingToken.token)
+        }
         if (transfer?.kind === 'paste') {
           editor.view.dom.dispatchEvent(
             new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: true, cancelable: true })

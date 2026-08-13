@@ -22,6 +22,28 @@ function trimEndIndex(value: string): number {
   return index
 }
 
+/**
+ * First block start under CommonMark rules: blank lines are skipped and a block may carry at most
+ * three columns of indentation — four (or one tab) makes it an indented code block instead.
+ */
+function findBlockStart(source: string, end: number): number | undefined {
+  for (let lineStart = 0; lineStart < end; ) {
+    let cursor = lineStart
+    let column = 0
+    while (cursor < end && (source[cursor] === ' ' || source[cursor] === '\t')) {
+      column += source[cursor] === '\t' ? 4 - (column % 4) : 1
+      cursor += 1
+    }
+    if (cursor < end && source[cursor] !== '\n' && source[cursor] !== '\r') {
+      return column > 3 ? undefined : cursor
+    }
+    const newline = source.indexOf('\n', lineStart)
+    if (newline === -1 || newline >= end) return undefined
+    lineStart = newline + 1
+  }
+  return undefined
+}
+
 function toPoint(source: string, offset: number): Point {
   const before = source.slice(0, offset)
   return { line: before.split('\n').length, column: offset - (before.lastIndexOf('\n') + 1) + 1, offset }
@@ -110,9 +132,9 @@ function scanStandaloneHtmlDocument(
 
 /** Recognizes only content whose entire message is one HTML artifact. */
 export function scanStandaloneHtmlArtifact(source: string, isStreaming = false): StandaloneHtmlArtifact | undefined {
-  const start = skipWhitespace(source, 0)
   const end = trimEndIndex(source)
-  if (start === end) return undefined
+  const start = findBlockStart(source, end)
+  if (start === undefined) return undefined
 
   return (
     scanStandaloneHtmlFence(source, start, end, isStreaming) ??

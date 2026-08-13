@@ -64,4 +64,20 @@ describe('scanStandaloneHtmlArtifact', () => {
   it('reads the fence body up to a closing marker that carries trailing whitespace', () => {
     expect(scanStandaloneHtmlArtifact('```html\n<div>a</div>\n```   ')).toMatchObject({ html: '<div>a</div>' })
   })
+
+  // Four columns of indentation makes the payload an indented code block, not an HTML block, so
+  // running it as an artifact would change what the Markdown means.
+  it.each([
+    ['four spaces before a fence', '    ```html\n    <div>a</div>\n    ```'],
+    ['a tab before a fence', '\t```html\n\t<div>a</div>\n\t```'],
+    ['four spaces before a document', '    <!doctype html><html><body>hi</body></html>'],
+    ['a tab before a document', '\t<!doctype html><html><body>hi</body></html>']
+  ])('leaves %s on the general Markdown path', (_label, source) => {
+    expect(scanStandaloneHtmlArtifact(source)).toBeUndefined()
+    expect(scanStandaloneHtmlArtifact(source, true)).toBeUndefined()
+  })
+
+  it('still accepts the three spaces CommonMark allows before a block', () => {
+    expect(scanStandaloneHtmlArtifact('   ```html\n<div>a</div>\n```')).toMatchObject({ html: '<div>a</div>' })
+  })
 })

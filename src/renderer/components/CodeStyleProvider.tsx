@@ -48,17 +48,20 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return ['auto', ...shikiThemesInfo.map((info) => info.id)]
   }, [codeEditorEnabled, cmThemeNames, shikiThemesInfo])
 
+  const storedShikiTheme = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
+
+  // Consumers like AgentFileDiffRenderer read the theme synchronously and throw on an unknown id
+  // without ever asking for the catalog, so a stored id has to be validated before it is handed out.
+  useEffect(() => {
+    if (storedShikiTheme && storedShikiTheme !== 'auto') void loadShikiThemesInfo()
+  }, [storedShikiTheme, loadShikiThemesInfo])
+
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
-    const codeStyle = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
     const fallback = theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
-
-    if (!codeStyle || codeStyle === 'auto') return fallback
-    // The catalog arrives with the first highlight; until then a stored id is taken on trust and the
-    // highlighter's own resolution covers a stale one.
-    if (shikiThemesInfo.length && !shikiThemesInfo.some((info) => info.id === codeStyle)) return fallback
-    return codeStyle
-  }, [theme, codeViewerThemeLight, codeViewerThemeDark, shikiThemesInfo])
+    if (!storedShikiTheme || storedShikiTheme === 'auto') return fallback
+    return shikiThemesInfo.some((info) => info.id === storedShikiTheme) ? storedShikiTheme : fallback
+  }, [theme, storedShikiTheme, shikiThemesInfo])
 
   const isShikiThemeDark = useMemo(() => {
     const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)

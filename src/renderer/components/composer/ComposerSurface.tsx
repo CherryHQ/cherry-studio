@@ -140,13 +140,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       },
       toggleExpanded: (expanded) => props.onExpandedChange(expanded ?? !props.isExpanded),
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
+      // A token needs its prompt text woven into the document at the caret, which only the rich
+      // editor can do; recording the offset lets the runtime insert it exactly where it was asked.
       insertToken: (token) => {
-        const nextToken: ComposerSerializedToken = {
-          ...token,
-          index: props.draftTokens?.length ?? 0,
+        intentRef.current.insertToken = {
+          token,
           textOffset: textareaRef.current?.selectionStart ?? props.text.length
         }
-        updateTokens([...(props.draftTokens ?? []), nextToken])
+        requestRuntime()
       },
       getDraft: getFallbackDraft
     }
@@ -277,8 +278,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       <div
         data-ui="part:composer-actions"
         data-composer-toolbar=""
-        className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25"
-        onPointerDown={requestRuntime}>
+        className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
         <div className="flex flex-row items-center gap-1.5">
           {sendAccessoryElement}
