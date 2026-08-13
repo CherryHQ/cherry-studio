@@ -396,7 +396,6 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
-    deleteSessions,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -1025,6 +1024,9 @@ const Sessions = ({
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
@@ -1124,9 +1126,6 @@ const Sessions = ({
       if (deletingAgentId) return
 
       const deleteTasksOnly = isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role)
-      const sessionIds = deleteTasksOnly
-        ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
-        : []
 
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
@@ -1148,7 +1147,8 @@ const Sessions = ({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
           const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
@@ -1177,7 +1177,7 @@ const Sessions = ({
       closeConversationTabs,
       agentById,
       deleteAgent,
-      deleteSessions,
+      deleteAgentSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,

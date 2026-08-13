@@ -35,6 +35,7 @@ const agentDataMocks = vi.hoisted(() => ({
     }
   ],
   deleteAgent: vi.fn(),
+  deleteAgentSessions: vi.fn(),
   refetchAgents: vi.fn(),
   toggleAgentPin: vi.fn()
 }))
@@ -54,6 +55,10 @@ const preferenceMocks = vi.hoisted(() => ({
 
 const resourceEntityRailMocks = vi.hoisted(() => ({
   collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
+}))
+
+const tabsContextMocks = vi.hoisted(() => ({
+  closeConversationTabs: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -279,6 +284,10 @@ vi.mock('@renderer/hooks/usePins', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs
+}))
+
 vi.mock('@renderer/hooks/useGroups', () => ({
   useGroups: () => ({ groups: [], isLoading: false, error: undefined }),
   useGroupReorder: () => ({ reorderGroup: vi.fn() })
@@ -345,7 +354,12 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: (_method: string, path: string) => ({
-    trigger: path === '/agents/:agentId' ? agentDataMocks.deleteAgent : vi.fn()
+    trigger:
+      path === '/agents/:agentId'
+        ? agentDataMocks.deleteAgent
+        : path === '/agents/:agentId/sessions'
+          ? agentDataMocks.deleteAgentSessions
+          : vi.fn()
   })
 }))
 
@@ -396,10 +410,13 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.refetchAssistants.mockClear()
     agentDataMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     agentDataMocks.deleteAgent.mockClear()
+    agentDataMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
+    agentDataMocks.deleteAgentSessions.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
     agentDataMocks.toggleAgentPin.mockClear()
+    tabsContextMocks.closeConversationTabs.mockClear()
     loggerMocks.error.mockClear()
     loggerMocks.info.mockClear()
     loggerMocks.warn.mockClear()
@@ -843,13 +860,13 @@ describe('classic layout entity resource list actions', () => {
         modelName: 'Claude Sonnet 4'
       }
     ]
-    const deleteSessions = vi.fn().mockResolvedValue({ deletedIds: ['session-1'] })
     const onActiveAgentDeleted = vi.fn()
+    agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-not-loaded'] })
 
     render(
       <AgentResourceList
         activeAgentId="agent-1"
-        agentSessionsSource={createAgentSessionsSource({ deleteSessions })}
+        agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={vi.fn()}
@@ -870,8 +887,11 @@ describe('classic layout entity resource list actions', () => {
         })
       )
     )
-    await waitFor(() => expect(deleteSessions).toHaveBeenCalledWith(['session-1']))
+    await waitFor(() =>
+      expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    )
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
   })
 
