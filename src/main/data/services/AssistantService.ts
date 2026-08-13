@@ -569,6 +569,7 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership')
+    pinService.notifyPurged()
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
     promptService.notifyTargetBindingsChanged()

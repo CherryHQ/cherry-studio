@@ -718,6 +718,7 @@ export class AgentService {
       promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }
+    if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return { deleted, deletedSessionIds }
   }
