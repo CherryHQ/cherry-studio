@@ -554,11 +554,6 @@
           "helper": "输入自定义环境变量（每行一个，格式：KEY=value）",
           "label": "环境变量"
         },
-        "maxTurns": {
-          "description": "设定智能体自动执行的请求/回复轮次数。",
-          "helper": "数值越高可自主运行越久；数值越低更易控制。",
-          "label": "会话轮次数上限"
-        },
         "permissionMode": {
           "description": "控制智能体在需要授权时的处理方式。",
           "label": "权限模式",
@@ -3198,6 +3193,8 @@
         "delete_confirm_title": "确认批量删除",
         "loaded_only_hint": "仅作用于已加载项，共 {{total}} 项",
         "reindex": "重新索引",
+        "reindex_none_eligible": "选中的数据源都在处理中，暂时无法重新索引",
+        "reindex_skipped": "已跳过 {{count}} 个处理中的数据源",
         "selected_count": "已选 {{count}} 项"
       },
       "chunks_count": "{{count}} chunks",
@@ -3497,10 +3494,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳间隔 (分钟)"
-          },
-          "max_turns": {
-            "help": "0 表示使用默认值",
-            "label": "最大对话轮数"
           },
           "mcps": {
             "add": "添加 MCP 服务",

@@ -554,11 +554,6 @@
           "helper": "Introduza variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
           "label": "Variáveis de Ambiente"
         },
-        "maxTurns": {
-          "description": "Defina o número de ciclos de pedido/resposta executados automaticamente pelo agente.",
-          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
-          "label": "Limite máximo de turnos de conversação"
-        },
         "permissionMode": {
           "description": "Como o agente de controle lida com situações que exigem autorização.",
           "label": "Modo de permissão",
@@ -3497,10 +3492,6 @@
           },
           "heartbeat_interval": {
             "label": "Intervalo de batimentos (minutos)"
-          },
-          "max_turns": {
-            "help": "0 significa usar o padrão",
-            "label": "Máximo de turnos de conversa"
           },
           "mcps": {
             "add": "Adicionar servidor MCP",

@@ -554,11 +554,6 @@
           "helper": "Entrez des variables d'environnement personnalisées (une par ligne, format : CLÉ=valeur)",
           "label": "Variables d'environnement"
         },
-        "maxTurns": {
-          "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
-          "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
-          "label": "Limite maximale de tours de conversation"
-        },
         "permissionMode": {
           "description": "Contrôle la manière dont l'agent gère les demandes d'autorisation.",
           "label": "mode d'autorisation",
@@ -3497,10 +3492,6 @@
           },
           "heartbeat_interval": {
             "label": "Intervalle de pulsation (minutes)"
-          },
-          "max_turns": {
-            "help": "0 signifie utiliser la valeur par défaut",
-            "label": "Nombre maximal de tours de conversation"
           },
           "mcps": {
             "add": "Ajouter le serveur MCP",

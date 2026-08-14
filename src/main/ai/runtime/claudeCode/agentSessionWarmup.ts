@@ -231,7 +231,7 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
- * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, MCP definitions, credential
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
@@ -380,7 +380,6 @@ async function deriveConnectionConfigFromSnapshot(
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
-    maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
