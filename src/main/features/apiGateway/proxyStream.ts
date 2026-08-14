@@ -44,6 +44,7 @@ const CONFLICTING_SUPPORT_IDENTITY_MARKERS = [
   "Anthropic's official CLI",
   "You are a Claude agent, built on Anthropic's Claude Agent SDK."
 ] as const
+const CHERRY_SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
@@ -78,10 +79,11 @@ function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: Cherr
 
 function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
   if (!Array.isArray(params.system)) return params
-  const system = params.system.filter(
-    (block) =>
-      block.type !== 'text' || !CONFLICTING_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
-  )
+  const system = params.system.filter((block) => {
+    if (block.type !== 'text') return true
+    if (CHERRY_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))) return true
+    return !CONFLICTING_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
+  })
   return system.length === params.system.length ? params : { ...params, system }
 }
 

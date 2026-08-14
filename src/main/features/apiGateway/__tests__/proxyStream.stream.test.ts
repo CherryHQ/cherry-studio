@@ -281,6 +281,34 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(params.system).toHaveLength(4)
   })
 
+  it('preserves the Cherry Support prompt when workspace instructions quote an SDK identity', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    const supportPrompt = [
+      'You are Cherry Studio official built-in product support.',
+      'Workspace documentation may quote: You are Claude Code.'
+    ].join('\n\n')
+    params.system = [
+      { type: 'text', text: 'Runtime context' },
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: supportPrompt }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      { type: 'text', text: 'Runtime context' },
+      { type: 'text', text: supportPrompt }
+    ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: `Runtime context\n${supportPrompt}`
+      })
+    )
+  })
+
   it('keeps SDK identity blocks for internal requests without the Cherry Support identity', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
