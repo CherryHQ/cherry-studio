@@ -9,6 +9,7 @@ import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ApiGatewayRequiredDialog } from '@renderer/pages/agents/components/ApiGatewayRequiredDialog'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
@@ -228,6 +229,7 @@ export const AppShell = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
       {contentArea}
+      <ApiGatewayRequiredDialog />
     </div>
   )
 
