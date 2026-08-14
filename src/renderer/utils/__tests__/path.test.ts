@@ -1,4 +1,5 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import { getRelativePath, isPathInside, isSamePath } from '../path'
@@ -87,8 +88,11 @@ describe('getRelativePath', () => {
     expect(getRelativePath(p('/workspace'), p('/workspace/docs/notes.md'))).toBe('docs/notes.md')
   })
 
-  it('returns an empty string for the base itself', () => {
-    expect(getRelativePath(p('/workspace'), p('/workspace'))).toBe('')
+  // `.` denotes the base; the empty string is the ABSENCE of a path (`open("")`
+  // is ENOENT while `.` resolves), which is why `PosixRelativeFilePathSchema`
+  // rejects it. See its "`.` is a relative path; the empty string is not".
+  it('returns "." for the base itself', () => {
+    expect(getRelativePath(p('/workspace'), p('/workspace'))).toBe('.')
   })
 
   it('returns null for a path outside the base', () => {
@@ -115,6 +119,42 @@ describe('getRelativePath', () => {
     expect(() => getRelativePath(p('C:\\workspace'), p('\\\\server\\share\\notes.md'))).not.toThrow()
     expect(getRelativePath(p('C:\\workspace'), p('\\\\server\\share\\notes.md'))).toBe(null)
     expect(getRelativePath(p('\\\\server\\share'), p('C:\\workspace\\notes.md'))).toBe(null)
+  })
+})
+
+// `getRelativePath` asserts the `PosixRelativeFilePath` brand rather than
+// re-parsing, on the argument that its output cannot fail the schema: NUL is
+// already refused by `AbsoluteFilePathSchema`, canonicalization drops empty
+// segments, and neither branch can leave a `/` inside a segment. These cases
+// are that argument's guard — if a branch ever produces something the schema
+// refuses, the brand becomes a lie and one of these fails.
+describe('getRelativePath output satisfies PosixRelativeFilePathSchema', () => {
+  const parses = (value: string | null) => {
+    expect(value).not.toBeNull()
+    return PosixRelativeFilePathSchema.safeParse(value).success
+  }
+
+  it('holds for a nested POSIX descendant', () => {
+    expect(parses(getRelativePath(p('/workspace'), p('/workspace/docs/notes.md')))).toBe(true)
+  })
+
+  it('holds for the base itself', () => {
+    expect(parses(getRelativePath(p('/workspace'), p('/workspace')))).toBe(true)
+  })
+
+  it('holds for a Windows descendant, whose separators are folded to "/"', () => {
+    expect(parses(getRelativePath(p('C:/workspace'), p('c:\\workspace\\docs\\notes.md')))).toBe(true)
+  })
+
+  it('holds for a POSIX filename containing a backslash, which stays one segment', () => {
+    const relative = getRelativePath(p('/workspace'), p('/workspace/a\\b.txt'))
+    expect(parses(relative)).toBe(true)
+    expect(PosixRelativeFilePathSchema.parse(relative)).toBe('a\\b.txt')
+  })
+
+  it('holds against a filesystem root, where the base already ends in a separator', () => {
+    expect(parses(getRelativePath(p('/'), p('/notes.md')))).toBe(true)
+    expect(parses(getRelativePath(p('C:\\'), p('C:/notes.md')))).toBe(true)
   })
 })
 

@@ -14,7 +14,7 @@
  */
 
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
+import { canonicalizeFilePath, type PosixRelativeFilePath } from '@shared/utils/file'
 
 /**
  * A Windows drive path (`C:\…` / `C:/…`) — the only shape in which a backslash
@@ -95,19 +95,30 @@ export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath):
 
 /**
  * `to` relative to `from` — or `null` if `to` is neither `from` itself nor a
- * descendant of it. Equal paths give `''`. Never emits `../` climbs, and never
+ * descendant of it. Equal paths give `'.'`. Never emits `../` climbs, and never
  * returns an absolute path. Un-canonicalizable input → `null`.
  *
  * Separators in the result follow the input: `/`-separated for Windows drive
  * paths, and verbatim for POSIX, where a backslash belongs to the filename.
+ * That is why the result is branded POSIX on both branches — after the Windows
+ * fold, `/` is the only separator left under either reading, and the POSIX
+ * reading is the one that keeps a filename's backslash intact. It is the
+ * `/`-separated in-app form, not a claim about where the path came from.
+ *
+ * The brand is asserted, not re-parsed. `PosixRelativeFilePathSchema` refuses
+ * exactly: the empty string (hence `'.'` above, which also matches its reading
+ * that `''` is the absence of a path), NUL — already refused by
+ * `AbsoluteFilePathSchema` — a leading `/`, which slicing a proper prefix
+ * cannot leave behind, and an empty segment, which canonicalization drops. No
+ * branch can produce any of them; `path.test.ts` guards that claim per branch.
  */
-export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): string | null => {
+export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): PosixRelativeFilePath | null => {
   const fromPath = toPathKey(from)
   const toPath = toPathKey(to)
   if (fromPath === null || toPath === null) return null
-  if (fromPath === toPath) return ''
+  if (fromPath === toPath) return '.' as PosixRelativeFilePath
   const prefix = asPrefix(fromPath)
-  return toPath.startsWith(prefix) ? toPath.slice(prefix.length) : null
+  return toPath.startsWith(prefix) ? (toPath.slice(prefix.length) as PosixRelativeFilePath) : null
 }
 
 /**

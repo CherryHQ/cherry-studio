@@ -2,6 +2,7 @@ import { getRelativePath, isPathInside, isSamePath, toPathKey } from '@renderer/
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 /**
  * Agent-specific policy over the generic renderer path primitives: match a path
@@ -18,11 +19,20 @@ export const isPathWithinAccessiblePath = (
   accessiblePaths: readonly AbsoluteFilePath[]
 ): boolean => accessiblePaths.some((base) => isSamePath(filePath, base) || isPathInside(filePath, base))
 
-/** `filePath` relative to the accessible base that contains it, or `filePath` unchanged if none matches. */
+/**
+ * `filePath` relative to the accessible base that contains it, or `filePath`
+ * unchanged if none matches.
+ *
+ * The return type is a union because the two branches return genuinely
+ * different things, and a caller that must tell them apart can now do so
+ * instead of inferring it from whether a leading `/` happens to be there.
+ * Today's caller wants neither — it renders the value — so the union costs it
+ * nothing.
+ */
 export const getAccessiblePathRelativePath = (
   filePath: AbsoluteFilePath,
   accessiblePaths: readonly AbsoluteFilePath[]
-): string => {
+): PosixRelativeFilePath | AbsoluteFilePath => {
   for (const base of accessiblePaths) {
     const relative = getRelativePath(base, filePath)
     if (relative !== null) return relative
