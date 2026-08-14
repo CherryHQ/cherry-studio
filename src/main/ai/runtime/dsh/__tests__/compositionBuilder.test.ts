@@ -6,6 +6,7 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))
@@ -14,6 +15,27 @@ import { buildDshCompositionYaml, type DshCompositionInput, toDshPluginUrl } fro
 import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
+
+interface ParsedEntry {
+  id: string
+  name: string
+  config?: Record<string, any>
+}
+
+/** Parse the emitted composition back — assertions are structural, not quoting-coupled. */
+function parseEntries(yml: string): ParsedEntry[] {
+  return parse(yml) as ParsedEntry[]
+}
+
+function entryById(yml: string, id: string): ParsedEntry {
+  const entry = parseEntries(yml).find((candidate) => candidate.id === id)
+  if (!entry) throw new Error(`composition has no entry "${id}"`)
+  return entry
+}
+
+function providerRoute(yml: string, providerName: string): Record<string, any> {
+  return entryById(yml, 'llm').config?.providers?.[providerName]
+}
 
 function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: ReasoningEffortOption = 'default') {
   const provider = {
@@ -60,78 +82,92 @@ function makeInput(overrides: Partial<DshCompositionInput> = {}): DshComposition
 }
 
 describe('buildDshCompositionYaml', () => {
+  it('emits parseable YAML whose entries all carry an id and a plugin name', () => {
+    const entries = parseEntries(buildDshCompositionYaml(makeInput()))
+    expect(entries.length).toBeGreaterThan(10)
+    for (const entry of entries) {
+      expect(typeof entry.id).toBe('string')
+      expect(typeof entry.name).toBe('string')
+    }
+  })
+
   it('mounts enabled skill dirs as the only skill roots, disabled otherwise', () => {
     const withSkills = buildDshCompositionYaml(
       makeInput({ skillDirs: ['/data/Skills/pdf-tools', '/data/Skills/review'] })
     )
-    expect(withSkills).toContain('enabled: true')
-    expect(withSkills).toContain('includeDefaultRoots: false')
-    expect(withSkills).toContain('- "/data/Skills/pdf-tools"')
-    expect(withSkills).toContain('- "/data/Skills/review"')
+    expect(entryById(withSkills, 'agent-spine').config?.skills).toEqual({
+      enabled: true,
+      filesystem: {
+        includeDefaultRoots: false,
+        customSkillDirs: ['/data/Skills/pdf-tools', '/data/Skills/review'],
+        watch: false
+      }
+    })
 
     const without = buildDshCompositionYaml(makeInput())
-    expect(without).not.toContain('includeDefaultRoots')
-    expect(without).toMatch(/skills:\n\s+enabled: false/)
+    expect(entryById(without, 'agent-spine').config?.skills).toEqual({ enabled: false })
   })
 
   it('breaks {{ openers in the persona so dsh strict interpolation cannot throw', () => {
     const yml = buildDshCompositionYaml(makeInput({ persona: 'Use {{secret}} and {{cwd}} literally.' }))
     expect(yml).not.toContain('{{')
-    expect(yml).toContain('{ {secret}')
+    expect(entryById(yml, 'agent-spine').config?.persona).toBe('Use { {secret}} and { {cwd}} literally.')
   })
 
   it('drops the dsh identity sentence only for a custom base', () => {
-    expect(buildDshCompositionYaml(makeInput({ customBase: true }))).toContain('includeHarnessIdentity: false')
-    expect(buildDshCompositionYaml(makeInput())).not.toContain('includeHarnessIdentity')
+    const custom = entryById(buildDshCompositionYaml(makeInput({ customBase: true })), 'agent-spine')
+    expect(custom.config?.includeHarnessIdentity).toBe(false)
+    const native = entryById(buildDshCompositionYaml(makeInput()), 'agent-spine')
+    expect(native.config).not.toHaveProperty('includeHarnessIdentity')
   })
 
   it('never contains the API key — the only credential reference is the env indirection', () => {
     const yml = buildDshCompositionYaml(makeInput())
 
     expect(yml).not.toContain(SECRET_API_KEY)
-    expect(yml).toContain('apiKeyEnv: "CHERRY_DSH_API_KEY"')
-    // No literal apiKey scalar anywhere — only the env-name indirection.
-    expect(yml).not.toMatch(/^\s*apiKey:/m)
+    const route = providerRoute(yml, 'deepseek')
+    expect(route.apiKeyEnv).toBe('CHERRY_DSH_API_KEY')
+    expect(route).not.toHaveProperty('apiKey')
   })
 
   it('always composes user-approval with policy ask, bypass included', () => {
     for (const permissionMode of ['default', 'acceptEdits', 'bypassPermissions'] as const) {
-      expect(buildDshCompositionYaml(makeInput({ permissionMode }))).toContain('policy: "ask"')
+      const yml = buildDshCompositionYaml(makeInput({ permissionMode }))
+      expect(entryById(yml, 'approval').config?.policy).toBe('ask')
     }
   })
 
   it('maps sandbox mode per permission mode', () => {
-    expect(buildDshCompositionYaml(makeInput({ permissionMode: 'default' }))).toContain('mode: "workspace-write"')
-    expect(buildDshCompositionYaml(makeInput({ permissionMode: 'acceptEdits' }))).toContain('mode: "workspace-write"')
-    expect(buildDshCompositionYaml(makeInput({ permissionMode: 'bypassPermissions' }))).toContain(
-      'mode: "danger-full-access"'
-    )
+    const modeFor = (permissionMode: DshCompositionInput['permissionMode']) =>
+      entryById(buildDshCompositionYaml(makeInput({ permissionMode })), 'sandbox-policy').config?.mode
+    expect(modeFor('default')).toBe('workspace-write')
+    expect(modeFor('acceptEdits')).toBe('workspace-write')
+    expect(modeFor('bypassPermissions')).toBe('danger-full-access')
   })
 
   it('uses the official sandboxed pwsh stack on Windows', () => {
-    const yaml = buildDshCompositionYaml(
-      makeInput({ platform: 'win32', workspacePath: 'C:\\Users\\Cherry\\workspace' })
-    )
+    const yml = buildDshCompositionYaml(makeInput({ platform: 'win32', workspacePath: 'C:\\Users\\Cherry\\workspace' }))
+    const entries = parseEntries(yml)
+    const names = entries.map((entry) => entry.name).join('\n')
 
-    expect(yaml).toContain('dsh-pwsh-sandbox')
-    expect(yaml).toContain('dsh-tool-pwsh')
-    expect(yaml).toContain('dsh-shell-env')
-    expect(yaml).not.toContain('dsh-bash-sandbox')
-    expect(yaml).toContain('dsh-sandbox-local')
-    expect(yaml).toContain('dsh-sandbox-policy')
-    expect(yaml).toContain('toolBash: false')
-    expect(yaml).toContain('workspaceRoot: "C:\\\\Users\\\\Cherry\\\\workspace"')
-    expect(yaml).toContain('cwd: "C:\\\\Users\\\\Cherry\\\\workspace"')
+    expect(names).toContain('dsh-pwsh-sandbox')
+    expect(names).toContain('dsh-tool-pwsh')
+    expect(names).toContain('dsh-shell-env')
+    expect(names).not.toContain('dsh-bash-sandbox')
+    expect(names).toContain('dsh-sandbox-local')
+    expect(names).toContain('dsh-sandbox-policy')
+    expect(entryById(yml, 'agent-spine').config?.toolBash).toBe(false)
+    expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('C:\\Users\\Cherry\\workspace')
+    expect(entryById(yml, 'shell-executor').config?.cwd).toBe('C:\\Users\\Cherry\\workspace')
   })
 
   it('emits every plugin entry as an importable on-disk file URL', () => {
-    const yml = buildDshCompositionYaml(makeInput())
-    const specifiers = [...yml.matchAll(/^ {2}name: (".*")$/gm)].map(([, quoted]) => JSON.parse(quoted) as string)
+    const entries = parseEntries(buildDshCompositionYaml(makeInput()))
 
-    expect(specifiers.length).toBeGreaterThan(0)
-    for (const specifier of specifiers) {
-      expect(new URL(specifier).protocol).toBe('file:')
-      expect(path.isAbsolute(fileURLToPath(specifier)), `not absolute: ${specifier}`).toBe(true)
+    expect(entries.length).toBeGreaterThan(0)
+    for (const entry of entries) {
+      expect(new URL(entry.name).protocol).toBe('file:')
+      expect(path.isAbsolute(fileURLToPath(entry.name)), `not absolute: ${entry.name}`).toBe(true)
     }
   })
 
@@ -147,37 +183,42 @@ describe('buildDshCompositionYaml', () => {
 
   it('inlines the provider route and model declaration', () => {
     const yml = buildDshCompositionYaml(makeInput())
-    expect(yml).toContain('"deepseek":')
-    expect(yml).toContain('api: "openai-completions"')
-    expect(yml).toContain('baseURL: "https://api.deepseek.com/v1"')
-    expect(yml).toContain('"X-Trace": "on"')
-    expect(yml).toContain('- id: "deepseek-chat"')
-    expect(yml).toContain('contextWindow: 128000')
-    expect(yml).toContain('maxTokens: 4096')
-    expect(yml).toMatch(/input:\n\s+- "text"/)
-    expect(yml).toContain('root: "/tmp/dsh-sessions"')
-    expect(yml).toContain('workspaceRoot: "/tmp/dsh-workspace"')
+    const route = providerRoute(yml, 'deepseek')
+
+    expect(route.api).toBe('openai-completions')
+    expect(route.baseURL).toBe('https://api.deepseek.com/v1')
+    expect(route.headers).toEqual({ 'X-Trace': 'on' })
+    expect(route.models).toEqual([
+      {
+        id: 'deepseek-chat',
+        name: 'DeepSeek Chat',
+        contextWindow: 128_000,
+        maxTokens: 4_096,
+        input: ['text'],
+        reasoningEfforts: false
+      }
+    ])
+    expect(entryById(yml, 'sessions').config?.root).toBe('/tmp/dsh-sessions')
+    expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('/tmp/dsh-workspace')
   })
 
   it('mounts durable image attachments before tool-fs', () => {
     const yml = buildDshCompositionYaml(makeInput())
-    const attachmentIndex = yml.indexOf('@deepseek-ai/dsh-attachment-local')
-    const toolFsIndex = yml.indexOf('@deepseek-ai/dsh-tool-fs')
+    const ids = parseEntries(yml).map((entry) => entry.id)
 
-    expect(attachmentIndex).toBeGreaterThan(0)
-    expect(attachmentIndex).toBeLessThan(toolFsIndex)
-    expect(yml).toContain('dshHome: "/tmp/dsh-root"')
+    expect(ids.indexOf('attachments')).toBeGreaterThan(0)
+    expect(ids.indexOf('attachments')).toBeLessThan(ids.indexOf('tool-fs'))
+    expect(entryById(yml, 'attachments').config?.dshHome).toBe('/tmp/dsh-root')
   })
 
   it('declares image input only for Cherry vision models', () => {
     const vision = makeInjection({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
     const visionYml = buildDshCompositionYaml(makeInput({ modelConfig: vision.modelConfig }))
-    expect(visionYml).toMatch(/input:\n\s+- "text"\n\s+- "image"/)
+    expect(providerRoute(visionYml, 'deepseek').models[0].input).toEqual(['text', 'image'])
 
     const audio = makeInjection({ inputModalities: [MODALITY.TEXT, MODALITY.AUDIO] })
     const audioYml = buildDshCompositionYaml(makeInput({ modelConfig: audio.modelConfig }))
-    expect(audioYml).toMatch(/input:\n\s+- "text"/)
-    expect(audioYml).not.toContain('- "audio"')
+    expect(providerRoute(audioYml, 'deepseek').models[0].input).toEqual(['text'])
   })
 
   it("honors Google as CherryIN's first declared route when the model supports multiple protocols", () => {
@@ -259,8 +300,10 @@ describe('buildDshCompositionYaml', () => {
       expect(injection.providerName).toBe('google')
       expect(injection.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId })
       expect(injection.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
-      expect(yaml).toContain('"google":')
-      expect(yaml).not.toContain('api: "google-generative-ai"')
+      const route = providerRoute(yaml, 'google')
+      expect(route).toBeDefined()
+      // Google is a catalog-provider reuse: an explicit api would be rejected by rc.6.
+      expect(route).not.toHaveProperty('api')
     }
   )
 
@@ -278,8 +321,9 @@ describe('buildDshCompositionYaml', () => {
 
     expect(injection.reasoning).toBe('high')
     expect(injection.modelConfig.reasoningEfforts).toEqual({ low: 'low', high: 'high' })
-    expect(yaml).toContain('        reasoning: "high"')
-    expect(yaml).toMatch(/reasoningEfforts:\n\s+low: "low"\n\s+high: "high"/)
+    const route = providerRoute(yaml, 'deepseek')
+    expect(route.reasoning).toBe('high')
+    expect(route.models[0].reasoningEfforts).toEqual({ low: 'low', high: 'high' })
   })
 
   it('preserves provider-default reasoning when Cherry selects Default', () => {
@@ -290,8 +334,9 @@ describe('buildDshCompositionYaml', () => {
     const yaml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
 
     expect(injection.reasoning).toBeUndefined()
-    expect(yaml).not.toMatch(/^ {8}reasoning:/m)
-    expect(yaml).toContain('reasoningEfforts:')
+    const route = providerRoute(yaml, 'deepseek')
+    expect(route).not.toHaveProperty('reasoning')
+    expect(route.models[0].reasoningEfforts).toEqual({ low: 'low', high: 'high' })
   })
 
   it('maps explicit None to dsh Off without changing the default path', () => {
@@ -307,8 +352,10 @@ describe('buildDshCompositionYaml', () => {
     )
 
     expect(injection.reasoning).toBe('off')
-    expect(yaml).toContain('        reasoning: "off"')
-    expect(yaml).toMatch(/reasoningEfforts:\n\s+high: "high"\n\s+off:/)
+    const route = providerRoute(yaml, 'deepseek')
+    expect(route.reasoning).toBe('off')
+    // `off: null` = declared-with-no-value: dsh offers Off and sends nothing on the wire.
+    expect(route.models[0].reasoningEfforts).toEqual({ high: 'high', off: null })
   })
 
   it('maps a toggle-only Auto selection to the model default effort', () => {
@@ -329,7 +376,7 @@ describe('buildDshCompositionYaml', () => {
     const yaml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
 
     expect(injection.modelConfig.reasoningEfforts).toBe(false)
-    expect(yaml).toContain('reasoningEfforts: false')
+    expect(providerRoute(yaml, 'deepseek').models[0].reasoningEfforts).toBe(false)
   })
 
   it('rejects models that explicitly declare no text input', () => {
