@@ -184,4 +184,14 @@ describe('DshRuntimeConnection tracing', () => {
     expect(spans[0].setStatus).toHaveBeenCalledWith(expect.objectContaining({ message: 'dsh connection closed' }))
     expect(spans[0].end).toHaveBeenCalledOnce()
   })
+
+  it('rebuilds the spawn-frozen composition when reasoning effort changes', async () => {
+    const connection = await new DshRuntimeConnection({ ...connectInput, reasoningEffort: 'low' }).start()
+
+    await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat', reasoningEffort: 'high' })).resolves.toBe(
+      'rebuild'
+    )
+
+    await connection.close()
+  })
 })

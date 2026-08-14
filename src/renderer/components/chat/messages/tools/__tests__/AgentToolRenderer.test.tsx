@@ -398,6 +398,44 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('collapse-content-TaskList')).not.toHaveTextContent(/^1$/)
     })
 
+    it('renders a dsh todo snapshot with its task states', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TodoWrite', name: 'TodoWrite', description: 'Update todos', type: 'provider' },
+        status: 'done',
+        arguments: {
+          todos: [
+            { content: 'Inspect the bridge', status: 'completed' },
+            { content: 'Wire the renderer', status: 'in_progress' }
+          ]
+        },
+        response: [{ type: 'text', text: 'Updated todo list' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      const trigger = screen.getByRole('button')
+      expect(trigger).toHaveTextContent('Wire the renderer')
+      fireEvent.click(trigger)
+
+      const content = screen.getByTestId('collapse-content-TodoWrite')
+      expect(content).toHaveTextContent('Inspect the bridge')
+      expect(content).toHaveTextContent('Wire the renderer')
+    })
+
+    it('renders dsh skill names and text-block results through the Skill card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Skill', name: 'Skill', description: 'Load a skill', type: 'provider' },
+        status: 'done',
+        arguments: { name: 'design-review' },
+        response: [{ type: 'text', text: 'Loaded design review instructions' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('design-review')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-Skill')).toHaveTextContent('Loaded design review instructions')
+    })
+
     it('should route Agent through the agent renderer', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },

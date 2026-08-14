@@ -22,6 +22,14 @@ const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
 )
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
+const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
+  ['bash', AgentToolsType.Bash],
+  ['edit', AgentToolsType.Edit],
+  ['read', AgentToolsType.Read],
+  ['skill', AgentToolsType.Skill],
+  ['todo_write', AgentToolsType.TodoWrite],
+  ['write', AgentToolsType.Write]
+])
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -37,8 +45,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
-  const toolName = getToolName(part)
-  return toolName.trim() || 'unknown'
+  const toolName = getToolName(part).trim() || 'unknown'
+  return hasCherryTransport(part.callProviderMetadata)
+    ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
+    : toolName
 }
 
 function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
@@ -117,6 +127,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
+  if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'

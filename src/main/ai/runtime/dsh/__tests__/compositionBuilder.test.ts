@@ -3,6 +3,7 @@ import path from 'node:path'
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
@@ -13,7 +14,7 @@ import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
 
-function makeInjection(modelOverrides: Partial<Model> = {}) {
+function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: ReasoningEffortOption = 'default') {
   const provider = {
     id: 'deepseek',
     name: 'DeepSeek',
@@ -34,7 +35,7 @@ function makeInjection(modelOverrides: Partial<Model> = {}) {
     maxOutputTokens: 4_096,
     ...modelOverrides
   } as unknown as Model
-  return buildDshProviderInjection(provider, model, SECRET_API_KEY)
+  return buildDshProviderInjection(provider, model, SECRET_API_KEY, undefined, reasoningEffort)
 }
 
 function makeInput(overrides: Partial<DshCompositionInput> = {}): DshCompositionInput {
@@ -44,6 +45,7 @@ function makeInput(overrides: Partial<DshCompositionInput> = {}): DshComposition
     api: injection.api,
     baseUrl: injection.baseUrl,
     ...(injection.headers ? { headers: injection.headers } : {}),
+    ...(injection.reasoning ? { reasoning: injection.reasoning } : {}),
     modelConfig: injection.modelConfig,
     workspacePath: '/tmp/dsh-workspace',
     dshRoot: '/tmp/dsh-root',
@@ -175,6 +177,74 @@ describe('buildDshCompositionYaml', () => {
     const audioYml = buildDshCompositionYaml(makeInput({ modelConfig: audio.modelConfig }))
     expect(audioYml).toMatch(/input:\n\s+- "text"/)
     expect(audioYml).not.toContain('- "audio"')
+  })
+
+  it('declares reasoning capabilities and freezes an explicit effort in the provider profile', () => {
+    const injection = makeInjection(
+      {
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['none', 'low', 'high'] }
+      },
+      'high'
+    )
+    const yaml = buildDshCompositionYaml(
+      makeInput({ reasoning: injection.reasoning, modelConfig: injection.modelConfig })
+    )
+
+    expect(injection.reasoning).toBe('high')
+    expect(injection.modelConfig.reasoningEfforts).toEqual({ low: 'low', high: 'high' })
+    expect(yaml).toContain('        reasoning: "high"')
+    expect(yaml).toMatch(/reasoningEfforts:\n\s+low: "low"\n\s+high: "high"/)
+  })
+
+  it('preserves provider-default reasoning when Cherry selects Default', () => {
+    const injection = makeInjection({
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { selectableEfforts: ['low', 'high'] }
+    })
+    const yaml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
+
+    expect(injection.reasoning).toBeUndefined()
+    expect(yaml).not.toMatch(/^ {8}reasoning:/m)
+    expect(yaml).toContain('reasoningEfforts:')
+  })
+
+  it('maps explicit None to dsh Off without changing the default path', () => {
+    const injection = makeInjection(
+      {
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['none', 'auto'], defaultEffort: 'high' }
+      },
+      'none'
+    )
+    const yaml = buildDshCompositionYaml(
+      makeInput({ reasoning: injection.reasoning, modelConfig: injection.modelConfig })
+    )
+
+    expect(injection.reasoning).toBe('off')
+    expect(yaml).toContain('        reasoning: "off"')
+    expect(yaml).toMatch(/reasoningEfforts:\n\s+high: "high"\n\s+off:/)
+  })
+
+  it('maps a toggle-only Auto selection to the model default effort', () => {
+    const injection = makeInjection(
+      {
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['none', 'auto'], defaultEffort: 'high' }
+      },
+      'auto'
+    )
+
+    expect(injection.reasoning).toBe('high')
+    expect(injection.modelConfig.reasoningEfforts).toEqual({ high: 'high' })
+  })
+
+  it('marks non-reasoning hand-declared models explicitly', () => {
+    const injection = makeInjection()
+    const yaml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
+
+    expect(injection.modelConfig.reasoningEfforts).toBe(false)
+    expect(yaml).toContain('reasoningEfforts: false')
   })
 
   it('rejects models that explicitly declare no text input', () => {
