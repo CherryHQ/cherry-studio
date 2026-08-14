@@ -19,6 +19,7 @@ interface VersionStatusCardProps {
   onOpenDashboard?: () => void
   isInstalling?: boolean
   isUpgrading?: boolean
+  upgradeDisabled?: boolean
   canLaunch?: boolean
   launching?: boolean
   running?: boolean
@@ -41,6 +42,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   onOpenDashboard,
   isInstalling,
   isUpgrading,
+  upgradeDisabled,
   canLaunch,
   launching,
   running,
@@ -161,7 +163,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={onUpgrade}
-              disabled={busy}
+              disabled={busy || upgradeDisabled}
               className="shrink-0 gap-1 text-warning hover:bg-warning-subtle hover:text-warning-subtle-foreground">
               {isUpgrading ? (
                 <>

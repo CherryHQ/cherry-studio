@@ -144,6 +144,24 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.installing' })).toBeDisabled()
   })
 
+  it('prevents upgrading a tool whose managed runtime is active', () => {
+    const onUpgrade = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="deepseek-harness"
+        toolName="DeepSeek Harness"
+        status={{ source: 'mise', installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        onUpgrade={onUpgrade}
+        upgradeDisabled
+      />
+    )
+
+    const upgradeButton = screen.getByRole('button', { name: 'code.upgrade' })
+    expect(upgradeButton).toBeDisabled()
+    fireEvent.click(upgradeButton)
+    expect(onUpgrade).not.toHaveBeenCalled()
+  })
+
   it('renders an open-dashboard action when running and triggers it on click', () => {
     const onOpenDashboard = vi.fn()
     render(

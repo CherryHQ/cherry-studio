@@ -1,4 +1,4 @@
-import type { ChildProcess } from 'node:child_process'
+import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import type * as DeepSeekHarnessConfigModule from '../deepSeekHarnessConfig'
 
 const mocks = vi.hoisted(() => ({
+  execFile: vi.fn(),
+  isWin: false,
   appGet: vi.fn(),
   appGetPath: vi.fn(),
   spawn: vi.fn(),
@@ -24,12 +26,20 @@ const mocks = vi.hoisted(() => ({
   gatewayGetConfig: vi.fn()
 }))
 
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof NodeChildProcess>()),
+  execFile: mocks.execFile
+}))
 vi.mock('@application', () => ({ application: { get: mocks.appGet, getPath: mocks.appGetPath } }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGet, getApiKeys: mocks.providerGetApiKeys }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGet } }))
-vi.mock('@main/core/platform', () => ({ isWin: false }))
+vi.mock('@main/core/platform', () => ({
+  get isWin() {
+    return mocks.isWin
+  }
+}))
 vi.mock('@main/utils/processRunner', () => ({ crossPlatformSpawn: mocks.spawn }))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
@@ -111,12 +121,21 @@ describe('DeepSeekHarnessService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    mocks.isWin = false
     children.length = 0
     mocks.appGetPath.mockImplementation((key: string) => {
       if (key === 'external.deepseek_harness.config') return '/mock/home/.dsh'
-      if (key === 'sys.home') return '/mock/home'
+      if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
       throw new Error(`Unexpected application.getPath(${key})`)
     })
+    mocks.execFile.mockImplementation(
+      (
+        _file: string,
+        _args: string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => callback(null, '', '')
+    )
     mocks.appGet.mockImplementation((name: string) => {
       if (name === 'BinaryManager') {
         return {
@@ -167,7 +186,7 @@ describe('DeepSeekHarnessService', () => {
     children.push(child)
     mocks.spawn.mockImplementationOnce(() => {
       queueMicrotask(() => action(child))
-      return child as unknown as ChildProcess
+      return child as unknown as NodeChildProcess.ChildProcess
     })
     return child
   }
@@ -184,7 +203,7 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       '/usr/local/bin/dsh',
       ['web', '--host', '127.0.0.1', '--port', '0'],
-      expect.objectContaining({ cwd: '/mock/home', detached: true })
+      expect.objectContaining({ cwd: '/mock/userData/Data/DeepSeekHarness/Workspace', detached: true })
     )
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY')
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
@@ -222,6 +241,19 @@ describe('DeepSeekHarnessService', () => {
       '/mock/home/.dsh',
       expect.objectContaining({ credentialValue: 'sk-direct' })
     )
+    await service.stop()
+  })
+
+  it('does not expose provider request headers through the DeepSeek Harness settings route', async () => {
+    mocks.providerGet.mockReturnValue({
+      ...provider,
+      settings: { extraHeaders: { Authorization: 'Bearer header-secret', 'x-api-key': 'header-secret' } }
+    })
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+
+    await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+    expect(mocks.writeConfig.mock.calls[0][1]).not.toHaveProperty('headers')
     await service.stop()
   })
 
@@ -321,11 +353,56 @@ describe('DeepSeekHarnessService', () => {
     await expect(start).resolves.toMatchObject({ success: true })
 
     const stop = service.stop()
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(3000)
     await stop
     expect(processKill).toHaveBeenNthCalledWith(1, -child.pid, 'SIGTERM')
     expect(processKill).toHaveBeenNthCalledWith(2, -child.pid, 'SIGKILL')
     expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('terminates the complete Windows process tree before accepting wrapper exit', async () => {
+    mocks.isWin = true
+    const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    mocks.execFile.mockImplementationOnce(
+      (
+        _file: string,
+        _args: string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => {
+        child.close(null, 'SIGTERM')
+        callback(null, '', '')
+      }
+    )
+    const service = new DeepSeekHarnessService()
+    await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+
+    await service.stop()
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'taskkill',
+      ['/PID', String(child.pid), '/T'],
+      { windowsHide: true },
+      expect.any(Function)
+    )
+    expect(processKill).not.toHaveBeenCalled()
+  })
+
+  it('bounds graceful and forced termination below the lifecycle stop ceiling', async () => {
+    vi.useFakeTimers()
+    const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    processKill.mockImplementation(() => true)
+    const service = new DeepSeekHarnessService()
+    const start = service.start(startInput)
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(start).resolves.toMatchObject({ success: true })
+
+    const stop = expect(service.stop()).rejects.toThrow('did not exit after forced termination')
+    await vi.advanceTimersByTimeAsync(4000)
+
+    await stop
+    expect(processKill).toHaveBeenNthCalledWith(1, -child.pid, 'SIGTERM')
+    expect(processKill).toHaveBeenNthCalledWith(2, -child.pid, 'SIGKILL')
   })
 
   it('uses child exit confirmation during application shutdown without probing HTTP again', async () => {

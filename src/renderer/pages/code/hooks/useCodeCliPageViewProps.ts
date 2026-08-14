@@ -220,6 +220,8 @@ export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewP
     upsertProviderConfig,
     setCurrentProvider
   })
+  const deepSeekHarnessActionsDisabled =
+    isDeepSeekHarnessTool && (deepSeekHarness.running || deepSeekHarness.starting || deepSeekHarness.stopping)
   const handleRemove = useCallback(
     async (toolId: CodeCli) => {
       if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
@@ -267,7 +269,8 @@ export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewP
               deepSeekHarness.launching ||
               deepSeekHarness.starting,
             running: openClawGateway.running || deepSeekHarness.running,
-            stopping: openClawGateway.stopping || deepSeekHarness.stopping
+            stopping: openClawGateway.stopping || deepSeekHarness.stopping,
+            upgradeDisabled: deepSeekHarnessActionsDisabled
           },
           installingTools: mergedInstallingTools,
           upgradingTools,
@@ -280,6 +283,7 @@ export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewP
           providerConfigs,
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
+          providerActionsDisabled: deepSeekHarnessActionsDisabled,
           resolveProviderMeta,
           // A failed update carries its target so Retry repeats the same targeted
           // install; a name-only retry would hit the applied no-op and clear the
@@ -314,7 +318,7 @@ export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewP
     launchDialogProps: launchDialog.launchDialogProps,
     removeDialogProps: removeDialog.removeDialogProps,
     configPanelKey: configPanel.configPanelKey,
-    configPanelProps: configPanel.configPanelProps,
+    configPanelProps: deepSeekHarnessActionsDisabled ? undefined : configPanel.configPanelProps,
     ownLoginConfigPanelProps: configPanel.ownLoginConfigPanelProps
   }
 }

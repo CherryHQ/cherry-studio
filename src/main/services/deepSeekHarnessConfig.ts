@@ -21,7 +21,6 @@ export interface DeepSeekHarnessProjection {
   displayName: string
   protocol: DeepSeekHarnessProtocol
   baseUrl: string
-  headers?: Record<string, string>
   model: Model
   modelId: string
   agentPreset: DeepSeekHarnessAgentPreset
@@ -147,11 +146,6 @@ function describeYamlError(error: YAMLError): string {
   return `${error.code}${location}`
 }
 
-function setOptional(document: Document, configPath: (string | number)[], value: unknown): void {
-  if (value === undefined) document.deleteIn(configPath)
-  else document.setIn(configPath, value)
-}
-
 function projectModelInput(model: Model): Array<'text' | 'image'> {
   const declared = model.inputModalities?.filter(
     (modality): modality is 'text' | 'image' => modality === MODALITY.TEXT || modality === MODALITY.IMAGE
@@ -215,7 +209,7 @@ function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProje
   document.setIn([...routePath, 'displayName'], projection.displayName)
   document.setIn([...routePath, 'api'], projection.protocol)
   document.setIn([...routePath, 'baseURL'], projection.baseUrl)
-  setOptional(document, [...routePath, 'headers'], projection.headers)
+  document.deleteIn([...routePath, 'headers'])
   updateManagedModel(document, projection)
   document.setIn(['agent-default-model', 'provider'], projection.route)
   document.setIn(['agent-default-model', 'model'], projection.modelId)

@@ -79,7 +79,6 @@ const projection = () => ({
   displayName: 'Cherry Studio: Anthropic',
   protocol: 'anthropic-messages' as const,
   baseUrl: 'https://api.anthropic.com',
-  headers: { 'x-client': 'cherry' },
   model: model(),
   modelId: 'claude-sonnet',
   agentPreset: 'code' as const
@@ -172,7 +171,7 @@ describe('DeepSeek Harness config transaction', () => {
     await writeFile(path.join(dir, '.credentials.yaml'), '# credentials note\nOTHER_KEY: keep\n', { mode: 0o600 })
     await writeFile(
       path.join(dir, 'settings.yaml'),
-      `# settings note\nunrelated:\n  keep: true\nllm-pi-ai:\n  providers:\n    foreign-route:\n      apiKeyEnv: FOREIGN_KEY\n    ${identity.route}:\n      apiKeyEnv: ${identity.credentialRef}\n      models:\n        - id: old-model\n          name: Old model\nagent-default-model:\n  provider: old\n  model: old-model\n  reasoningEffort: high\n`,
+      `# settings note\nunrelated:\n  keep: true\nllm-pi-ai:\n  providers:\n    foreign-route:\n      apiKeyEnv: FOREIGN_KEY\n    ${identity.route}:\n      apiKeyEnv: ${identity.credentialRef}\n      headers:\n        Authorization: Bearer old-secret\n      models:\n        - id: old-model\n          name: Old model\nagent-default-model:\n  provider: old\n  model: old-model\n  reasoningEffort: high\n`,
       { mode: 0o600 }
     )
 
@@ -186,6 +185,7 @@ describe('DeepSeek Harness config transaction', () => {
     expect(settingsText).toContain('# settings note')
     expect(settings.unrelated).toEqual({ keep: true })
     expect(settings['llm-pi-ai'].providers['foreign-route']).toEqual({ apiKeyEnv: 'FOREIGN_KEY' })
+    expect(settings['llm-pi-ai'].providers[identity.route].headers).toBeUndefined()
     expect(settings['llm-pi-ai'].providers[identity.route].models.map((item: { id: string }) => item.id)).toEqual([
       'old-model',
       'claude-sonnet'

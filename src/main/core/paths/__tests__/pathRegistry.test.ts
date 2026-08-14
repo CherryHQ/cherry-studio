@@ -114,6 +114,14 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
   })
+
+  it('isolates the managed DeepSeek Harness workspace from the user home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['feature.deepseek_harness.workspace']).toBe(
+      path.join('/mock/userData', 'Data', 'DeepSeekHarness', 'Workspace')
+    )
+    expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {

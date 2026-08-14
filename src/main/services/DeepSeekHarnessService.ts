@@ -33,8 +33,8 @@ const logger = loggerService.withContext('DeepSeekHarnessService')
 const execFileAsync = promisify(execFile)
 
 const START_TIMEOUT_MS = 30_000
-const GRACEFUL_STOP_TIMEOUT_MS = 6000
-const FORCE_STOP_TIMEOUT_MS = 2000
+const GRACEFUL_STOP_TIMEOUT_MS = 3000
+const FORCE_STOP_TIMEOUT_MS = 1000
 const OUTPUT_CAPTURE_LIMIT = 32 * 1024
 const DIAGNOSTIC_LIMIT = 2000
 const NO_KEY_PLACEHOLDER = 'no-key-required'
@@ -244,7 +244,6 @@ export class DeepSeekHarnessService extends BaseService {
       displayName: `Cherry Studio: ${provider.name}`,
       protocol,
       baseUrl,
-      headers: provider.settings.extraHeaders,
       model,
       modelId: model.apiModelId ?? modelId,
       agentPreset: input.agentPreset
@@ -267,7 +266,7 @@ export class DeepSeekHarnessService extends BaseService {
     }
 
     const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0'], {
-      cwd: application.getPath('sys.home'),
+      cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,
       stdio: ['ignore', 'pipe', 'pipe']
@@ -309,10 +308,10 @@ export class DeepSeekHarnessService extends BaseService {
     const child = this.child
     if (!child) return
     this.stoppingChild = child
-    signalOwnedProcess(child, 'SIGTERM')
+    await terminateOwnedProcess(child, false)
     if (await waitForTermination(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
-    await forceStopOwnedProcess(child)
+    await terminateOwnedProcess(child, true)
     if (!(await waitForTermination(child, FORCE_STOP_TIMEOUT_MS))) {
       throw new Error('DeepSeek Harness did not exit after forced termination')
     }
@@ -414,25 +413,23 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
   })
 }
 
-function signalOwnedProcess(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (!child.pid) return
-  try {
-    if (isWin) child.kill(signal)
-    else process.kill(-child.pid, signal)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-  }
-}
-
-async function forceStopOwnedProcess(child: ChildProcess): Promise<void> {
+async function terminateOwnedProcess(child: ChildProcess, force: boolean): Promise<void> {
   if (!child.pid) return
   if (isWin) {
-    await execFileAsync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }).catch((error) => {
-      if (child.exitCode === null && child.signalCode === null) throw error
+    const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
+    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
+      if (child.exitCode !== null || child.signalCode !== null) return
+      if (force) throw error
+      logger.warn('Failed to gracefully stop the managed DeepSeek Harness process tree', error as Error)
     })
     return
   }
-  signalOwnedProcess(child, 'SIGKILL')
+
+  try {
+    process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+  }
 }
 
 function waitForTermination(child: ChildProcess, timeoutMs: number): Promise<boolean> {

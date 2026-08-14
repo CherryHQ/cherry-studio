@@ -244,20 +244,22 @@ vi.mock('../components/ConfigList', () => ({
   ConfigList: ({
     providers,
     onConfigure,
-    onToggleCurrent
+    onToggleCurrent,
+    providerActionsDisabled
   }: {
     providers: Provider[]
     onConfigure: (provider: Provider) => void
     onToggleCurrent: (provider: Provider) => void
+    providerActionsDisabled?: boolean
   }) => (
     <div>
       {providers.length === 0 && <div data-testid="empty-config-list" />}
       {providers.map((item) => (
         <div key={item.id}>
-          <button type="button" onClick={() => onToggleCurrent(item)}>
+          <button type="button" disabled={providerActionsDisabled} onClick={() => onToggleCurrent(item)}>
             toggle {item.id}
           </button>
-          <button type="button" onClick={() => onConfigure(item)}>
+          <button type="button" disabled={providerActionsDisabled} onClick={() => onConfigure(item)}>
             configure {item.id}
           </button>
         </div>
@@ -336,6 +338,8 @@ vi.mock('../components/VersionStatusCard', () => ({
     canLaunch,
     onRemove,
     onLaunch,
+    onUpgrade,
+    upgradeDisabled,
     installError,
     onShowError,
     launchDisabledHint
@@ -343,6 +347,8 @@ vi.mock('../components/VersionStatusCard', () => ({
     canLaunch?: boolean
     onRemove?: () => void
     onLaunch?: () => void
+    onUpgrade?: () => void
+    upgradeDisabled?: boolean
     installError?: string
     onShowError?: () => void
     launchDisabledHint?: string
@@ -359,6 +365,11 @@ vi.mock('../components/VersionStatusCard', () => ({
       {onLaunch && (
         <button type="button" onClick={onLaunch}>
           start tool
+        </button>
+      )}
+      {onUpgrade && (
+        <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
+          upgrade tool
         </button>
       )}
       {installError && (
@@ -564,6 +575,42 @@ describe('CodeCliPage', () => {
     )
     expect(selectFolderMock).not.toHaveBeenCalled()
     expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+  })
+
+  it('locks DeepSeek Harness provider changes and upgrades while its managed process is running', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.DEEPSEEK_HARNESS]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true }
+      })
+    )
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') {
+        return { status: 'running', url: 'http://127.0.0.1:43123' }
+      }
+      return { success: true }
+    })
+
+    render(<CodeCliPage />)
+
+    const toggleButton = await screen.findByRole('button', { name: 'toggle anthropic' })
+    const configureButton = screen.getByRole('button', { name: 'configure anthropic' })
+    const upgradeButton = screen.getByRole('button', { name: 'upgrade tool' })
+    await waitFor(() => {
+      expect(toggleButton).toBeDisabled()
+      expect(configureButton).toBeDisabled()
+      expect(upgradeButton).toBeDisabled()
+    })
+    fireEvent.click(toggleButton)
+    fireEvent.click(configureButton)
+    fireEvent.click(upgradeButton)
+    expect(setCurrentProviderMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('config-panel')).not.toBeInTheDocument()
+    expect(upgradeMock).not.toHaveBeenCalled()
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
