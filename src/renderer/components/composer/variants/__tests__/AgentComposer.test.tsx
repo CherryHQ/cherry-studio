@@ -2342,7 +2342,7 @@ describe('AgentComposer', () => {
       const items = await itemsPromise
       expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: true,
-        maxDepth: 3,
+        maxDepth: 10,
         includeHidden: false,
         includeFiles: true,
         includeDirectories: true,
@@ -2442,7 +2442,7 @@ describe('AgentComposer', () => {
       expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1)
       expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: true,
-        maxDepth: 3,
+        maxDepth: 10,
         includeHidden: false,
         includeFiles: true,
         includeDirectories: true,
