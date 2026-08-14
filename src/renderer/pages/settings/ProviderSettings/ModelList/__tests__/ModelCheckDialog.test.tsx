@@ -87,6 +87,18 @@ describe('ModelCheckDialog', () => {
     expect(screen.queryByLabelText('settings.models.check.timeout')).not.toBeInTheDocument()
   })
 
+  it('uses the stronger cost warning only for all-model checks', () => {
+    render(<ModelCheckDialog />)
+
+    expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.check.all_models_disclaimer')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.check.all_models' }))
+
+    expect(screen.getByText('settings.models.check.all_models_disclaimer')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.check.disclaimer')).not.toBeInTheDocument()
+  })
+
   it('separates the single-model key scope from concrete key choices', async () => {
     const user = userEvent.setup()
     health.apiKeyEntries = [

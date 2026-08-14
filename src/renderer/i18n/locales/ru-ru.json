@@ -6043,6 +6043,7 @@
       "check": {
         "all": "[to be translated]:All",
         "all_models": "[to be translated]:All models",
+        "all_models_disclaimer": "[to be translated]:Checking all models sends many real requests to the selected models and API keys, which may incur high charges in a short time. Confirm the cost risk before starting. Image, video, audio generation, speech-to-text, and text-to-speech models are skipped.",
         "button_caption": "Проверка моделей",
         "checking": "[to be translated]:Checking…",
         "concurrent_hint": "[to be translated]:Models run concurrently; API keys for each model are always checked concurrently.",

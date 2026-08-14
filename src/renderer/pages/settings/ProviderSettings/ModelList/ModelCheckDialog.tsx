@@ -219,7 +219,13 @@ export default function ModelCheckDialog() {
           ]}
           onValueChange={setMode}
         />
-        <Alert type="warning" showIcon description={t('settings.models.check.disclaimer')} />
+        <Alert
+          type="warning"
+          showIcon
+          description={t(
+            mode === 'all' ? 'settings.models.check.all_models_disclaimer' : 'settings.models.check.disclaimer'
+          )}
+        />
 
         {mode === 'single' ? (
           <div className="space-y-4">
