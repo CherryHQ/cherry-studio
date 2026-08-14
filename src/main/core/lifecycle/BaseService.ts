@@ -13,6 +13,17 @@ const logger = loggerService.withContext('Lifecycle')
  * Provides lifecycle hooks and state management.
  * All services are singletons - attempting to instantiate twice will throw an error.
  */
+export type InitPhaseName = 'onInit' | 'onReady'
+
+/**
+ * 由 LifecycleManager 注入的初始化阶段计时钩子：给定阶段名，返回一个结束函数。
+ * 用回调而非直接依赖 `@main/core/perf`，是为了让 BaseService 不背上基础设施
+ * 依赖 —— 它是几乎所有服务测试的基类，多一个静态 import 就会打穿大量 partial mock。
+ */
+export type InitPhaseMeasure = (name: InitPhaseName) => () => void
+
+const noopMeasure: InitPhaseMeasure = () => () => {}
+
 export abstract class BaseService {
   /** Track instantiated service classes to prevent duplicate instantiation */
   private static instances = new WeakSet<object>()
@@ -258,15 +269,15 @@ export abstract class BaseService {
    * Internal method to execute initialization
    * Called by LifecycleManager
    */
-  public async _doInit(): Promise<void> {
+  public async _doInit(measure: InitPhaseMeasure = noopMeasure): Promise<void> {
     if (DIAGNOSTICS_ENABLED) {
       const name = getServiceName(this.constructor as ServiceConstructor)
       const t0 = performance.now()
       this._state = LifecycleState.Initializing
-      await this.onInit()
+      await this.runInitPhase('onInit', () => this.onInit(), measure)
       const t1 = performance.now()
       this._state = LifecycleState.Ready
-      await this.onReady()
+      await this.runInitPhase('onReady', () => this.onReady(), measure)
       const t2 = performance.now()
       logger.info(
         `[Diagnostics/_doInit] ${name}  onInit=${(t1 - t0).toFixed(1)}ms  onReady=${(t2 - t1).toFixed(1)}ms  total=${(t2 - t0).toFixed(1)}ms`
@@ -274,9 +285,19 @@ export abstract class BaseService {
       return
     }
     this._state = LifecycleState.Initializing
-    await this.onInit()
+    await this.runInitPhase('onInit', () => this.onInit(), measure)
     this._state = LifecycleState.Ready
-    await this.onReady()
+    await this.runInitPhase('onReady', () => this.onReady(), measure)
+  }
+
+  /** 计时在 finally 里收口，失败的启动同样留下它的耗时。 */
+  private async runInitPhase(name: InitPhaseName, run: () => Promise<void>, measure: InitPhaseMeasure): Promise<void> {
+    const end = measure(name)
+    try {
+      await run()
+    } finally {
+      end()
+    }
   }
 
   /**

@@ -1,6 +1,5 @@
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { Emitter, type Event } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
 
 import type { PerfDetail, PerfSpan, PerfSpanHandle, PerfStartOptions, PerfTrack } from './types'
 
@@ -28,8 +27,12 @@ export class PerfRecorder {
 
   private readonly maxSpans: number
   private readonly now: () => number
-  private readonly _onSpan = new Emitter<PerfSpan>()
-  readonly onSpan: Event<PerfSpan> = this._onSpan.event
+  /**
+   * 懒建：LifecycleManager 依赖 perf，而 perf 从 lifecycle barrel 取 Emitter，构成
+   * 循环导入。把 Emitter 的解引用推迟到订阅时，就不依赖 barrel 里的声明顺序。
+   */
+  private emitter: Emitter<PerfSpan> | null = null
+  readonly onSpan: Event<PerfSpan> = (listener) => (this.emitter ??= new Emitter<PerfSpan>()).event(listener)
 
   private buffer: PerfSpan[] = []
   private head = 0
@@ -81,7 +84,7 @@ export class PerfRecorder {
     }
 
     this.writeTimeline(span)
-    this._onSpan.fire(span)
+    this.emitter?.fire(span)
   }
 
   /**
@@ -103,4 +106,11 @@ export class PerfRecorder {
   }
 }
 
-export const perf = new PerfRecorder({ enabled: isDev || DIAGNOSTICS_ENABLED })
+/**
+ * 直接读 env 而非 `isDev` from `@main/core/platform`：本模块被 lifecycle 基座导入，
+ * 模块求值时读任何外部模块的导出，都会变成每个服务测试的 partial mock 的必填项。
+ * `diagnostics.ts` 自读 `CS_DIAGNOSTICS` 是同一个理由。
+ */
+const PERF_ENABLED = process.env.NODE_ENV === 'development' || DIAGNOSTICS_ENABLED
+
+export const perf = new PerfRecorder({ enabled: PERF_ENABLED })
