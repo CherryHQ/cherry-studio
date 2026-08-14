@@ -88,5 +88,7 @@ export function openRouteInMainWindow(path: string): void {
 }
 
 export function openSettingsInMainWindow(path?: SettingsPath): void {
-  openRouteInMainWindow(normalizeSettingsPath(path))
+  const targetPath = normalizeSettingsPath(path)
+  if (application.get('SubWindowService').openSettingsWindow(targetPath)) return
+  openRouteInMainWindow(targetPath)
 }

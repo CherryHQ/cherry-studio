@@ -7,6 +7,7 @@ import { useHasWindowControls, WindowControls } from '@renderer/components/Windo
 import { useTabs } from '@renderer/hooks/tab'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { useIpcOn } from '@renderer/ipc'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -65,6 +66,10 @@ export const SubWindowAppShell = () => {
       metadata: undefined
     })
   }
+
+  useIpcOn('navigation.open_route_requested', ({ to }) => {
+    if (activeTabId) handleUrlChange(activeTabId, to)
+  })
 
   // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
   // ourselves in the top-right corner and publish their width as --window-controls-width so

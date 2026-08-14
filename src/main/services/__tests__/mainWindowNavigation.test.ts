@@ -1,28 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock } = vi.hoisted(() => {
-  const mainWindowServiceMock = {
-    showMainWindow: vi.fn()
-  }
-  const windowManagerMock = {
-    getWindowsByType: vi.fn<() => unknown[]>(() => []),
-    getWindowId: vi.fn(),
-    getInitData: vi.fn(),
-    clearInitData: vi.fn()
-  }
-  const ipcApiServiceMock = {
-    send: vi.fn()
-  }
-  const applicationMock = {
-    get: vi.fn((name: string) => {
-      if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'WindowManager') return windowManagerMock
-      if (name === 'IpcApiService') return ipcApiServiceMock
-      throw new Error(`unexpected service: ${name}`)
-    })
-  }
-  return { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock }
-})
+const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock, subWindowServiceMock } =
+  vi.hoisted(() => {
+    const mainWindowServiceMock = {
+      showMainWindow: vi.fn()
+    }
+    const windowManagerMock = {
+      getWindowsByType: vi.fn<() => unknown[]>(() => []),
+      getWindowId: vi.fn(),
+      getInitData: vi.fn(),
+      clearInitData: vi.fn()
+    }
+    const ipcApiServiceMock = {
+      send: vi.fn()
+    }
+    const subWindowServiceMock = {
+      openSettingsWindow: vi.fn(() => false)
+    }
+    const applicationMock = {
+      get: vi.fn((name: string) => {
+        if (name === 'MainWindowService') return mainWindowServiceMock
+        if (name === 'WindowManager') return windowManagerMock
+        if (name === 'IpcApiService') return ipcApiServiceMock
+        if (name === 'SubWindowService') return subWindowServiceMock
+        throw new Error(`unexpected service: ${name}`)
+      })
+    }
+    return { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock, subWindowServiceMock }
+  })
 
 vi.mock('@application', () => ({ application: applicationMock }))
 
@@ -40,6 +45,7 @@ describe('mainWindowNavigation', () => {
     vi.clearAllMocks()
     windowManagerMock.getWindowsByType.mockReturnValue([])
     windowManagerMock.getInitData.mockReturnValue(null)
+    subWindowServiceMock.openSettingsWindow.mockReturnValue(false)
   })
 
   describe('acknowledgeMainWindowNavigation', () => {
@@ -91,6 +97,16 @@ describe('mainWindowNavigation', () => {
   })
 
   describe('openSettingsInMainWindow', () => {
+    it('routes to an existing detached Settings window without opening Settings in main', () => {
+      subWindowServiceMock.openSettingsWindow.mockReturnValue(true)
+
+      openSettingsInMainWindow('/settings/about')
+
+      expect(subWindowServiceMock.openSettingsWindow).toHaveBeenCalledWith('/settings/about')
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+    })
+
     it('normalizes and delegates a valid settings path', () => {
       openSettingsInMainWindow('/settings/provider?id=openai')
 
