@@ -1,0 +1,130 @@
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
+const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
+vi.mock('@main/ai/mcp/servers/factory', () => ({ createInMemoryMcpServer, getBuiltinRegistryEnv: async () => ({}) }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({} as Record<string, unknown>)
+})
+vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutableInEnv: async () => '/usr/local/bin/npx',
+  findCommandInShellEnv: async () => null
+}))
+vi.mock('@main/utils/binaryResolver', () => ({
+  isBinaryExists: async () => false,
+  getBinaryPath: async (name?: string) => `/bundled/${name}`
+}))
+
+const { createTransport } = await import('../mcpTransport')
+
+class FakeTransport {
+  constructor(
+    public url: unknown,
+    public options: any
+  ) {}
+}
+class FakeStdioTransport {
+  stderr = { on: vi.fn() }
+  constructor(public params: any) {}
+}
+const sdk = {
+  SSEClientTransport: FakeTransport,
+  StreamableHTTPClientTransport: FakeTransport,
+  StdioClientTransport: FakeStdioTransport,
+  InMemoryTransport: { createLinkedPair: () => ['client-transport', 'server-transport'] }
+} as any
+
+const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any
+const authProvider = { config: {} } as any
+
+const create = (config: Partial<McpServer>, extra: Partial<Parameters<typeof createTransport>[0]> = {}) =>
+  createTransport({
+    sdk,
+    server: { id: 'id', name: 'srv', isActive: true, ...config } as McpServer,
+    args: [],
+    authProvider,
+    logger,
+    onServerLog: () => undefined,
+    ...extra
+  })
+
+describe('createTransport', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('starts an in-process server and hands back its side of the pipe', async () => {
+    const transport = await create({ type: 'inMemory', name: '@cherry/memory', env: { MEMORY_FILE_PATH: '/tmp/m' } })
+
+    expect(createInMemoryMcpServer).toHaveBeenCalledWith('@cherry/memory', [], { MEMORY_FILE_PATH: '/tmp/m' })
+    expect(inMemoryServerMock.connect).toHaveBeenCalledWith('server-transport')
+    expect(transport).toBe('client-transport')
+  })
+
+  it('reports a failed in-process start instead of returning a dead transport', async () => {
+    inMemoryServerMock.connect.mockRejectedValueOnce(new Error('boom'))
+
+    await expect(create({ type: 'inMemory', name: '@cherry/memory' })).rejects.toThrow(
+      /Failed to start in-memory server: boom/
+    )
+  })
+
+  it('sends the app headers plus the server’s own on both URL transports', async () => {
+    const config = { type: 'streamableHttp' as const, baseUrl: 'https://mcp.example/mcp', headers: { APP: 'x' } }
+
+    const http = (await create(config)) as unknown as FakeTransport
+    expect(http.options.requestInit.headers).toMatchObject({ 'X-Title': 'Cherry Studio', APP: 'x' })
+    expect(http.options.fetch).toBeTypeOf('function')
+
+    const sse = (await create({ ...config, type: 'sse' })) as unknown as FakeTransport
+    expect(sse.options.requestInit.headers).toMatchObject({ 'X-Title': 'Cherry Studio', APP: 'x' })
+    expect(sse.options.eventSourceInit.fetch).toBeTypeOf('function')
+  })
+
+  it('honours the transport override so a fallback attempt uses the other transport', async () => {
+    const transport = (await create(
+      { type: 'sse', baseUrl: 'https://mcp.example/mcp' },
+      { typeOverride: 'streamableHttp' }
+    )) as unknown as FakeTransport
+
+    // The streamableHttp shape is the tell: its fetch sits at the top level, sse's does not.
+    expect(transport.options.fetch).toBeTypeOf('function')
+    expect(transport.options.eventSourceInit).toBeUndefined()
+  })
+
+  it('launches a stdio server with the resolved command and a proxy-free shell env', async () => {
+    const transport = (await create({
+      type: 'stdio',
+      command: 'npx',
+      registryUrl: 'https://registry.example'
+    })) as unknown as FakeStdioTransport
+
+    expect(transport.params.command).toBe('/usr/local/bin/npx')
+    expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
+    expect(transport.params.env.PATH).toBe('/shell/bin')
+    expect(transport.params.stderr).toBe('pipe')
+  })
+
+  it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
+    const entries: McpServerLogEntry[] = []
+    const transport = (await create(
+      { type: 'stdio', command: 'npx' },
+      { onServerLog: (entry) => entries.push(entry) }
+    )) as unknown as FakeStdioTransport
+
+    const onData = transport.stderr.on.mock.calls.find(([event]) => event === 'data')?.[1]
+    onData(Buffer.from('server crashed\n'))
+    onData(Buffer.from('   '))
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ level: 'stderr', message: 'server crashed', source: 'stdio' })
+  })
+
+  it('refuses a config that says neither where to connect nor what to run', async () => {
+    await expect(create({ type: 'stdio' })).rejects.toThrow(/Either baseUrl or command must be provided/)
+  })
+})

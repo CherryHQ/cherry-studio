@@ -135,9 +135,10 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
   '../McpRuntimeService'
 )
+const { redactSensitive } = await import('../mcpRedact')
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
