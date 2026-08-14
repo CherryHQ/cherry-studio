@@ -38,18 +38,24 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
 
-function RuntimeCardBody({ runtime, t }: { runtime: AgentType; t: TFunction }) {
+function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {
   const caps = AGENT_RUNTIME_CAPABILITIES[runtime]
   const Icon = RUNTIME_ICONS[runtime]
 
   return (
     <>
-      <ItemMedia variant="icon" className="border-border-subtle bg-muted/60">
-        <Icon />
+      <ItemMedia
+        variant={compact ? 'default' : 'icon'}
+        className={cn(compact ? 'size-4.5 text-muted-foreground' : 'border-border-subtle bg-muted/60')}>
+        <Icon className={compact ? 'size-4.5' : undefined} />
       </ItemMedia>
-      <ItemContent className="min-w-0 text-left">
-        <ItemTitle>{t(caps.labelKey, caps.labelFallback)}</ItemTitle>
-        <ItemDescription className="text-xs">{t(RUNTIME_DESCRIPTION_KEYS[runtime])}</ItemDescription>
+      <ItemContent className={cn('min-w-0 text-left', compact && 'gap-0.5')}>
+        <ItemTitle className={compact ? 'block max-w-full truncate' : undefined}>
+          {t(caps.labelKey, caps.labelFallback)}
+        </ItemTitle>
+        <ItemDescription className={cn('text-xs', compact && 'min-h-8')}>
+          {t(RUNTIME_DESCRIPTION_KEYS[runtime])}
+        </ItemDescription>
       </ItemContent>
     </>
   )
@@ -86,7 +92,7 @@ export function AgentRuntimeTiles({
             size="sm"
             variant="outline"
             className={cn(
-              'w-full cursor-pointer rounded-xl font-normal hover:bg-accent/50',
+              'w-full cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 font-normal hover:bg-accent/50',
               // Focus needs its own signal: the selected card is already `border-primary`, so
               // reusing the border would make tabbing onto it invisible.
               'has-[[data-slot=radio-group-item]:focus-visible]:bg-accent',
@@ -95,8 +101,10 @@ export function AgentRuntimeTiles({
             )}>
             <Label htmlFor={optionId}>
               <RadioGroupItem id={optionId} value={runtime} className="sr-only" />
-              <RuntimeCardBody runtime={runtime} t={t} />
-              <ItemActions>{selected ? <Check className="size-4 text-primary" /> : null}</ItemActions>
+              <RuntimeCardBody runtime={runtime} t={t} compact />
+              <ItemActions className="size-4 shrink-0">
+                {selected ? <Check className="size-4 text-primary" /> : null}
+              </ItemActions>
             </Label>
           </Item>
         )
