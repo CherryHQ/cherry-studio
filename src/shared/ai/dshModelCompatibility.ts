@@ -64,23 +64,10 @@ export function mapEndpointToDshApi(
   }
 }
 
-/**
- * The effective chat endpoint the dsh runtime uses. Dual OpenAI-chat +
- * Anthropic models prefer Anthropic when that route is configured, matching
- * the main-process injection path.
- */
+/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  const preferredEndpoint =
-    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
-    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
-    provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      : undefined
   return (
-    preferredEndpoint ??
-    model.endpointTypes?.[0] ??
-    resolveGatewayChatRoute(provider, model)?.endpointType ??
-    provider.defaultChatEndpoint
+    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
   )
 }
 

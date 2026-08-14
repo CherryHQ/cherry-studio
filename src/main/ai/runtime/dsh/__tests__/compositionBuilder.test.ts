@@ -168,31 +168,46 @@ describe('buildDshCompositionYaml', () => {
     expect(audioYml).not.toContain('- "audio"')
   })
 
-  it('uses the same Anthropic preference as the shared filter for dual-protocol models', () => {
+  it("honors Google as CherryIN's first declared route when the model supports multiple protocols", () => {
     const provider = {
-      id: 'dual',
-      name: 'Dual',
+      id: 'cherryin',
+      name: 'CherryIN',
       apiFeatures: DEFAULT_API_FEATURES,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai', baseUrl: 'https://openai.example' },
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://anthropic.example' }
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+          adapterFamily: 'cherryin',
+          baseUrl: 'https://open.cherryin.net'
+        },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'cherryin',
+          baseUrl: 'https://open.cherryin.net'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'cherryin',
+          baseUrl: 'https://open.cherryin.net'
+        }
       }
     } as unknown as Provider
     const model = {
-      id: 'dual::model',
-      providerId: 'dual',
-      apiModelId: 'model',
-      name: 'Dual model',
+      id: 'cherryin::google/gemini-3.6-flash',
+      providerId: 'cherryin',
+      apiModelId: 'google/gemini-3.6-flash',
+      name: 'Google: Gemini 3.6 Flash',
       capabilities: [],
-      contextWindow: 128_000,
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      contextWindow: 1_048_576,
+      endpointTypes: [
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
     } as unknown as Model
 
     const injection = buildDshProviderInjection(provider, model, SECRET_API_KEY)
 
-    expect(injection.api).toBe('anthropic-messages')
-    expect(injection.baseUrl).toBe('https://anthropic.example')
+    expect(injection.api).toBe('google-generative-ai')
+    expect(injection.providerName).toBe('google')
+    expect(injection.baseUrl).toBe('https://open.cherryin.net/v1beta')
   })
 
   it.each(['gemini', 'cherryin', 'aihubmix', 'dmxapi'])(
