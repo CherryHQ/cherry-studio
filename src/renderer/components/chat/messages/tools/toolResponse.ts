@@ -45,11 +45,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function normalizeToolName(part: ToolResponsePart): string {
-  const toolName = getToolName(part).trim() || 'unknown'
-  return hasCherryTransport(part.callProviderMetadata)
+/**
+ * Canonical tool identity for a tool part: cherry-runtime parts (tagged via
+ * `providerMetadata.cherry.transport`) map their runtime-native tool name onto the shared
+ * `AgentToolsType` name; all other parts keep their wire name.
+ */
+export function getCanonicalToolName(part: CherryMessagePart): string | undefined {
+  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return undefined
+  const toolPart = part as unknown as ToolResponsePart
+  const toolName = getToolName(toolPart).trim()
+  if (!toolName) return undefined
+  return hasCherryTransport(toolPart.callProviderMetadata)
     ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
     : toolName
+}
+
+function normalizeToolName(part: ToolResponsePart): string {
+  return getCanonicalToolName(part as unknown as CherryMessagePart) ?? 'unknown'
 }
 
 function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
