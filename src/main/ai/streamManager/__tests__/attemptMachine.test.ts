@@ -77,10 +77,47 @@ describe('attemptMachine', () => {
     const state: AttemptState = { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'done' } }
     const result = transition(state, { type: 'persist-failed', error, durableErrorWritten: false })
 
+    // The original outcome survives the block — recovery replays the real terminal, so a
+    // transient write failure must not demote a successful reply to error.
     expect(result).toEqual({
       ok: true,
-      state: { phase: 'persistence-blocked', firstChunkAt: null, outcome: { kind: 'error', error } }
+      state: { phase: 'persistence-blocked', firstChunkAt: null, outcome: { kind: 'done' }, persistError: error }
     })
+  })
+
+  it('persisted from blocked settles with the preserved original outcome', () => {
+    const state: AttemptState = {
+      phase: 'persistence-blocked',
+      firstChunkAt: 1,
+      outcome: { kind: 'done' },
+      persistError: error
+    }
+    const result = transition(state, { type: 'persisted' })
+
+    expect(result).toEqual({ ok: true, state: { phase: 'settled', firstChunkAt: 1, outcome: { kind: 'done' } } })
+  })
+
+  it('abandon settles a blocked attempt as error(persistError) and is legal nowhere else', () => {
+    const blocked: AttemptState = {
+      phase: 'persistence-blocked',
+      firstChunkAt: 1,
+      outcome: { kind: 'done' },
+      persistError: error
+    }
+    expect(transition(blocked, { type: 'abandon' })).toEqual({
+      ok: true,
+      state: { phase: 'settled', firstChunkAt: 1, outcome: { kind: 'error', error } }
+    })
+
+    const nonBlocked: AttemptState[] = [
+      { phase: 'reserved' },
+      { phase: 'running', firstChunkAt: 1 },
+      { phase: 'finalizing', firstChunkAt: 1, outcome: { kind: 'done' } },
+      { phase: 'settled', firstChunkAt: 1, outcome: { kind: 'done' } }
+    ]
+    for (const state of nonBlocked) {
+      expect(transition(state, { type: 'abandon' }).ok).toBe(false)
+    }
   })
 
   it('reduces running, approval, and terminal attempt sets deterministically', () => {

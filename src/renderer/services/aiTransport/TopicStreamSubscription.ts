@@ -470,7 +470,7 @@ export class TopicStreamSubscription {
     this.#applyProtocolEvent(event)
   }
 
-  #applyProtocolEvent(event: StreamProtocolEvent): void {
+  #applyProtocolEvent(event: StreamProtocolEvent, source: 'live' | 'snapshot-replay' = 'live'): void {
     if (this.#cycleId !== undefined && event.cycleId < this.#cycleId) return
     if (this.#cycleId === undefined || event.cycleId > this.#cycleId) {
       this.#cycleId = event.cycleId
@@ -493,9 +493,11 @@ export class TopicStreamSubscription {
         return
       }
       this.#lastChunkSeq.set(attemptId, event.throughChunkSeq)
-      const topicStateChanged = !this.#topicOpen
-      this.#topicOpen = true
-      this.#lastQuiesced = undefined
+      const topicStateChanged = source === 'live' && !this.#topicOpen
+      if (source === 'live') {
+        this.#topicOpen = true
+        this.#lastQuiesced = undefined
+      }
       this.#routeChunk(event)
       if (topicStateChanged) this.#notifyTopicStateChange()
       return
@@ -539,7 +541,7 @@ export class TopicStreamSubscription {
 
     for (const attempt of snapshot.attempts) {
       for (const event of [...attempt.replayChunks].sort((left, right) => left.chunkSeq - right.chunkSeq)) {
-        this.#applyProtocolEvent(event)
+        this.#applyProtocolEvent(event, 'snapshot-replay')
       }
       const attemptId = toAttemptId(attempt.attemptId)
       this.#lastChunkSeq.set(attemptId, Math.max(this.#lastChunkSeq.get(attemptId) ?? 0, attempt.throughChunkSeq))
@@ -562,14 +564,16 @@ export class TopicStreamSubscription {
     }
 
     const pending = this.#pendingProtocolEvents.splice(0).filter((event) => event.cycleId >= snapshot.cycleId)
+    // Total order (chunks < controls, then attemptId, then chunkSeq) — an inconsistent
+    // comparator makes sort implementation-defined and can shuffle a single attempt's
+    // chunks, which the chunkSeq dedup below would then silently drop.
     pending.sort((left, right) => {
-      if (left.type === 'chunk' && right.type === 'chunk' && left.attemptId === right.attemptId) {
+      if (left.type === 'chunk' && right.type === 'chunk') {
+        if (left.attemptId !== right.attemptId) return left.attemptId - right.attemptId
         return left.chunkSeq - right.chunkSeq
       }
       if (left.type !== 'chunk' && right.type !== 'chunk') return left.controlRevision - right.controlRevision
-      if (left.type === 'chunk') return -1
-      if (right.type === 'chunk') return 1
-      return 0
+      return left.type === 'chunk' ? -1 : 1
     })
     for (const event of pending) this.#applyProtocolEvent(event)
     if (!this.#topicOpen && !this.#lastQuiesced) {
@@ -594,6 +598,11 @@ export class TopicStreamSubscription {
       ipcApi.on('ai.stream.chunk', (data) => this.#receiveLegacy(() => this.#routeChunk(data))),
       ipcApi.on('ai.stream.done', (data) => {
         if (data.topicId !== this.#topicId) return
+        // Advance the fence EAGERLY (monotonic, so safe under either protocol): attach replay
+        // is routed before this deferred thunk runs, and covered attempts must not resurface.
+        if (data.isTopicDone && data.topicAttemptWatermark !== undefined) {
+          this.#projection.advanceWatermark(data.topicAttemptWatermark)
+        }
         this.#receiveLegacy(() => {
           const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
           const terminal: ExecutionTerminal = {
@@ -616,6 +625,9 @@ export class TopicStreamSubscription {
       }),
       ipcApi.on('ai.stream.error', (data) => {
         if (data.topicId !== this.#topicId) return
+        if (data.isTopicDone && data.topicAttemptWatermark !== undefined) {
+          this.#projection.advanceWatermark(data.topicAttemptWatermark)
+        }
         this.#receiveLegacy(() => {
           const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
           this.#enqueueError(

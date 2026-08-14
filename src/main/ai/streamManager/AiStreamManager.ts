@@ -39,7 +39,13 @@ import {
   type LiveExecutionChangeIntent,
   type StreamIntent
 } from './admission'
-import { type AttemptEvent, executionStatus, isAttemptRunning, isAttemptSettled } from './attemptMachine'
+import {
+  type AttemptEvent,
+  type AttemptOutcome,
+  executionStatus,
+  isAttemptRunning,
+  isAttemptSettled
+} from './attemptMachine'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -74,7 +80,20 @@ type ManagedAiStreamRequest = AiStreamRequest & { usageContext?: InProcessUsageC
 interface PersistenceDispatchFailure {
   error: SerializedError
   durableErrorWritten: boolean
+  blockedPortIds: Set<string>
 }
+
+interface BlockedPersistenceRecovery {
+  topicId: string
+  /** Attempt the deferred durable write once. Returns true when the recovery is finished
+   *  (either it succeeded or the attempt is no longer blocked) and the entry can be dropped. */
+  retry: () => Promise<boolean>
+  /** Explicit give-up (Stop): settle the attempt as error(persistError) and publish the
+   *  terminal without a durable write — boot reconcile converges the DB row later. */
+  abandon: () => Promise<void>
+}
+
+const PERSISTENCE_RETRY_INTERVAL_MS = 5_000
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
 // router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
@@ -361,6 +380,11 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /** Durable terminal writes that failed without even an error marker. They stay topic-owned and
+   *  retry in-process so a transient database outage cannot leave the aggregate open forever. */
+  private readonly blockedPersistenceRecoveries = new Map<string, BlockedPersistenceRecovery>()
+  private readonly activePersistenceRecoveryKeys = new Set<string>()
+  private readonly inFlightPersistenceRecoveries = new Map<Promise<void>, string>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -390,6 +414,7 @@ export class AiStreamManager extends BaseService {
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     this.reconcileStalePendingMessages()
     this.markReconciled()
+    this.registerInterval(() => this.retryBlockedPersistence(), PERSISTENCE_RETRY_INTERVAL_MS)
     logger.info('AiStreamManager initialized')
   }
 
@@ -551,6 +576,9 @@ export class AiStreamManager extends BaseService {
     for (const topicId of this.inFlightChatContinuations.keys()) {
       work.push({ id: `chat-continuation:${topicId}`, summary: 'steer continuation launching' })
     }
+    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
+      work.push({ id: `persistence-recovery:${key}`, summary: `terminal persistence blocked:${recovery.topicId}` })
+    }
     return work
   }
 
@@ -569,6 +597,9 @@ export class AiStreamManager extends BaseService {
     for (const [topicId, launch] of this.inFlightChatContinuations) {
       entries.push([launch, `chat-continuation:${topicId}`])
     }
+    for (const [recovery, id] of this.inFlightPersistenceRecoveries) {
+      entries.push([recovery, id])
+    }
     for (const [key, write] of topicNamingService.inFlightWrites()) {
       entries.push([write, `naming:${key}`])
     }
@@ -579,6 +610,7 @@ export class AiStreamManager extends BaseService {
    *  WITHOUT draining the set, so a newer hold (or shutdown) inherits the debt. */
   private runReleaseCompensation(): void {
     if (this.isShuttingDown || this.isWriteQuiesced) return
+    void this.retryBlockedPersistence()
     const suppressed = [...this.suppressedChatContinuationTopicIds]
     this.suppressedChatContinuationTopicIds.clear()
     for (const topicId of suppressed) this.scheduleNextChatTurn(topicId)
@@ -652,20 +684,21 @@ export class AiStreamManager extends BaseService {
       )
       .map(([topicId]) => topicId)
 
-    if (activeTopics.length === 0) return
-    logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
-
     const loopPromises: Promise<void>[] = []
-    for (const topicId of activeTopics) {
-      const stream = this.activeStreams.get(topicId)
-      if (!stream) continue
-      for (const exec of stream.executions.values()) {
-        loopPromises.push(exec.loopPromise)
+    if (activeTopics.length > 0) {
+      logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
+      for (const topicId of activeTopics) {
+        const stream = this.activeStreams.get(topicId)
+        if (!stream) continue
+        for (const exec of stream.executions.values()) {
+          loopPromises.push(exec.loopPromise)
+        }
+        this.abort(topicId, 'app-shutdown')
       }
-      this.abort(topicId, 'app-shutdown')
     }
 
     await Promise.allSettled(loopPromises)
+    await Promise.allSettled([...this.inFlightPersistenceRecoveries.keys()])
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -777,8 +810,166 @@ export class AiStreamManager extends BaseService {
         attemptControlRevisions.push(aggregate.controlRevision)
       }
     })
+
+    if (!durableErrorWritten) {
+      this.enqueueReservationPersistenceRecovery(receipt, topicId, error, persist, attempts)
+      return
+    }
+    this.publishDispatchReservationFailure(receipt, topicId, error, attempts, attemptControlRevisions)
+  }
+
+  /** Retry every fail-closed terminal write. Production calls this from a lifecycle-scoped interval;
+   *  it remains public so recovery can also be triggered explicitly after storage health returns. */
+  async retryBlockedPersistence(): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+
+    const retries: Promise<void>[] = []
+    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
+      if (this.activePersistenceRecoveryKeys.has(key)) continue
+      this.activePersistenceRecoveryKeys.add(key)
+
+      const retry = (async () => {
+        try {
+          const recovered = await recovery.retry()
+          if (recovered && this.blockedPersistenceRecoveries.get(key) === recovery) {
+            this.blockedPersistenceRecoveries.delete(key)
+          }
+        } catch (recoveryError) {
+          logger.error('Blocked topic persistence recovery threw', {
+            topicId: recovery.topicId,
+            recoveryError
+          })
+        } finally {
+          this.activePersistenceRecoveryKeys.delete(key)
+        }
+      })()
+      this.inFlightPersistenceRecoveries.set(retry, `persistence-recovery:${recovery.topicId}`)
+      retries.push(retry)
+    }
+    await Promise.allSettled(retries)
+    for (const retry of retries) this.inFlightPersistenceRecoveries.delete(retry)
+  }
+
+  /**
+   * Stop during a blocked terminal write: give each of the topic's deferred writes one
+   * immediate chance (storage may already be back — then the ORIGINAL outcome lands), and
+   * abandon the ones that still fail so the user is not held hostage by a dead database.
+   * Shutdown keeps the old semantics (recoveries dropped, boot reconcile settles the rows).
+   */
+  private async abandonBlockedPersistence(topicId: string, reason: string): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const keys = [...this.blockedPersistenceRecoveries]
+      .filter(([, recovery]) => recovery.topicId === topicId)
+      .map(([key]) => key)
+    if (keys.length === 0) return
+    logger.warn('Stop while terminal persistence is blocked — retrying once, then abandoning', {
+      topicId,
+      reason,
+      keys
+    })
+
+    for (const key of keys) {
+      // Serialize with the interval retry: abandoning while a write for the same key is in
+      // flight could publish an error terminal for a write that actually committed.
+      while (this.activePersistenceRecoveryKeys.has(key)) {
+        await Promise.allSettled([...this.inFlightPersistenceRecoveries.keys()])
+      }
+      const recovery = this.blockedPersistenceRecoveries.get(key)
+      if (!recovery) continue
+
+      this.activePersistenceRecoveryKeys.add(key)
+      const run = (async () => {
+        try {
+          const recovered = await recovery.retry()
+          if (!recovered) await recovery.abandon()
+          if (this.blockedPersistenceRecoveries.get(key) === recovery) {
+            this.blockedPersistenceRecoveries.delete(key)
+          }
+        } catch (abandonError) {
+          logger.error('Abandoning blocked persistence failed', { topicId, key, abandonError })
+        } finally {
+          this.activePersistenceRecoveryKeys.delete(key)
+        }
+      })()
+      this.inFlightPersistenceRecoveries.set(run, `persistence-recovery:${topicId}`)
+      await run
+      this.inFlightPersistenceRecoveries.delete(run)
+    }
+  }
+
+  private enqueueReservationPersistenceRecovery(
+    receipt: DispatchCommandReceipt,
+    topicId: string,
+    notificationError: SerializedError,
+    persist: () => void,
+    attempts: ReadonlyArray<{ modelId: UniqueModelId; anchorMessageId: string }>
+  ): void {
+    const attemptIds = receipt.reservedAttemptIds ?? []
+    const key = `reservation:${attemptIds.join(',')}`
+    this.blockedPersistenceRecoveries.set(key, {
+      topicId,
+      retry: async () => {
+        const aggregate = this.topicAggregates.get(topicId) ?? this.activeStreams.get(topicId)?.aggregate
+        if (!aggregate) return true
+        const blockedAttemptIds = attemptIds.filter(
+          (attemptId) => aggregate.attemptState(attemptId)?.phase === 'persistence-blocked'
+        )
+        if (blockedAttemptIds.length === 0) return true
+
+        try {
+          persist()
+        } catch (persistenceError) {
+          const serializedError = serializeError(persistenceError)
+          for (const attemptId of blockedAttemptIds) {
+            aggregate.transitionAttempt(attemptId, {
+              type: 'persist-failed',
+              error: serializedError,
+              durableErrorWritten: false
+            })
+          }
+          logger.error('Dispatch reservation persistence recovery failed', { topicId, persistenceError })
+          return false
+        }
+
+        const attemptControlRevisions: number[] = []
+        for (const attemptId of attemptIds) {
+          if (aggregate.attemptState(attemptId)?.phase === 'persistence-blocked') {
+            aggregate.transitionAttempt(attemptId, { type: 'persisted' })
+          }
+          attemptControlRevisions.push(aggregate.controlRevision)
+        }
+        this.publishDispatchReservationFailure(receipt, topicId, notificationError, attempts, attemptControlRevisions)
+        return true
+      },
+      abandon: async () => {
+        const aggregate = this.topicAggregates.get(topicId) ?? this.activeStreams.get(topicId)?.aggregate
+        if (!aggregate) return
+        const attemptControlRevisions: number[] = []
+        let abandoned = false
+        for (const attemptId of attemptIds) {
+          if (aggregate.attemptState(attemptId)?.phase === 'persistence-blocked') {
+            aggregate.transitionAttempt(attemptId, { type: 'abandon' })
+            abandoned = true
+          }
+          attemptControlRevisions.push(aggregate.controlRevision)
+        }
+        if (!abandoned) return
+        this.publishDispatchReservationFailure(receipt, topicId, notificationError, attempts, attemptControlRevisions)
+      }
+    })
+  }
+
+  private publishDispatchReservationFailure(
+    receipt: DispatchCommandReceipt,
+    topicId: string,
+    error: SerializedError,
+    attempts: ReadonlyArray<{ modelId: UniqueModelId; anchorMessageId: string }>,
+    attemptControlRevisions: readonly number[]
+  ): void {
+    const aggregate = this.topicAggregates.get(topicId) ?? this.activeStreams.get(topicId)?.aggregate
+    if (!aggregate) return
     const stream = this.activeStreams.get(topicId)
-    if (stream && durableErrorWritten) {
+    if (stream) {
       const topicQuiescent = aggregate.isQuiescent()
       const topicControlRevision = topicQuiescent ? aggregate.issueControlRevision() : undefined
       stream.status = aggregate.status()
@@ -817,9 +1008,11 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     const isLive = isStreamExecuting(stream)
     const hasReservedAttempt = !stream && this.topicAggregates.get(topicId)?.hasUnsettledAttempts() === true
+    const hasBlockedAttempt =
+      (stream?.aggregate ?? this.topicAggregates.get(topicId))?.hasPersistenceBlockedAttempts() === true
 
     if (intent.mode === 'start') {
-      if ((isLive || hasReservedAttempt) && intent.modelCount > 0) {
+      if ((isLive || hasReservedAttempt || hasBlockedAttempt) && intent.modelCount > 0) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
       }
       return { mode: 'start-new' }
@@ -829,7 +1022,7 @@ export class AiStreamManager extends BaseService {
     if (!isPersistedReplyGroupAnchor(targetMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)) {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     }
-    if (hasReservedAttempt) throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+    if (hasReservedAttempt || hasBlockedAttempt) throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
     if (!stream || !isLive) return { mode: 'start-new' }
 
     if (intent.mode === 'append') {
@@ -900,6 +1093,9 @@ export class AiStreamManager extends BaseService {
     }
 
     const existing = this.activeStreams.get(input.topicId)
+    if (existing?.aggregate.hasPersistenceBlockedAttempts() && input.models.length > 0) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+    }
     const liveExecutionChange = input.liveExecutionChange
     const committedLiveExecutionChange =
       input.receipt?.admission.mode === 'append-live' || input.receipt?.admission.mode === 'replace-live'
@@ -1324,7 +1520,14 @@ export class AiStreamManager extends BaseService {
     // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
       for (const chunk of exec.buffer) {
-        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId)
+        // Forward the buffered protocol metadata — without it WebContentsListener emits only
+        // legacy events and a v2-subscribed renderer drops the replayed chunk.
+        const { cycleId, chunkSeq, throughChunkSeq } = chunk
+        const metadata =
+          cycleId !== undefined && chunkSeq !== undefined && throughChunkSeq !== undefined
+            ? { cycleId, chunkSeq, throughChunkSeq }
+            : undefined
+        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, metadata)
       }
     }
     return true
@@ -1417,6 +1620,9 @@ export class AiStreamManager extends BaseService {
 
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
+    // Stop is the explicit escape from a blocked terminal write: one immediate retry, then abandon.
+    // Fire-and-forget like the rest of abort — the terminal lands asynchronously.
+    void this.abandonBlockedPersistence(topicId, reason)
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isStreamExecuting(stream)) {
       if (isAgentSessionTopic(topicId)) {
@@ -1635,15 +1841,7 @@ export class AiStreamManager extends BaseService {
       stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
-    if (persistenceFailure && !persistenceFailure.durableErrorWritten) {
-      exec.error = persistenceFailure.error
-      logger.error('Topic persistence is blocked without a durable terminal marker', {
-        topicId,
-        modelId,
-        attemptId: exec.attemptId
-      })
-      return
-    }
+    if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
     if (persistenceFailure) {
       exec.error = persistenceFailure.error
       await this.broadcastExecutionError(stream, exec, persistenceFailure.error, topicQuiescent, 'settled')
@@ -1710,15 +1908,7 @@ export class AiStreamManager extends BaseService {
     }
     const topicQuiescent = stream.aggregate.isQuiescent()
 
-    if (persistenceFailure && !persistenceFailure.durableErrorWritten) {
-      exec.error = persistenceFailure.error
-      logger.error('Topic persistence is blocked without a durable terminal marker', {
-        topicId,
-        modelId,
-        attemptId: exec.attemptId
-      })
-      return
-    }
+    if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
     if (persistenceFailure) {
       exec.error = persistenceFailure.error
       await this.broadcastExecutionError(stream, exec, persistenceFailure.error, topicQuiescent, 'settled')
@@ -1781,15 +1971,7 @@ export class AiStreamManager extends BaseService {
       stream.status = this.computeTopicStatus(stream)
     }
     const topicQuiescent = stream.aggregate.isQuiescent()
-    if (persistenceFailure && !persistenceFailure.durableErrorWritten) {
-      exec.error = persistenceFailure.error
-      logger.error('Topic persistence is blocked without a durable terminal marker', {
-        topicId,
-        modelId,
-        attemptId: exec.attemptId
-      })
-      return
-    }
+    if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
     if (persistenceFailure) exec.error = persistenceFailure.error
     await this.broadcastExecutionError(stream, exec, persistenceFailure?.error ?? error, topicQuiescent, 'settled')
 
@@ -1798,6 +1980,114 @@ export class AiStreamManager extends BaseService {
       this.dropPendingSteers(topicId, 'error')
       this.runTerminalLifecycle(stream)
     }
+  }
+
+  private deferBlockedExecutionPersistence(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    failure: PersistenceDispatchFailure | undefined
+  ): boolean {
+    if (!failure || failure.durableErrorWritten) return false
+
+    let blockedPortIds = new Set(failure.blockedPortIds)
+    const key = `execution:${exec.attemptId}`
+    this.blockedPersistenceRecoveries.set(key, {
+      topicId: stream.topicId,
+      retry: async () => {
+        const current = this.activeStreams.get(stream.topicId)
+        if (current !== stream || exec.attempt.state.phase !== 'persistence-blocked') return true
+
+        // Replay the ORIGINAL terminal write. A reply that completed cleanly before a
+        // transient storage outage settles as success once storage recovers — the error
+        // demotion is reserved for the durable-marker fallback below.
+        const retryFailure = await this.replayTerminalPersistence(
+          stream,
+          exec,
+          exec.attempt.state.outcome,
+          blockedPortIds
+        )
+        if (this.activeStreams.get(stream.topicId) !== stream || exec.attempt.state.phase !== 'persistence-blocked') {
+          return true
+        }
+        this.transitionAttempt(
+          stream.aggregate,
+          exec,
+          retryFailure
+            ? {
+                type: 'persist-failed',
+                error: retryFailure.error,
+                durableErrorWritten: retryFailure.durableErrorWritten
+              }
+            : { type: 'persisted' }
+        )
+        if (retryFailure && !retryFailure.durableErrorWritten) {
+          blockedPortIds = new Set(retryFailure.blockedPortIds)
+          return false
+        }
+        await this.settleUnblockedExecution(stream, exec)
+        return true
+      },
+      abandon: async () => {
+        if (this.activeStreams.get(stream.topicId) !== stream || exec.attempt.state.phase !== 'persistence-blocked') {
+          return
+        }
+        this.transitionAttempt(stream.aggregate, exec, { type: 'abandon' })
+        await this.settleUnblockedExecution(stream, exec)
+      }
+    })
+    logger.error('Topic persistence is blocked without a durable terminal marker; recovery queued', {
+      topicId: stream.topicId,
+      modelId: exec.modelId,
+      attemptId: exec.attemptId
+    })
+    return true
+  }
+
+  /** Dispatch the persistence-stage write matching the attempt's original outcome. */
+  private replayTerminalPersistence(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    outcome: AttemptOutcome,
+    blockedPortIds: ReadonlySet<string>
+  ): Promise<PersistenceDispatchFailure | undefined> {
+    if (outcome.kind === 'done') return this.broadcastExecutionDone(stream, exec, false, 'persistence', blockedPortIds)
+    if (outcome.kind === 'aborted') {
+      return this.broadcastExecutionPaused(stream, exec, false, 'persistence', blockedPortIds)
+    }
+    return this.broadcastExecutionError(stream, exec, outcome.error, false, 'persistence', blockedPortIds)
+  }
+
+  /**
+   * Publish the settled terminal after an attempt leaves `persistence-blocked` (recovery
+   * or explicit abandon). Mirrors the settled tails of onExecutionDone/Paused/Error; a
+   * recovered clean turn chains a queued steer exactly like an unblocked one would have.
+   */
+  private async settleUnblockedExecution(stream: ActiveStream, exec: StreamExecution): Promise<void> {
+    const state = exec.attempt.state
+    if (state.phase !== 'settled') return
+    const outcome = state.outcome
+    if (outcome.kind === 'error') exec.error = outcome.error
+
+    stream.status = this.computeTopicStatus(stream)
+    const runtimeOutcome = stream.aggregate.runtimeOutcome()
+    const attemptsDurablySettled = stream.aggregate.areAttemptsDurablySettled()
+    if (attemptsDurablySettled && (runtimeOutcome === 'error' || runtimeOutcome === 'aborted')) {
+      this.dropPendingSteers(stream.topicId, runtimeOutcome)
+      stream.status = this.computeTopicStatus(stream)
+    }
+    const chatChaining = attemptsDurablySettled && runtimeOutcome === 'done' && this.hasPendingSteer(stream.topicId)
+    const topicQuiescent = stream.aggregate.isQuiescent()
+
+    if (outcome.kind === 'done') {
+      await this.broadcastExecutionDone(stream, exec, topicQuiescent, 'settled')
+    } else if (outcome.kind === 'aborted') {
+      await this.broadcastExecutionPaused(stream, exec, topicQuiescent, 'settled')
+    } else {
+      await this.broadcastExecutionError(stream, exec, outcome.error, topicQuiescent, 'settled')
+    }
+
+    if (chatChaining) this.scheduleNextChatTurn(stream.topicId)
+    else if (topicQuiescent) this.runTerminalLifecycle(stream)
   }
 
   /** Drop a topic's queued steers on a non-clean terminal, surfacing the discard. Their persisted
@@ -2307,7 +2597,8 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     exec: StreamExecution,
     isTopicDone: boolean,
-    phase: 'persistence' | 'settled'
+    phase: 'persistence' | 'settled',
+    persistencePortIds?: ReadonlySet<string>
   ): Promise<PersistenceDispatchFailure | undefined> {
     const controlRevision = stream.aggregate.controlRevision
     const topicControlRevision = isTopicDone ? stream.aggregate.issueControlRevision() : undefined
@@ -2328,7 +2619,7 @@ export class AiStreamManager extends BaseService {
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
     if (phase === 'persistence') {
-      return this.dispatchToPersistencePorts(stream, 'onDone', (port) => port.onDone(result))
+      return this.dispatchToPersistencePorts(stream, 'onDone', (port) => port.onDone(result), persistencePortIds)
     }
     await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
     if (isTopicDone) await this.dispatchCleanupPorts(stream, result)
@@ -2339,7 +2630,8 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     exec: StreamExecution,
     isTopicDone: boolean,
-    phase: 'persistence' | 'settled'
+    phase: 'persistence' | 'settled',
+    persistencePortIds?: ReadonlySet<string>
   ): Promise<PersistenceDispatchFailure | undefined> {
     const controlRevision = stream.aggregate.controlRevision
     const topicControlRevision = isTopicDone ? stream.aggregate.issueControlRevision() : undefined
@@ -2358,7 +2650,7 @@ export class AiStreamManager extends BaseService {
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
     if (phase === 'persistence') {
-      return this.dispatchToPersistencePorts(stream, 'onPaused', (port) => port.onPaused(result))
+      return this.dispatchToPersistencePorts(stream, 'onPaused', (port) => port.onPaused(result), persistencePortIds)
     }
     await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
     if (isTopicDone) await this.dispatchCleanupPorts(stream, result)
@@ -2370,7 +2662,8 @@ export class AiStreamManager extends BaseService {
     exec: StreamExecution,
     error: SerializedError,
     isTopicDone: boolean,
-    phase: 'persistence' | 'settled'
+    phase: 'persistence' | 'settled',
+    persistencePortIds?: ReadonlySet<string>
   ): Promise<PersistenceDispatchFailure | undefined> {
     const controlRevision = stream.aggregate.controlRevision
     const topicControlRevision = isTopicDone ? stream.aggregate.issueControlRevision() : undefined
@@ -2390,7 +2683,7 @@ export class AiStreamManager extends BaseService {
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
     if (phase === 'persistence') {
-      return this.dispatchToPersistencePorts(stream, 'onError', (port) => port.onError(result))
+      return this.dispatchToPersistencePorts(stream, 'onError', (port) => port.onError(result), persistencePortIds)
     }
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
     if (isTopicDone) await this.dispatchCleanupPorts(stream, result)
@@ -2427,10 +2720,12 @@ export class AiStreamManager extends BaseService {
   private async dispatchToPersistencePorts(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (port: StreamPersistencePort) => void | Promise<void>
+    invoke: (port: StreamPersistencePort) => void | Promise<void>,
+    portIds?: ReadonlySet<string>
   ): Promise<PersistenceDispatchFailure | undefined> {
     let persistenceFailure: PersistenceDispatchFailure | undefined
     for (const [id, port] of stream.persistencePorts) {
+      if (portIds && !portIds.has(id)) continue
       try {
         await invoke(port)
       } catch (err) {
@@ -2438,15 +2733,18 @@ export class AiStreamManager extends BaseService {
           if (!persistenceFailure) {
             persistenceFailure = {
               error: err.serializedError,
-              durableErrorWritten: err.durableErrorWritten
+              durableErrorWritten: err.durableErrorWritten,
+              blockedPortIds: new Set()
             }
           } else if (!err.durableErrorWritten) {
             persistenceFailure.durableErrorWritten = false
           }
+          if (!err.durableErrorWritten) persistenceFailure.blockedPortIds.add(id)
         } else {
           logger.warn('Persistence port threw', { topicId: stream.topicId, persistencePortId: id, event, err })
-          persistenceFailure ??= { error: serializeError(err), durableErrorWritten: false }
+          persistenceFailure ??= { error: serializeError(err), durableErrorWritten: false, blockedPortIds: new Set() }
           persistenceFailure.durableErrorWritten = false
+          persistenceFailure.blockedPortIds.add(id)
         }
       }
     }
@@ -2484,6 +2782,9 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     if (stream.cleanupTimer) clearTimeout(stream.cleanupTimer)
+    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
+      if (recovery.topicId === topicId) this.blockedPersistenceRecoveries.delete(key)
+    }
     const unsettledAttempts = [...stream.executions.values()].filter((exec) => !isAttemptSettled(exec.attempt.state))
     if (unsettledAttempts.length > 0) {
       logger.error('Evicting stream with unsettled attempts', {

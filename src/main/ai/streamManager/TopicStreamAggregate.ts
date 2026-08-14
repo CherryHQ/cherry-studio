@@ -89,6 +89,10 @@ export class TopicStreamAggregate {
     return [...this.attempts.values()].some((attempt) => attempt.state.phase !== 'settled')
   }
 
+  hasPersistenceBlockedAttempts(): boolean {
+    return [...this.attempts.values()].some((attempt) => attempt.state.phase === 'persistence-blocked')
+  }
+
   forgetAttempt(id: AttemptId): void {
     if (this.attempts.delete(id)) this.touch()
   }

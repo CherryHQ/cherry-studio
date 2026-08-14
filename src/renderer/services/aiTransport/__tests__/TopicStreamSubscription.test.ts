@@ -123,7 +123,7 @@ function createMockAiApi() {
       status: 'success' | 'paused',
       isTopicDone?: boolean,
       anchorMessageId?: string,
-      attemptId = 1,
+      attemptId = executionId === undefined ? undefined : 1,
       topicAttemptWatermark?: number
     ) => {
       for (const cb of [...listeners.done]) {
@@ -197,13 +197,13 @@ describe('TopicStreamSubscription', () => {
   it('demuxes chunks to the correct branch by executionId; no cross-contamination', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const sa = sub.register(A, undefined, 1)
-    const sb = sub.register(B, undefined, 1)
+    const sb = sub.register(B, undefined, 2)
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('helloA'))
-    mock.emitChunk(TOPIC, B, textChunk('helloB'))
+    mock.emitChunk(TOPIC, B, textChunk('helloB'), undefined, 2)
     mock.emitDone(TOPIC, A, 'success')
-    mock.emitDone(TOPIC, B, 'success')
+    mock.emitDone(TOPIC, B, 'success', undefined, undefined, 2)
 
     const [ca, cb] = await Promise.all([readAll(sa), readAll(sb)])
     expect(ca).toEqual([textChunk('helloA')])
@@ -310,7 +310,7 @@ describe('TopicStreamSubscription', () => {
   it('one execution ending does NOT detach the topic or affect the other branch', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const sa = sub.register(A, undefined, 1)
-    const sb = sub.register(B, undefined, 1)
+    const sb = sub.register(B, undefined, 2)
     await tick()
 
     mock.emitChunk(TOPIC, A, textChunk('a1'))
@@ -321,9 +321,9 @@ describe('TopicStreamSubscription', () => {
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
     // B keeps flowing after A is gone.
-    mock.emitChunk(TOPIC, B, textChunk('b1'))
-    mock.emitChunk(TOPIC, B, textChunk('b2'))
-    mock.emitDone(TOPIC, B, 'success', true)
+    mock.emitChunk(TOPIC, B, textChunk('b1'), undefined, 2)
+    mock.emitChunk(TOPIC, B, textChunk('b2'), undefined, 2)
+    mock.emitDone(TOPIC, B, 'success', true, undefined, 2)
     expect(await readAll(sb)).toEqual([textChunk('b1'), textChunk('b2')])
     expect(await readAll(sa)).toEqual([textChunk('a1')])
     sub.dispose()
@@ -332,14 +332,14 @@ describe('TopicStreamSubscription', () => {
   it('detaches the topic exactly once when the LAST execution unregisters', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     sub.register(A, undefined, 1)
-    sub.register(B, undefined, 1)
+    sub.register(B, undefined, 2)
     await tick()
 
     sub.unregister(A, undefined, 1)
     await tick()
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
-    sub.unregister(B, undefined, 1)
+    sub.unregister(B, undefined, 2)
     await tick()
     expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId: TOPIC })
@@ -391,12 +391,12 @@ describe('TopicStreamSubscription', () => {
       status: 'attached',
       bufferedChunks: [
         { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replayA') },
-        { topicId: TOPIC, executionId: B, attemptId: 1, chunk: textChunk('replayB') }
+        { topicId: TOPIC, executionId: B, attemptId: 2, chunk: textChunk('replayB') }
       ] satisfies StreamChunkPayload[]
     })
     const sub = new TopicStreamSubscription(TOPIC)
     const sa = sub.register(A, undefined, 1)
-    const sb = sub.register(B, undefined, 1)
+    const sb = sub.register(B, undefined, 2)
     await tick()
     mock.emitDone(TOPIC, undefined, 'success', true)
     expect(await readAll(sa)).toEqual([textChunk('replayA')])
@@ -466,6 +466,123 @@ describe('TopicStreamSubscription', () => {
     })
 
     expect(await readAll(stream)).toEqual([textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
+  it('delivers every pending chunk in per-attempt order when two attempts interleave during attach', async () => {
+    // An inconsistent sort comparator makes Array.sort implementation-defined; V8's TimSort
+    // then shuffles a single attempt's chunks and the chunkSeq dedup silently drops them.
+    // 12 chunks per attempt is enough to leave insertion-sort territory and hit the bug.
+    let resolveAttach!: (res: {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      snapshot: StreamAttachSnapshot
+    }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{
+          status: 'attached'
+          bufferedChunks: StreamChunkPayload[]
+          snapshot: StreamAttachSnapshot
+        }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+    const chunkEvent = (executionId: UniqueModelId, attemptId: number, chunkSeq: number): StreamProtocolEvent => ({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 7,
+      executionId,
+      attemptId,
+      chunkSeq,
+      throughChunkSeq: chunkSeq,
+      chunk: textChunk(`${attemptId}:${chunkSeq}`)
+    })
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    const sb = sub.register(B, undefined, 2)
+    await tick()
+    const perAttempt = 12
+    for (let seq = 1; seq <= perAttempt; seq++) {
+      mock.emitProtocol(chunkEvent(A, 1, seq))
+      mock.emitProtocol(chunkEvent(B, 2, seq))
+    }
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          { executionId: A, attemptId: 1, phase: 'running', replayChunks: [], throughChunkSeq: 0 },
+          { executionId: B, attemptId: 2, phase: 'running', replayChunks: [], throughChunkSeq: 0 }
+        ]
+      }
+    })
+    await tick()
+    for (const [executionId, attemptId] of [
+      [A, 1],
+      [B, 2]
+    ] as const) {
+      mock.emitProtocol({
+        type: 'attempt-durably-settled',
+        topicId: TOPIC,
+        cycleId: 7,
+        controlRevision: attemptId + 1,
+        executionId,
+        attemptId,
+        outcome: 'success'
+      })
+    }
+
+    const expected = (attemptId: number) =>
+      Array.from({ length: perAttempt }, (_, i) => textChunk(`${attemptId}:${i + 1}`))
+    expect(await readAll(sa)).toEqual(expected(1))
+    expect(await readAll(sb)).toEqual(expected(2))
+    sub.dispose()
+  })
+
+  it('keeps a quiescent attach snapshot closed while replaying its final chunks', async () => {
+    const replayChunk: Extract<StreamProtocolEvent, { type: 'chunk' }> = {
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 7,
+      executionId: A,
+      attemptId: 1,
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('final replay')
+    }
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 2,
+        topicOpen: false,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            phase: 'settled',
+            outcome: 'success',
+            replayChunks: [replayChunk],
+            throughChunkSeq: 1
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onQuiesced = vi.fn()
+    sub.onTopicQuiesced(onQuiesced)
+    const stream = sub.register(A, undefined, 1)
+    await tick()
+
+    expect(await readAll(stream)).toEqual([textChunk('final replay')])
+    expect(sub.isTopicOpen()).toBe(false)
+    expect(onQuiesced).toHaveBeenCalledWith({ cycleId: 7, throughAttemptId: 1 })
     sub.dispose()
   })
 

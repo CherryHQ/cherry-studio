@@ -75,6 +75,12 @@ the same topic. `useExecutionOverlay` consumes each branch through
 `pipeStreamLoop`, so the renderer overlay and the persisted message
 are structurally identical.
 
+An attach snapshot owns the topic-level `topicOpen` value. Replayed chunks
+rebuild attempt content but cannot reopen a quiescent snapshot; only a live
+chunk from a current cycle can move the subscription back to open. A closed
+snapshot therefore synthesizes the same quiescence handoff as a live
+`topic-quiesced` barrier after replay finishes.
+
 See [Execution Overlay](./execution-overlay.md) for the merge-function
 symmetry, seed rule, cancellation layering, and lifecycle.
 

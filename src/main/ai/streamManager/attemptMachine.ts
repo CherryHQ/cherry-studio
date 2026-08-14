@@ -10,7 +10,15 @@ export type AttemptState =
   | { phase: 'reserved' }
   | { phase: 'running'; firstChunkAt: number | null }
   | { phase: 'finalizing'; firstChunkAt: number | null; outcome: AttemptOutcome }
-  | { phase: 'persistence-blocked'; firstChunkAt: number | null; outcome: Extract<AttemptOutcome, { kind: 'error' }> }
+  /** Terminal write not yet durable. Keeps the ORIGINAL outcome so recovery can replay the
+   *  real terminal (a transient DB failure must not demote a successful reply to error);
+   *  the persistence failure itself lives in `persistError`. */
+  | {
+      phase: 'persistence-blocked'
+      firstChunkAt: number | null
+      outcome: AttemptOutcome
+      persistError: SerializedError
+    }
   | { phase: 'settled'; firstChunkAt: number | null; outcome: AttemptOutcome }
 
 export type AttemptEvent =
@@ -22,6 +30,8 @@ export type AttemptEvent =
   | { type: 'abort'; reason: string }
   | { type: 'persisted' }
   | { type: 'persist-failed'; error: SerializedError; durableErrorWritten: boolean }
+  /** Explicit user give-up on a blocked terminal write (Stop). Settles as error(persistError). */
+  | { type: 'abandon' }
   | { type: 'approval-changed'; pending: boolean }
 
 export type TransitionResult = { ok: true; state: AttemptState } | { ok: false; kind: 'illegal' | 'stale' }
@@ -48,7 +58,7 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
           ok: true,
           state: event.durableErrorWritten
             ? { phase: 'settled', firstChunkAt: null, outcome }
-            : { phase: 'persistence-blocked', firstChunkAt: null, outcome }
+            : { phase: 'persistence-blocked', firstChunkAt: null, outcome, persistError: event.error }
         }
       }
       return illegal()
@@ -97,6 +107,8 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
         case 'persisted':
           return { ok: true, state: { phase: 'settled', firstChunkAt: state.firstChunkAt, outcome: state.outcome } }
         case 'persist-failed':
+          // Durable error marker written → the DB already says error, runtime must match.
+          // Not durable → keep the original outcome; only the write is blocked, not the turn.
           return {
             ok: true,
             state: event.durableErrorWritten
@@ -108,7 +120,8 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
               : {
                   phase: 'persistence-blocked',
                   firstChunkAt: state.firstChunkAt,
-                  outcome: { kind: 'error', error: event.error }
+                  outcome: state.outcome,
+                  persistError: event.error
                 }
           }
         case 'approval-changed':
@@ -120,6 +133,8 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
         case 'fail':
         case 'abort':
           return stale()
+        case 'abandon':
+          return illegal()
       }
       return illegal()
     case 'persistence-blocked':
@@ -138,8 +153,20 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
               : {
                   phase: 'persistence-blocked',
                   firstChunkAt: state.firstChunkAt,
-                  outcome: { kind: 'error', error: event.error }
+                  outcome: state.outcome,
+                  persistError: event.error
                 }
+          }
+        case 'abandon':
+          // The published error matches what boot reconcile will durably write for the
+          // still-pending row, so renderer and DB converge on the same terminal.
+          return {
+            ok: true,
+            state: {
+              phase: 'settled',
+              firstChunkAt: state.firstChunkAt,
+              outcome: { kind: 'error', error: state.persistError }
+            }
           }
         case 'approval-changed':
           return { ok: true, state }

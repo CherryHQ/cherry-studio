@@ -233,29 +233,39 @@ row the execution writes to. This is part of the stream branch identity:
 `anchorMessageId` distinguishes same-model chained turns such as steer
 continuations.
 
-### Built-in implementations
+### Terminal ports and liveness policy
 
-| Listener | Role | id | isAlive |
-|---|---|---|---|
-| **WebContentsListener** | chunks → renderer window | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` |
-| **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId ?? 'default'}` | always `true` |
-| **TraceFlushListener** | terminal trace-cache flush | `persistence:trace:${topicId}` | always `true` |
-| **ChannelAdapterListener** | text → IM platform | `channel:${channelId}:${chatId}` | `adapter.connected` |
-| **SseListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
+`AiStreamManager` separates terminal work into three registries and runs them
+in this order:
 
-### Unified liveness policy
+1. `persistencePorts` write the durable attempt projection.
+2. `listeners` notify renderer, channel, and SSE consumers only after the
+   attempt is durably settled.
+3. `cleanupPorts` run only after the whole topic is quiescent.
 
-`AiStreamManager.dispatchToListeners` is the single funnel for terminal
-events (`onDone` / `onPaused` / `onError`). It snapshots listeners, orders
-them by `terminalPhase` (`persistence` → notification → `cleanup`), and then:
+`dispatchToListeners` calls `listener.isAlive()` before each notification and
+isolates listener failures. Persistence failures use stricter semantics: when
+both the terminal write and its fallback error marker fail, the attempt enters
+`persistence-blocked` **keeping its original outcome** (`done`/`aborted`/`error`;
+the persistence failure lives separately in `persistError`). Main retains the
+failed port ownership and every five seconds replays the ORIGINAL terminal
+write — a reply that completed cleanly before a transient database outage
+settles as `success` once storage recovers, and a steer queued behind it chains
+normally; only the durable-error-marker fallback demotes the outcome. No
+attempt terminal, topic barrier, or cleanup is published until one retry
+succeeds. Write-quiesce pauses these retries, and releasing the last hold
+re-kicks them immediately.
 
-- Calls `listener.isAlive()` before each invocation — `false` removes the
-  listener from `stream.listeners` (cleans up dead consumers).
-- Wraps each call in try/catch — one bad listener can't starve the rest.
-- Treats `TerminalPersistenceError` from a persistence-phase listener as a
-  control signal: skip ordinary notification listeners because the failure
-  callback already emitted the correcting error, but still run cleanup.
-- Logs by event name + listener id for easy triage.
+Stop is the explicit escape hatch while a topic is blocked: `abort()` gives the
+deferred write one immediate retry (storage may already be back — then the
+original outcome lands), and if it still fails, transitions the attempt through
+`abandon` → settled `error(persistError)` and publishes that terminal without a
+durable write. The DB row stays `pending` until the boot-time
+`reconcileStalePendingMessages` marks it `error`, so the published terminal and
+the eventual durable state converge. Abandon frees admission (`TOPIC_BUSY`
+lifts); a follow-up send fails fast on its own synchronous reservation if the
+database is still down. Shutdown does not abandon — recoveries are dropped and
+boot reconcile settles the rows, as before.
 
 `onChunk` keeps a synchronous contract (the execution loop can't `await`
 a listener) so it inlines the loop instead of going through
@@ -284,14 +294,14 @@ shape. On the `error` branch, `PersistenceListener` folds the
 and then calls `persistAssistant({ status: 'error' })`, so backends never
 have to know how to encode an error into a UIMessage — they just write.
 
-The listener owns the observer protocol: filter by `modelId`
+The listener owns the persistence protocol: filter by `modelId`
 (multi-model topics have one listener per execution), merge the error
 part exactly once, and fire `afterPersist` only when `status === 'success'`
 and `finalMessage` is present (best-effort). A terminal write failure first
-attempts `markTerminalError`, then invokes the required `onPersistFailed`
-callback, and always throws `TerminalPersistenceError` even if that callback
-throws. This prevents the manager from broadcasting the original terminal as
-success after persistence failed.
+attempts `markTerminalError`, then throws `TerminalPersistenceError` with the
+durability result. This prevents the manager from broadcasting the original
+terminal as success after persistence failed; the manager records each port
+that still lacks a durable marker for in-process recovery.
 
 This ordering intentionally trades terminal-notification latency for
 consistency: renderer, channel, and SSE terminal notifications wait for the
@@ -622,7 +632,7 @@ AiStreamManager specifics:
 | Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
 | Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
 | Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
-| Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived: chunks-only prompt streams (API gateway, orphan translate) are excluded, while a translate-with-persist carries a `TranslationBackend` persistence listener and IS drained. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
+| Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived: chunks-only prompt streams (API gateway, orphan translate) are excluded, while a translate-with-persist carries a `TranslationBackend` persistence listener and IS drained. Plus in-flight terminal-persistence recoveries, steer-continuation launches, and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
 | Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
 
 `AgentSessionRuntimeService` gates its two autonomous turn starters (`startNextTurn` /

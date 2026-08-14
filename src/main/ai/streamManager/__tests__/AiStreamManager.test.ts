@@ -11,6 +11,7 @@ import { AiStreamAdmissionError } from '../admission'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
+  StreamChunkMetadata,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -25,6 +26,8 @@ class FakeListener implements StreamListener {
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
+  /** Fifth argument of each onChunk call, indexed by chunk position. */
+  chunkMetadata: Array<StreamChunkMetadata | undefined> = []
   doneResults: StreamDoneResult[] = []
   pausedResults: StreamPausedResult[] = []
   errorResults: StreamErrorResult[] = []
@@ -36,9 +39,16 @@ class FakeListener implements StreamListener {
     this.id = id
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: string,
+    _anchorMessageId?: string,
+    _attemptId?: number,
+    metadata?: StreamChunkMetadata
+  ): void {
     this.chunks.push(chunk)
     this.chunkSources.push(sourceModelId)
+    this.chunkMetadata.push(metadata)
   }
 
   onDone(result: StreamDoneResult): void | Promise<void> {
@@ -67,6 +77,7 @@ class FakePersistencePort implements StreamPersistencePort {
   errorResults: StreamErrorResult[] = []
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
+  onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
   constructor(id: string) {
     this.id = id
@@ -82,8 +93,9 @@ class FakePersistencePort implements StreamPersistencePort {
     return this.onPausedImpl?.(result)
   }
 
-  onError(result: StreamErrorResult): void {
+  onError(result: StreamErrorResult): void | Promise<void> {
     this.errorResults.push(result)
+    return this.onErrorImpl?.(result)
   }
 }
 
@@ -95,7 +107,9 @@ const mockGetMessageById = vi.hoisted(() => vi.fn())
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
-    getById: mockGetMessageById
+    getById: mockGetMessageById,
+    findPendingAssistantMessageIds: vi.fn(() => []),
+    markMessagesError: vi.fn()
   }
 }))
 
@@ -376,6 +390,26 @@ describe('AiStreamManager', () => {
 
       expect(next.snapshot.cycleId).toBeGreaterThan(previous.snapshot.cycleId)
       expect(started.activeExecutions[0].attemptId).toBe(reservation.receipt.reservedAttemptIds?.[0])
+    })
+
+    it('releases a failed dispatch reservation after its durable error write recovers', async () => {
+      const topicId = 'reservation-recovery-topic'
+      const intent = { kind: 'start' as const, modelCount: 1 }
+      const { receipt } = mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)
+      let storageAvailable = false
+
+      mgr.failDispatchReservation(receipt, topicId, error('context preparation failed'), () => {
+        if (!storageAvailable) throw new Error('db unavailable')
+      })
+
+      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)).toThrow(
+        aiStreamAdmissionReasons.TOPIC_BUSY
+      )
+
+      storageAvailable = true
+      await mgr.retryBlockedPersistence()
+
+      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)).not.toThrow()
     })
 
     it('throws on duplicate modelId within a single send call', () => {
@@ -1402,6 +1436,24 @@ describe('AiStreamManager', () => {
       expect(late.chunks).toEqual([chunk('ab')])
     })
 
+    it('replays buffered chunks with protocol metadata so v2 subscribers receive them', () => {
+      // WebContentsListener only emits the v2 `ai.stream.event` when metadata is present;
+      // a replay without it would be invisible to a renderer on the v2 protocol.
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('early:a')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', chunk('a'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('b'))
+
+      const late = new FakeListener('late:a')
+      mgr.addListener('a', late)
+
+      expect(late.chunkMetadata).toEqual([{ cycleId: expect.any(Number), chunkSeq: 1, throughChunkSeq: 2 }])
+    })
+
     it('does not deliver to a non-streaming topic', async () => {
       const l = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
@@ -1530,13 +1582,16 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toHaveLength(0)
     })
 
-    it('does not publish a durable terminal or quiescence when the error marker also fails', async () => {
+    it('keeps the topic open until blocked terminal persistence recovers with the original outcome', async () => {
+      const sender = { id: 72, isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents
       const persistence = new FakePersistencePort('persistence:a')
+      let remainingFailures = 1
       persistence.onDoneImpl = () => {
-        throw new TerminalPersistenceError(error('db unavailable'), false)
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
       }
       const renderer = new FakeListener('wc:a')
 
+      await mgr._doInit()
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1550,13 +1605,205 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toEqual([])
       expect(renderer.errorResults).toEqual([])
       expect(mockSaveSpans).not.toHaveBeenCalled()
-      expect(mgr.attach({} as Electron.WebContents, { topicId: 'a' })).toMatchObject({
+      // The block preserves the clean outcome — the attach snapshot advertises success, not error.
+      expect(mgr.attach(sender, { topicId: 'a' })).toMatchObject({
         status: 'attached',
         snapshot: {
           topicOpen: true,
-          attempts: [expect.objectContaining({ phase: 'persistence-blocked' })]
+          attempts: [expect.objectContaining({ phase: 'persistence-blocked', outcome: 'success' })]
         }
       })
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, () => undefined)).toThrow(
+        aiStreamAdmissionReasons.TOPIC_BUSY
+      )
+      expect(() =>
+        mgr.send({
+          topicId: 'a',
+          models: [{ modelId: 'provider-a::model-a', request: req('a') }],
+          listeners: [renderer]
+        })
+      ).toThrow(aiStreamAdmissionReasons.TOPIC_BUSY)
+
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      // Recovery replays the ORIGINAL success write — a transient outage never demotes
+      // a completed reply to error.
+      expect(persistence.doneResults).toHaveLength(2)
+      expect(persistence.errorResults).toEqual([])
+      expect(renderer.doneResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+      expect(renderer.errorResults).toEqual([])
+      expect(mockSaveSpans).toHaveBeenCalledWith('a')
+      expect(mgr.attach(sender, { topicId: 'a' })).toMatchObject({
+        status: 'attached',
+        snapshot: {
+          topicOpen: false,
+          attempts: [expect.objectContaining({ phase: 'settled', outcome: 'success' })]
+        }
+      })
+    })
+
+    it('recovers a blocked paused terminal as paused, not error', async () => {
+      const persistence = new FakePersistencePort('persistence:a')
+      let remainingFailures = 1
+      persistence.onPausedImpl = () => {
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      const renderer = new FakeListener('wc:a')
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer],
+        persistencePorts: [persistence]
+      })
+      mgr.abort('a', 'user-stop')
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(renderer.pausedResults).toEqual([])
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(persistence.pausedResults).toHaveLength(2)
+      expect(persistence.errorResults).toEqual([])
+      expect(renderer.pausedResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+      expect(renderer.errorResults).toEqual([])
+    })
+
+    it('recovers a blocked error terminal with the model error, not the persistence error', async () => {
+      const persistence = new FakePersistencePort('persistence:a')
+      let remainingFailures = 1
+      persistence.onErrorImpl = () => {
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      const renderer = new FakeListener('wc:a')
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer],
+        persistencePorts: [persistence]
+      })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('model boom'))
+
+      expect(renderer.errorResults).toEqual([])
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(persistence.errorResults).toHaveLength(2)
+      expect(renderer.errorResults).toEqual([
+        expect.objectContaining({
+          error: expect.objectContaining({ message: 'model boom' }),
+          isTopicDone: true
+        })
+      ])
+    })
+
+    it('a steer queued during a blocked clean terminal chains after recovery', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+      const persistence = new FakePersistencePort('persistence:a')
+      let remainingFailures = 1
+      persistence.onDoneImpl = () => {
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:a')],
+        persistencePorts: [persistence]
+      })
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      // Blocked: the steer stays queued instead of being dropped as an error casualty.
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ trigger: 'steer-continuation', topicId: 'a', userMessageId: 'u1' })
+      )
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    it('Stop while persistence stays blocked abandons the write and frees the topic', async () => {
+      const sender = { id: 73, isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents
+      const persistence = new FakePersistencePort('persistence:a')
+      persistence.onDoneImpl = () => {
+        throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      const renderer = new FakeListener('wc:a')
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer],
+        persistencePorts: [persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, () => undefined)).toThrow(
+        aiStreamAdmissionReasons.TOPIC_BUSY
+      )
+
+      mgr.abort('a', 'user-stop')
+      await vi.advanceTimersByTimeAsync(0)
+
+      // One immediate retry (still failing), then the explicit abandon publishes the
+      // persistence error as the terminal — same state boot reconcile would converge to.
+      expect(persistence.doneResults).toHaveLength(2)
+      expect(renderer.errorResults).toEqual([
+        expect.objectContaining({
+          error: expect.objectContaining({ message: 'db unavailable' }),
+          isTopicDone: true
+        })
+      ])
+      expect(mgr.attach(sender, { topicId: 'a' })).toMatchObject({
+        status: 'attached',
+        snapshot: {
+          topicOpen: false,
+          attempts: [expect.objectContaining({ phase: 'settled', outcome: 'error' })]
+        }
+      })
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 2, () => undefined)).not.toThrow()
+
+      // The recovery entry is gone — the interval never resurrects the abandoned write.
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(persistence.doneResults).toHaveLength(2)
+    })
+
+    it('Stop while blocked lands the original outcome when storage already recovered', async () => {
+      const persistence = new FakePersistencePort('persistence:a')
+      let remainingFailures = 1
+      persistence.onDoneImpl = () => {
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      const renderer = new FakeListener('wc:a')
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer],
+        persistencePorts: [persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      mgr.abort('a', 'user-stop')
+      await vi.advanceTimersByTimeAsync(0)
+
+      // The immediate pre-abandon retry succeeds — Stop rescues the reply as success.
+      expect(renderer.doneResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+      expect(renderer.errorResults).toEqual([])
     })
 
     it('flushes trace spans for completed chat topics', async () => {
@@ -1808,28 +2055,38 @@ describe('AiStreamManager', () => {
       const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       const attemptId = mgr.inspect('a')?.executions[0].attemptId
 
-      expect(response).toEqual({
-        status: 'attached',
-        bufferedChunks: [
-          {
-            topicId: 'a',
-            executionId: 'provider-a::model-a',
-            attemptId,
-            chunk: { type: 'text-start', id: 'p1' }
-          },
-          {
-            topicId: 'a',
-            executionId: 'provider-a::model-a',
-            attemptId,
-            chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
-          },
-          {
-            topicId: 'a',
-            executionId: 'provider-a::model-a',
-            attemptId,
-            chunk: { type: 'text-end', id: 'p1' }
-          }
-        ]
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      // Coalesced deltas keep their chunkSeq range (2..3) so the v2 dedup can fence replays.
+      expect(response.bufferedChunks).toMatchObject([
+        {
+          topicId: 'a',
+          executionId: 'provider-a::model-a',
+          attemptId,
+          chunkSeq: 1,
+          throughChunkSeq: 1,
+          chunk: { type: 'text-start', id: 'p1' }
+        },
+        {
+          topicId: 'a',
+          executionId: 'provider-a::model-a',
+          attemptId,
+          chunkSeq: 2,
+          throughChunkSeq: 3,
+          chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
+        },
+        {
+          topicId: 'a',
+          executionId: 'provider-a::model-a',
+          attemptId,
+          chunkSeq: 4,
+          throughChunkSeq: 4,
+          chunk: { type: 'text-end', id: 'p1' }
+        }
+      ])
+      expect(response.snapshot).toMatchObject({
+        topicOpen: true,
+        attempts: [expect.objectContaining({ attemptId, phase: 'running' })]
       })
     })
 
