@@ -189,6 +189,7 @@ vi.mock('@cherrystudio/ui', () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
