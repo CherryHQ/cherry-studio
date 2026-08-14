@@ -84,8 +84,13 @@ patchedDependencies:
   '@ai-sdk/xai@3.0.111': patches/@ai-sdk__xai@3.0.111.patch
   '@ai-sdk/openai-compatible@2.0.62': patches/@ai-sdk__openai-compatible@2.0.62.patch
   ai@6.0.185: patches/ai@6.0.185.patch
+  ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
+  '@ai-sdk/react@3.0.187': patches/@ai-sdk__react@3.0.187.patch
+  '@streamdown/code@1.1.1': patches/@streamdown__code@1.1.1.patch
+  streamdown@2.5.0: patches/streamdown@2.5.0.patch
 
 allowBuilds:
+  '@google/genai': false
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true

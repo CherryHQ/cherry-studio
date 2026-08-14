@@ -14,6 +14,7 @@ const initialTopic: Topic = {
   id: 'topic-initial',
   assistantId: 'assistant-1',
   name: 'Initial topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: [],
@@ -25,6 +26,7 @@ const historyTopic: Topic = {
   id: 'topic-history',
   assistantId: 'assistant-1',
   name: 'History topic',
+  lastActivityAt: '2026-01-02T00:00:00.000Z',
   createdAt: '2026-01-02T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
   messages: [],
@@ -36,6 +38,7 @@ const createdTopic: Topic = {
   id: 'topic-created',
   assistantId: 'assistant-2',
   name: '',
+  lastActivityAt: '2026-01-03T00:00:00.000Z',
   createdAt: '2026-01-03T00:00:00.000Z',
   updatedAt: '2026-01-03T00:00:00.000Z',
   messages: [],
@@ -59,6 +62,7 @@ const homeMocks = vi.hoisted(() => ({
     assistantId?: string
     name: string
     activeNodeId?: string
+    lastActivityAt?: string
     createdAt?: string
     updatedAt: string
   }>,
@@ -224,6 +228,10 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
       const source = React.useMemo(
         () => ({
           topics: homeMocks.classicLayoutTopics,
+          // The mocked mapApiTopicToRendererTopic below is the identity, so the
+          // shared renderer view is the same list.
+          rendererTopics: homeMocks.classicLayoutTopics,
+          orderSignature: '',
           isLoading: homeMocks.isTopicsFirstPageLoading,
           isLoadingAll: homeMocks.isTopicsLoadingAll,
           isFullyLoaded: homeMocks.isTopicsFullyLoaded,
@@ -1142,9 +1150,24 @@ describe('HomePage', () => {
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
-      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        ...historyTopic,
+        id: 'topic-a',
+        assistantId: 'assistant-a',
+        lastActivityAt: '2026-01-05T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-old',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...historyTopic,
+        id: 'topic-b-new',
+        assistantId: 'assistant-b',
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
     // The entry interceptor resolved the latest topic (assistant-a) before the page mounted.
     homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a' }

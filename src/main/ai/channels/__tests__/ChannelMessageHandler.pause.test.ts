@@ -8,12 +8,12 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => {
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
   class MockAgentSessionWorkspaceError extends Error {}
   return {
     AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
     isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-    prepareClaudeCodeWorkspaceDirectory: vi.fn()
+    prepareAgentSessionWorkspaceDirectory: vi.fn()
   }
 })
 

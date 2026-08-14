@@ -16,9 +16,7 @@ is translated back into the caller's dialect by the adapter system.
 > **Naming.** The code, IPC, preload, hook, and UI all use the
 > **`apiGateway`** name. The persisted **preference / shared-cache** namespace
 > is **`feature.api_gateway.*`** — same feature, two names. (`api_gateway` is the
-> current namespace token; it replaced the retired `csaas` alias.) The legacy v1
-> Redux layer (`apiServer.*`) is deprecated and reaches v2 only through the
-> migrators; do not add fallbacks for it.
+> current namespace token; it replaced the retired `csaas` alias.)
 
 ## Where the code lives
 

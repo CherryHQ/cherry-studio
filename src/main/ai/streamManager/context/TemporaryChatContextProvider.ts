@@ -7,6 +7,9 @@
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
+import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -93,11 +96,18 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     })
 
     const prior = temporaryChatService.listMessages(req.topicId)
-    const history: CherryUIMessage[] = prior.map((m) => ({
+    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
       role: toContentRole(m.role),
       parts: m.data.parts ?? []
     }))
+    // Same scope rule as the persistent provider, and likewise independent of
+    // the `enabled` kill-switch, which owns the overflow policy instead.
+    const contextSettings = resolveContextSettings({
+      globals: resolveGlobalContextSettings(),
+      assistant: assistant?.settings?.contextSettings
+    })
+    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
 
     const messageId = uuidv7()
     const listeners: StreamListener[] = [
@@ -126,8 +136,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],
-      listeners,
-      isMultiModel: false
+      listeners
     }
   }
 }
