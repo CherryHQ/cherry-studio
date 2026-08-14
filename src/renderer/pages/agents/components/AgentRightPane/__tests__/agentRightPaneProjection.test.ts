@@ -183,6 +183,60 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(1)
   })
 
+  it('projects the latest successful dsh todo_write snapshot into status tasks', () => {
+    const parts = [
+      toolPart('dsh-todos-1', 'todo_write', undefined, 'output-available', {
+        todos: [
+          { content: 'Inspect the runtime', status: 'completed' },
+          { content: 'Wire the status pane', status: 'in_progress' }
+        ]
+      }),
+      toolPart('dsh-todos-failed', 'todo_write', undefined, 'output-error', {
+        todos: [{ content: 'Do not show this failed snapshot', status: 'in_progress' }]
+      }),
+      toolPart('dsh-todos-2', 'todo_write', undefined, 'output-available', {
+        todos: [
+          { content: 'Wire the status pane', status: 'completed' },
+          { content: 'Verify the projection', status: 'pending' }
+        ]
+      })
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([
+      {
+        id: 'dsh-todo:0:Wire the status pane',
+        title: 'Wire the status pane',
+        status: 'completed'
+      },
+      {
+        id: 'dsh-todo:1:Verify the projection',
+        title: 'Verify the projection',
+        status: 'pending'
+      }
+    ])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(2)
+  })
+
+  it('clears dsh status tasks when todo_write succeeds with an empty snapshot', () => {
+    const parts = [
+      toolPart('dsh-todos-1', 'todo_write', undefined, 'output-available', {
+        todos: [{ content: 'Temporary task', status: 'completed' }]
+      }),
+      toolPart('dsh-todos-2', 'todo_write', undefined, 'output-available', { todos: [] })
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.completedTaskCount).toBe(0)
+    expect(status.totalTaskCount).toBe(0)
+  })
+
   it('uses SDK task subject fields instead of ordinal ids', () => {
     const parts = [
       toolPart(

@@ -405,6 +405,27 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
   return undefined
 }
 
+function getDshTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined {
+  if (getToolNameFromPart(part) !== 'todo_write' || getToolPartState(part) !== 'output-available') return undefined
+
+  const input = getToolPartInput(part)
+  if (!isRecord(input) || !Array.isArray(input.todos)) return undefined
+
+  return input.todos.flatMap((todo, index) => {
+    if (!isRecord(todo) || typeof todo.content !== 'string') return []
+    const title = todo.content.trim()
+    if (!title) return []
+
+    return [
+      {
+        id: `dsh-todo:${index}:${title}`,
+        title,
+        status: (typeof todo.status === 'string' ? normalizeTaskStatus(todo.status) : undefined) ?? 'pending'
+      }
+    ]
+  })
+}
+
 const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
 
 function applyAgentTaskEvent(
@@ -469,6 +490,7 @@ export function buildAgentRightPaneStatus(
   liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
+  let dshTodoTasks: AgentStatusTask[] | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
@@ -483,6 +505,8 @@ export function buildAgentRightPaneStatus(
       if (!isToolUIPart(part)) return
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       applyTaskToolPart(taskMap, part, fallbackId)
+      const dshTodoSnapshot = getDshTodoSnapshot(part)
+      if (dshTodoSnapshot !== undefined) dshTodoTasks = dshTodoSnapshot
 
       const toolName = getToolNameFromPart(part)
       if (isReportArtifactsTool(toolName)) {
@@ -531,7 +555,7 @@ export function buildAgentRightPaneStatus(
     taskMap.delete(id)
   }
 
-  const tasks = Array.from(taskMap.values())
+  const tasks = dshTodoTasks ?? Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
   return {
