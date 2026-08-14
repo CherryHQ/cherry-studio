@@ -258,6 +258,25 @@ describe('DeepSeek Harness config transaction', () => {
     expect(settings['agent-presets']).toEqual({ default: 'code' })
   })
 
+  it('preserves sibling credential entries without validating their names or values', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    await writeFile(path.join(dir, '.credentials.yaml'), 'external-key: value\ncount: 5\n', { mode: 0o600 })
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      'external-key': 'value',
+      count: 5,
+      [identity.credentialRef]: 'sk-sensitive'
+    })
+  })
+
+  it('rejects an invalid managed credential reference', async () => {
+    await expect(
+      writeDeepSeekHarnessConfig(dir, { ...projection(), credentialRef: 'invalid-reference' })
+    ).rejects.toThrow('DeepSeek Harness credential reference "invalid-reference" is invalid')
+  })
+
   it('keeps the shared Harness preset unchanged when CodeMate is set to inherit it', async () => {
     await writeFile(path.join(dir, 'settings.yaml'), 'agent-presets:\n  # chosen in DSH\n  default: custom-preset\n', {
       mode: 0o600

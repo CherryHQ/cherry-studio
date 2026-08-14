@@ -291,14 +291,8 @@ function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProje
 
 function renderCredentials(snapshot: FileSnapshot, credentialRef: string, credentialValue: string): string {
   const document = parseMappingDocument(snapshot)
-  const entries = document.toJS() as Record<string, unknown>
-  for (const [key, value] of Object.entries(entries)) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-      throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(key)} is invalid`)
-    }
-    if (typeof value !== 'string' || value.length === 0) {
-      throw new Error(`DeepSeek Harness credential ${JSON.stringify(key)} must be a non-empty string`)
-    }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(credentialRef)) {
+    throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(credentialRef)} is invalid`)
   }
   document.setIn([credentialRef], credentialValue)
   return document.toString()
