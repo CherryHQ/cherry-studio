@@ -3,9 +3,10 @@ import http, { type ClientRequest, type IncomingMessage, type RequestOptions } f
 import https from 'node:https'
 import type { AddressInfo } from 'node:net'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
-import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { net } from 'electron'
 import type WebSocket from 'ws'
@@ -165,8 +166,11 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 }
 
 /**
- * Development-only monitor for network requests initiated by this main-process
- * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ * Monitor for network requests initiated by this main-process JavaScript runtime
+ * (`fetch`, Electron `net.fetch`, and Node `http`/`https`). Always on in development;
+ * in packaged builds it runs only when the user enables developer mode, since V2
+ * issues model traffic from the main process where the renderer DevTools Network
+ * panel cannot see it.
  *
  * Known limitations: traffic emitted by native binaries or child processes is
  * not visible to these in-process monkey patches. In particular, Claude agent SDK
@@ -177,8 +181,8 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
-@Conditional(when(() => isDev, 'development mode'))
 export class MainNetworkDevtoolsService extends BaseService {
+  private started = false
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
   private readonly allowedOrigins = new Set<string>()
@@ -193,7 +197,38 @@ export class MainNetworkDevtoolsService extends BaseService {
   private monitoredHttpsGet: typeof https.get | null = null
   private monitoredHttpsRequest: typeof https.request | null = null
 
+  /**
+   * Development starts monitoring here so the patches cover requests made during
+   * early boot. Packaged builds cannot decide yet: the developer-mode preference is
+   * loaded by PreferenceService in the BeforeReady phase, which Application.bootstrap
+   * runs *alongside* this Background phase, so reading it now would always yield the
+   * default. That path starts from onAllReady instead.
+   */
   protected async onInit(): Promise<void> {
+    if (isDev) await this.start()
+  }
+
+  /**
+   * Install the panel here rather than in onInit: this service runs in the Background
+   * phase, which Application.bootstrap starts *before* awaiting app.whenReady(), so
+   * onInit would hit `session.defaultSession` too early and throw "Session can only be
+   * received when app is ready". onAllReady fires after every phase completes, by which
+   * point the app is ready — and the developer-mode preference is readable.
+   *
+   * Disabling developer mode takes effect on the next launch; the patches installed
+   * for this session stay in place, matching NodeTraceService.
+   */
+  protected async onAllReady(): Promise<void> {
+    if (!this.started && application.get('PreferenceService').get('app.developer_mode.enabled')) {
+      await this.start()
+    }
+    if (!this.started) return
+
+    await this.installPanel()
+  }
+
+  private async start(): Promise<void> {
+    this.started = true
     this.patchFetch()
     this.patchNetFetch()
     this.patchHttpModules()
@@ -203,20 +238,6 @@ export class MainNetworkDevtoolsService extends BaseService {
     } catch (error) {
       logger.error('Failed to start Main Network DevTools websocket server', error as Error)
     }
-  }
-
-  /**
-   * Install the panel here rather than in onInit: this service runs in the Background
-   * phase, which Application.bootstrap starts *before* awaiting app.whenReady(), so
-   * onInit would hit `session.defaultSession` too early and throw "Session can only be
-   * received when app is ready". onAllReady fires after every phase completes, by which
-   * point the app is ready. Registering the panel only has to precede the user opening
-   * DevTools, so the extra wait costs nothing.
-   *
-   * Patching stays in onInit — it must cover requests made during early boot.
-   */
-  protected async onAllReady(): Promise<void> {
-    await this.installPanel()
   }
 
   /**

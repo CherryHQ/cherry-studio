@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import { BaseService } from '@main/core/lifecycle'
+import type * as PlatformModule from '@main/core/platform'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
@@ -35,7 +36,16 @@ vi.mock('@main/core/devtools', () => ({
   installBundledDevtools: vi.fn()
 }))
 
+const platformState = { isDev: false }
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformModule>()),
+  get isDev() {
+    return platformState.isDev
+  }
+}))
+
 import { installBundledDevtools } from '@main/core/devtools'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import {
   captureRequestBody,
@@ -226,21 +236,6 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(serviceState.isOriginAllowed('chrome-extension://other-id')).toBe(false)
   })
 
-  it('installs its own bundled panel once the app is ready and allowlists the resolved extension origin', async () => {
-    vi.mocked(installBundledDevtools).mockImplementation(async (_directoryName, _displayName, onInstalled) => {
-      onInstalled?.({ id: 'main-network-id', name: 'Main Network' })
-    })
-
-    const service = new MainNetworkDevtoolsService()
-    // Panel install must hang off onAllReady, not onInit: this service runs in the
-    // Background phase, which starts before app.whenReady() resolves.
-    await service._doAllReady()
-
-    expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
-    const serviceState = service as unknown as { isOriginAllowed: (origin: string | undefined) => boolean }
-    expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
-  })
-
   it('enforces the registered DevTools extension origin on live websocket connections', async () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
@@ -320,6 +315,105 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 })
+
+describe('MainNetworkDevtoolsService gating', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    platformState.isDev = false
+    MockMainPreferenceServiceUtils.resetMocks()
+    vi.mocked(installBundledDevtools)
+      .mockReset()
+      .mockImplementation(async (_directoryName, _displayName, onInstalled) => {
+        onInstalled?.({ id: 'main-network-id', name: 'Main Network' })
+      })
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockImplementation(async () => new Response('{}', { status: 200 }))
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    platformState.isDev = false
+  })
+
+  it('leaves main-process requests untouched in a packaged build with developer mode off', async () => {
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    try {
+      await service._doInit()
+      await service._doAllReady()
+
+      expect(net.fetch).toBe(originalNetFetch)
+      await net.fetch('https://api.test/v1/models')
+
+      expect(readEvents(service)).toHaveLength(0)
+      expect(installBundledDevtools).not.toHaveBeenCalled()
+    } finally {
+      await service._doStop()
+    }
+  })
+
+  it('captures main-process requests and installs the panel in a packaged build with developer mode on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    try {
+      // The Background phase runs alongside BeforeReady, so the preference is not
+      // readable yet — nothing may be patched before onAllReady.
+      await service._doInit()
+      expect(net.fetch).toBe(originalNetFetch)
+
+      await service._doAllReady()
+      await net.fetch('https://api.test/v1/models')
+
+      expect(readEvents(service)[0]).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+      expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
+      expect(isOriginAllowed(service, 'chrome-extension://main-network-id')).toBe(true)
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+
+  it('captures boot-time requests in development regardless of the developer mode preference', async () => {
+    platformState.isDev = true
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    try {
+      await service._doInit()
+
+      expect(net.fetch).not.toBe(originalNetFetch)
+      await net.fetch('https://api.test/v1/models')
+      expect(readEvents(service)).toHaveLength(1)
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+})
+
+/** Build a service whose websocket server is stubbed out so tests never bind the fixed port. */
+function createStartedService(): MainNetworkDevtoolsService {
+  const service = new MainNetworkDevtoolsService()
+  vi.spyOn(
+    service as unknown as { startWebSocketServer: () => Promise<number> },
+    'startWebSocketServer'
+  ).mockResolvedValue(38997)
+  return service
+}
+
+function readEvents(service: MainNetworkDevtoolsService): MainNetworkDevtoolsEvent[] {
+  return (service as unknown as { events: MainNetworkDevtoolsEvent[] }).events
+}
+
+function isOriginAllowed(service: MainNetworkDevtoolsService, origin: string): boolean {
+  return (service as unknown as { isOriginAllowed: (origin: string) => boolean }).isOriginAllowed(origin)
+}
 
 function openSocketWithMessage(port: number, origin: string): Promise<{ socket: WebSocket; message: unknown }> {
   return new Promise((resolve, reject) => {

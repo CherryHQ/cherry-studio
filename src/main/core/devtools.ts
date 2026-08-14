@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { session } from 'electron'
 import { join } from 'path'
 
@@ -48,7 +49,9 @@ export async function installBundledDevtools(
   onInstalled?: (extension: { id: string; name: string }) => void
 ) {
   try {
-    const devtoolsPath = join(application.getPath('app.root.resources'), 'devtools', directoryName)
+    // Chromium reads the unpacked extension straight off disk, so a packaged build
+    // must point at app.asar.unpacked rather than the virtual path inside the asar.
+    const devtoolsPath = toAsarUnpackedPath(join(application.getPath('app.root.resources'), 'devtools', directoryName))
     // Loads into the default session, so every default-session BrowserWindow can inspect bundled panels.
     const extension = await session.defaultSession.extensions.loadExtension(devtoolsPath)
     onInstalled?.({ id: extension.id, name: extension.name })

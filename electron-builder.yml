@@ -71,10 +71,10 @@ files:
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
-  - "!resources/devtools/**" # dev-only extensions are loaded from source in development
+  - "!resources/devtools/data-api/**" # dev-only panel; main-network ships so developer mode can inspect main-process traffic
 asarUnpack:
   - resources/**
-  - "!resources/devtools/**"
+  - "!resources/devtools/data-api/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
