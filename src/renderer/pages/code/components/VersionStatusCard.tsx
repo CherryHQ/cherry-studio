@@ -91,12 +91,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
       {running && stopping ? (
         <>
           <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-          {t('openclaw.gateway.stop')}
+          {t('code.stop')}
         </>
       ) : running ? (
         <>
           <Square size={12} />
-          {t('openclaw.gateway.stop')}
+          {t('code.stop')}
         </>
       ) : launching ? (
         <>
@@ -255,7 +255,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               onClick={onOpenDashboard}
               className="shrink-0 text-foreground">
               <ExternalLink size={12} />
-              {t('openclaw.gateway.open_dashboard')}
+              {t('code.open_web_ui')}
             </Button>
           )}
         </div>

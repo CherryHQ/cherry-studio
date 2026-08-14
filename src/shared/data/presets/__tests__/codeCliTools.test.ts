@@ -7,6 +7,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['openai-codex', 'codex', '@openai/codex', 'registry', 'codex'],
   ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
   ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
+  ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
   ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],
   ['qwen-code', 'qwen', '@qwen-code/qwen-code', 'npm', 'npm:@qwen-code/qwen-code'],
   ['kimi-code', 'kimi', '@moonshot-ai/kimi-code', 'npm', 'npm:@moonshot-ai/kimi-code'],
@@ -30,6 +31,15 @@ describe('Code CLI acquisition catalog', () => {
 
   it('covers every CodeCli id exactly once', () => {
     expect(new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.id))).toEqual(new Set(Object.values(CodeCli)))
+  })
+
+  it('opts DeepSeek Harness into mise prerelease resolution', () => {
+    expect(CODE_CLI_TOOL_PRESET_MAP[CodeCli.DEEPSEEK_HARNESS].misePrerelease).toBe(true)
+    expect(
+      CODE_CLI_TOOL_PRESETS.filter((preset) => preset.id !== CodeCli.DEEPSEEK_HARNESS).every(
+        (preset) => !preset.misePrerelease
+      )
+    ).toBe(true)
   })
 
   it('keeps the catalog and lookup map immutable', () => {

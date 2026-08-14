@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
+import { DeepSeekHarnessConfigFields } from './tools/DeepSeekHarnessConfigFields'
 import { GeminiConfigFields } from './tools/GeminiConfigFields'
 import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
@@ -48,6 +49,9 @@ export function renderToolFields({
       return <QwenConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.KIMI_CODE:
       return <KimiConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.DEEPSEEK_HARNESS:
+      if (section === 'advanced') return null
+      return <DeepSeekHarnessConfigFields config={config} onChange={onChange} section={section} />
     default:
       return null
   }

@@ -28,6 +28,7 @@ const {
   toastErrorMock,
   navigateMock,
   openSettingsTabMock,
+  ipcRequestMock,
   versionStatusesMock,
   mockProviders,
   mockProviderConfigs
@@ -51,6 +52,7 @@ const {
   toastErrorMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
   versionStatusesMock: vi.fn(),
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>
@@ -168,7 +170,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: vi.fn(async () => ({}))
+    request: (...args: unknown[]) => ipcRequestMock(...args)
   },
   useIpcOn: vi.fn()
 }))
@@ -333,12 +335,14 @@ vi.mock('../components/VersionStatusCard', () => ({
   VersionStatusCard: ({
     canLaunch,
     onRemove,
+    onLaunch,
     installError,
     onShowError,
     launchDisabledHint
   }: {
     canLaunch?: boolean
     onRemove?: () => void
+    onLaunch?: () => void
     installError?: string
     onShowError?: () => void
     launchDisabledHint?: string
@@ -350,6 +354,11 @@ vi.mock('../components/VersionStatusCard', () => ({
       {onRemove && (
         <button type="button" onClick={onRemove}>
           remove tool
+        </button>
+      )}
+      {onLaunch && (
+        <button type="button" onClick={onLaunch}>
+          start tool
         </button>
       )}
       {installError && (
@@ -366,6 +375,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
+    { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -447,6 +457,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
+    [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
@@ -467,6 +478,10 @@ describe('CodeCliPage', () => {
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      return { success: true }
+    })
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -501,6 +516,54 @@ describe('CodeCliPage', () => {
       writePrimaryModel: true
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('stores a DeepSeek Harness selection without writing config or starting external services', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.DEEPSEEK_HARNESS })
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+    fireEvent.click(await screen.findByText('save model'))
+
+    await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
+    expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
+      modelId: 'anthropic::claude-new',
+      config: { env: { TEST: 'true' } }
+    })
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('deepseek_harness.start', expect.anything())
+  })
+
+  it('launches DeepSeek Harness through managed IPC without opening the directory flow', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: {
+        anthropic: {
+          modelId: 'anthropic::claude-new',
+          config: { agentPreset: 'code', permissionMode: 'read-only' }
+        }
+      },
+      currentProviderId: 'anthropic'
+    })
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      if (route === 'deepseek_harness.start') return { success: true, url: 'http://127.0.0.1:43123' }
+      return { success: true }
+    })
+
+    render(<CodeCliPage />)
+    fireEvent.click(screen.getByText('start tool'))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('deepseek_harness.start', {
+        mode: 'direct',
+        uniqueModelId: 'anthropic::claude-new',
+        agentPreset: 'code',
+        permissionMode: 'read-only'
+      })
+    )
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
@@ -665,6 +728,38 @@ describe('CodeCliPage', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+  })
+
+  it('stops the managed DeepSeek Harness process before uninstalling and only then clears CodeMate selection', async () => {
+    const events: string[] = []
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'running', url: 'http://127.0.0.1:43123' }
+      if (route === 'deepseek_harness.stop') {
+        events.push('stop')
+        return { success: true }
+      }
+      return { success: true }
+    })
+    removeMock.mockImplementation(async () => {
+      events.push('remove')
+      return true
+    })
+    setCurrentProviderMock.mockImplementation(async () => {
+      events.push('clear-selection')
+    })
+
+    render(<CodeCliPage />)
+    fireEvent.click(screen.getByText('remove tool'))
+    fireEvent.click(await screen.findByText('confirm remove'))
+
+    await waitFor(() => expect(removeMock).toHaveBeenCalledWith(CodeCli.DEEPSEEK_HARNESS))
+    expect(events).toEqual(['stop', 'remove', 'clear-selection'])
+    expect(clearCliConfigMock).not.toHaveBeenCalled()
   })
 
   it('surfaces a failed install as an install-error dialog but not a failed uninstall', () => {

@@ -2208,6 +2208,7 @@
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2231,43 @@
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
     "disable": "無効にする",
     "edit_config": "設定を編集",
@@ -2280,6 +2318,7 @@
     "no_tools": "ツールは利用できません",
     "not_installed": "インストールされていません",
     "open_provider_settings": "プロバイダー設定を開く",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 公式"
     },
@@ -2289,8 +2328,10 @@
     "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダーを選択",
     "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",

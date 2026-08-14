@@ -47,6 +47,7 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         'app.extra_resources': '/mock/resources',
         // NO_ENSURE — namespace prefixes
         'external.openclaw.config': '/mock/home/.openclaw',
+        'external.deepseek_harness.config': '/mock/home/.dsh',
         'sys.home': '/mock/home'
       })
   }
@@ -166,7 +167,7 @@ describe('Application.getPath', () => {
     })
 
     it('does not mkdir for keys under the external.* prefix', () => {
-      app.getPath('external.openclaw.config')
+      app.getPath('external.deepseek_harness.config')
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 

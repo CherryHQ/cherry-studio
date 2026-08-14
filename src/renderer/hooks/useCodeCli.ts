@@ -30,7 +30,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = () => {
+export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -40,7 +40,7 @@ export const useCodeCli = () => {
   configsRef.current = configs
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
 
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
 
   const selectTool = useCallback((tool: CodeCli) => {
     setSelectedCliTool(tool)

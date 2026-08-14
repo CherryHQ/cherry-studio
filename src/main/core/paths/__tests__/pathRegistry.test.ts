@@ -109,6 +109,11 @@ describe('buildPathRegistry', () => {
       '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
     )
   })
+
+  it('uses the shared user-owned DeepSeek Harness home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {
@@ -218,6 +223,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
   describe('external.* prefix — never auto-ensure (third-party tool dirs)', () => {
     it('returns false for external.openclaw.config', () => {
       expect(shouldAutoEnsure('external.openclaw.config')).toBe(false)
+    })
+
+    it('returns false for external.deepseek_harness.config', () => {
+      expect(shouldAutoEnsure('external.deepseek_harness.config')).toBe(false)
     })
 
     it('returns false for the new external.obsidian.config_file key', () => {

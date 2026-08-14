@@ -157,7 +157,8 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    const button = screen.getByRole('button', { name: 'openclaw.gateway.open_dashboard' })
+    const button = screen.getByRole('button', { name: 'code.open_web_ui' })
+    expect(screen.getByRole('button', { name: 'code.stop' })).toBeInTheDocument()
     fireEvent.click(button)
     expect(onOpenDashboard).toHaveBeenCalledTimes(1)
   })
@@ -174,7 +175,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.open_web_ui' })).not.toBeInTheDocument()
   })
 
   it('renders a persistent failure row with retry label and opens details on click', () => {
