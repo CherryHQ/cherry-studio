@@ -554,11 +554,6 @@
           "helper": "Introdu variabile de mediu personalizate (una pe linie, în formatul CHEIE=valoare)",
           "label": "Variabile de mediu"
         },
-        "maxTurns": {
-          "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
-          "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
-          "label": "Limită de schimburi în conversație"
-        },
         "permissionMode": {
           "description": "Controlează modul în care agentul gestionează acțiunile care necesită aprobare.",
           "label": "Mod de permisiune",
@@ -2208,6 +2203,7 @@
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "CLI Gemini",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2226,43 @@
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
     "disable": "Dezactivare",
     "edit_config": "Editează Configurația",
@@ -2280,6 +2313,7 @@
     "no_tools": "Nu există instrumente disponibile",
     "not_installed": "Neinstalat",
     "open_provider_settings": "Deschide setările furnizorului",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2289,8 +2323,10 @@
     "search_provider_placeholder": "Furnizori de căutare…",
     "select_folder": "Selectează directorul",
     "select_provider_before_launch": "Selectează un furnizor înainte de a porni {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Selectează un instrument CLI din stânga pentru a începe configurarea",
     "set_custom_path": "Setează calea personalizată a terminalului",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
@@ -3384,6 +3420,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gestionați bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
@@ -3455,10 +3492,6 @@
           },
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
-          },
-          "max_turns": {
-            "help": "0 înseamnă să folosească valoarea implicită",
-            "label": "Număr maxim de runde de conversație"
           },
           "mcps": {
             "add": "Adaugă server MCP",
