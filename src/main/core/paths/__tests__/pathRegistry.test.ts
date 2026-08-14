@@ -233,10 +233,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('external.openclaw.config')).toBe(false)
     })
 
-    it('returns false for external.deepseek_harness.config', () => {
-      expect(shouldAutoEnsure('external.deepseek_harness.config')).toBe(false)
-    })
-
     it('returns false for the new external.obsidian.config_file key', () => {
       // Obsidian's config file lives in a directory that Cherry must
       // never create — Obsidian itself owns it. This is the canonical

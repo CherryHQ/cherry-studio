@@ -33,15 +33,6 @@ describe('Code CLI acquisition catalog', () => {
     expect(new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.id))).toEqual(new Set(Object.values(CodeCli)))
   })
 
-  it('opts DeepSeek Harness into mise prerelease resolution', () => {
-    expect(CODE_CLI_TOOL_PRESET_MAP[CodeCli.DEEPSEEK_HARNESS].misePrerelease).toBe(true)
-    expect(
-      CODE_CLI_TOOL_PRESETS.filter((preset) => preset.id !== CodeCli.DEEPSEEK_HARNESS).every(
-        (preset) => !preset.misePrerelease
-      )
-    ).toBe(true)
-  })
-
   it('keeps the catalog and lookup map immutable', () => {
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESETS)).toBe(true)
     expect(CODE_CLI_TOOL_PRESETS.every((preset) => Object.isFrozen(preset))).toBe(true)

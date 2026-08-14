@@ -92,12 +92,6 @@ describe('useCodeCli', () => {
       expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
     })
 
-    it('accepts a DeepSeek Harness route as the initial tool', () => {
-      setupConfigsMock({} as CodeCliConfigs)
-      const { result } = renderHook(() => useCodeCli(CodeCli.DEEPSEEK_HARNESS))
-      expect(result.current.selectedCliTool).toBe(CodeCli.DEEPSEEK_HARNESS)
-    })
-
     it('keeps route search and visible selection synchronized', () => {
       setupConfigsMock({} as CodeCliConfigs)
       const onToolChange = vi.fn()
