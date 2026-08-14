@@ -26,7 +26,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
   private readonly internalRequestToken = uuidv4()
-  /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
+  /** Latest desired running state. The `enabled` preference is its ONLY source: nothing auto-starts
+   *  the gateway, so a user who turns it off keeps it off across restarts (issue #18521). */
   private desiredEnabled = false
   /**
    * Converges the gateway's running state to `desiredEnabled`. The reconciler is the SOLE caller
@@ -66,7 +67,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onReady(): Promise<void> {
-    this.desiredEnabled = this.shouldAutoStart()
+    const config = this.getCurrentConfig()
+    // Never log the raw API key — redact before emitting.
+    logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
+    this.desiredEnabled = config.enabled
     this.reconciler.request()
     await this.reconciler.flush()
   }
@@ -112,12 +116,30 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  async start(): Promise<void> {
-    // Set the desired state and converge through the reconciler — never transition directly, so
-    // this can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
-    this.desiredEnabled = true
+  /**
+   * Converge the runtime on `enabled` through the reconciler — never transition directly, so this
+   * can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
+   */
+  private async converge(enabled: boolean): Promise<void> {
+    this.desiredEnabled = enabled
     this.reconciler.request()
     await this.reconciler.flush()
+  }
+
+  /**
+   * Persist the intent BEFORE converging, in the same authoritative call. A runtime transition
+   * whose persisted intent never landed is exactly the divergence #18521 was about — a stop that
+   * left `enabled: true` behind reopens the port on the next launch. The preference write throws
+   * on failure, so the caller learns the intent did not stick.
+   */
+  private async applyIntent(enabled: boolean): Promise<void> {
+    await application.get('PreferenceService').set('feature.api_gateway.enabled', enabled)
+    // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
+    await this.converge(enabled)
+  }
+
+  async start(): Promise<void> {
+    await this.applyIntent(true)
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
@@ -127,9 +149,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async stop(): Promise<void> {
-    this.desiredEnabled = false
-    this.reconciler.request()
-    await this.reconciler.flush()
+    await this.applyIntent(false)
     if (this.isActivated) {
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
@@ -139,11 +159,40 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async restart(): Promise<void> {
-    // Re-create the server (e.g. to apply a new host/port) as a stop→start, so it goes
-    // through the same single reconciler — no direct, race-prone transition.
-    await this.stop()
-    await this.start()
+    // Re-create the server (e.g. to apply a new host/port) as a stop→start through the same single
+    // reconciler. A re-bind is not an intent change, so the persisted preference is left alone.
+    await this.converge(false)
+    // Re-read the intent before re-activating: another window may have persisted a stop while this
+    // restart was queued behind it, and a re-bind must never resurrect a gateway the user disabled.
+    if (!this.getCurrentConfig().enabled) {
+      const error = new Error('API Gateway was disabled while restarting')
+      logger.warn('Aborting API Gateway restart: the gateway was disabled meanwhile')
+      throw error
+    }
+    await this.converge(true)
+    if (!this.isActivated) {
+      const error = this.failureError('Failed to restart API Gateway')
+      logger.error('Failed to restart API Gateway:', error)
+      throw error
+    }
     logger.info('API Gateway restarted successfully')
+  }
+
+  /**
+   * Converge an already-enabled gateway toward running. Unlike {@link start} this never touches the
+   * persisted intent, so a caller that merely needs the gateway up (an agent route whose model must
+   * be bridged) can wait for readiness without being able to re-enable what a user disabled.
+   */
+  async ensureRunning(): Promise<void> {
+    if (!this.getCurrentConfig().enabled) {
+      throw new Error('API Gateway is disabled')
+    }
+    await this.converge(true)
+    if (!this.isActivated) {
+      const error = this.failureError('Failed to start API Gateway')
+      logger.error('Failed to start API Gateway:', error)
+      throw error
+    }
   }
 
   /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
@@ -231,32 +280,5 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
-  }
-
-  private shouldAutoStart(): boolean {
-    try {
-      const config = this.getCurrentConfig()
-      // Never log the raw API key — redact before emitting.
-      logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
-
-      if (config.enabled) {
-        return true
-      }
-
-      try {
-        const { total } = agentService.listAgents({ limit: 1 })
-        if (total > 0) {
-          logger.info(`Detected ${total} agent(s), auto-starting API gateway`)
-          return true
-        }
-      } catch (error: any) {
-        logger.warn('Failed to check agent count:', error)
-      }
-
-      return false
-    } catch (error: any) {
-      logger.error('Failed to check API gateway auto-start condition:', error)
-      return false
-    }
   }
 }

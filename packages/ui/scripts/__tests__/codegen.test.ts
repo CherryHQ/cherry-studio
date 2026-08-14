@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { generateAvatar, generateIconIndex } from '../codegen'
+import { generateAvatar, generateIconIndex, generateIconLoaders } from '../codegen'
 
 describe('generateAvatar', () => {
   it('renders neutral-background icons at the full avatar size', () => {
@@ -100,6 +100,34 @@ describe('generateIconIndex', () => {
       expect(content).toContain("className={cn('text-foreground', className)}")
       expect(content).not.toContain("from './dark'")
       expect(content).not.toContain('dark:hidden')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generateIconLoaders', () => {
+  it('generates one dynamic import per icon without static component imports', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cherry-ui-codegen-'))
+    const outPath = join(dir, 'loaders.ts')
+
+    try {
+      generateIconLoaders({
+        outPath,
+        entries: [
+          { dirName: 'openai', colorName: 'Openai' },
+          { dirName: '3min-top', colorName: 'MinTop3' }
+        ],
+        loadersName: 'PROVIDER_ICON_LOADERS',
+        keyTypeName: 'ProviderIconKey'
+      })
+
+      const content = readFileSync(outPath, 'utf-8')
+      expect(content).toContain("openai: () => import('./openai').then(({ OpenaiIcon }) => OpenaiIcon)")
+      expect(content).toContain("'3min-top': () => import('./3min-top').then(({ MinTop3Icon }) => MinTop3Icon)")
+      expect(content).toContain('satisfies Record<ProviderIconKey, () => Promise<CompoundIcon>>')
+      expect(content).not.toMatch(/import \{ OpenaiIcon \} from '\.\/openai'/)
+      expect(content).not.toContain("from './catalog'")
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

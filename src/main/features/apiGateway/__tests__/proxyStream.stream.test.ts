@@ -261,6 +261,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     params.system = [
       { type: 'text', text: 'Runtime context' },
       { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: "You are a Claude agent, built on Anthropic's Claude Agent SDK." },
       { type: 'text', text: 'You are Cherry Studio official built-in product support.' }
     ] as MessageCreateParams['system']
 
@@ -277,7 +278,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         messages: expect.not.arrayContaining([expect.objectContaining({ role: 'system' })])
       })
     )
-    expect(params.system).toHaveLength(3)
+    expect(params.system).toHaveLength(4)
   })
 
   it('keeps SDK identity blocks for internal requests without the Cherry Support identity', async () => {

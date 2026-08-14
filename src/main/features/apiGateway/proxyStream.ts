@@ -39,7 +39,11 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
-const CONFLICTING_SUPPORT_IDENTITY_MARKERS = ['You are Claude Code', "Anthropic's official CLI"] as const
+const CONFLICTING_SUPPORT_IDENTITY_MARKERS = [
+  'You are Claude Code',
+  "Anthropic's official CLI",
+  "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
