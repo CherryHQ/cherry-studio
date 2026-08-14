@@ -158,7 +158,6 @@ export default function ModelCheckDialog() {
   )
   const selectedModel = sortedModels.find((model) => model.id === singleModelId) ?? checkableModels[0]
   const checkableCount = checkableModels.length
-  const skippedCount = sortedModels.length - checkableCount
   const hasEnabledApiKeys = health.apiKeyEntries.some((entry) => entry.isEnabled)
   const singleModelResult = health.singleModelResult
   const showSingleResult =
@@ -265,9 +264,6 @@ export default function ModelCheckDialog() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border-subtle bg-muted/30 px-3 py-2 text-sm">
-              {t('settings.models.check.model_count', { checkable: checkableCount, skipped: skippedCount })}
-            </div>
             {health.requiresApiKey ? (
               <ApiKeyScopeField
                 entries={health.apiKeyEntries}

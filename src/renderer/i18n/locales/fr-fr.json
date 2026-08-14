@@ -6059,7 +6059,6 @@
         "keys_failed_count": "[to be translated]:{{failed}}/{{total}} keys failed",
         "latency": "[to be translated]:{{latency}} ms",
         "model": "[to be translated]:Model",
-        "model_count": "[to be translated]:{{checkable}} to check · {{skipped}} to skip",
         "model_status_failed": "{{count}} modèles sont totalement inaccessibles",
         "model_status_partial": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
         "model_status_passed": "{{count}} modèles ont passé le contrôle de santé",

@@ -123,11 +123,10 @@ describe('ModelCheckDialog', () => {
     )
   })
 
-  it('switches to the all-model form with counts, concurrency, and a clamped timeout', async () => {
+  it('switches to the all-model form with concurrency and a clamped timeout', async () => {
     render(<ModelCheckDialog />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.check.all_models' }))
 
-    expect(screen.getByText('settings.models.check.model_count')).toBeInTheDocument()
     expect(screen.getByRole('switch')).toBeChecked()
     const timeout = screen.getByLabelText('settings.models.check.timeout')
     fireEvent.change(timeout, { target: { value: '2' } })

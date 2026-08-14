@@ -6059,7 +6059,6 @@
         "keys_failed_count": "[to be translated]:{{failed}}/{{total}} keys failed",
         "latency": "[to be translated]:{{latency}} ms",
         "model": "[to be translated]:Model",
-        "model_count": "[to be translated]:{{checkable}} to check · {{skipped}} to skip",
         "model_status_failed": "{{count}} mô hình hoàn toàn không thể truy cập",
         "model_status_partial": "{{count}} mô hình có các khóa không thể truy cập",
         "model_status_passed": "{{count}} mô hình đã vượt qua kiểm tra tình trạng",

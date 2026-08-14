@@ -6059,7 +6059,6 @@
         "keys_failed_count": "{{failed}}/{{total}} keys failed",
         "latency": "{{latency}} ms",
         "model": "Model",
-        "model_count": "{{checkable}} to check · {{skipped}} to skip",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
         "model_status_passed": "{{count}} models passed model checks",
