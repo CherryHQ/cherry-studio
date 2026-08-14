@@ -38,7 +38,7 @@ const {
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
-} = await import('../deepSeekHarnessConfig')
+} = await import('../config')
 
 const model = (partial: Partial<Model> = {}): Model =>
   ({

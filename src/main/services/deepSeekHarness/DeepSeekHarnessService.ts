@@ -27,7 +27,7 @@ import {
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
-} from './deepSeekHarnessConfig'
+} from './config'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
 const execFileAsync = promisify(execFile)

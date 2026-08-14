@@ -8,7 +8,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-import type * as DeepSeekHarnessConfigModule from '../deepSeekHarnessConfig'
+import type * as DeepSeekHarnessConfigModule from '../config'
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
@@ -53,8 +53,8 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
-vi.mock('../deepSeekHarnessConfig', async () => {
-  const actual = await vi.importActual<typeof DeepSeekHarnessConfigModule>('../deepSeekHarnessConfig')
+vi.mock('../config', async () => {
+  const actual = await vi.importActual<typeof DeepSeekHarnessConfigModule>('../config')
   return {
     ...actual,
     writeDeepSeekHarnessConfig: mocks.writeConfig,
