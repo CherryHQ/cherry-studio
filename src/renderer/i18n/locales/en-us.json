@@ -2206,6 +2206,7 @@
     "cli_tool_placeholder": "Select the CLI tool to use",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2228,6 +2229,43 @@
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
+    "deepseek_harness": {
+      "agent_preset": "Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "PTC Code"
+        },
+        "inherit": {
+          "description": "Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "Harness default"
+        },
+        "minimal": {
+          "description": "Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "Minimal"
+        },
+        "standard": {
+          "description": "Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "Standard"
+        }
+      },
+      "danger_warning": "Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "Allows unrestricted access without operation approval.",
+          "label": "Full access"
+        },
+        "read-only": {
+          "description": "Restricts file writes and asks before risky operations.",
+          "label": "Read only"
+        },
+        "workspace-write": {
+          "description": "Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "Workspace write"
+        }
+      }
+    },
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
     "disable": "Disable",
     "edit_config": "Edit Config",
@@ -2278,6 +2316,7 @@
     "no_tools": "No tools available",
     "not_installed": "Not installed",
     "open_provider_settings": "Open provider settings",
+    "open_web_ui": "Open Web UI",
     "own_login": {
       "title": "{{toolName}} Official"
     },
@@ -2287,8 +2326,10 @@
     "search_provider_placeholder": "Search providers…",
     "select_folder": "Select Folder",
     "select_provider_before_launch": "Select a provider before launching {{toolName}}",
+    "select_provider_model": "Please select a provider and model first",
     "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
+    "stop": "Stop",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
@@ -3384,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
