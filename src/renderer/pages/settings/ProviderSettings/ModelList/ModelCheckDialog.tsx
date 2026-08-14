@@ -109,6 +109,7 @@ function ApiKeyScopeField({
         <Label>{t('settings.models.check.key_scope')}</Label>
         <SegmentedControl<ModelCheckKeySelection['mode']>
           aria-label={t('settings.models.check.key_scope')}
+          size="sm"
           value={selection.mode}
           options={[
             { value: 'single', label: t('settings.models.check.single') },
