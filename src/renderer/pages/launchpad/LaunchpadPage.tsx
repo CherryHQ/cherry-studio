@@ -259,7 +259,7 @@ export default function LaunchpadPage() {
                     className="rounded-xl [&_[data-slot=avatar-fallback]]:bg-transparent"
                   />
                 </span>
-                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+                <span className="w-max whitespace-nowrap text-[12px] text-foreground">
                   {t('code.cli_tools.deepseek_harness')}
                 </span>
               </button>
