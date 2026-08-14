@@ -79,6 +79,7 @@
     "bench:shared": "vitest bench --run --project shared",
     "docs:check-links": "tsx scripts/check-doc-links.ts",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e \"process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})\"",
+    "postinstall": "pnpm --filter @cherrystudio/dsh-bridge build",
     "claude": "dotenv -e .env -- claude",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
     "db:migrations:check": "drizzle-kit check --config ./migrations/sqlite-drizzle.config.ts",
