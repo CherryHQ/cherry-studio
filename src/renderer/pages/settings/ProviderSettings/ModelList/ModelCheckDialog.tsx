@@ -28,10 +28,6 @@ import { useModelListHealthRun } from './modelListHealthContext'
 type CheckMode = 'single' | 'all'
 type ModelOption = ComboboxOption<{ model: Model }>
 
-function getKeySelection(value: string): ModelCheckKeySelection {
-  return value === 'all' ? { mode: 'all' } : { mode: 'single', keyId: value }
-}
-
 function clampTimeout(value: number) {
   if (!Number.isFinite(value)) return 15
   return Math.min(60, Math.max(5, Math.round(value)))
@@ -63,24 +59,19 @@ function ApiKeyField({
 }) {
   const { t } = useTranslation()
   const enabledEntries = entries.filter((entry) => entry.isEnabled)
-  const options: ComboboxOption[] = enabledEntries.length
-    ? [
-        { value: 'all', label: t('settings.models.check.all_enabled_keys') },
-        ...enabledEntries.map((entry) => ({
-          value: entry.id,
-          label: `${entry.label?.trim() || t('settings.provider.api_key.unnamed')} · ${maskApiKey(entry.key)}`
-        }))
-      ]
-    : []
+  const options: ComboboxOption[] = enabledEntries.map((entry) => ({
+    value: entry.id,
+    label: `${entry.label?.trim() || t('settings.provider.api_key.unnamed')} · ${maskApiKey(entry.key)}`
+  }))
 
   return (
     <div className="space-y-2">
-      <Label>{t('settings.models.check.key_scope')}</Label>
+      <Label>{t('settings.models.check.select_api_key')}</Label>
       <Combobox
         options={options}
         value={value}
         disabled={enabledEntries.length === 0}
-        onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? 'all') : next)}
+        onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? '') : next)}
         placeholder={enabledEntries.length === 0 ? t('settings.models.check.no_api_keys') : undefined}
         searchable={enabledEntries.length > 5}
         className="w-full justify-between"
@@ -91,13 +82,61 @@ function ApiKeyField({
   )
 }
 
+function ApiKeyScopeField({
+  entries,
+  selection,
+  onChange
+}: {
+  entries: readonly ApiKeyEntry[]
+  selection: ModelCheckKeySelection
+  onChange: (selection: ModelCheckKeySelection) => void
+}) {
+  const { t } = useTranslation()
+  const enabledEntries = entries.filter((entry) => entry.isEnabled)
+
+  if (enabledEntries.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Label>{t('settings.models.check.key_scope')}</Label>
+        <p className="text-muted-foreground text-sm">{t('settings.models.check.no_api_keys')}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-4">
+        <Label>{t('settings.models.check.key_scope')}</Label>
+        <SegmentedControl<ModelCheckKeySelection['mode']>
+          aria-label={t('settings.models.check.key_scope')}
+          value={selection.mode}
+          options={[
+            { value: 'single', label: t('settings.models.check.single') },
+            { value: 'all', label: t('settings.models.check.all') }
+          ]}
+          onValueChange={(mode) =>
+            onChange(mode === 'all' ? { mode: 'all' } : { mode: 'single', keyId: enabledEntries[0].id })
+          }
+        />
+      </div>
+      {selection.mode === 'single' && enabledEntries.length > 1 ? (
+        <ApiKeyField
+          entries={enabledEntries}
+          value={selection.keyId}
+          onChange={(keyId) => onChange({ mode: 'single', keyId })}
+        />
+      ) : null}
+    </div>
+  )
+}
+
 export default function ModelCheckDialog() {
   const { t } = useTranslation()
   const health = useModelListHealthRun()
   const [mode, setMode] = useState<CheckMode>('single')
   const [singleModelId, setSingleModelId] = useState('')
-  const [singleKey, setSingleKey] = useState('all')
-  const [allKey, setAllKey] = useState('all')
+  const [singleKeySelection, setSingleKeySelection] = useState<ModelCheckKeySelection>({ mode: 'all' })
+  const [allKeySelection, setAllKeySelection] = useState<ModelCheckKeySelection>({ mode: 'all' })
   const [isConcurrent, setIsConcurrent] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
@@ -135,23 +174,27 @@ export default function ModelCheckDialog() {
 
   useEffect(() => {
     const enabledIds = new Set(health.apiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => entry.id))
-    if (singleKey !== 'all' && !enabledIds.has(singleKey)) setSingleKey('all')
-    if (allKey !== 'all' && !enabledIds.has(allKey)) setAllKey('all')
-  }, [allKey, health.apiKeyEntries, singleKey])
+    setSingleKeySelection((current) =>
+      current.mode === 'single' && !enabledIds.has(current.keyId) ? { mode: 'all' } : current
+    )
+    setAllKeySelection((current) =>
+      current.mode === 'single' && !enabledIds.has(current.keyId) ? { mode: 'all' } : current
+    )
+  }, [health.apiKeyEntries])
 
   const handleStart = async () => {
     setIsStarting(true)
     try {
       if (mode === 'single') {
         if (!selectedModel) return
-        await health.startSingleModelCheck({ model: selectedModel, keySelection: getKeySelection(singleKey) })
+        await health.startSingleModelCheck({ model: selectedModel, keySelection: singleKeySelection })
         return
       }
 
       const timeout = clampTimeout(timeoutSeconds)
       setTimeoutSeconds(timeout)
       await health.startHealthCheck({
-        keySelection: getKeySelection(allKey),
+        keySelection: allKeySelection,
         isConcurrent,
         timeout: timeout * 1000
       })
@@ -196,11 +239,11 @@ export default function ModelCheckDialog() {
               />
             </div>
             {health.requiresApiKey ? (
-              <ApiKeyField
+              <ApiKeyScopeField
                 entries={health.apiKeyEntries}
-                value={singleKey}
-                onChange={(value) => {
-                  setSingleKey(value)
+                selection={singleKeySelection}
+                onChange={(selection) => {
+                  setSingleKeySelection(selection)
                   health.resetSingleModelResult()
                 }}
               />
@@ -220,7 +263,11 @@ export default function ModelCheckDialog() {
               {t('settings.models.check.model_count', { checkable: checkableCount, skipped: skippedCount })}
             </div>
             {health.requiresApiKey ? (
-              <ApiKeyField entries={health.apiKeyEntries} value={allKey} onChange={setAllKey} />
+              <ApiKeyScopeField
+                entries={health.apiKeyEntries}
+                selection={allKeySelection}
+                onChange={setAllKeySelection}
+              />
             ) : null}
             <div className="flex items-center justify-between gap-4">
               <div>

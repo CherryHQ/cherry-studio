@@ -1,5 +1,6 @@
 import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ModelCheckDialog from '../ModelCheckDialog'
@@ -73,7 +74,7 @@ describe('ModelCheckDialog', () => {
   it('opens in single-model mode with unsupported models excluded from the default selection', async () => {
     render(<ModelCheckDialog />)
 
-    expect(screen.getByTestId('segmented-control')).toHaveAttribute('data-value', 'single')
+    expect(screen.getAllByTestId('segmented-control')[0]).toHaveAttribute('data-value', 'single')
     expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
@@ -84,6 +85,30 @@ describe('ModelCheckDialog', () => {
       })
     )
     expect(screen.queryByLabelText('settings.models.check.timeout')).not.toBeInTheDocument()
+  })
+
+  it('separates the single-model key scope from concrete key choices', async () => {
+    const user = userEvent.setup()
+    health.apiKeyEntries = [
+      { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
+      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+    ]
+
+    render(<ModelCheckDialog />)
+
+    expect(screen.getAllByTestId('segmented-control')[1]).toHaveAttribute('data-value', 'all')
+    expect(screen.queryByRole('option', { name: 'settings.models.check.all_enabled_keys' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.single' }))
+    await user.selectOptions(screen.getAllByRole('combobox')[1], 'key-2')
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+
+    await waitFor(() =>
+      expect(startSingleModelCheck).toHaveBeenCalledWith({
+        model: chatModel,
+        keySelection: { mode: 'single', keyId: 'key-2' }
+      })
+    )
   })
 
   it('switches to the all-model form with counts, concurrency, and a clamped timeout', async () => {
@@ -101,6 +126,32 @@ describe('ModelCheckDialog', () => {
         keySelection: { mode: 'all' },
         isConcurrent: true,
         timeout: 5000
+      })
+    )
+  })
+
+  it('uses the same separate key-scope controls for all-model checks', async () => {
+    const user = userEvent.setup()
+    health.apiKeyEntries = [
+      { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
+      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+    ]
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.all_models' }))
+
+    expect(screen.getAllByTestId('segmented-control')[1]).toHaveAttribute('data-value', 'all')
+    expect(screen.queryByRole('option', { name: 'settings.models.check.all_enabled_keys' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.single' }))
+    await user.selectOptions(screen.getByRole('combobox'), 'key-2')
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+
+    await waitFor(() =>
+      expect(startHealthCheck).toHaveBeenCalledWith({
+        keySelection: { mode: 'single', keyId: 'key-2' },
+        isConcurrent: true,
+        timeout: 15000
       })
     )
   })
