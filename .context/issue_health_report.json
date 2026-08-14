@@ -1,50 +1,69 @@
 {
-  "generated_at": "2026-08-13T17:00:00Z",
-  "date": "2026-08-13",
-  "total_open": 859,
+  "generated_at": "2026-08-14T19:00:00Z",
+  "date": "2026-08-14",
+  "total_open": 873,
+  "delta_from_yesterday": "+14",
   "health_distribution": {
     "active": {
-      "count": 217,
-      "pct": 25.3,
-      "definition": "updated in last 7 days (>2026-08-06)"
+      "count": 225,
+      "pct": 25.8,
+      "definition": "updated in last 7 days (>2026-08-07)"
     },
     "aging": {
-      "count": 219,
-      "pct": 25.5,
-      "definition": "updated 7-30 days ago (2026-07-14..2026-08-06)"
+      "count": 222,
+      "pct": 25.4,
+      "definition": "updated 7-30 days ago (2026-07-14..2026-08-07)"
     },
     "stale": {
-      "count": 196,
-      "pct": 22.8,
+      "count": 200,
+      "pct": 22.9,
       "definition": "updated 30-90 days ago (2026-05-14..2026-07-13)"
     },
     "zombie": {
-      "count": 227,
-      "pct": 26.4,
+      "count": 226,
+      "pct": 25.9,
       "definition": "not updated in 90+ days (<2026-05-14)"
     }
   },
   "label_health": {
-    "unlabeled_open": 228,
-    "unlabeled_pct": 26.5,
+    "unlabeled_open": 237,
+    "unlabeled_pct": 27.2,
     "inactive_labeled": 163,
     "top_backlog_labels": {
-      "UI/UX": 314,
-      "Models": 159,
-      "Assistant": 69,
-      "Performance": 60,
-      "MCP": 47,
-      "RAG": 30,
-      "Data": 26
+      "UI/UX": 320,
+      "Models": 163,
+      "Assistant": 70,
+      "Performance": 68,
+      "MCP": 48,
+      "RAG": 31,
+      "Data": 29
     }
   },
+  "security_items": [
+    {
+      "number": 18273,
+      "title": "Backup restore: zip-slip path traversal vulnerability",
+      "severity": "SECURITY",
+      "age_days": 5,
+      "status": "OPEN — needs immediate fix"
+    }
+  ],
+  "high_comment_active_issues": [
+    {"number": 17629, "title": "Processes remain running after closing window", "comments": 7, "age_days": 15},
+    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 7},
+    {"number": 18419, "title": "Context usage panel percentages exceed 100%", "comments": 3, "age_days": 2},
+    {"number": 18371, "title": "Agent session reasoning rendered as plain body text", "comments": 5, "age_days": 3}
+  ],
   "triage_recommendations": [
-    "228 (~26.5%) open issues have no category label — batch-triage first",
-    "227 zombie issues (>90 days stale) should be reviewed for closure or 'inactive' labeling",
+    "237 (~27.2%) open issues have no category label — batch-triage priority",
+    "226 zombie issues (>90 days stale) — review for closure or 'inactive' labeling",
     "SECURITY: #18273 zip-slip in backup restore needs immediate fix",
-    "Process leak: #18445/#17629 are same root cause — consolidate and prioritize",
-    "MCP: #18131 has 9 comments and needs-more-info — follow up or close"
+    "Process leak: #18445 and #17629 are same root cause — consolidate and prioritize",
+    "MCP #18131 has 9 comments and needs-more-info — follow up or close",
+    "Today's 4 Performance issues (#18619-18622) from DeJeune are good candidates for quick PRs",
+    "Scheduled-task regression #18607 appeared today — verify against v2.0.5"
   ],
   "closed_last_30d": 549,
-  "close_rate_per_day_30d": 18.3
+  "close_rate_per_day_30d": 18.3,
+  "inactive_close_rate": "35% of closes in last 30d were as 'inactive' — consider auto-close bot"
 }

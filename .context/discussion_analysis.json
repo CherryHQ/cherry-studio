@@ -1,49 +1,45 @@
 {
-  "generated_at": "2026-08-13T17:00:00Z",
-  "date": "2026-08-13",
+  "generated_at": "2026-08-14T19:00:00Z",
+  "date": "2026-08-14",
   "note": "Discussion data sourced from issues tagged discussion+help wanted; GitHub Discussions GraphQL requires separate auth",
   "discussion_labeled_open_issues": {
-    "total_with_discussion_label": 12,
-    "sample": [
-      {
-        "number": 18363,
-        "title": "AiStreamManager 状态机的身份与 ownership 结构问题",
-        "comments": 1
-      },
-      {
-        "number": 18474,
-        "title": "Code blocks are no longer rendered during streaming",
-        "comments": 1
-      },
-      {
-        "number": 18362,
-        "title": "Custom OpenAI Compatible Provider Fails to Send Authorization Header"
-      },
-      {
-        "number": 18327,
-        "title": "Token/s generation speed and TTFT display missing since v2.0"
-      },
-      {
-        "number": 18241,
-        "title": "How to collapse thinking content without aggregating it into a summary"
-      },
-      {
-        "number": 18134,
-        "title": "I was using V1 and now want to use V2 but migration keeps failing"
-      }
+    "total_with_discussion_label": 41,
+    "sample_today": [
+      {"number": 18589, "title": "[Discussion]: Too much reverse optimization (UI/UX regression)", "created": "2026-08-14", "comments": 1},
+      {"number": 18474, "title": "Code blocks are no longer rendered during streaming", "created": "2026-08-12", "comments": 1},
+      {"number": 18363, "title": "AiStreamManager state-machine identity and ownership structure", "created": "2026-08-11", "comments": 1},
+      {"number": 18362, "title": "Custom OpenAI Compatible Provider Fails to Send Authorization Header", "created": "2026-08-11", "comments": 1},
+      {"number": 18327, "title": "Token/s generation speed and TTFT display missing since v2.0", "created": "2026-08-10"},
+      {"number": 18299, "title": "Why can't v2.x modify an answer while v1.9.x can?", "created": "2026-08-10", "comments": 1},
+      {"number": 18241, "title": "How to collapse thinking content without aggregating tool calls", "created": "2026-08-09"},
+      {"number": 17954, "title": "v2.0 — why was the conversation history limit option removed?", "created": "2026-08-05", "comments": 4},
+      {"number": 17907, "title": "Restore mini programs to display in sidebar like v1.x", "created": "2026-08-05", "comments": 2},
+      {"number": 18134, "title": "I was using V1 and now want to use V2 but migration keeps failing", "created": "2026-08-07"}
     ]
   },
   "hot_topics": [
     "v1→v2 migration failures — multiple open issues + 549 closed in 30d",
-    "Context compaction / auto-compact behavior (multiple issues)",
-    "Agent mode stability (freezes, process leaks, Feishu channel broken)",
-    "MCP connectivity and tool visibility issues",
-    "v2 feature regressions vs v1.9.x (edit messages, save-only, subscription sources)"
+    "v2 regression: edit/save AI messages (#18243, #18484, #18099, #18196)",
+    "Agent mode stability: freezes, process leaks, Feishu channel broken (#18439, #18336, #17629)",
+    "Context compaction/auto-compact behavior — multiple issues",
+    "MCP connectivity and tool visibility (#18131, #18528, #18437)",
+    "Performance regression in v2: streaming, tab state, TTFT missing (#18327, #18589)",
+    "Scheduled task missed-run regression after v2 upgrade (#18607 — new today)"
   ],
   "v2_pain_points": [
-    "Cannot edit AI messages (#18243, 2 comments)",
-    "Context compaction thrashes low-window models (fixed in #18318)",
-    "Minimize to tray / quit leaves orphan processes (#17629, #18445)",
-    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context option"
-  ]
+    "Cannot edit AI messages (#18243 — 3 comments, #18484)",
+    "Code blocks not rendered during streaming (#18474)",
+    "Context compaction thrashes low-window models (fixed in #18318 for DeepSeek)",
+    "Minimize to tray / quit leaves orphan processes (#17629 — 7 comments, #18445)",
+    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context option, TTFT display",
+    "Scheduled tasks skip missed runs post-v2 upgrade — v1 caught up properly (#18607 — new today)"
+  ],
+  "new_discussion_today": [
+    {
+      "number": 18589,
+      "title": "[Discussion]: Too much reverse optimization",
+      "description": "User frustration with v2 UX changes perceived as regression from v1"
+    }
+  ],
+  "sentiment": "Negative-leaning: active community but significant frustration with v2 regressions vs v1.9.x; most productive contributors (DeJeune, kennyzheng-builds) remain engaged on fixes"
 }

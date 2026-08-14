@@ -1,11 +1,13 @@
 {
-  "generated_at": "2026-08-13T17:00:00Z",
-  "date": "2026-08-13",
+  "generated_at": "2026-08-14T19:00:00Z",
+  "date": "2026-08-14",
   "v2_status": {
     "latest_release": "v2.0.5",
     "branch_model": "main-based; v2 branch has no open PRs — effectively retired as separate branch",
-    "open_prs_to_main": 95,
-    "open_prs_to_v1": 3
+    "open_prs_to_main": 96,
+    "open_prs_to_v1": 1,
+    "open_prs_to_other": 3,
+    "last_v2_branch_merge": "2026-05-28"
   },
   "open_blocked_v2": [
     {
@@ -28,68 +30,117 @@
     "Agent outputs internal system reminder verbatim fix (#18175, 2026-08-11)",
     "MCP-over-HTTP endpoints restored on v2 API Gateway (#17992, 2026-08-11)",
     "V1 file migration trailing-space/dot extension fix (#18187, 2026-08-13)",
-    "10+ lazy-load / performance bundle deferrals merged today"
+    "10+ lazy-load/performance bundle deferrals merged (DeJeune, Aug 11-14)"
+  ],
+  "active_tracks_today": [
+    {
+      "track": "Performance & Rendering",
+      "priority": "HIGH",
+      "new_issues_today": 4,
+      "key_new": [
+        "#18621 — Split tab actions from tab state invalidation",
+        "#18622 — Deduplicate CodeViewer document selection listeners",
+        "#18620 — Parallelize and deduplicate Shiki asset loading",
+        "#18619 — Stabilize useMultiplePreferences subscriptions"
+      ],
+      "existing_open": [
+        "#18553 — Parallelize multi-message Notion export",
+        "#18465 — Streaming snapshots rerender Home composer tree",
+        "#18464 — MCP settings eagerly fetch inactive capability tabs",
+        "#18356 — UI scrolling lag after 20k tokens accumulate"
+      ]
+    },
+    {
+      "track": "Data & Migration",
+      "priority": "HIGH",
+      "new_issues_today": 2,
+      "key_new": [
+        "#18614 — Data migration: rename existing knowledge base material names (existing-data portion of #18272)",
+        "#18612 — RFC: versioned data migration mechanism (DB + disk simultaneously)"
+      ],
+      "existing_open_critical": [
+        "#18273 — SECURITY: Backup restore zip-slip vulnerability",
+        "#18373 — Data directory relocation leaves stale absolute paths",
+        "#18272 — Knowledge material filenames not sanitized on native add"
+      ]
+    },
+    {
+      "track": "Agent & Assistant",
+      "priority": "HIGH",
+      "new_issues_today": 3,
+      "key_new": [
+        "#18607 — Scheduled tasks silently skip missed runs after v2 upgrade (NEW — regression)",
+        "#18606 — Allow agents to have zero tasks",
+        "#18601 — ExitPlanMode plan content not surfaced in Agent chat"
+      ],
+      "existing_open": [
+        "#18547 — Pi agent integration UX optimization",
+        "#18536 — Agent Feishu channel experience optimization",
+        "#18336 — Agent Feishu channel WebSocket inbound messages never arrive (P1)",
+        "#17782 — Agent Orchestration Primitives"
+      ]
+    },
+    {
+      "track": "Connectivity & Provider",
+      "priority": "HIGH",
+      "new_issues_today": 4,
+      "key_new": [
+        "#18633 — Third-party API proxy ERR_CONNECTION_TIMED_OUT",
+        "#18608 — Custom Provider incorrectly appends /v1/chat/completions when full URL specified",
+        "#18590 — Restore LAN Transfer in V2 desktop for mobile sync",
+        "#18587 — Pi agent runtime fails through proxy"
+      ],
+      "existing_open": [
+        "#18571 — Custom headers in v2.0.5 don't take effect",
+        "#17971 — Not using configured API URL"
+      ]
+    },
+    {
+      "track": "UI/UX Regressions",
+      "priority": "MEDIUM-HIGH",
+      "new_issues_today": 4,
+      "key_new": [
+        "#18616 — Improve message failure retry/regeneration/edit-and-resend chain",
+        "#18589 — [Discussion]: Too much reverse optimization",
+        "#18583 — Add custom avatar upload for autonomous agents",
+        "#18588 — (Bug report without description)"
+      ],
+      "top_existing_regressions": [
+        "#18243 — AI messages cannot be edited (3 comments)",
+        "#18484 — Assistant responses cannot be uniformly edited/saved",
+        "#18457 — Collapse thinking setting ignored",
+        "#18371 — Agent reasoning rendered as plain body text (5 comments)",
+        "#18099 — Restore Save-only option for editing historical messages",
+        "#18196 — Restore Regenerate Conversation button below user messages",
+        "#18327 — Token/s and TTFT display missing since v2.0"
+      ]
+    }
   ],
   "top_open_feature_requests": [
-    {
-      "number": 18547,
-      "title": "Pi agent UX — flatten engine selection, smart approval default"
-    },
-    {
-      "number": 18545,
-      "title": "Topic dual-column side-by-side or multi-window"
-    },
-    {
-      "number": 18442,
-      "title": "Knowledge base: add jpg, bmp, Office format support"
-    },
-    {
-      "number": 11906,
-      "title": "Video upload support",
-      "comments": 8,
-      "label": "Planned"
-    },
-    {
-      "number": 18267,
-      "title": "Knowledge base refresh when source files change"
-    },
-    {
-      "number": 18268,
-      "title": "Agent session start/end hooks for cross-session continuity"
-    },
-    {
-      "number": 18476,
-      "title": "Add Huawei Cloud MaaS as preset model provider"
-    }
+    {"number": 18547, "title": "Pi agent UX — flatten engine selection, smart approval default"},
+    {"number": 18616, "title": "Improve complete message failure retry/regeneration/edit chain"},
+    {"number": 18442, "title": "Knowledge base: add jpg, bmp, Office format support"},
+    {"number": 17952, "title": "Adopt AI SDK async model API for long-running image/video generation"},
+    {"number": 18267, "title": "Knowledge base refresh when source files change"},
+    {"number": 18268, "title": "Agent session start/end hooks for cross-session continuity"},
+    {"number": 18476, "title": "Add Huawei Cloud MaaS as preset model provider"},
+    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)"},
+    {"number": 18590, "title": "Restore LAN Transfer for PC ↔ Mobile sync"}
   ],
   "active_sigs": {
-    "UI_UX": {
-      "open": 314,
-      "trend": "high"
-    },
-    "Models": {
-      "open": 159,
-      "trend": "high"
-    },
-    "Assistant_Agent": {
-      "open": 78,
-      "trend": "medium"
-    },
-    "Performance": {
-      "open": 60,
-      "trend": "medium"
-    },
-    "MCP": {
-      "open": 47,
-      "trend": "medium"
-    },
-    "RAG": {
-      "open": 30,
-      "trend": "medium"
-    },
-    "Data": {
-      "open": 26,
-      "trend": "low"
-    }
-  }
+    "UI_UX": {"open": 320, "trend": "growing", "delta": "+6"},
+    "Models": {"open": 163, "trend": "stable", "delta": "+4"},
+    "Assistant_Agent": {"open": 81, "trend": "growing", "delta": "+3"},
+    "Performance": {"open": 68, "trend": "growing", "delta": "+8"},
+    "MCP": {"open": 48, "trend": "stable", "delta": "+1"},
+    "Connectivity": {"open": 18, "trend": "growing", "delta": "+5"},
+    "RAG": {"open": 31, "trend": "stable", "delta": "+1"},
+    "Data": {"open": 29, "trend": "growing", "delta": "+3"}
+  },
+  "internal_team_items_in_flight": [
+    "#18045 — Prevent-Sleep Setting to Keep System Awake During Tasks",
+    "#18044 — Let Agent Operate Your Already-Open Browser Without Extension",
+    "#18043 — One-Click Report Error Action on Chat and Agent Failures",
+    "#17782 — Agent Orchestration Primitives (peer session read, create)"
+  ]
 }

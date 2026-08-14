@@ -1,96 +1,128 @@
 {
-  "generated_at": "2026-08-13T17:00:00Z",
-  "date": "2026-08-13",
+  "generated_at": "2026-08-14T19:00:00Z",
+  "date": "2026-08-14",
   "source": "github_mcp",
   "open_issues": {
-    "total": 859,
-    "unlabeled_count": 228,
-    "unlabeled_pct": 26.5,
+    "total": 873,
+    "delta_from_yesterday": "+14",
+    "unlabeled_count": 237,
+    "unlabeled_pct": 27.2,
     "inactive_labeled": 163,
     "label_breakdown": {
-      "UI/UX": 314,
-      "Models": 159,
-      "Assistant": 69,
-      "Performance": 60,
-      "MCP": 47,
-      "RAG": 30,
-      "Data": 26,
+      "UI/UX": 320,
+      "Models": 163,
+      "Assistant": 70,
+      "Performance": 68,
+      "MCP": 48,
+      "RAG": 31,
+      "Data": 29,
       "Docs": 17,
-      "Connectivity": 13,
-      "Agent": 9
+      "Connectivity": 18,
+      "Agent": 11
     }
   },
   "open_prs": {
     "total": 100,
-    "targeting_main": 95,
-    "targeting_v1": 3,
-    "targeting_other": 2,
-    "drafts": 0
+    "targeting_main": 96,
+    "targeting_v1": 1,
+    "targeting_other": 3,
+    "drafts": 0,
+    "top_contributors_open": {
+      "DeJeune": 20,
+      "kennyzheng-builds": 15,
+      "ousugo": 7,
+      "xxiaoxiong": 7,
+      "GeorgeDong32": 5,
+      "SiinXu": 4,
+      "linktao159357": 4,
+      "404-Page-Found": 4
+    },
+    "recent_prs_today": [
+      {"number": 18636, "title": "fix(chat-migrator): stop baking an English name into unnamed chats", "base": "main"},
+      {"number": 18635, "title": "fix(chat-message): restore editing for provider-annotated assistant messages", "base": "main"},
+      {"number": 18632, "title": "feat(export): carry multimodal images in markdown export", "base": "main"},
+      {"number": 18630, "title": "refactor(mcp): move builtin server knowledge out of the MCP subsystem", "base": "main"},
+      {"number": 18629, "title": "fix(markdown): stop rewriting unlinkable links and images in markdown", "base": "main"}
+    ]
   },
   "v2_branch_prs": {
     "open": 0,
     "merged_last_30d": 0,
-    "note": "v2 branch appears merged into main; no active PRs target v2 base"
+    "note": "v2 branch merged into main; no active PRs target v2 base (last merge 2026-05-28)"
   },
   "closed_last_30d": {
-    "issues": 549
+    "issues": 549,
+    "label_breakdown_closed": {
+      "inactive": 35,
+      "UI/UX": 30,
+      "Models": 18,
+      "Performance": 8,
+      "Assistant": 6,
+      "Data": 5,
+      "MCP": 5,
+      "RAG": 5,
+      "needs-repro": 3
+    }
   },
   "p1_urgent_open": [
     {
       "number": 18273,
       "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "labels": [
-        "Data"
-      ],
-      "severity": "SECURITY"
+      "labels": ["Data"],
+      "severity": "SECURITY",
+      "age_days": 5
+    },
+    {
+      "number": 18607,
+      "title": "[Bug]: Scheduled tasks silently skip missed runs after v2 upgrade (regression — v1 caught up)",
+      "labels": [],
+      "severity": "P1",
+      "age_days": 0,
+      "comments": 1
     },
     {
       "number": 18439,
       "title": "[Bug]: Frontend UI freezes when running Agent — Agent continues in background, UI shows error page",
-      "labels": [
-        "UI/UX",
-        "Performance"
-      ],
-      "severity": "P1"
+      "labels": ["UI/UX", "Performance"],
+      "severity": "P1",
+      "age_days": 2
     },
     {
       "number": 18445,
       "title": "[Bug]: App doesn't fully quit when closing main window with tray disabled — 5 processes keep running",
       "labels": [],
-      "severity": "P1"
+      "severity": "P1",
+      "age_days": 2
     },
     {
       "number": 18336,
       "title": "[Bug] Agent Feishu channel: WebSocket connects but inbound messages never reach the session (2.0.3)",
-      "labels": [
-        "BUG",
-        "Connectivity"
-      ],
-      "severity": "P1"
+      "labels": ["BUG", "Connectivity"],
+      "severity": "P1",
+      "age_days": 3,
+      "comments": 1
     },
     {
       "number": 18131,
       "title": "[Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
-      "labels": [
-        "needs-more-info",
-        "MCP"
-      ],
+      "labels": ["needs-more-info", "MCP"],
       "severity": "P1",
+      "age_days": 7,
       "comments": 9
     },
     {
       "number": 18373,
       "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent system-workspace validation)",
-      "labels": [
-        "Data"
-      ],
-      "severity": "P1"
+      "labels": ["Data"],
+      "severity": "P1",
+      "age_days": 3
     },
     {
       "number": 18063,
       "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime — macOS 27",
       "labels": [],
       "severity": "P1",
+      "age_days": 7,
       "comments": 2
     },
     {
@@ -98,34 +130,37 @@
       "title": "[Bug]: Processes remain running in Task Manager after closing window with 'Minimize to tray on close' disabled",
       "labels": [],
       "severity": "P1",
+      "age_days": 15,
       "comments": 7
     }
   ],
+  "new_issues_today_aug14": [
+    {"number": 18634, "title": "Image models (Nano Banana/GPT Image) cannot be used", "labels": ["Models"]},
+    {"number": 18633, "title": "Third-party API proxy ERR_CONNECTION_TIMED_OUT", "labels": ["Connectivity"]},
+    {"number": 18631, "title": "UNC workspace breaks agent folder-mention dedup and file:// references", "labels": []},
+    {"number": 18621, "title": "Split tab actions from tab state invalidation", "labels": ["Performance"]},
+    {"number": 18622, "title": "Deduplicate CodeViewer document selection listeners", "labels": ["Performance"]},
+    {"number": 18620, "title": "Parallelize and deduplicate Shiki asset loading", "labels": ["Performance"]},
+    {"number": 18619, "title": "Stabilize useMultiplePreferences subscriptions", "labels": ["Performance"]},
+    {"number": 18616, "title": "Improve message failure retry/regeneration/edit-and-resend chain", "labels": ["UI/UX"]},
+    {"number": 18614, "title": "Data migration: rename existing knowledge base material names", "labels": ["Data"]},
+    {"number": 18612, "title": "RFC: versioned data migration mechanism (DB + disk)", "labels": ["Data"]},
+    {"number": 18608, "title": "Custom Provider incorrectly appends /v1/chat/completions when full URL specified", "labels": ["Connectivity"]},
+    {"number": 18607, "title": "Scheduled tasks silently skip missed runs after v2 upgrade", "labels": []},
+    {"number": 18606, "title": "Allow agents to have zero tasks", "labels": []},
+    {"number": 18603, "title": "Local embedding model reverts from ready to incomplete on navigation", "labels": ["Models"]},
+    {"number": 18601, "title": "ExitPlanMode plan content not surfaced in Agent chat", "labels": []},
+    {"number": 18590, "title": "Restore LAN Transfer in V2 desktop for syncing with mobile app", "labels": ["Connectivity"]},
+    {"number": 18589, "title": "[Discussion]: Too much reverse optimization", "labels": ["help wanted", "discussion", "UI/UX"]},
+    {"number": 18588, "title": "[Bug]: (untitled)", "labels": ["Models"]},
+    {"number": 18587, "title": "Pi agent runtime fails through proxy while Claude Code connects fine", "labels": ["Connectivity"]},
+    {"number": 18583, "title": "Add custom avatar upload for autonomous agents", "labels": ["UI/UX"]}
+  ],
   "notable_recently_closed": [
-    {
-      "number": 18318,
-      "title": "DeepSeek V4 Pro & 57 more models clamped to 100K context",
-      "closed_at": "2026-08-11"
-    },
-    {
-      "number": 18397,
-      "title": "Model context window not passed to Claude Code SDK — [1m] suffix not parsed",
-      "closed_at": "2026-08-12"
-    },
-    {
-      "number": 18317,
-      "title": "Agent session deadlocks — live-stream replay ring overflow",
-      "closed_at": "2026-08-12"
-    },
-    {
-      "number": 18175,
-      "title": "Agent outputs internal system reminder verbatim — leaks into replies",
-      "closed_at": "2026-08-11"
-    },
-    {
-      "number": 18187,
-      "title": "Migrated v1 files with trailing-space/dot extension are unreadable in v2",
-      "closed_at": "2026-08-13"
-    }
+    {"number": 18318, "title": "DeepSeek V4 Pro & 57 more models clamped to 100K context", "closed_at": "2026-08-11"},
+    {"number": 18397, "title": "Model context window not passed to Claude Code SDK — [1m] suffix not parsed", "closed_at": "2026-08-12"},
+    {"number": 18317, "title": "Agent session deadlocks — live-stream replay ring overflow", "closed_at": "2026-08-12"},
+    {"number": 18175, "title": "Agent outputs internal system reminder verbatim — leaks into replies", "closed_at": "2026-08-11"},
+    {"number": 18187, "title": "Migrated v1 files with trailing-space/dot extension are unreadable in v2", "closed_at": "2026-08-13"}
   ]
 }
