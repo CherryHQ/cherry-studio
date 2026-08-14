@@ -102,10 +102,7 @@ describe('HtmlArtifactsPopup', () => {
 
   it('dismisses the capture menu after selecting a destination', () => {
     render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
-    const captureTrigger = document.querySelector('.lucide-camera')?.closest('button')
-
-    expect(captureTrigger).toBeInTheDocument()
-    fireEvent.click(captureTrigger!)
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.capture.label' }))
     fireEvent.click(screen.getByRole('button', { name: /html_artifacts\.capture\.to_file/ }))
 
     expect(screen.queryByRole('button', { name: /html_artifacts\.capture\.to_file/ })).not.toBeInTheDocument()

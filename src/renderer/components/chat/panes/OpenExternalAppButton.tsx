@@ -132,10 +132,6 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
   const primaryTooltip = tooltip ?? primaryLabel
   const defaultAppName = t('agent.preview_pane.default_app')
   const hasAlternativeTargets = Boolean(fileTargetPath) || availableEditors.length > 0
-  const runAfterMenuClose = (action: () => void) => {
-    setMenuOpen(false)
-    action()
-  }
   const menu = (
     <PopoverContent className="w-56 p-1" align={menuTrigger ? 'start' : 'end'}>
       <MenuList>
@@ -143,14 +139,20 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
           <MenuItem
             label={defaultAppName}
             icon={<FileText size={16} />}
-            onClick={() => runAfterMenuClose(() => void openFileWithDefaultApp())}
+            onClick={() => {
+              setMenuOpen(false)
+              void openFileWithDefaultApp()
+            }}
           />
         )}
         <MenuItem
           label={fileManagerName}
           icon={renderFileManagerIcon()}
           active={selectedTarget === FILE_MANAGER_TARGET}
-          onClick={() => runAfterMenuClose(() => void openFileManager())}
+          onClick={() => {
+            setMenuOpen(false)
+            void openFileManager()
+          }}
         />
         {availableEditors.map((app) => (
           <MenuItem
@@ -158,7 +160,10 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
             label={app.name}
             icon={getEditorIcon(app)}
             active={selectedTarget === app.id}
-            onClick={() => runAfterMenuClose(() => void openInEditor(app))}
+            onClick={() => {
+              setMenuOpen(false)
+              void openInEditor(app)
+            }}
           />
         ))}
       </MenuList>

@@ -311,7 +311,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                 <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                   <Tooltip content={t('html_artifacts.capture.label')}>
                     <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('html_artifacts.capture.label')}
+                        className="[-webkit-app-region:no-drag]">
                         <Camera className="size-3.5" />
                       </Button>
                     </PopoverTrigger>
