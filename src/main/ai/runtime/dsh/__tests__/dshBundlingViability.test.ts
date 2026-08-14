@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { loadDshSdk } from '../dshSdk'
+import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
 
 /**
  * Bundling viability gate (mirrors pi's Phase 0 spike test).
@@ -21,6 +21,12 @@ describe('dsh SDK bundling viability', () => {
     const sdk = await loadDshSdk()
 
     expect(typeof sdk.HarnessClient).toBe('function')
+  })
+
+  it('loads the ESM-only bridge transport class through the runtime entry point', async () => {
+    const protocol = await loadDshSdkProtocol()
+
+    expect(typeof protocol.JsonRpcLineTransport).toBe('function')
   })
 
   it('resolves the runtime bin and every composed plugin to on-disk entries', () => {

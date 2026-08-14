@@ -1,12 +1,14 @@
 /**
- * Wire contract of the Cherry ↔ dsh-bridge side channel (newline-delimited JSON
- * over a per-connection unix socket / named pipe). Single source shared by the
- * plugin (dsh subprocess) and the driver (Cherry main).
+ * Wire contract of the Cherry ↔ dsh-bridge side channel (a per-connection unix
+ * socket / named pipe). Single source shared by the plugin (dsh subprocess) and
+ * the driver (Cherry main).
  *
- * Framing mirrors dsh's own SDK stdio wire (one compact JSON frame per line) so
- * both channels of the subprocess share one debugging model. Deliberately NOT a
- * JSON-RPC 2.0 envelope: both peers are Cherry-owned, so the discriminated
- * `type` + `id` already carry method and correlation without the extra layer.
+ * Framing and request/response correlation ride dsh's own `JsonRpcLineTransport`
+ * (`@deepseek-ai/dsh-sdk-protocol`, pinned to the same version at both ends), so
+ * both channels of the subprocess share one wire model. The method vocabulary
+ * stays Cherry-owned: dsh's `HarnessSdkRequestMap` is closed to three methods
+ * and its server throws on anything else, so open / cancel / policy / context /
+ * command / tool / approval have to live here.
  */
 
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
@@ -48,10 +50,26 @@ export interface BridgePolicy {
   approvalRequiredTools: string[]
 }
 
-export type HostToBridgeMessage =
-  | {
-      type: 'open'
-      id: string
+/** `ctx.tokenMeter.measure()` pressure plus the optional heuristic breakdown projection. */
+export interface BridgeContextUsage {
+  totalTokens: number
+  systemTokens?: number
+  toolsTokens?: number
+  messageTokens?: number
+}
+
+/** `handled: false` = not a registered command (admission miss) — a success, not an error:
+ *  the host falls back to prompting the line as prose. `kind`/`text` relay `command/done`. */
+export interface BridgeCommandResult {
+  handled: boolean
+  kind?: 'success' | 'error'
+  text?: string
+}
+
+/** Host→plugin request methods with their param and result shapes. */
+export interface BridgeHostRequestMap {
+  'session/open': {
+    params: {
       sessionId: string
       provider: string
       model: string
@@ -61,72 +79,36 @@ export type HostToBridgeMessage =
       policy: BridgePolicy
       tools: BridgeToolDescriptor[]
     }
-  | { type: 'prompt'; id: string; sessionId: string; contentBlocks: BridgeTextBlock[] }
-  | { type: 'cancel'; id: string; sessionId: string }
-  | { type: 'policyUpdate'; id: string; sessionId: string; policy: BridgePolicy }
-  | { type: 'contextUsage'; id: string; sessionId: string }
+    result: Record<string, never>
+  }
+  'session/prompt': {
+    params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
+    result: Record<string, never>
+  }
+  'session/cancel': { params: { sessionId: string }; result: Record<string, never> }
+  'policy/update': { params: { sessionId: string; policy: BridgePolicy }; result: Record<string, never> }
+  'context/usage': { params: { sessionId: string }; result: BridgeContextUsage }
   /** One slash-command line dispatched through the runtime's `ctx.commands` registry. */
-  | { type: 'command'; id: string; sessionId: string; line: string }
-  | { type: 'approvalAnswer'; id: string; outcome: 'allowed-once' | 'rejected' }
-  | ({ type: 'toolCallResult'; id: string; ok: true } & BridgeToolCallResult)
-  | { type: 'toolCallResult'; id: string; ok: false; error: string }
-
-/** `ctx.tokenMeter.measure()` pressure plus the optional heuristic breakdown projection. */
-export interface BridgeContextUsage {
-  totalTokens: number
-  systemTokens?: number
-  toolsTokens?: number
-  messageTokens?: number
+  'command/execute': { params: { sessionId: string; line: string }; result: BridgeCommandResult }
 }
 
-export type BridgeToHostMessage =
-  | { type: 'ready'; pid: number; token: string }
-  | { type: 'result'; id: string; ok: boolean; error?: string }
-  | { type: 'contextUsageResult'; id: string; ok: boolean; usage?: BridgeContextUsage; error?: string }
-  /** `handled: false` = not a registered command (admission miss) — the host falls back to a prompt.
-   *  `kind`/`text` relay the command's own `command/done` outcome for the host to present. */
-  | {
-      type: 'commandResult'
-      id: string
-      ok: boolean
-      handled?: boolean
-      kind?: 'success' | 'error'
-      text?: string
-      error?: string
-    }
-  | { type: 'toolCall'; id: string; sessionId: string; name: string; args: unknown }
-  | { type: 'toolCallCancel'; id: string; sessionId: string }
-  | {
-      type: 'approvalAsk'
-      id: string
-      sessionId: string
-      toolName: string
-      callId?: string
-      args?: unknown
-      reason?: string
-    }
-
-export const encodeBridgeMessage = (msg: object): string => JSON.stringify(msg) + '\n'
-
-/** Stateful newline-JSON decoder factory (handles split/coalesced TCP chunks). */
-export function createBridgeFrameDecoder(onMessage: (msg: unknown) => void): (chunk: Buffer | string) => void {
-  // Byte-level buffering: 0x0A never occurs inside a multibyte UTF-8 sequence,
-  // so a chunk boundary mid-character cannot corrupt a decoded line.
-  let buffer = Buffer.alloc(0)
-  return (chunk) => {
-    buffer = Buffer.concat([buffer, typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk])
-    let newlineIndex: number
-    while ((newlineIndex = buffer.indexOf(0x0a)) >= 0) {
-      const line = buffer.subarray(0, newlineIndex).toString('utf8')
-      buffer = buffer.subarray(newlineIndex + 1)
-      if (!line.trim()) continue
-      let msg: unknown
-      try {
-        msg = JSON.parse(line)
-      } catch {
-        continue // a malformed frame must not crash the peer's data handler
-      }
-      onMessage(msg)
-    }
+/** Plugin→host request methods. `ready` is the authentication handshake and MUST be first. */
+export interface BridgePluginRequestMap {
+  ready: { params: { pid: number; token: string }; result: Record<string, never> }
+  'approval/ask': {
+    params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
+    result: { outcome: 'allowed-once' | 'rejected' }
+  }
+  'tool/call': {
+    params: { sessionId: string; callId: string; name: string; args: unknown }
+    result: BridgeToolCallResult
   }
 }
+
+/** Plugin→host notifications. JSON-RPC has no cancel, so `tool/cancel` carries the
+ *  bridge's own `callId` (independent of the transport's request id). */
+export interface BridgeNotificationMap {
+  'tool/cancel': { sessionId: string; callId: string }
+}
+
+export type BridgeHostParams<M extends keyof BridgeHostRequestMap> = BridgeHostRequestMap[M]['params']

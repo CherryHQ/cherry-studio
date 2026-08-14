@@ -12,3 +12,8 @@
 export function loadDshSdk() {
   return import('@deepseek-ai/dsh-sdk-client')
 }
+
+/** Same ESM-only constraint: the bridge side channel rides `JsonRpcLineTransport` from here. */
+export function loadDshSdkProtocol() {
+  return import('@deepseek-ai/dsh-sdk-protocol')
+}

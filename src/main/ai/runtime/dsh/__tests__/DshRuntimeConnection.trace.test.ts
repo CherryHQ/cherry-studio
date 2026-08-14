@@ -223,10 +223,8 @@ describe('DshRuntimeConnection tracing', () => {
 
     await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat' })).resolves.toBe('rebuild')
     expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'policyUpdate',
-        policy: expect.objectContaining({ permissionMode: 'default' })
-      })
+      'policy/update',
+      expect.objectContaining({ policy: expect.objectContaining({ permissionMode: 'default' }) })
     )
 
     await connection.close()

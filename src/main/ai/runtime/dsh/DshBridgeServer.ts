@@ -1,9 +1,9 @@
 /**
  * Per-connection control-plane host for the dsh bridge plugin: a `net.Server`
- * on a short-lived local socket speaking the `@cherrystudio/dsh-bridge`
- * newline-JSON protocol. Owns request/result correlation (open / prompt /
- * cancel / policyUpdate), the `ready` handshake, and the interactive
- * approval round-trip (`approvalAsk` → tool-approval registry → answer).
+ * on a short-lived local socket speaking the `@cherrystudio/dsh-bridge` method
+ * vocabulary over dsh's own `JsonRpcLineTransport`. Owns the `ready` handshake
+ * (authentication), the host→plugin requests (session / policy / context /
+ * command) and the plugin→host round-trips (tool calls, interactive approvals).
  */
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
@@ -11,40 +11,26 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
-import {
-  type BridgeContextUsage,
-  type BridgeToHostMessage,
-  type BridgeToolCallResult,
-  createBridgeFrameDecoder,
-  encodeBridgeMessage,
-  type HostToBridgeMessage
+import type {
+  BridgeCommandResult,
+  BridgeContextUsage,
+  BridgeHostRequestMap,
+  BridgeNotificationMap,
+  BridgePluginRequestMap,
+  BridgeToolCallResult
 } from '@cherrystudio/dsh-bridge'
+import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { loggerService } from '@logger'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
+import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
 
 const logger = loggerService.withContext('DshBridgeServer')
 
 const READY_TIMEOUT_MS = 15_000
-
-type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never
-
-/** Correlated control messages — `approvalAnswer` is answer-only and never yields a `result`;
- *  `contextUsage`/`command` have typed result frames behind their own wrappers. */
-export type DshBridgeRequest = DistributiveOmit<
-  Exclude<HostToBridgeMessage, { type: 'approvalAnswer' | 'contextUsage' | 'command' }>,
-  'id'
->
-
-/** Outcome of one dispatched slash command; `handled: false` = not a registered command. */
-export interface DshBridgeCommandOutcome {
-  handled: boolean
-  kind?: 'success' | 'error'
-  text?: string
-}
 
 export interface DshBridgeServerOptions {
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
@@ -55,12 +41,8 @@ export interface DshBridgeServerOptions {
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
-}
-
-interface PendingResult {
-  resolve: (value?: unknown) => void
-  reject: (error: Error) => void
-  timer?: NodeJS.Timeout
+  /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
+  readyTimeoutMs?: number
 }
 
 /** macOS `sun_path` caps at ~104 chars, so the socket lives in tmpdir — NEVER under userData. */
@@ -75,18 +57,22 @@ export class DshBridgeServer {
 
   private server?: net.Server
   private connection?: net.Socket
+  private transport?: JsonRpcLineTransport
   private readonly unauthenticatedSockets = new Set<net.Socket>()
-  private requestSeq = 0
-  private readonly pendingResults = new Map<string, PendingResult>()
   private readonly activeToolCalls = new Map<string, AbortController>()
   private ready = false
   private readonly readyWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
   private closed = false
+  private readonly readyTimeoutMs: number
 
-  constructor(private readonly options: DshBridgeServerOptions) {}
+  constructor(private readonly options: DshBridgeServerOptions) {
+    this.readyTimeoutMs = options.readyTimeoutMs ?? READY_TIMEOUT_MS
+  }
 
   async listen(): Promise<void> {
-    const server = net.createServer((socket) => this.handleConnection(socket))
+    // ESM-only class, loaded before the first connection so accepting stays synchronous.
+    const { JsonRpcLineTransport } = await loadDshSdkProtocol()
+    const server = net.createServer((socket) => this.handleConnection(socket, JsonRpcLineTransport))
     this.server = server
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
@@ -102,8 +88,8 @@ export class DshBridgeServer {
     }
   }
 
-  /** Resolves when the plugin's `ready` frame arrives (it connects as the composition boots). */
-  whenReady(timeoutMs = READY_TIMEOUT_MS): Promise<void> {
+  /** Resolves when the plugin's `ready` request authenticates (it connects as the composition boots). */
+  whenReady(timeoutMs = this.readyTimeoutMs): Promise<void> {
     if (this.ready) return Promise.resolve()
     if (this.closed) return Promise.reject(new Error('dsh bridge server is closed'))
     return new Promise<void>((resolve, reject) => {
@@ -127,58 +113,51 @@ export class DshBridgeServer {
     })
   }
 
-  /** Send one correlated control message and await its `result`; rejects on `ok: false`. */
-  request(message: DshBridgeRequest, options?: { timeoutMs?: number }): Promise<void> {
-    return this.sendCorrelated(message, options).then(() => undefined)
+  /** Send one control request; rejects with the plugin's error response. */
+  request<M extends keyof BridgeHostRequestMap>(
+    method: M,
+    params: BridgeHostRequestMap[M]['params'],
+    options?: { timeoutMs?: number }
+  ): Promise<BridgeHostRequestMap[M]['result']> {
+    const transport = this.transport
+    if (!transport || !this.connection || this.connection.destroyed) {
+      return Promise.reject(new Error('dsh bridge plugin is not connected'))
+    }
+    if (options?.timeoutMs === undefined) {
+      return transport.request(method, params) as Promise<BridgeHostRequestMap[M]['result']>
+    }
+    // The transport has no timeouts; aborting drops the pending entry and rejects with this reason.
+    const { timeoutMs } = options
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort(new Error(`dsh bridge ${method} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    timer.unref?.()
+    return (transport.request(method, params, controller.signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(
+      () => clearTimeout(timer)
+    )
   }
 
   /** Query the plugin's `ctx.tokenMeter` measurement for this connection's session. */
   requestContextUsage(sessionId: string, options?: { timeoutMs?: number }): Promise<BridgeContextUsage> {
-    return this.sendCorrelated({ type: 'contextUsage', sessionId }, options).then((value) => {
-      const usage = value as BridgeContextUsage | undefined
-      if (!usage || typeof usage.totalTokens !== 'number') {
-        throw new Error('dsh bridge returned no context usage payload')
-      }
+    return this.request('context/usage', { sessionId }, options).then((usage) => {
+      if (typeof usage?.totalTokens !== 'number') throw new Error('dsh bridge returned no context usage payload')
       return usage
     })
   }
 
   /** Dispatch one slash-command line through the plugin's `ctx.commands` registry. No timeout —
    *  a command can wrap an LLM round-trip (compaction); a dead plugin rejects via socket close. */
-  requestCommand(sessionId: string, line: string): Promise<DshBridgeCommandOutcome> {
-    return this.sendCorrelated({ type: 'command', sessionId, line }).then((value) => value as DshBridgeCommandOutcome)
-  }
-
-  private sendCorrelated(
-    message:
-      | DshBridgeRequest
-      | { type: 'contextUsage'; sessionId: string }
-      | { type: 'command'; sessionId: string; line: string },
-    options?: { timeoutMs?: number }
-  ): Promise<unknown> {
-    const connection = this.connection
-    if (!connection || connection.destroyed) {
-      return Promise.reject(new Error('dsh bridge plugin is not connected'))
-    }
-    const id = String(++this.requestSeq)
-    return new Promise<unknown>((resolve, reject) => {
-      const pending: PendingResult = { resolve, reject }
-      if (options?.timeoutMs) {
-        pending.timer = setTimeout(() => {
-          this.pendingResults.delete(id)
-          reject(new Error(`dsh bridge ${message.type} timed out after ${options.timeoutMs}ms`))
-        }, options.timeoutMs)
-        pending.timer.unref?.()
-      }
-      this.pendingResults.set(id, pending)
-      connection.write(encodeBridgeMessage({ ...message, id }))
-    })
+  requestCommand(sessionId: string, line: string): Promise<BridgeCommandResult> {
+    return this.request('command/execute', { sessionId, line })
   }
 
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    this.failPending(new Error('dsh bridge server closed'))
+    // Rejects every pending host→plugin request.
+    this.transport?.close()
+    this.transport = undefined
     this.abortToolCalls()
     for (const waiter of this.readyWaiters.splice(0)) waiter.reject(new Error('dsh bridge server closed'))
     for (const socket of this.unauthenticatedSockets) socket.destroy()
@@ -195,197 +174,131 @@ export class DshBridgeServer {
     }
   }
 
-  private handleConnection(socket: net.Socket): void {
+  private handleConnection(socket: net.Socket, Transport: typeof JsonRpcLineTransport): void {
     if (this.closed || this.connection) {
       socket.destroy()
       return
     }
     this.unauthenticatedSockets.add(socket)
+    const transport = new Transport(socket, socket)
     let authenticated = false
-    socket.setTimeout(READY_TIMEOUT_MS, () => socket.destroy())
+    socket.setTimeout(this.readyTimeoutMs, () => socket.destroy())
     socket.on('error', (error) => logger.warn('dsh bridge socket error', { error }))
     socket.on('close', () => {
       this.unauthenticatedSockets.delete(socket)
-      if (this.connection === socket) this.connection = undefined
-      if (authenticated) {
-        this.failPending(new Error('dsh bridge plugin disconnected'))
+      transport.close()
+      if (this.connection === socket) {
+        this.connection = undefined
+        this.transport = undefined
         this.abortToolCalls()
       }
     })
-    socket.on(
-      'data',
-      createBridgeFrameDecoder((message) => {
-        if (!authenticated) {
-          if (!this.authenticate(socket, message)) socket.destroy()
-          else authenticated = true
-          return
+    transport.onRequest(async (method, params) => {
+      if (!authenticated) {
+        if (method !== 'ready' || !this.authenticate(socket, transport, params)) {
+          // Destroy after the error response is written so the peer can diagnose the denial.
+          setImmediate(() => socket.destroy())
+          throw new Error('dsh bridge authentication failed')
         }
-        // Post-auth frames come from Cherry's own plugin; the protocol union holds by contract.
-        this.handleMessage(message as BridgeToHostMessage)
-      })
-    )
+        authenticated = true
+        return {}
+      }
+      return this.handleRequest(method, params)
+    })
+    transport.onNotification((method, params) => {
+      if (!authenticated || method !== 'tool/cancel') return
+      const cancel = params as BridgeNotificationMap['tool/cancel']
+      if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+    })
+    transport.start()
   }
 
-  private authenticate(socket: net.Socket, message: unknown): boolean {
-    if (this.closed || this.connection || !isRecord(message)) return false
-    if (message.type !== 'ready' || !Number.isSafeInteger(message.pid) || typeof message.token !== 'string')
-      return false
+  private authenticate(socket: net.Socket, transport: JsonRpcLineTransport, params: Record<string, unknown>): boolean {
+    if (this.closed || this.connection) return false
+    const { pid, token } = params as BridgePluginRequestMap['ready']['params']
+    if (!Number.isSafeInteger(pid) || typeof token !== 'string') return false
     const expected = Buffer.from(this.authenticationToken)
-    const received = Buffer.from(message.token)
+    const received = Buffer.from(token)
     if (expected.length !== received.length || !timingSafeEqual(expected, received)) return false
 
     this.unauthenticatedSockets.delete(socket)
     socket.setTimeout(0)
     this.connection = socket
+    this.transport = transport
     this.ready = true
     for (const waiter of this.readyWaiters.splice(0)) waiter.resolve()
     return true
   }
 
-  private handleMessage(frame: BridgeToHostMessage): void {
-    switch (frame.type) {
-      case 'result': {
-        const pending = this.takePending(frame.id)
-        if (!pending) return
-        if (frame.ok) pending.resolve()
-        else pending.reject(new Error(frame.error ?? 'dsh bridge request failed'))
-        return
-      }
-      case 'contextUsageResult': {
-        const pending = this.takePending(frame.id)
-        if (!pending) return
-        if (frame.ok) pending.resolve(frame.usage)
-        else pending.reject(new Error(frame.error ?? 'dsh bridge context usage failed'))
-        return
-      }
-      case 'commandResult': {
-        const pending = this.takePending(frame.id)
-        if (!pending) return
-        if (frame.ok) {
-          pending.resolve({
-            handled: frame.handled === true,
-            ...(frame.kind !== undefined ? { kind: frame.kind } : {}),
-            ...(frame.text !== undefined ? { text: frame.text } : {})
-          })
-        } else {
-          pending.reject(new Error(frame.error ?? 'dsh bridge command failed'))
-        }
-        return
-      }
-      case 'toolCall':
-        void this.handleToolCall(frame)
-        return
-      case 'toolCallCancel':
-        if (frame.sessionId === this.options.sessionId) this.activeToolCalls.get(frame.id)?.abort()
-        return
-      case 'approvalAsk':
-        this.handleApprovalAsk(frame)
-        return
+  private handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
+    switch (method) {
+      case 'tool/call':
+        return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
+      case 'approval/ask':
+        return this.handleApprovalAsk(params as BridgePluginRequestMap['approval/ask']['params'])
       default:
-        // 'ready' after authentication and merge-unknown frames are ignored.
-        return
+        return Promise.reject(new Error(`unknown dsh bridge method "${method}"`))
     }
   }
 
-  private async handleToolCall(call: Extract<BridgeToHostMessage, { type: 'toolCall' }>): Promise<void> {
-    const id = call.id
-    if (call.sessionId !== this.options.sessionId) {
-      this.answerToolCall(id, { ok: false, error: 'dsh bridge tool call used the wrong session' })
-      return
-    }
-    if (!id || this.activeToolCalls.has(id)) {
-      this.answerToolCall(id, { ok: false, error: 'dsh bridge tool call id is missing or already active' })
-      return
+  private async handleToolCall(call: BridgePluginRequestMap['tool/call']['params']): Promise<BridgeToolCallResult> {
+    if (call.sessionId !== this.options.sessionId) throw new Error('dsh bridge tool call used the wrong session')
+    if (!call.callId || this.activeToolCalls.has(call.callId)) {
+      throw new Error('dsh bridge tool call id is missing or already active')
     }
     const controller = new AbortController()
-    this.activeToolCalls.set(id, controller)
+    this.activeToolCalls.set(call.callId, controller)
     try {
-      const result = await this.options.onToolCall(call.name, call.args, controller.signal)
-      if (controller.signal.aborted) return
-      this.answerToolCall(id, { ok: true, ...result })
-    } catch (error) {
-      if (controller.signal.aborted) return
-      this.answerToolCall(id, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      return await this.options.onToolCall(call.name, call.args, controller.signal)
     } finally {
-      if (this.activeToolCalls.get(id) === controller) this.activeToolCalls.delete(id)
+      if (this.activeToolCalls.get(call.callId) === controller) this.activeToolCalls.delete(call.callId)
     }
   }
 
-  private handleApprovalAsk(ask: Extract<BridgeToHostMessage, { type: 'approvalAsk' }>): void {
-    const askId = ask.id
+  private handleApprovalAsk(
+    ask: BridgePluginRequestMap['approval/ask']['params']
+  ): Promise<BridgePluginRequestMap['approval/ask']['result']> {
     const toolName = ask.toolName
     const interactionState = this.options.getInteractionState()
-    if (interactionState.userResponse === 'unavailable') {
-      // Unattended turn — fail closed immediately (the wire carries no reason channel).
-      this.answerApproval(askId, 'rejected')
-      return
-    }
+    // Unattended turn — fail closed immediately (the wire carries no reason channel).
+    if (interactionState.userResponse === 'unavailable') return Promise.resolve({ outcome: 'rejected' })
 
     const approvalId = randomUUID()
     const toolCallId = ask.callId || approvalId
     // `args` is protocol-`unknown` (plugin-parsed model output), so keep the shape guard.
     const input = isRecord(ask.args) ? ask.args : {}
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
-    const pending = toolApprovalRegistry.register({
-      approvalId,
-      sessionId: this.options.sessionId,
-      toolCallId,
-      toolName,
-      originalInput: { ...input },
-      presentation,
-      resolve: (decision) => {
-        // dsh forbids rewriting tool input, so an edited-input approval degrades to a rejection.
-        if (decision.approved && decision.updatedInput) {
-          logger.warn('editing tool input is not supported by the dsh runtime; rejecting', { toolName })
-        }
-        this.answerApproval(askId, decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected')
-      }
-    })
-    // Only surface the approval card when the request is actually pending; a synchronous
-    // resolve already settled the promise, and emitting would leave an unanswerable card.
-    if (!pending) return
-    this.options.emit({
-      type: 'tool-approval-request',
-      request: {
+    return new Promise((resolve) => {
+      const pending = toolApprovalRegistry.register({
         approvalId,
+        sessionId: this.options.sessionId,
         toolCallId,
         toolName,
-        input: { ...input },
+        originalInput: { ...input },
         presentation,
-        providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
-      }
+        resolve: (decision) => {
+          // dsh forbids rewriting tool input, so an edited-input approval degrades to a rejection.
+          if (decision.approved && decision.updatedInput) {
+            logger.warn('editing tool input is not supported by the dsh runtime; rejecting', { toolName })
+          }
+          resolve({ outcome: decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected' })
+        }
+      })
+      // Only surface the approval card when the request is actually pending; a synchronous
+      // resolve already settled the promise, and emitting would leave an unanswerable card.
+      if (!pending) return
+      this.options.emit({
+        type: 'tool-approval-request',
+        request: {
+          approvalId,
+          toolCallId,
+          toolName,
+          input: { ...input },
+          presentation,
+          providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
+        }
+      })
     })
-  }
-
-  private takePending(id: string): PendingResult | undefined {
-    const pending = this.pendingResults.get(id)
-    if (!pending) return undefined
-    this.pendingResults.delete(id)
-    if (pending.timer) clearTimeout(pending.timer)
-    return pending
-  }
-
-  private answerApproval(askId: string, outcome: 'allowed-once' | 'rejected'): void {
-    const connection = this.connection
-    if (!connection || connection.destroyed) return
-    connection.write(encodeBridgeMessage({ type: 'approvalAnswer', id: askId, outcome }))
-  }
-
-  private answerToolCall(
-    id: string,
-    result: ({ ok: true } & BridgeToolCallResult) | { ok: false; error: string }
-  ): void {
-    const connection = this.connection
-    if (!connection || connection.destroyed) return
-    connection.write(encodeBridgeMessage({ type: 'toolCallResult', id, ...result }))
-  }
-
-  private failPending(error: Error): void {
-    for (const [, pending] of this.pendingResults) {
-      if (pending.timer) clearTimeout(pending.timer)
-      pending.reject(error)
-    }
-    this.pendingResults.clear()
   }
 
   private abortToolCalls(): void {

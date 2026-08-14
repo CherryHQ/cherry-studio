@@ -1,6 +1,6 @@
 import net from 'node:net'
 
-import { createBridgeFrameDecoder, encodeBridgeMessage } from '@cherrystudio/dsh-bridge'
+import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
@@ -9,71 +9,93 @@ import { DshBridgeServer } from '../DshBridgeServer'
 
 const SESSION_ID = 'dsh-bridge-test-session'
 
+/** One host→plugin request seen by the fake plugin, with its response handles. */
+interface HostRequest {
+  method: string
+  params: Record<string, unknown>
+  respond: (result: unknown) => void
+  fail: (message: string) => void
+}
+
 interface Harness {
   server: DshBridgeServer
   socket: net.Socket
-  /** Frames the fake plugin received from the host, in order. */
-  received: Record<string, unknown>[]
+  transport: JsonRpcLineTransport
   events: AgentRuntimeEvent[]
-  nextFrame: () => Promise<Record<string, unknown>>
+  nextRequest: () => Promise<HostRequest>
 }
 
 const harnesses: Harness[] = []
 
-async function makeHarness(
+function makeServer(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
-  onToolCall: (
-    name: string,
-    args: unknown,
-    signal: AbortSignal
-  ) => Promise<{ text: string; data?: unknown }> = async () => {
-    throw new Error('unexpected tool call')
-  }
-): Promise<Harness> {
+  onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
+    Promise.reject(new Error('unexpected tool call')),
+  readyTimeoutMs?: number
+): { server: DshBridgeServer; events: AgentRuntimeEvent[] } {
   const events: AgentRuntimeEvent[] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
     emit: (event) => events.push(event),
     getInteractionState: () => ({ userResponse }),
-    onToolCall
+    onToolCall,
+    ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
-  await server.listen()
+  return { server, events }
+}
 
-  const received: Record<string, unknown>[] = []
-  const waiters: Array<(frame: Record<string, unknown>) => void> = []
+/** Connect a JSON-RPC peer that records host requests; authenticates unless a token is given. */
+async function connectPlugin(
+  server: DshBridgeServer,
+  options: { token?: string; skipReady?: boolean } = {}
+): Promise<{ socket: net.Socket; transport: JsonRpcLineTransport; nextRequest: () => Promise<HostRequest> }> {
+  const queued: HostRequest[] = []
+  const waiters: Array<(request: HostRequest) => void> = []
   const socket = net.connect(server.socketPath)
-  socket.on(
-    'data',
-    createBridgeFrameDecoder((message) => {
-      const frame = message as Record<string, unknown>
-      const waiter = waiters.shift()
-      if (waiter) waiter(frame)
-      else received.push(frame)
-    })
+  socket.on('error', () => undefined)
+  const transport = new JsonRpcLineTransport(socket, socket)
+  transport.onRequest(
+    (method, params) =>
+      new Promise<unknown>((resolve, reject) => {
+        const request: HostRequest = { method, params, respond: resolve, fail: (message) => reject(new Error(message)) }
+        const waiter = waiters.shift()
+        if (waiter) waiter(request)
+        else queued.push(request)
+      })
   )
+  transport.start()
   await new Promise<void>((resolve, reject) => {
     socket.once('connect', resolve)
     socket.once('error', reject)
   })
-  socket.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: server.authenticationToken }))
-  await server.whenReady()
-
-  const harness: Harness = {
-    server,
+  if (!options.skipReady) {
+    await transport.request('ready', { pid: process.pid, token: options.token ?? server.authenticationToken })
+  }
+  return {
     socket,
-    received,
-    events,
-    nextFrame: () =>
-      new Promise<Record<string, unknown>>((resolve, reject) => {
-        const queued = received.shift()
-        if (queued) return resolve(queued)
-        const timer = setTimeout(() => reject(new Error('no frame within 5s')), 5_000)
-        waiters.push((frame) => {
+    transport,
+    nextRequest: () =>
+      new Promise<HostRequest>((resolve, reject) => {
+        const request = queued.shift()
+        if (request) return resolve(request)
+        const timer = setTimeout(() => reject(new Error('no host request within 5s')), 5_000)
+        waiters.push((pending) => {
           clearTimeout(timer)
-          resolve(frame)
+          resolve(pending)
         })
       })
   }
+}
+
+async function makeHarness(
+  userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
+  onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>
+): Promise<Harness> {
+  const { server, events } = makeServer(userResponse, onToolCall)
+  await server.listen()
+  const plugin = await connectPlugin(server)
+  await server.whenReady()
+  const harness: Harness = { server, events, ...plugin }
   harnesses.push(harness)
   return harness
 }
@@ -86,104 +108,112 @@ afterEach(async () => {
   }
 })
 
-describe('DshBridgeServer', () => {
-  it('rejects an unauthenticated first client without blocking the expected plugin', async () => {
-    const server = new DshBridgeServer({
-      sessionId: SESSION_ID,
-      emit: () => undefined,
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
-      onToolCall: async () => ({ text: 'unused' })
-    })
+describe('DshBridgeServer authentication gate', () => {
+  it('destroys a socket whose ready token is wrong, without blocking the expected plugin', async () => {
+    const { server } = makeServer('unavailable')
     await server.listen()
-    const bad = net.connect(server.socketPath)
-    const good = net.connect(server.socketPath)
     try {
-      await Promise.all(
-        [bad, good].map(
-          (socket) =>
-            new Promise<void>((resolve, reject) => {
-              socket.once('connect', resolve)
-              socket.once('error', reject)
-            })
-        )
-      )
       const ready = server.whenReady(2_000)
-      bad.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: 'wrong-token' }))
-      await new Promise<void>((resolve) => bad.once('close', () => resolve()))
+      const bad = await connectPlugin(server, { skipReady: true })
+      await expect(bad.transport.request('ready', { pid: process.pid, token: 'wrong-token' })).rejects.toThrow()
+      await new Promise<void>((resolve) => bad.socket.once('close', () => resolve()))
 
-      good.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: server.authenticationToken }))
+      const good = await connectPlugin(server)
       await expect(ready).resolves.toBeUndefined()
+      good.socket.destroy()
     } finally {
-      bad.destroy()
-      good.destroy()
       await server.close()
     }
   })
 
-  it('round-trips a context usage query and surfaces error frames', async () => {
+  it('destroys a socket whose first request is not ready', async () => {
+    const { server } = makeServer('unavailable')
+    await server.listen()
+    try {
+      const plugin = await connectPlugin(server, { skipReady: true })
+      await expect(plugin.transport.request('tool/call', { sessionId: SESSION_ID, callId: 'c1' })).rejects.toThrow()
+      await new Promise<void>((resolve) => plugin.socket.once('close', () => resolve()))
+      expect(plugin.socket.destroyed).toBe(true)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('destroys a socket that never authenticates, and spares one that did', async () => {
+    const { server } = makeServer('unavailable', undefined, 150)
+    await server.listen()
+    try {
+      const silent = await connectPlugin(server, { skipReady: true })
+      await new Promise<void>((resolve) => silent.socket.once('close', () => resolve()))
+      expect(silent.socket.destroyed).toBe(true)
+
+      const plugin = await connectPlugin(server)
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(plugin.socket.destroyed).toBe(false)
+      plugin.socket.destroy()
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('destroys a second connection while one is authenticated', async () => {
+    const harness = await makeHarness()
+    const second = net.connect(harness.server.socketPath)
+    second.on('error', () => undefined)
+    await new Promise<void>((resolve) => second.once('close', () => resolve()))
+    expect(second.destroyed).toBe(true)
+    expect(harness.socket.destroyed).toBe(false)
+  })
+})
+
+describe('DshBridgeServer', () => {
+  it('round-trips a context usage query and surfaces error responses', async () => {
     const harness = await makeHarness()
     const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })
-    const frame = await harness.nextFrame()
-    expect(frame).toMatchObject({ type: 'contextUsage', sessionId: SESSION_ID })
-    harness.socket.write(
-      encodeBridgeMessage({
-        type: 'contextUsageResult',
-        id: frame.id,
-        ok: true,
-        usage: { totalTokens: 1234, systemTokens: 100, toolsTokens: 200, messageTokens: 934 }
-      })
-    )
+    const request = await harness.nextRequest()
+    expect(request.method).toBe('context/usage')
+    expect(request.params).toEqual({ sessionId: SESSION_ID })
+    request.respond({ totalTokens: 1234, systemTokens: 100, toolsTokens: 200, messageTokens: 934 })
     await expect(query).resolves.toEqual({ totalTokens: 1234, systemTokens: 100, toolsTokens: 200, messageTokens: 934 })
 
     const failing = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })
-    const errorFrame = await harness.nextFrame()
-    harness.socket.write(
-      encodeBridgeMessage({ type: 'contextUsageResult', id: errorFrame.id, ok: false, error: 'no live agent' })
-    )
+    ;(await harness.nextRequest()).fail('no live agent')
     await expect(failing).rejects.toThrow('no live agent')
   })
 
-  it('round-trips a slash command dispatch and surfaces error frames', async () => {
+  it('times out a context usage query the plugin never answers', async () => {
+    const harness = await makeHarness()
+    const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 100 })
+    await harness.nextRequest()
+    await expect(query).rejects.toThrow('timed out after 100ms')
+  })
+
+  it('round-trips a slash command dispatch, including the admission miss', async () => {
     const harness = await makeHarness()
     const handled = harness.server.requestCommand(SESSION_ID, '/compact')
-    const frame = await harness.nextFrame()
-    expect(frame).toMatchObject({ type: 'command', sessionId: SESSION_ID, line: '/compact' })
-    harness.socket.write(
-      encodeBridgeMessage({
-        type: 'commandResult',
-        id: frame.id,
-        ok: true,
-        handled: true,
-        kind: 'success',
-        text: 'Compacted 12 history items (~42000 tokens).'
-      })
-    )
+    const request = await harness.nextRequest()
+    expect(request.method).toBe('command/execute')
+    expect(request.params).toEqual({ sessionId: SESSION_ID, line: '/compact' })
+    request.respond({ handled: true, kind: 'success', text: 'Compacted 12 history items (~42000 tokens).' })
     await expect(handled).resolves.toEqual({
       handled: true,
       kind: 'success',
       text: 'Compacted 12 history items (~42000 tokens).'
     })
 
-    // Admission miss: the host falls back to prompting the line as prose.
+    // Admission miss: a SUCCESS the host answers by prompting the line as prose.
     const miss = harness.server.requestCommand(SESSION_ID, '/unknown')
-    const missFrame = await harness.nextFrame()
-    harness.socket.write(encodeBridgeMessage({ type: 'commandResult', id: missFrame.id, ok: true, handled: false }))
+    ;(await harness.nextRequest()).respond({ handled: false })
     await expect(miss).resolves.toEqual({ handled: false })
 
     const failing = harness.server.requestCommand(SESSION_ID, '/compact')
-    const errorFrame = await harness.nextFrame()
-    harness.socket.write(
-      encodeBridgeMessage({ type: 'commandResult', id: errorFrame.id, ok: false, error: 'no live agent' })
-    )
+    ;(await harness.nextRequest()).fail('no live agent')
     await expect(failing).rejects.toThrow('no live agent')
   })
 
-  it('resolves whenReady on the ready frame and correlates request/result', async () => {
+  it('sends session/open with the declared parameters and resolves on the plugin result', async () => {
     const harness = await makeHarness()
-    await harness.server.whenReady()
-
-    const openResult = harness.server.request({
-      type: 'open',
+    const opened = harness.server.request('session/open', {
       sessionId: SESSION_ID,
       provider: 'deepseek',
       model: 'deepseek-chat',
@@ -200,47 +230,32 @@ describe('DshBridgeServer', () => {
       },
       tools: []
     })
-    const openFrame = await harness.nextFrame()
-    expect(openFrame).toMatchObject({ type: 'open', sessionId: SESSION_ID, resume: false })
-    expect(typeof openFrame.id).toBe('string')
-
-    harness.socket.write(encodeBridgeMessage({ type: 'result', id: openFrame.id, ok: true }))
-    await expect(openResult).resolves.toBeUndefined()
+    const request = await harness.nextRequest()
+    expect(request.method).toBe('session/open')
+    expect(request.params).toMatchObject({ sessionId: SESSION_ID, resume: false, cwd: '/tmp/ws' })
+    request.respond({})
+    await expect(opened).resolves.toEqual({})
   })
 
-  it('rejects a request whose result reports a failure', async () => {
+  it('rejects a request the plugin answers with an error', async () => {
     const harness = await makeHarness()
-    await harness.server.whenReady()
-
-    const prompt = harness.server.request({ type: 'prompt', sessionId: SESSION_ID, contentBlocks: [] })
-    const frame = await harness.nextFrame()
-    harness.socket.write(encodeBridgeMessage({ type: 'result', id: frame.id, ok: false, error: 'no live agent' }))
+    const prompt = harness.server.request('session/prompt', { sessionId: SESSION_ID, contentBlocks: [] })
+    ;(await harness.nextRequest()).fail('no live agent')
     await expect(prompt).rejects.toThrow('no live agent')
   })
 
-  it('dispatches toolCall frames to the host bridge and returns success or failure', async () => {
-    const onToolCall = vi.fn(async (name: string, args: unknown) => ({
-      text: `${name}:ok`,
-      data: args
-    }))
+  it('dispatches tool/call to the host bridge and returns success or failure', async () => {
+    const onToolCall = vi.fn(async (name: string, args: unknown) => ({ text: `${name}:ok`, data: args }))
     const harness = await makeHarness('stream', onToolCall)
 
-    harness.socket.write(
-      encodeBridgeMessage({
-        type: 'toolCall',
-        id: 'tool-1',
+    await expect(
+      harness.transport.request('tool/call', {
         sessionId: SESSION_ID,
+        callId: 'tool-1',
         name: 'mcp__cherry-tools__web_search',
         args: { query: 'Cherry Studio' }
       })
-    )
-    await expect(harness.nextFrame()).resolves.toEqual({
-      type: 'toolCallResult',
-      id: 'tool-1',
-      ok: true,
-      text: 'mcp__cherry-tools__web_search:ok',
-      data: { query: 'Cherry Studio' }
-    })
+    ).resolves.toEqual({ text: 'mcp__cherry-tools__web_search:ok', data: { query: 'Cherry Studio' } })
     expect(onToolCall).toHaveBeenCalledWith(
       'mcp__cherry-tools__web_search',
       { query: 'Cherry Studio' },
@@ -248,69 +263,64 @@ describe('DshBridgeServer', () => {
     )
 
     onToolCall.mockRejectedValueOnce(new Error('provider unavailable'))
-    harness.socket.write(
-      encodeBridgeMessage({
-        type: 'toolCall',
-        id: 'tool-2',
+    await expect(
+      harness.transport.request('tool/call', {
         sessionId: SESSION_ID,
+        callId: 'tool-2',
         name: 'mcp__cherry-tools__web_search',
         args: {}
       })
-    )
-    await expect(harness.nextFrame()).resolves.toEqual({
-      type: 'toolCallResult',
-      id: 'tool-2',
-      ok: false,
-      error: 'provider unavailable'
-    })
+    ).rejects.toThrow('provider unavailable')
   })
 
-  it('aborts active host tools on a cancel frame, plugin disconnect, and server close', async () => {
+  it('rejects a tool call addressed to another session', async () => {
+    const harness = await makeHarness('stream', async () => ({ text: 'unused' }))
+    await expect(
+      harness.transport.request('tool/call', {
+        sessionId: 'someone-else',
+        callId: 'tool-1',
+        name: 'whatever',
+        args: {}
+      })
+    ).rejects.toThrow('wrong session')
+  })
+
+  it('aborts active host tools on a tool/cancel notification, plugin disconnect, and server close', async () => {
     const signals: AbortSignal[] = []
     const onToolCall = vi.fn(
-      async (_name: string, _args: unknown, signal?: AbortSignal) =>
-        await new Promise<{ text: string }>((_resolve, reject) => {
-          if (!signal) return reject(new Error('missing abort signal'))
+      (_name: string, _args: unknown, signal: AbortSignal) =>
+        new Promise<{ text: string }>((_resolve, reject) => {
           signals.push(signal)
           signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
         })
     )
     const cancelled = await makeHarness('stream', onToolCall)
-    cancelled.socket.write(
-      encodeBridgeMessage({ type: 'toolCall', id: 'cancel-me', sessionId: SESSION_ID, name: 'slow', args: {} })
-    )
+    const call = { sessionId: SESSION_ID, callId: 'cancel-me', name: 'slow', args: {} }
+    void cancelled.transport.request('tool/call', call).catch(() => undefined)
     await vi.waitFor(() => expect(signals).toHaveLength(1))
-    cancelled.socket.write(encodeBridgeMessage({ type: 'toolCallCancel', id: 'cancel-me', sessionId: SESSION_ID }))
+    cancelled.transport.notify('tool/cancel', { sessionId: SESSION_ID, callId: 'cancel-me' })
     await vi.waitFor(() => expect(signals[0].aborted).toBe(true))
 
-    cancelled.socket.write(
-      encodeBridgeMessage({ type: 'toolCall', id: 'disconnect-me', sessionId: SESSION_ID, name: 'slow', args: {} })
-    )
+    void cancelled.transport.request('tool/call', { ...call, callId: 'disconnect-me' }).catch(() => undefined)
     await vi.waitFor(() => expect(signals).toHaveLength(2))
     cancelled.socket.destroy()
     await vi.waitFor(() => expect(signals[1].aborted).toBe(true))
 
     const closed = await makeHarness('stream', onToolCall)
-    closed.socket.write(
-      encodeBridgeMessage({ type: 'toolCall', id: 'close-me', sessionId: SESSION_ID, name: 'slow', args: {} })
-    )
+    void closed.transport.request('tool/call', { ...call, callId: 'close-me' }).catch(() => undefined)
     await vi.waitFor(() => expect(signals).toHaveLength(3))
     await closed.server.close()
     expect(signals[2].aborted).toBe(true)
   })
 
-  it('round-trips approvalAsk through the registry to allowed-once', async () => {
+  it('round-trips approval/ask through the registry to allowed-once', async () => {
     const harness = await makeHarness()
-    harness.socket.write(
-      encodeBridgeMessage({
-        type: 'approvalAsk',
-        id: 'ask-1',
-        sessionId: SESSION_ID,
-        toolName: 'bash',
-        callId: 'call-9',
-        args: { command: 'echo hi' }
-      })
-    )
+    const ask = harness.transport.request('approval/ask', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      callId: 'call-9',
+      args: { command: 'echo hi' }
+    })
 
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
     const event = harness.events[0]
@@ -324,15 +334,12 @@ describe('DshBridgeServer', () => {
     })
 
     toolApprovalRegistry.dispatch(event.request.approvalId, { approved: true })
-    const answer = await harness.nextFrame()
-    expect(answer).toEqual({ type: 'approvalAnswer', id: 'ask-1', outcome: 'allowed-once' })
+    await expect(ask).resolves.toEqual({ outcome: 'allowed-once' })
   })
 
   it('rejects an approval whose decision edited the tool input (unsupported by dsh)', async () => {
     const harness = await makeHarness()
-    harness.socket.write(
-      encodeBridgeMessage({ type: 'approvalAsk', id: 'ask-2', sessionId: SESSION_ID, toolName: 'bash' })
-    )
+    const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
@@ -341,28 +348,26 @@ describe('DshBridgeServer', () => {
       approved: true,
       updatedInput: { command: 'echo edited' }
     })
-    const answer = await harness.nextFrame()
-    expect(answer).toEqual({ type: 'approvalAnswer', id: 'ask-2', outcome: 'rejected' })
+    await expect(ask).resolves.toEqual({ outcome: 'rejected' })
   })
 
   it('answers rejected immediately when no responder is available, without surfacing a card', async () => {
     const harness = await makeHarness('unavailable')
-    harness.socket.write(
-      encodeBridgeMessage({ type: 'approvalAsk', id: 'ask-3', sessionId: SESSION_ID, toolName: 'bash' })
-    )
-
-    const answer = await harness.nextFrame()
-    expect(answer).toEqual({ type: 'approvalAnswer', id: 'ask-3', outcome: 'rejected' })
+    await expect(
+      harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+    ).resolves.toEqual({ outcome: 'rejected' })
     expect(harness.events).toHaveLength(0)
   })
 
   it('rejects pending requests when the plugin disconnects', async () => {
     const harness = await makeHarness()
-    await harness.server.whenReady()
-
-    const pending = harness.server.request({ type: 'cancel', sessionId: SESSION_ID })
-    await harness.nextFrame()
+    const pending = harness.server.request('session/cancel', { sessionId: SESSION_ID })
+    await harness.nextRequest()
     harness.socket.destroy()
-    await expect(pending).rejects.toThrow('disconnected')
+    await expect(pending).rejects.toThrow()
+    // Once the host observes the close, later requests fail closed instead of queueing.
+    await vi.waitFor(async () => {
+      await expect(harness.server.request('session/cancel', { sessionId: SESSION_ID })).rejects.toThrow('not connected')
+    })
   })
 })

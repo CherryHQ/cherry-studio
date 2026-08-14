@@ -1,17 +1,17 @@
 import net from 'node:net'
 
-import {
-  type BridgeToHostMessage,
-  type BridgeToolCallResult,
-  createBridgeFrameDecoder,
-  encodeBridgeMessage,
-  type HostToBridgeMessage
-} from './protocol'
+import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+
+import type { BridgePluginRequestMap, BridgeToolCallResult } from './protocol'
 
 export interface BridgeLink {
   /** False after 'error'/'close'; there is no reconnect — the host owns this process. */
   readonly connected: boolean
-  send(message: BridgeToHostMessage): void
+  request<M extends keyof BridgePluginRequestMap>(
+    method: M,
+    params: BridgePluginRequestMap[M]['params'],
+    signal?: AbortSignal
+  ): Promise<BridgePluginRequestMap[M]['result']>
   callTool(
     request: { sessionId: string; name: string; args: unknown },
     signal?: AbortSignal
@@ -20,87 +20,47 @@ export interface BridgeLink {
 
 export function connectBridgeLink(options: {
   socketPath: string
-  onMessage: (message: HostToBridgeMessage) => void
-  onDisconnect: () => void
+  onRequest: (method: string, params: Record<string, unknown>) => Promise<unknown>
 }): BridgeLink {
   const socket = net.connect(options.socketPath)
+  const transport = new JsonRpcLineTransport(socket, socket)
   let connected = true
   let toolCallSeq = 0
-  const pendingToolCalls = new Map<
-    string,
-    {
-      resolve: (result: BridgeToolCallResult) => void
-      reject: (error: Error) => void
-      signal?: AbortSignal
-      onAbort?: () => void
-    }
-  >()
-
-  const takeToolCall = (id: string) => {
-    const pending = pendingToolCalls.get(id)
-    if (!pending) return undefined
-    pendingToolCalls.delete(id)
-    if (pending.signal && pending.onAbort) pending.signal.removeEventListener('abort', pending.onAbort)
-    return pending
-  }
 
   const markDisconnected = () => {
     if (!connected) return
     connected = false
-    for (const id of pendingToolCalls.keys()) {
-      takeToolCall(id)?.reject(new Error('dsh bridge host disconnected'))
-    }
-    options.onDisconnect()
+    // Fail closed: every in-flight request (tool calls, approvals) rejects here.
+    transport.close()
   }
   socket.on('error', markDisconnected)
   socket.on('close', markDisconnected)
-  // Frames are trusted between the two Cherry-owned endpoints; shape holds by contract.
-  socket.on(
-    'data',
-    createBridgeFrameDecoder((message) => {
-      const frame = message as HostToBridgeMessage
-      if (frame.type === 'toolCallResult') {
-        const pending = takeToolCall(frame.id)
-        if (!pending) return
-        if (frame.ok) pending.resolve({ text: frame.text, ...(frame.data === undefined ? {} : { data: frame.data }) })
-        else pending.reject(new Error(frame.error))
-        return
-      }
-      options.onMessage(frame)
-    })
-  )
+  transport.onRequest(options.onRequest)
+  transport.start()
+
+  function request<M extends keyof BridgePluginRequestMap>(
+    method: M,
+    params: BridgePluginRequestMap[M]['params'],
+    signal?: AbortSignal
+  ): Promise<BridgePluginRequestMap[M]['result']> {
+    return transport.request(method, params, signal) as Promise<BridgePluginRequestMap[M]['result']>
+  }
 
   return {
     get connected() {
       return connected
     },
-    send(message) {
-      if (connected) socket.write(encodeBridgeMessage(message))
-    },
-    callTool(request, signal) {
+    request,
+    callTool(toolRequest, signal) {
       if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
-      if (signal?.aborted) return Promise.reject(abortError())
-      const id = `tool-${++toolCallSeq}`
-      return new Promise<BridgeToolCallResult>((resolve, reject) => {
-        const pending = { resolve, reject, signal, onAbort: undefined as (() => void) | undefined }
-        if (signal) {
-          pending.onAbort = () => {
-            if (!takeToolCall(id)) return
-            if (connected)
-              socket.write(encodeBridgeMessage({ type: 'toolCallCancel', id, sessionId: request.sessionId }))
-            reject(abortError())
-          }
-          signal.addEventListener('abort', pending.onAbort, { once: true })
-        }
-        pendingToolCalls.set(id, pending)
-        socket.write(encodeBridgeMessage({ type: 'toolCall', id, ...request }))
-      })
+      const callId = `tool-${++toolCallSeq}`
+      const onAbort = () => {
+        if (connected) transport.notify('tool/cancel', { sessionId: toolRequest.sessionId, callId })
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      return request('tool/call', { ...toolRequest, callId }, signal).finally(() =>
+        signal?.removeEventListener('abort', onAbort)
+      )
     }
   }
-}
-
-function abortError(): Error {
-  const error = new Error('dsh bridge tool call aborted')
-  error.name = 'AbortError'
-  return error
 }

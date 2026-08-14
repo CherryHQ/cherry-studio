@@ -20,16 +20,15 @@ import { decideToolCall, detectGlobalInstall } from './policy'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
+  type BridgeCommandResult,
   type BridgeContextUsage,
+  type BridgeHostParams,
   type BridgePolicy,
-  type BridgeToolDescriptor,
-  type HostToBridgeMessage
+  type BridgeToolDescriptor
 } from './protocol'
 
 export const name = 'cherry-bridge'
 export const inject = ['approval', 'agents', 'tools', 'tokenMeter']
-
-type AskResolve = (outcome: 'allowed-once' | 'rejected' | 'cancelled') => void
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -57,21 +56,14 @@ export function apply(ctx: Context): void {
   const policies = new Map<string, BridgePolicy>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
-  const pendingAsks = new Map<string, AskResolve>()
-  /** Live command dispatches by sessionId — aborted by a `cancel` frame. */
+  /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
-  let askSeq = 0
 
-  const link: BridgeLink = connectBridgeLink({
-    socketPath,
-    onMessage: (message) => void handleMessage(message),
-    onDisconnect: () => {
-      // Fail closed: every pending ask resolves rejected, later asks reject immediately.
-      for (const resolve of pendingAsks.values()) resolve('rejected')
-      pendingAsks.clear()
-    }
+  const link: BridgeLink = connectBridgeLink({ socketPath, onRequest: handleRequest })
+  // The host destroys the socket unless this is the first request and the token matches.
+  link.request('ready', { pid: process.pid, token: bridgeToken }).catch((error) => {
+    console.error('[cherry-bridge] host rejected the ready handshake:', error)
   })
-  link.send({ type: 'ready', pid: process.pid, token: bridgeToken })
   ctx.effect(
     () => () => {
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
@@ -79,161 +71,113 @@ export function apply(ctx: Context): void {
     'cherry-bridge.tools'
   )
 
-  async function handleMessage(message: HostToBridgeMessage): Promise<void> {
-    switch (message.type) {
-      case 'open': {
-        policies.set(message.sessionId, message.policy)
-        const agentOptions = {
-          provider: message.provider,
-          model: message.model,
-          ...(message.maxTokens === undefined ? {} : { maxTokens: message.maxTokens })
-        }
-        try {
-          replaceTools(message.sessionId, message.tools)
-          if (message.resume) {
-            try {
-              const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(message.sessionId), agentOptions })
-              if (resumed.agent.session.header.cwd !== message.cwd) {
-                await resumed.dispose()
-                throw new Error(
-                  `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(message.cwd)}`
-                )
-              }
-            } catch (error) {
-              if (!isMissingSessionError(error)) throw error
-              // No persisted log for this id yet — degrade to a fresh create (pi parity).
-              await ctx.agents.create({
-                sessionId: SessionId(message.sessionId),
-                meta: { cwd: message.cwd },
-                agentOptions
-              })
-            }
-          } else {
-            await ctx.agents.create({
-              sessionId: SessionId(message.sessionId),
-              meta: { cwd: message.cwd },
-              agentOptions
-            })
-          }
-          link.send({ type: 'result', id: message.id, ok: true })
-        } catch (error) {
-          policies.delete(message.sessionId)
-          disposeTools(message.sessionId)
-          link.send({ type: 'result', id: message.id, ok: false, error: String(error) })
-        }
-        return
+  /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
+  async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
+    switch (method) {
+      case 'session/open':
+        return openSession(params as BridgeHostParams<'session/open'>)
+      case 'session/prompt': {
+        const { sessionId, contentBlocks } = params as BridgeHostParams<'session/prompt'>
+        requireAgent(sessionId).followup(createUserMessage({ content: contentBlocks, source: { kind: 'user' } }))
+        return {}
       }
-      case 'prompt': {
-        const agent = ctx.agents.get(SessionId(message.sessionId))
-        if (!agent) {
-          link.send({
-            type: 'result',
-            id: message.id,
-            ok: false,
-            error: `no live agent for session "${message.sessionId}"`
-          })
-          return
-        }
-        agent.followup(createUserMessage({ content: message.contentBlocks, source: { kind: 'user' } }))
-        link.send({ type: 'result', id: message.id, ok: true })
-        return
+      case 'session/cancel': {
+        const { sessionId } = params as BridgeHostParams<'session/cancel'>
+        pendingCommands.get(sessionId)?.abort()
+        requireAgent(sessionId).cancel({ kind: 'user' })
+        return {}
       }
-      case 'cancel': {
-        pendingCommands.get(message.sessionId)?.abort()
-        const agent = ctx.agents.get(SessionId(message.sessionId))
-        if (!agent) {
-          link.send({
-            type: 'result',
-            id: message.id,
-            ok: false,
-            error: `no live agent for session "${message.sessionId}"`
-          })
-          return
-        }
-        agent.cancel({ kind: 'user' })
-        link.send({ type: 'result', id: message.id, ok: true })
-        return
+      case 'command/execute':
+        return executeCommand(params as BridgeHostParams<'command/execute'>)
+      case 'policy/update': {
+        const { sessionId, policy } = params as BridgeHostParams<'policy/update'>
+        policies.set(sessionId, policy)
+        return {}
       }
-      case 'command': {
-        const agent = ctx.agents.get(SessionId(message.sessionId))
-        if (!agent) {
-          link.send({
-            type: 'commandResult',
-            id: message.id,
-            ok: false,
-            error: `no live agent for session "${message.sessionId}"`
-          })
-          return
+      case 'context/usage': {
+        const { sessionId } = params as BridgeHostParams<'context/usage'>
+        const agent = requireAgent(sessionId)
+        const usage: BridgeContextUsage = { totalTokens: ctx.tokenMeter.measure(agent.session).totalTokens }
+        // Heuristic composition rides the optional projection seam; totals stand alone without it.
+        const breakdown = ctx.get('sessionProjections')?.snapshot(agent.session).values.contextBreakdown
+        if (breakdown) {
+          usage.systemTokens = breakdown.systemTokens
+          usage.toolsTokens = breakdown.toolsTokens
+          usage.messageTokens = breakdown.messageTokens
         }
-        const commands = ctx.get('commands')
-        if (!commands) {
-          // No registry composed — the host treats the line as ordinary prose.
-          link.send({ type: 'commandResult', id: message.id, ok: true, handled: false })
-          return
-        }
-        const controller = new AbortController()
-        pendingCommands.set(message.sessionId, controller)
-        try {
-          const execution = await commands.execute(agent, message.line, controller.signal)
-          if (execution === undefined) {
-            link.send({ type: 'commandResult', id: message.id, ok: true, handled: false })
-          } else {
-            link.send({
-              type: 'commandResult',
-              id: message.id,
-              ok: true,
-              handled: true,
-              kind: execution.result.kind,
-              ...(execution.result.text === undefined ? {} : { text: execution.result.text })
-            })
-          }
-        } catch (error) {
-          link.send({ type: 'commandResult', id: message.id, ok: false, error: String(error) })
-        } finally {
-          if (pendingCommands.get(message.sessionId) === controller) pendingCommands.delete(message.sessionId)
-        }
-        return
+        return usage
       }
-      case 'policyUpdate': {
-        policies.set(message.sessionId, message.policy)
-        link.send({ type: 'result', id: message.id, ok: true })
-        return
-      }
-      case 'contextUsage': {
-        const agent = ctx.agents.get(SessionId(message.sessionId))
-        if (!agent) {
-          link.send({
-            type: 'contextUsageResult',
-            id: message.id,
-            ok: false,
-            error: `no live agent for session "${message.sessionId}"`
-          })
-          return
-        }
-        try {
-          const usage: BridgeContextUsage = { totalTokens: ctx.tokenMeter.measure(agent.session).totalTokens }
-          // Heuristic composition rides the optional projection seam; totals stand alone without it.
-          const breakdown = ctx.get('sessionProjections')?.snapshot(agent.session).values.contextBreakdown
-          if (breakdown) {
-            usage.systemTokens = breakdown.systemTokens
-            usage.toolsTokens = breakdown.toolsTokens
-            usage.messageTokens = breakdown.messageTokens
-          }
-          link.send({ type: 'contextUsageResult', id: message.id, ok: true, usage })
-        } catch (error) {
-          link.send({ type: 'contextUsageResult', id: message.id, ok: false, error: String(error) })
-        }
-        return
-      }
-      case 'approvalAnswer': {
-        const resolve = pendingAsks.get(message.id)
-        pendingAsks.delete(message.id)
-        resolve?.(message.outcome)
-        return
-      }
-      case 'toolCallResult':
-        return
+      default:
+        throw new Error(`unknown cherry bridge method "${method}"`)
     }
+  }
+
+  async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
+    policies.set(params.sessionId, params.policy)
+    const agentOptions = {
+      provider: params.provider,
+      model: params.model,
+      ...(params.maxTokens === undefined ? {} : { maxTokens: params.maxTokens })
+    }
+    try {
+      replaceTools(params.sessionId, params.tools)
+      if (params.resume) {
+        try {
+          const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
+          if (resumed.agent.session.header.cwd !== params.cwd) {
+            await resumed.dispose()
+            throw new Error(
+              `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
+            )
+          }
+        } catch (error) {
+          if (!isMissingSessionError(error)) throw error
+          // No persisted log for this id yet — degrade to a fresh create (pi parity).
+          await ctx.agents.create({
+            sessionId: SessionId(params.sessionId),
+            meta: { cwd: params.cwd },
+            agentOptions
+          })
+        }
+      } else {
+        await ctx.agents.create({
+          sessionId: SessionId(params.sessionId),
+          meta: { cwd: params.cwd },
+          agentOptions
+        })
+      }
+      return {}
+    } catch (error) {
+      policies.delete(params.sessionId)
+      disposeTools(params.sessionId)
+      throw error
+    }
+  }
+
+  async function executeCommand(params: BridgeHostParams<'command/execute'>): Promise<BridgeCommandResult> {
+    const agent = requireAgent(params.sessionId)
+    const commands = ctx.get('commands')
+    // No registry composed — the host treats the line as ordinary prose.
+    if (!commands) return { handled: false }
+    const controller = new AbortController()
+    pendingCommands.set(params.sessionId, controller)
+    try {
+      const execution = await commands.execute(agent, params.line, controller.signal)
+      if (execution === undefined) return { handled: false }
+      return {
+        handled: true,
+        kind: execution.result.kind,
+        ...(execution.result.text === undefined ? {} : { text: execution.result.text })
+      }
+    } finally {
+      if (pendingCommands.get(params.sessionId) === controller) pendingCommands.delete(params.sessionId)
+    }
+  }
+
+  function requireAgent(sessionId: string) {
+    const agent = ctx.agents.get(SessionId(sessionId))
+    if (!agent) throw new Error(`no live agent for session "${sessionId}"`)
+    return agent
   }
 
   function replaceTools(sessionId: string, tools: BridgeToolDescriptor[]): void {
@@ -300,7 +244,7 @@ export function apply(ctx: Context): void {
         },
         render(_args, value) {
           // The registry validated `value` against output.schema before render — the cast restates it.
-          return [{ type: 'text', text: (value as BridgeToolOutputValue).text }]
+          return [{ type: 'text', text: (value as unknown as BridgeToolOutputValue).text }]
         }
       },
       execute(args, exec) {
@@ -333,26 +277,23 @@ export function apply(ctx: Context): void {
   ctx.on('approval/request', async (req) => {
     if (req.signal?.aborted) return 'cancelled'
     if (!link.connected) return 'rejected'
-    const id = String(++askSeq)
-    return await new Promise((resolve: AskResolve) => {
-      pendingAsks.set(id, resolve)
-      req.signal?.addEventListener(
-        'abort',
-        () => {
-          if (pendingAsks.delete(id)) resolve('cancelled')
+    try {
+      const { outcome } = await link.request(
+        'approval/ask',
+        {
+          sessionId: req.agent.id,
+          toolName: req.toolName,
+          callId: req.callId,
+          args: correlateCallArguments(req),
+          reason: req.reason
         },
-        { once: true }
+        req.signal
       )
-      link.send({
-        type: 'approvalAsk',
-        id,
-        sessionId: req.agent.id,
-        toolName: req.toolName,
-        callId: req.callId,
-        args: correlateCallArguments(req),
-        reason: req.reason
-      })
-    })
+      return outcome
+    } catch {
+      // Fail closed: a host disconnect (or error response) denies the call.
+      return req.signal?.aborted ? 'cancelled' : 'rejected'
+    }
   })
 }
 

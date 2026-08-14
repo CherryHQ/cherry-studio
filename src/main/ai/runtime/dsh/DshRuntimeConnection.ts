@@ -284,8 +284,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       client.start()
       await client.initialize({ cwd: workspacePath, provider: injection.providerName, model: injection.modelId })
       await this.bridge.whenReady()
-      await this.bridge.request({
-        type: 'open',
+      await this.bridge.request('session/open', {
         sessionId: this.input.sessionId,
         provider: injection.providerName,
         model: injection.modelId,
@@ -325,8 +324,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
     try {
-      await bridge.request({
-        type: 'prompt',
+      await bridge.request('session/prompt', {
         sessionId: this.input.sessionId,
         contentBlocks: [{ type: 'text', text: content }]
       })
@@ -392,8 +390,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
     if (policyChanged) {
       try {
-        await this.bridge?.request({
-          type: 'policyUpdate',
+        await this.bridge?.request('policy/update', {
           sessionId: this.input.sessionId,
           policy: this.buildPolicy()
         })
@@ -459,7 +456,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subscription?.close()
     this.subscription = undefined
     try {
-      await this.bridge?.request({ type: 'cancel', sessionId: this.input.sessionId }, { timeoutMs: 2_000 })
+      await this.bridge?.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 2_000 })
     } catch (error) {
       logger.warn('dsh cancel during close failed', { error })
     }
