@@ -90,6 +90,13 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.release_notes.get': defineRoute({
+    input: z.void(),
+    output: z
+      .array(z.object({ releaseNotes: z.string().min(1), version: z.string().min(1) }))
+      .min(1)
+      .nullable()
+  }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }
 

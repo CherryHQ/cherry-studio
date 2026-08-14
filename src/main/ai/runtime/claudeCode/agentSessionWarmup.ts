@@ -26,6 +26,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import {
@@ -230,7 +231,7 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
- * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, MCP definitions, credential
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
@@ -379,7 +380,6 @@ async function deriveConnectionConfigFromSnapshot(
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
-    maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
@@ -669,7 +669,8 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
-    const config = application.get('ApiGatewayService').getCurrentConfig()
+    const apiGatewayService = application.get('ApiGatewayService')
+    const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
     // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
@@ -679,7 +680,10 @@ function deriveRouteFacts(
     return {
       branch: 'gateway',
       baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([typeof gatewayKey === 'string' ? gatewayKey : '']),
+      credentialsFingerprint: fingerprintCredentials([
+        typeof gatewayKey === 'string' ? gatewayKey : '',
+        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
+      ]),
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -758,7 +762,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
+        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
       }
     }
     case 'direct': {
@@ -843,23 +847,56 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   )
 }
 
+/**
+ * Gateway state a materialized connection is pinned to. It is part of the credentials fingerprint,
+ * so disabling (or losing) the gateway makes the next turn rebuild instead of quietly posting to a
+ * closed port. Derived and materialized routes MUST build it the same way or every turn rebuilds.
+ */
+function gatewayStateTag(enabled: boolean, running: boolean): string {
+  return `gateway-state:${enabled}:${running}`
+}
+
+/**
+ * The route needs Cherry's local gateway to bridge the model, but the user keeps the gateway
+ * disabled. Raised on the persisted intent only — a gateway that is enabled but not yet listening
+ * is a convergence problem, not a consent one, and surfaces its own bind error. `i18nKey` survives
+ * `serializeError`, so the turn's error block renders localized copy; the connection driver
+ * additionally turns this into a prompt offering to enable it.
+ */
+export class ApiGatewayNotRunningError extends Error {
+  readonly i18nKey = API_GATEWAY_REQUIRED_I18N_KEY
+  constructor() {
+    super('API Gateway is disabled')
+    this.name = 'ApiGatewayNotRunningError'
+  }
+}
+
 async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   baseUrl: string
   apiKey: string
+  stateTag: string
   usageHeaders: Record<string, string>
   internalRequestToken: string
 }> {
   const apiGatewayService = application.get('ApiGatewayService')
-  const apiKey = await apiGatewayService.ensureValidApiKey()
-  if (!apiGatewayService.isRunning()) {
-    await apiGatewayService.start()
-  }
   const config = apiGatewayService.getCurrentConfig()
+  // Ask for consent on the PERSISTED intent, never on `isRunning()`: the gateway is also briefly
+  // down while binding at boot, mid-restart, or after a failed activation, and prompting the user
+  // to enable a service they already enabled would be nonsense.
+  if (!config.enabled) throw new ApiGatewayNotRunningError()
+  // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
+  // the same reconciler (serializing behind an in-flight transition) and throws the real bind
+  // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
+  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
+  // Only after the checks above: this persists a freshly generated key on first use, and a failing
+  // route must not leave that side effect behind.
+  const apiKey = await apiGatewayService.ensureValidApiKey()
   const host = config.host || '127.0.0.1'
   const port = config.port || 23333
   return {
     baseUrl: `http://${host}:${port}`,
     apiKey,
+    stateTag: gatewayStateTag(config.enabled, apiGatewayService.isRunning()),
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
     internalRequestToken: apiGatewayService.getInternalRequestToken()
   }

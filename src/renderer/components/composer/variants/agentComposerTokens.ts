@@ -25,7 +25,9 @@ export function agentSkillToComposerToken(skill: LocalSkill): ComposerDraftToken
     kind: 'skill',
     label: skill.name,
     ...(skill.description && { description: skill.description }),
-    promptText: `Use the ${skill.name} skill.`,
+    // The runtime lists and resolves skills by directory name, never by the SKILL.md / library
+    // display name — naming the latter makes the agent report the skill as missing on first call.
+    promptText: `Use the ${skill.filename} skill.`,
     payload: skill
   }
 }

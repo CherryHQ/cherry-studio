@@ -92,6 +92,7 @@ const AgentPage = () => {
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const isActiveTab = useIsActiveTab()
   const currentTabId = useCurrentTabId()
@@ -174,8 +175,11 @@ const AgentPage = () => {
   const sessionRevealRequestIdRef = useRef(0)
   const initialEmptySessionEvaluatedRef = useRef(false)
   const routeFeedbackComposerLaunch = useMemo<FeedbackComposerLaunch | null>(
-    () => (isFeedbackIntent && routeSessionId ? createFeedbackComposerLaunch(routeSessionId) : null),
-    [isFeedbackIntent, routeSessionId]
+    () =>
+      isFeedbackIntent && routeSessionId
+        ? createFeedbackComposerLaunch(routeSessionId, t('settings.about.feedback.agent.description'))
+        : null,
+    [isFeedbackIntent, routeSessionId, t]
   )
   const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(
     routeFeedbackComposerLaunch
@@ -184,7 +188,6 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
-  const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
@@ -208,9 +211,14 @@ const AgentPage = () => {
   })
   const reenterAgentRoute = useCallback(() => {
     initialEmptySessionEvaluatedRef.current = false
+    // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
+    // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
+    // `resolveAgentEntrySessionId`, 404s, and the NOT_FOUND recovery fires again — a navigate
+    // loop React aborts as a maximum-update-depth render error that tears down the window.
+    setLastUsedSessionId(null)
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
-  }, [clearActiveSession, navigate])
+  }, [clearActiveSession, navigate, setLastUsedSessionId])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.

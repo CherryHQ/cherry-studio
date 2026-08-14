@@ -85,6 +85,8 @@ function CapabilityStepHarness() {
       avatar: '🤖',
       name: '',
       description: '',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId: null,
       prompt: '',
       knowledgeBaseIds: [],

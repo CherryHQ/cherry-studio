@@ -279,6 +279,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  createSessionSilently: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -324,6 +325,24 @@ const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
 const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
 }))
+
+const agentSessionExportMocks = vi.hoisted(() => ({
+  copyAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+  moduleLoads: 0
+}))
+
+vi.mock('@renderer/services/agentSessionExport', () => {
+  agentSessionExportMocks.moduleLoads += 1
+
+  return {
+    agentSessionToMarkdown: vi.fn().mockResolvedValue('markdown'),
+    copyAgentSessionAsMarkdown: agentSessionExportMocks.copyAgentSessionAsMarkdown,
+    copyAgentSessionAsPlainText: vi.fn().mockResolvedValue(undefined),
+    exportAgentSessionAsMarkdown: vi.fn().mockResolvedValue(undefined),
+    getAgentSessionExportTitle: vi.fn((session: AgentSessionEntity) => session.name),
+    getAgentSessionMessagesForExport: vi.fn().mockResolvedValue([])
+  }
+})
 
 const createTopicStreamStatusMock = (
   overrides: {
@@ -476,19 +495,21 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
     return {
       trigger:
-        method === 'PATCH' && path === '/agent-workspaces/:id/order'
-          ? dataApiMocks.reorderWorkspace
-          : method === 'PATCH' && path === '/agents/:id/order'
-            ? dataApiMocks.reorderAgent
-            : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
-              ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId'
-                  ? dataApiMocks.deleteAgent
-                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                    ? dataApiMocks.deleteAgentSessions
-                    : dataApiMocks.findOrCreateWorkspace,
+        method === 'POST' && path === '/agent-sessions'
+          ? dataApiMocks.createSessionSilently
+          : method === 'PATCH' && path === '/agent-workspaces/:id/order'
+            ? dataApiMocks.reorderWorkspace
+            : method === 'PATCH' && path === '/agents/:id/order'
+              ? dataApiMocks.reorderAgent
+              : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
+                ? dataApiMocks.updateWorkspace
+                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
+                  ? dataApiMocks.deleteWorkspace
+                  : method === 'DELETE' && path === '/agents/:agentId'
+                    ? dataApiMocks.deleteAgent
+                    : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                      ? dataApiMocks.deleteAgentSessions
+                      : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -828,6 +849,7 @@ describe('Sessions', () => {
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
     dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.createSessionSilently.mockResolvedValue({ id: 'created-session' })
     dataApiMocks.mutationOptions.clear()
     sessionDataMocks.deleteSession.mockResolvedValue(true)
     sessionDataMocks.deleteSessions.mockResolvedValue({ deletedIds: [] })
@@ -861,6 +883,30 @@ describe('Sessions', () => {
     vi.clearAllMocks()
     tabsContextMocks.openTab.mockClear()
     windowFrameMocks.mode = 'embedded'
+  })
+
+  it('loads agent session export code only when an export action runs', async () => {
+    expect(agentSessionExportMocks.moduleLoads).toBe(0)
+
+    render(<SessionsForTest />)
+
+    const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
+    expect(sessionRow).not.toBeNull()
+    fireEvent.contextMenu(sessionRow as HTMLElement)
+
+    const copyMarkdownItem = screen
+      .getAllByRole('menuitem', { name: 'Copy as Markdown' })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(copyMarkdownItem).toBeDefined()
+    fireEvent.click(copyMarkdownItem as HTMLElement)
+
+    await vi.waitFor(() => {
+      expect(agentSessionExportMocks.moduleLoads).toBe(1)
+      expect(agentSessionExportMocks.copyAgentSessionAsMarkdown).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'session-a' }),
+        expect.any(Object)
+      )
+    })
   })
 
   afterEach(() => {
@@ -2356,6 +2402,63 @@ describe('Sessions', () => {
       })
     )
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
+  })
+
+  it('silently recreates a session for an agent after deleting its only non-active session, without switching the view', async () => {
+    // Regression: deleting a session that is NOT the active one used to early-return before the
+    // "agent has no session left → create one" branch. When the deleted session was that agent's
+    // only one, the agent vanished from the list. The fix silently creates a replacement session
+    // for the stranded agent without activating it or moving the current selection.
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a-only', name: 'A Only session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b-first', name: 'B First session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+    const onCreateSession = vi.fn()
+    const setActiveSessionId = vi.fn()
+
+    // Active session belongs to agent-b; the deleted session is agent-a's only one.
+    render(
+      <SessionsForTest
+        activeSessionId="session-b-first"
+        onCreateSession={onCreateSession}
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
+    // A replacement session is silently created for the stranded agent-a (not via the activate path).
+    await vi.waitFor(() =>
+      expect(dataApiMocks.createSessionSilently).toHaveBeenCalledWith({
+        body: {
+          agentId: 'agent-a',
+          name: '',
+          workspace: { type: 'user', workspaceId: 'ws-a' }
+        }
+      })
+    )
+    // The current view is undisturbed: the active selection is never moved or cleared.
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(onCreateSession).not.toHaveBeenCalled()
   })
 
   it('clears the active session and toasts when the post-delete session create fails in the right panel', async () => {

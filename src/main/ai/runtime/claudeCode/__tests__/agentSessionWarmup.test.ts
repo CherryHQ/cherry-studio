@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
+  apiGatewayEnsureRunning: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('@application', () => ({
           ensureValidApiKey: mocks.apiGatewayEnsureKey,
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
+          ensureRunning: mocks.apiGatewayEnsureRunning,
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders,
           getInternalRequestToken: mocks.apiGatewayGetInternalRequestToken
@@ -106,7 +108,9 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { ApiGatewayNotRunningError, buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import(
+  '../agentSessionWarmup'
+)
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -157,7 +161,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayEnsureRunning.mockResolvedValue(undefined)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
@@ -305,24 +315,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       model: 'provider-1::model-1',
       disabledTools: [],
       mcps: [],
-      configuration: { max_turns: 1 }
+      configuration: { env_vars: { FOO: '1' } }
     }
     const editedAgent = {
       ...materializedAgent,
-      configuration: { max_turns: 2 }
+      configuration: { env_vars: { FOO: '2' } }
     }
     mocks.getAgent.mockReturnValue(materializedAgent)
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, _options, agentSnapshot) => {
       expect(agentSnapshot).toBe(materializedAgent)
       // Simulate an agent edit while the async settings builder is still materializing the request.
       mocks.getAgent.mockReturnValue(editedAgent)
-      return { maxTurns: agentSnapshot.configuration.max_turns, skills: [] }
+      return { env: agentSnapshot.configuration.env_vars, skills: [] }
     })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
 
-    expect(request?.settings.maxTurns).toBe(1)
+    expect(request?.settings.env?.FOO).toBe('1')
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
@@ -757,14 +767,17 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: modelId,
       apiModelId: `${modelId}-api`
     }))
-    mocks.apiGatewayIsRunning.mockReturnValue(false)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 24444,
+      apiKey: 'gateway-key'
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
-    expect(mocks.apiGatewayStart).toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('openai:gpt-main-api')
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
@@ -781,6 +794,45 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  // The gateway is never started implicitly (#18521); the caller turns this into the prompt that
+  // offers to enable it, and the failed route must leave no persisted key behind.
+  it('fails a gateway route instead of starting the gateway the user disabled', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: false, host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toBeInstanceOf(
+      ApiGatewayNotRunningError
+    )
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureRunning).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
+  // `!isRunning()` is not consent: the gateway is also down while binding at boot, mid-restart, or
+  // after a failed activation. Prompting there would ask the user to enable what they already did.
+  it('converges an enabled-but-not-yet-listening gateway instead of asking for consent again', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // `ensureRunning`, never `start`: converging must not be able to re-persist the intent.
+    expect(mocks.apiGatewayEnsureRunning).toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
+  })
+
   it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
@@ -789,7 +841,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.2', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.2',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.preferenceGet.mockImplementation((key: string) =>
       key === 'feature.api_gateway.api_key' ? 'gateway-key' : undefined
     )
@@ -1003,7 +1060,7 @@ describe('deriveConnectionConfig', () => {
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
@@ -1322,16 +1379,6 @@ describe('deriveConnectionConfig', () => {
     })
     const planModelChanged = await deriveSignature()
     expect(planModelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
-
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      disabledTools: [],
-      mcps: [],
-      configuration: { max_turns: 5 }
-    })
-    const maxTurnsChanged = await deriveSignature()
-    expect(maxTurnsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

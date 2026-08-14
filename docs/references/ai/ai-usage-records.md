@@ -350,6 +350,10 @@ serial.
 ### Direct and external CLI
 
 The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Every emitted invocation id is globally namespaced by its driver (`claude-agent:`
+or `pi-agent:`) before it crosses the runtime contract; the host persists that id
+verbatim for cross-runtime idempotency.
+
 Each Claude SDK assistant message supplies provider request id, actual nested
 model, and usage:
 
@@ -370,6 +374,13 @@ model, and usage:
 The driver commits pending usage before emitting a steer boundary, so the old
 provider call attaches to the pre-steer message and the next call attaches to
 the continuation.
+
+Pi records one invocation when each provider stream completes, including the
+streams used by compaction. Provider `responseId` is preferred; session id plus
+message timestamp/model is the stable fallback. Error/aborted responses do not
+create records, duplicate completed ids are ignored, and Pi's
+input/cache/reasoning buckets are preserved rather than re-derived from the
+message-level running total.
 
 ### Gateway-backed Agent
 
