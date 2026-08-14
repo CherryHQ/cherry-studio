@@ -41,6 +41,33 @@ describe('canEditAssistantMessageParts', () => {
           }
         }
       })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer from the Responses API',
+        providerMetadata: {
+          openai: { itemId: 'msg_1', phase: 'content' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with provider citations',
+        providerMetadata: {
+          anthropic: { citations: [{ title: 'Example', url: 'https://example.com' }] }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'provider-specific answer',
+        providerMetadata: {
+          futureProvider: { opaqueState: 'state-1' }
+        }
+      })
     }
   ])('allows one unambiguous editable run', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(true)
@@ -99,9 +126,9 @@ describe('canEditAssistantMessageParts', () => {
     {
       messageParts: parts({
         type: 'text',
-        text: 'provider-specific answer',
+        text: 'answer signed by a provider we do not know yet',
         providerMetadata: {
-          futureProvider: { opaqueState: 'state-1' }
+          futureProvider: { replaySignature: 'signature-1' }
         }
       })
     },
