@@ -6,10 +6,11 @@ import { useCodeCliPageViewProps } from './hooks/useCodeCliPageViewProps'
 
 interface CodeCliPageProps {
   initialTool?: CodeCli
+  onToolChange?: (tool: CodeCli) => void
 }
 
-const CodeCliPage: FC<CodeCliPageProps> = ({ initialTool }) => {
-  const viewProps = useCodeCliPageViewProps(initialTool)
+const CodeCliPage: FC<CodeCliPageProps> = ({ initialTool, onToolChange }) => {
+  const viewProps = useCodeCliPageViewProps(initialTool, onToolChange)
   return <CodeCliPageView {...viewProps} />
 }
 

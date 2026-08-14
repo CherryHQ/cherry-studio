@@ -36,7 +36,10 @@ type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 
-export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewProps {
+export function useCodeCliPageViewProps(
+  initialTool?: CodeCli,
+  onToolChange?: (tool: CodeCli) => void
+): CodeCliPageViewProps {
   const { t } = useTranslation()
   const toMeta = useCallback(
     (tool: CliToolOption): CodeToolMeta => ({
@@ -62,7 +65,7 @@ export function useCodeCliPageViewProps(initialTool?: CodeCli): CodeCliPageViewP
     setTerminal,
     selectFolder,
     selectedTerminal
-  } = useCodeCli(initialTool)
+  } = useCodeCli(initialTool, onToolChange)
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers, isLoading: isProvidersLoading } = useProviders()
