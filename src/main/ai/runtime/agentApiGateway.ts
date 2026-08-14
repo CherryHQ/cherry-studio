@@ -3,6 +3,8 @@
  * whose runtime cannot speak a provider's native wire protocol (claude always,
  * dsh as a fallback). Owns the consent → convergence → key sequence.
  */
+import { createHash } from 'node:crypto'
+
 import { application } from '@application'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 
@@ -13,6 +15,27 @@ import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
  */
 export function gatewayStateTag(enabled: boolean, running: boolean): string {
   return `gateway-state:${enabled}:${running}`
+}
+
+/**
+ * Rotation-sensitive gateway auth identity for connection signatures: key edits or gateway
+ * enable/running flips rebuild the connection instead of quietly posting stale credentials.
+ * Read-only by contract — snapshot capture must never generate or persist a key.
+ */
+export function gatewayCredentialsFingerprint(): string {
+  const apiGatewayService = application.get('ApiGatewayService')
+  const config = apiGatewayService.getCurrentConfig()
+  const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
+  return createHash('sha256')
+    .update(
+      JSON.stringify(
+        [
+          typeof gatewayKey === 'string' ? gatewayKey : '',
+          gatewayStateTag(config.enabled, apiGatewayService.isRunning())
+        ].sort()
+      )
+    )
+    .digest('hex')
 }
 
 /**

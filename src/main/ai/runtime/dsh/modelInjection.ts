@@ -179,7 +179,7 @@ function resolveDshEndpoint(provider: Provider, model: Model) {
  * Effective-endpoint variant of shared `resolveDshApi`: services resolve the
  * concrete route, so this is the branch condition for native vs gateway.
  */
-function resolveDshInjectionApi(provider: Provider, model: Model): DshApi | undefined {
+export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi | undefined {
   if (isLoginBasedProvider(provider)) return undefined
   const resolvedEndpoint = resolveDshEndpoint(provider, model)
   const adapterFamily = resolvedEndpoint.endpointType
