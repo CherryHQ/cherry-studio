@@ -194,13 +194,17 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     `- id: command-compact`,
     `  name: ${q(resolveDshPluginPath('@deepseek-ai/dsh-command-compact'))}`,
     ``,
-    // Goal domain + model-facing goal tools/prompt section. The round driver is NOT
-    // mounted: autonomous goal continuation needs host autonomous-turn surfacing first.
+    // Goal domain, model-facing goal tools/prompt section, and same-session continuation.
+    // Round turns reach the host as autonomous receive-only turns (adapter beginTurn contract);
+    // activation disarms on every resume, so restarts never continue a goal unprompted.
     `- id: goal`,
     `  name: ${q(resolveDshPluginPath('@deepseek-ai/dsh-goal'))}`,
     ``,
     `- id: tool-goal`,
     `  name: ${q(resolveDshPluginPath('@deepseek-ai/dsh-tool-goal'))}`,
+    ``,
+    `- id: goal-round-driver`,
+    `  name: ${q(resolveDshPluginPath('@deepseek-ai/dsh-goal-round-driver'))}`,
     ``,
     `- id: command-goal`,
     `  name: ${q(resolveDshPluginPath('@deepseek-ai/dsh-command-goal'))}`,

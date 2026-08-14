@@ -71,14 +71,13 @@ describe('buildDshCompositionYaml', () => {
     expect(yaml).toContain('dsh-compaction-tool-result-pruner')
   })
 
-  it('mounts the command registry and the goal stack without the round driver', () => {
+  it('mounts the command registry and the full goal stack including the round driver', () => {
     const yaml = buildDshCompositionYaml(makeInput())
     expect(yaml).toContain('dsh-commands')
     expect(yaml).toContain('dsh-command-compact')
     expect(yaml).toContain('dsh-command-goal')
     expect(yaml).toContain('dsh-tool-goal')
-    // Autonomous goal continuation needs host autonomous-turn surfacing first.
-    expect(yaml).not.toContain('dsh-goal-round-driver')
+    expect(yaml).toContain('dsh-goal-round-driver')
   })
 
   it('mounts enabled skill dirs as the only skill roots, disabled otherwise', () => {
@@ -133,7 +132,7 @@ describe('buildDshCompositionYaml', () => {
     const yml = buildDshCompositionYaml(makeInput())
     const specifiers = [...yml.matchAll(/^ {2}name: (".*")$/gm)].map(([, quoted]) => JSON.parse(quoted) as string)
 
-    expect(specifiers).toHaveLength(24)
+    expect(specifiers).toHaveLength(25)
     for (const specifier of specifiers) {
       expect(path.isAbsolute(specifier), `not absolute: ${specifier}`).toBe(true)
     }

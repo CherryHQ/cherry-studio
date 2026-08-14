@@ -45,6 +45,7 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-command-compact',
       '@deepseek-ai/dsh-command-goal',
       '@deepseek-ai/dsh-goal',
+      '@deepseek-ai/dsh-goal-round-driver',
       '@deepseek-ai/dsh-tool-goal',
       '@deepseek-ai/dsh-session-persistence-jsonl',
       '@cherrystudio/dsh-bridge/plugin'

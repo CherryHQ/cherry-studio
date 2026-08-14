@@ -5,18 +5,25 @@ import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
 
 function makeAdapter() {
   const chunks: CherryUIMessageChunk[] = []
+  /** Interleaved sink order: chunk types and lifecycle markers, for ordering assertions. */
+  const order: string[] = []
   const onAssistantUsage = vi.fn()
-  const onTurnEnd = vi.fn()
+  const onTurnEnd = vi.fn(() => order.push('turn-end'))
   const onCompaction = vi.fn()
   const onApiRetry = vi.fn()
+  const onAutonomousTurnState = vi.fn((state: 'started' | 'finished') => order.push(`autonomous:${state}`))
   const adapter = new DshStreamAdapter({
-    enqueue: (chunk) => chunks.push(chunk),
+    enqueue: (chunk) => {
+      chunks.push(chunk)
+      order.push(chunk.type)
+    },
     onAssistantUsage,
     onTurnEnd,
     onCompaction,
-    onApiRetry
+    onApiRetry,
+    onAutonomousTurnState
   })
-  return { adapter, chunks, onAssistantUsage, onTurnEnd, onCompaction, onApiRetry }
+  return { adapter, chunks, order, onAssistantUsage, onTurnEnd, onCompaction, onApiRetry, onAutonomousTurnState }
 }
 
 let seq = 0
@@ -25,7 +32,8 @@ const chunkEnvelope = (turn: number, step: number, chunk: unknown) => envelope('
 
 describe('DshStreamAdapter', () => {
   it('maps a text turn to the expected chunk sequence and settles via onTurnEnd', () => {
-    const { adapter, chunks, onTurnEnd } = makeAdapter()
+    const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+    adapter.beginTurn()
     const events = [
       envelope('turn/start', { turn: 1 }),
       chunkEnvelope(1, 1, { type: 'block-start', index: 0, blockType: 'text' }),
@@ -41,6 +49,33 @@ describe('DshStreamAdapter', () => {
     expect(start).toMatchObject({ id: expect.stringMatching(/^dsh-\d+-0$/) })
     expect(delta).toMatchObject({ id: (start as { id: string }).id, delta: 'Hello' })
     expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    // A host-prompted turn never reports autonomous lifecycle.
+    expect(onAutonomousTurnState).not.toHaveBeenCalled()
+  })
+
+  it('self-opens an autonomous turn on unprompted content and releases before turn-complete', () => {
+    const { adapter, order, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+    // No beginTurn(): a goal-round turn the host never prompted.
+    adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+    adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+    adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'round work' }))
+    adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+
+    // `started` precedes the first chunk; `finished` precedes the terminal onTurnEnd.
+    expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
+    expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual(['started', 'finished'])
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+  })
+
+  it('swallows a content-less turn instead of fabricating an empty one', () => {
+    // A stale goal round rejected at pre-step: turn/start → turn/end {blocked}, zero content.
+    const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+    adapter.handleEvent(envelope('turn/start', { turn: 3 }))
+    adapter.handleEvent(envelope('turn/end', { turn: 3, reason: { kind: 'blocked' } }))
+
+    expect(chunks).toHaveLength(0)
+    expect(onTurnEnd).not.toHaveBeenCalled()
+    expect(onAutonomousTurnState).not.toHaveBeenCalled()
   })
 
   it('maps reasoning blocks to reasoning chunks', () => {

@@ -106,6 +106,7 @@
     "@deepseek-ai/dsh-compaction-tool-result-pruner": "0.1.0-rc.6",
     "@deepseek-ai/dsh-fs-local": "0.1.0-rc.6",
     "@deepseek-ai/dsh-goal": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-goal-round-driver": "0.1.0-rc.6",
     "@deepseek-ai/dsh-llm-pi-ai": "0.1.0-rc.6",
     "@deepseek-ai/dsh-llm-retry": "0.1.0-rc.6",
     "@deepseek-ai/dsh-sandbox-local": "0.1.0-rc.6",

@@ -15,6 +15,7 @@
  * - `turn/end` → sink callback with the wire reason
  * - `compaction/start|summary|end` → host compaction runtime events via the sink
  * - `llm/retry` → api-retry status via the sink
+ * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
  */
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -64,6 +65,9 @@ export interface DshStreamSink {
   onApiRetry(retry: AgentSessionApiRetryInfo): void
   /** Compaction lifecycle (`compaction/start|end`) mapped to host runtime events. */
   onCompaction(event: DshCompactionRuntimeEvent): void
+  /** A runtime-started turn (goal round): `started` fires before the turn's first chunk,
+   *  `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
+  onAutonomousTurnState(state: 'started' | 'finished'): void
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
@@ -107,7 +111,32 @@ export class DshStreamAdapter {
     }
   >()
 
+  /** Content belongs to a turn; a host `send()` opens one via `beginTurn()`. */
+  private turnActive = false
+  /** The current turn was opened by runtime content (a goal round), not a host prompt. */
+  private autonomousTurn = false
+
   constructor(private readonly sink: DshStreamSink) {}
+
+  /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
+  beginTurn(): void {
+    this.turnActive = true
+    this.autonomousTurn = false
+  }
+
+  /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
+  abortTurn(): void {
+    this.turnActive = false
+    this.autonomousTurn = false
+  }
+
+  /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
+  private ensureTurnOpen(): void {
+    if (this.turnActive) return
+    this.sink.onAutonomousTurnState('started')
+    this.turnActive = true
+    this.autonomousTurn = true
+  }
 
   handleEvent(event: unknown): void {
     if (!isRecord(event) || typeof event.type !== 'string') return
@@ -119,20 +148,34 @@ export class DshStreamAdapter {
         this.resetStepTiming()
         return
       case 'assistant/chunk':
+        this.ensureTurnOpen()
         this.handleAssistantChunk(data)
         return
       case 'tool/call':
+        this.ensureTurnOpen()
         this.handleToolCall(data)
         return
       case 'tool/result':
+        this.ensureTurnOpen()
         this.handleToolResult(data)
         return
       case 'assistant/message':
+        this.ensureTurnOpen()
         this.handleAssistantMessage(data, numeric(event.seq))
         return
-      case 'turn/end':
+      case 'turn/end': {
+        // A turn that never carried content (a stale goal round rejected at pre-step)
+        // has nothing to settle — surfacing it would fabricate an empty host turn.
+        if (!this.turnActive) return
+        this.turnActive = false
+        if (this.autonomousTurn) {
+          this.autonomousTurn = false
+          // Ownership release must precede the terminal turn-complete (host contract).
+          this.sink.onAutonomousTurnState('finished')
+        }
         this.sink.onTurnEnd(isRecord(data.reason) ? (data.reason as DshTurnEndReasonLike) : {})
         return
+      }
       case 'llm/retry':
         this.handleRetry(data)
         return

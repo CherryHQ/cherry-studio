@@ -77,7 +77,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
     onCompaction: (event) => this.eventQueue.push(event),
-    onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry })
+    onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
+    onAutonomousTurnState: (state) => {
+      // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
+      if (state === 'started') this.turnActive = true
+      this.eventQueue.push({ type: 'autonomous-turn-state', state })
+    }
   })
   private bridge?: DshBridgeServer
   private toolBridge?: DshCherryToolBridge
@@ -298,6 +303,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     this.turnActive = true
+    // Before the request: the turn can start streaming before the socket result returns.
+    this.adapter.beginTurn()
     try {
       await bridge.request({
         type: 'prompt',
@@ -306,6 +313,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       })
     } catch (error) {
       this.turnActive = false
+      this.adapter.abortTurn()
       if (this.closed) return
       logger.error('dsh prompt failed', error as Error)
       this.eventQueue.push({ type: 'error', error })
