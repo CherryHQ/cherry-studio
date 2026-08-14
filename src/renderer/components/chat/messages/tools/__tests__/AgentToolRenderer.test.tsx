@@ -1,6 +1,7 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -536,22 +537,22 @@ describe('AgentToolRenderer', () => {
       expect(mockGetToolResult).not.toHaveBeenCalled()
     })
 
-    it('should render error state correctly', () => {
+    it('shows Read error details when the tool is expanded', async () => {
+      const user = userEvent.setup()
+      const errorText = "ENOENT: no such file or directory, open '/nonexistent.ts'"
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'error',
         arguments: { file_path: '/nonexistent.ts' },
-        response: 'File not found'
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
       expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
-      expect(
-        screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
-      ).toBe(false)
+      await user.click(screen.getByRole('button'))
+      expect(await screen.findByText(errorText)).toBeVisible()
     })
 
     it('renders the Write target path as a clickable link once the write completes', () => {
