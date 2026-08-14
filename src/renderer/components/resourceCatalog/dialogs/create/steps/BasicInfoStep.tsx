@@ -1,16 +1,5 @@
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cherrystudio/ui'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@cherrystudio/ui'
+import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import {
   AvatarField,
@@ -33,25 +22,6 @@ const EMPTY_MODEL_LABELS: ModelLabels = {
   planModelId: null,
   smallModelId: null,
   contextCompressModelId: null
-}
-
-const AGENT_RUNTIME_OPTIONS: { value: AgentType; labelKey: string; labelFallback: string }[] = Object.entries(
-  AGENT_RUNTIME_CAPABILITIES
-).map(([value, caps]) => ({ value: value as AgentType, labelKey: caps.labelKey, labelFallback: caps.labelFallback }))
-
-const AGENT_RUNTIME_SELECTED_LABELS: Record<AgentType, { labelKey: string; labelFallback: string }> = {
-  'claude-code': {
-    labelKey: 'library.config.agent.field.runtime.selected.claude_code',
-    labelFallback: 'Advanced'
-  },
-  pi: {
-    labelKey: 'library.config.agent.field.runtime.selected.pi',
-    labelFallback: 'Fast'
-  },
-  dsh: {
-    labelKey: 'library.config.agent.field.runtime.selected.dsh',
-    labelFallback: 'DeepSeek'
-  }
 }
 
 type ModelFieldProps = {
@@ -110,27 +80,14 @@ function AgentRuntimeModelFields({
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('library.config.agent.field.runtime.label')}</FormLabel>
-            <Select value={field.value} onValueChange={(value) => handleRuntimeChange(value as AgentType)}>
-              <FormControl>
-                <SelectTrigger
-                  className="h-9 w-full rounded-md"
-                  aria-label={t('library.config.agent.field.runtime.label')}>
-                  <SelectValue>
-                    {t(
-                      AGENT_RUNTIME_SELECTED_LABELS[field.value].labelKey,
-                      AGENT_RUNTIME_SELECTED_LABELS[field.value].labelFallback
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent portalContainer={portalContainer}>
-                {AGENT_RUNTIME_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {t(option.labelKey, option.labelFallback)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FormControl>
+              <AgentRuntimeTiles
+                value={field.value}
+                onValueChange={handleRuntimeChange}
+                ariaLabel={t('library.config.agent.field.runtime.label')}
+                t={t}
+              />
+            </FormControl>
             <FormDescription className="text-xs">
               {t('library.config.agent.field.runtime.immutable_hint')}
             </FormDescription>

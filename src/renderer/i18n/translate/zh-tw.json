@@ -2227,6 +2227,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2249,6 +2250,43 @@
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
     "disable": "停用",
     "edit_config": "編輯設定",
@@ -2299,6 +2337,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2308,8 +2347,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
@@ -3403,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理側邊欄",
     "minapps": "小程式",
     "miniApps": "小程式",
@@ -3510,11 +3552,6 @@
               "claude_code": "增強：Claude Agent",
               "dsh": "DeepSeek Harness",
               "pi": "快速：Pi"
-            },
-            "selected": {
-              "claude_code": "增強",
-              "dsh": "DeepSeek",
-              "pi": "快速"
             }
           },
           "small_model": {

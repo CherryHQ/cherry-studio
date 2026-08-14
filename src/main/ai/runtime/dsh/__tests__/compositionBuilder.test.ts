@@ -137,7 +137,7 @@ describe('buildDshCompositionYaml', () => {
 
   it('converts Windows drive paths to ESM-compatible file URLs', () => {
     const pluginPath = 'C:\\Users\\xxx\\Code\\cherry-studio\\node_modules\\@deepseek-ai\\dsh-tool-pwsh\\lib\\index.js'
-    const pluginUrl = toDshPluginUrl(pluginPath)
+    const pluginUrl = toDshPluginUrl(pluginPath, true)
 
     expect(pluginUrl).toBe(
       'file:///C:/Users/xxx/Code/cherry-studio/node_modules/@deepseek-ai/dsh-tool-pwsh/lib/index.js'

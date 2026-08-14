@@ -8,6 +8,7 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
@@ -52,6 +53,7 @@ export const ipcRequestSchemas = {
   ...cherryinRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,

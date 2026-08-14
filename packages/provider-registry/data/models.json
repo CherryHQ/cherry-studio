@@ -7642,11 +7642,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048600,
+      "contextWindow": 1048576,
       "family": "deepseek-thinking",
       "id": "deepseek-v4-pro",
       "inputModalities": ["text"],
-      "maxOutputTokens": 1048600,
+      "maxOutputTokens": 393216,
       "metadata": {},
       "name": "DeepSeek V4 Pro",
       "openWeights": true,

@@ -38,6 +38,18 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).not.toContain('bash')
   })
 
+  it('keeps permission choices aligned with each runtime approval implementation', () => {
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
+    // pi implements `auto` itself in the approval extension, so it offers it and starts there.
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('plan')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('default')
+  })
+
   describe('isModelCompatible — managed CherryAI default model', () => {
     const piIsCompatible = AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible
     const claudeIsCompatible = AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible

@@ -117,6 +117,9 @@ export function buildPathRegistry() {
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
 
+    // DeepSeek Harness
+    'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -209,6 +212,7 @@ export function buildPathRegistry() {
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
+    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
