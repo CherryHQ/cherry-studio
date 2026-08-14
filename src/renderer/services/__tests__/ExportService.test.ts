@@ -340,6 +340,7 @@ describe('ExportService', () => {
       await preferenceService.set('data.integration.notion.export_reasoning', false)
       await preferenceService.set('data.integration.notion.api_key', '')
       await preferenceService.set('data.integration.notion.database_id', '')
+      await preferenceService.set('data.integration.notion.page_name_key', '')
     })
 
     const messageWith = (body: string, thinking: string) =>
@@ -395,9 +396,12 @@ describe('ExportService', () => {
         // All three message conversions must reach their gate while every gate is
         // still closed; a serial implementation would block message two on one's gate.
         await vi.waitFor(() => expect(releaseGates).toHaveLength(3))
-        // Reasoning conversion also runs per message without waiting for any body.
-        expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-one')
-        expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-two')
+        // Reasoning conversion also runs per message without waiting for any body;
+        // waitFor covers its async hop through loadNotionDependencies on a cold cache.
+        await vi.waitFor(() => {
+          expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-one')
+          expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-two')
+        })
 
         releaseGates.forEach((release) => release())
         await expect(exportPromise).resolves.toBe(true)
