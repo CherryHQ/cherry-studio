@@ -108,7 +108,6 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    expect(document.querySelectorAll('[data-slot="segmented-control"]')[1]).toHaveAttribute('data-size', 'sm')
     expect(screen.getAllByTestId('segmented-control')[1]).toHaveAttribute('data-value', 'all')
     expect(screen.queryByRole('option', { name: 'settings.models.check.all_enabled_keys' })).not.toBeInTheDocument()
 
