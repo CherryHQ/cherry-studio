@@ -1,0 +1,10 @@
+/**
+ * CherryStudio Design Tokens
+ *
+ * Foundation token entry.
+ *
+ * This file contains primitives and existing value providers only. It must
+ * not import the official Shadcn contract or product semantics.
+ */
+
+@import './tokens/index.css';

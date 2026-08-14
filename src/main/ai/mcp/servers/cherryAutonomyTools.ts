@@ -1,0 +1,895 @@
+/**
+ * Agent autonomy tools (cron / notify / config) hosted by the in-process
+ * `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
+ *
+ * Unlike the stateless builtin lookup tools, these act on behalf of a specific
+ * agent (schedule its tasks, notify through its channels, manage its own
+ * configuration), so they take the per-session agent context
+ * `CherryBuiltinToolsServer` is constructed with.
+ */
+
+import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
+import { agentService } from '@data/services/AgentService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { loggerService } from '@logger'
+import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { ChannelConfigSchema } from '@shared/data/types/channel'
+import QRCode from 'qrcode'
+
+const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+/** Per-session agent context the autonomy tools act on behalf of. */
+export interface CherryAgentContext {
+  agentId: string
+  workspaceSource: AgentSessionWorkspaceSource
+  workspacePath: string
+  sourceChannelId?: string
+  /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
+  canAccessAllKnowledgeBases?: () => boolean
+  /**
+   * Read this agent's effective knowledge scope — `resolveKnowledgeBaseScope(binding,
+   * composerSelection)`, not the raw binding. The binding half is re-read live; the composer
+   * selection half is frozen when the connection is built. An empty list means neither source
+   * granted access. The autonomy tools ignore this field.
+   */
+  getKnowledgeBaseIds: () => string[]
+}
+
+/**
+ * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
+ */
+function parseDurationToMinutes(duration: string): number {
+  let totalMinutes = 0
+  const hourMatch = duration.match(/(\d+)\s*h/i)
+  const minMatch = duration.match(/(\d+)\s*m/i)
+
+  if (hourMatch) totalMinutes += parseInt(hourMatch[1], 10) * 60
+  if (minMatch) totalMinutes += parseInt(minMatch[1], 10)
+
+  if (totalMinutes === 0) {
+    const raw = parseInt(duration, 10)
+    if (!isNaN(raw) && raw > 0) return raw
+    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1h30m'.`)
+  }
+
+  return totalMinutes
+}
+
+const CRON_TOOL: Tool = {
+  name: CRON_TOOL_NAME,
+  description:
+    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'list', 'remove'],
+        description: 'The action to perform'
+      },
+      name: {
+        type: 'string',
+        description: 'Name of the job (required for add)'
+      },
+      message: {
+        type: 'string',
+        description: 'The prompt/instruction to execute on schedule (required for add)'
+      },
+      cron: {
+        type: 'string',
+        description: "Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR every, not both)"
+      },
+      every: {
+        type: 'string',
+        description: "Duration, e.g. '30m', '2h', '24h' (use every OR cron, not both)"
+      },
+      at: {
+        type: 'string',
+        description:
+          "RFC3339 timestamp for a one-time job, e.g. '2024-01-15T14:30:00+08:00' (use at OR cron OR every, not combined)"
+      },
+      channel_ids: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
+      },
+      timeout_minutes: {
+        type: 'number',
+        description:
+          'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
+      },
+      id: {
+        type: 'string',
+        description: 'Job ID (required for remove)'
+      }
+    },
+    required: ['action']
+  }
+}
+
+const NOTIFY_TOOL: Tool = {
+  name: NOTIFY_TOOL_NAME,
+  description:
+    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: {
+        type: 'string',
+        description: 'The notification message to send to the user. Optional if file_path is provided.'
+      },
+      file_path: {
+        type: 'string',
+        description:
+          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
+      },
+      channel_id: {
+        type: 'string',
+        description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+      }
+    },
+    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
+    // the trimmed values (empty strings must still be rejected).
+    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+  }
+}
+
+/** Per-adapter-type config schema descriptions (for agent self-documentation). */
+const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: string[]; description: string }> = {
+  telegram: {
+    required: ['bot_token'],
+    optional: ['allowed_chat_ids'],
+    description: 'Telegram Bot. Get bot_token from @BotFather.'
+  },
+  feishu: {
+    required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
+    optional: ['allowed_chat_ids'],
+    description:
+      'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
+  },
+  qq: {
+    required: ['app_id', 'client_secret'],
+    optional: ['allowed_chat_ids'],
+    description: 'QQ official bot via QQ Open Platform.'
+  },
+  wechat: {
+    required: ['token_path'],
+    optional: ['allowed_chat_ids'],
+    description:
+      'WeChat via local WeChat desktop client bridge. Set auth_mode to "qr" to log in interactively without config. For an existing login, provide its token_path.'
+  },
+  discord: {
+    required: ['bot_token'],
+    optional: ['allowed_channel_ids'],
+    description: [
+      'Discord bot via WebSocket gateway.',
+      'Setup steps:',
+      '1. Go to https://discord.com/developers/applications and click "New Application".',
+      '2. Go to the "Bot" tab, click "Reset Token" to generate a new token — this is your bot_token.',
+      '3. Under "Privileged Gateway Intents", enable "MESSAGE CONTENT INTENT".',
+      '4. Go to "OAuth2 > URL Generator", select scopes: "bot", and bot permissions: "Send Messages", "Read Message History", "View Channels".',
+      '5. Copy the generated URL, open it in a browser to invite the bot to your server.',
+      '6. allowed_channel_ids format: "channel:<channel_id>" for guild channels, "dm:<channel_id>" for DMs. Send /whoami in Discord to get the correct ID.'
+    ].join(' ')
+  },
+  slack: {
+    required: ['bot_token', 'app_token'],
+    optional: ['allowed_channel_ids'],
+    description: [
+      'Slack bot via Socket Mode (WebSocket).',
+      'Setup steps:',
+      '1. Go to https://api.slack.com/apps and click "Create New App" > "From scratch".',
+      '2. Go to "OAuth & Permissions", add Bot Token Scopes: "chat:write", "reactions:write", "channels:history", "groups:history", "im:history", "mpim:history", "users:read", "files:read".',
+      '3. Click "Install to Workspace" and copy the "Bot User OAuth Token" (xoxb-...) — this is your bot_token.',
+      '4. Go to "Socket Mode" and enable it. Generate an App-Level Token with scope "connections:write" — this is your app_token (xapp-...).',
+      '5. Go to "Event Subscriptions", enable events, and subscribe to bot events: "message.channels", "message.groups", "message.im", "message.mpim", "app_mention".',
+      '6. Invite the bot to channels by typing /invite @YourBotName in the desired Slack channel.',
+      '7. allowed_channel_ids is optional — leave empty to allow all channels the bot is in.'
+    ].join(' ')
+  }
+}
+
+const CONFIG_TOOL: Tool = {
+  name: CONFIG_TOOL_NAME,
+  description:
+    "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' to mark the onboarding ritual as done. Use 'reset_bootstrap' to re-run the onboarding in the next session.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: [
+          'status',
+          'rename',
+          'add_channel',
+          'update_channel',
+          'remove_channel',
+          'reconnect_channel',
+          'complete_bootstrap',
+          'reset_bootstrap'
+        ],
+        description: 'The action to perform'
+      },
+      type: {
+        type: 'string',
+        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
+        description: "Channel adapter type (required for 'add_channel')"
+      },
+      name: {
+        type: 'string',
+        description: "For 'rename': the new agent display name. For 'add_channel': human-readable channel name."
+      },
+      channel_id: {
+        type: 'string',
+        description: "Channel ID (required for 'update_channel' and 'remove_channel')"
+      },
+      config: {
+        type: 'object',
+        description:
+          "Adapter-specific configuration (required for credential-based 'add_channel', optional for QR authentication and 'update_channel')"
+      },
+      auth_mode: {
+        type: 'string',
+        enum: ['credentials', 'qr'],
+        description:
+          'Authentication mode for add_channel. Use "qr" only with WeChat or Feishu for interactive setup; defaults to "credentials".'
+      },
+      enabled: {
+        type: 'boolean',
+        description:
+          'Enable or disable the channel (optional; defaults to true on add, unchanged when omitted on update)'
+      }
+    },
+    required: ['action']
+  }
+}
+
+const AUTONOMY_TOOLS: readonly Tool[] = [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
+
+export class CherryAutonomyTools {
+  private agentId: string
+  private workspace: AgentSessionWorkspaceSource
+  private workspacePath: string
+  private sourceChannelId: string | undefined
+
+  constructor(context: CherryAgentContext) {
+    this.agentId = context.agentId
+    this.workspace = context.workspaceSource
+    this.workspacePath = context.workspacePath
+    this.sourceChannelId = context.sourceChannelId
+  }
+
+  tools(): Tool[] {
+    return [...AUTONOMY_TOOLS]
+  }
+
+  handles(toolName: string): boolean {
+    return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
+  }
+
+  async call(toolName: string, args: Record<string, unknown>): Promise<CallToolResult> {
+    try {
+      switch (toolName) {
+        case CRON_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'add':
+              return await this.addJob(args)
+            case 'list':
+              return this.listJobs()
+            case 'remove':
+              return await this.removeJob(args)
+            default:
+              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
+          }
+        }
+        case NOTIFY_TOOL_NAME:
+          return await this.sendNotification(args)
+        case CONFIG_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'status':
+              return this.configStatus()
+            case 'rename':
+              return this.configRename(args)
+            case 'add_channel':
+              return await this.configAddChannel(args)
+            case 'update_channel':
+              return await this.configUpdateChannel(args)
+            case 'remove_channel':
+              return await this.configRemoveChannel(args)
+            case 'reconnect_channel':
+              return await this.configReconnectChannel(args)
+            case 'complete_bootstrap':
+              return this.configCompleteBootstrap()
+            case 'reset_bootstrap':
+              return this.configResetBootstrap()
+            default:
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Unknown action "${action}", expected status/rename/add_channel/update_channel/remove_channel/reconnect_channel/complete_bootstrap/reset_bootstrap`
+              )
+          }
+        }
+        default:
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
+      return {
+        content: [{ type: 'text' as const, text: `Error: ${message}` }],
+        isError: true
+      }
+    }
+  }
+
+  private async addJob(args: Record<string, unknown>) {
+    const name = args.name as string | undefined
+    const message = args.message as string | undefined
+    const cronExpr = args.cron as string | undefined
+    const every = args.every as string | undefined
+    const at = args.at as string | undefined
+    const rawChannelIds = args.channel_ids as string[] | undefined
+    const timeoutMinutes = args.timeout_minutes as number | undefined
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
+    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
+
+    // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
+    const scheduleCount = [cronExpr, every, at].filter(Boolean).length
+    if (scheduleCount === 0) throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
+    if (scheduleCount > 1) throw new McpError(ErrorCode.InvalidParams, "Use only one of 'cron', 'every', or 'at'")
+
+    let trigger: Trigger
+
+    if (cronExpr) {
+      trigger = { kind: 'cron', expr: cronExpr }
+    } else if (every) {
+      const minutes = parseDurationToMinutes(every)
+      trigger = { kind: 'interval', ms: minutes * 60_000 }
+    } else {
+      const date = new Date(at!)
+      if (isNaN(date.getTime())) throw new McpError(ErrorCode.InvalidParams, `Invalid timestamp: "${at}"`)
+      trigger = { kind: 'once', at: date.getTime() }
+    }
+
+    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
+    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
+    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
+    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
+    let channelIds: string[] | undefined
+    if (Array.isArray(rawChannelIds)) {
+      for (const channelId of rawChannelIds) {
+        const channel = channelService.getChannel(channelId)
+        if (!channel || channel.agentId !== this.agentId)
+          throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+      }
+      channelIds = rawChannelIds
+    } else if (this.sourceChannelId) {
+      channelIds = [this.sourceChannelId]
+    }
+
+    const task = application.get('AgentJobsService').createTask(this.agentId, {
+      name,
+      prompt: message,
+      trigger,
+      workspace: this.workspace,
+      timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
+      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
+    })
+
+    logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
+    return {
+      content: [{ type: 'text' as const, text: `Job created:\n${JSON.stringify(task, null, 2)}` }]
+    }
+  }
+
+  private listJobs() {
+    const { tasks } = taskService.listTasks(this.agentId, { limit: 100 })
+
+    if (tasks.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No scheduled jobs.' }] }
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }]
+    }
+  }
+
+  private async sendNotification(args: Record<string, unknown>) {
+    const message = typeof args.message === 'string' ? args.message.trim() : undefined
+    const filePath = typeof args.file_path === 'string' ? args.file_path.trim() : undefined
+    if (!message && !filePath) {
+      throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
+    }
+
+    const targetChannelId = typeof args.channel_id === 'string' ? args.channel_id : undefined
+    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+
+    if (targetChannelId) {
+      adapters = adapters.filter((a) => a.channelId === targetChannelId)
+    }
+
+    if (adapters.length === 0) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'No connected channels found. Configure at least one channel in settings.'
+          }
+        ]
+      }
+    }
+
+    // Resolve the file once before dispatch so a bad path fails fast (one error,
+    // not one per chat). Guard errors surface as a clean isError result via the
+    // CallTool catch. Done after the no-adapters guard so we don't read up to
+    // 100MB off disk only to discover there's nowhere to send it.
+    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
+    const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
+
+    let messagesSent = 0
+    let filesSent = 0
+    const errors: string[] = []
+
+    const recordError = (adapter: ChannelAdapter, chatId: string, what: string, err: unknown) => {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      errors.push(`${adapter.channelId}/${chatId} (${what}): ${errMsg}`)
+      // Log the raw error, not just its message, so the SDK's cause chain and any
+      // attached `response` payload survive to the logs for diagnosis.
+      logger.warn(`Failed to send ${what} via notify`, {
+        agentId: this.agentId,
+        channelId: adapter.channelId,
+        chatId,
+        error: err
+      })
+    }
+
+    for (const adapter of adapters) {
+      for (const chatId of adapter.notifyChatIds) {
+        // Message and file are independent — one failing must not skip the other.
+        if (sanitizedMessage) {
+          try {
+            await adapter.sendMessage(chatId, sanitizedMessage)
+            messagesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'message', err)
+          }
+        }
+        if (file) {
+          try {
+            await adapter.sendFile(chatId, file)
+            filesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'file', err)
+          }
+        }
+      }
+    }
+
+    const parts: string[] = []
+    if (sanitizedMessage) parts.push(`Message sent to ${messagesSent} chat(s).`)
+    if (file) parts.push(`File "${file.filename}" sent to ${filesSent} chat(s).`)
+    if (errors.length > 0) parts.push(`Errors: ${errors.join('; ')}`)
+
+    logger.info('Notification sent via notify tool', {
+      agentId: this.agentId,
+      messagesSent,
+      filesSent,
+      errors: errors.length
+    })
+
+    // A requested payload that reached nobody because every attempt failed is a failed
+    // tool call — otherwise the agent sees success while the user received nothing
+    // (unsupported adapter, platform size reject, etc.). Zero recipients with no failed
+    // attempts (no chats configured) stays a normal result.
+    const messageFailed = sanitizedMessage !== undefined && messagesSent === 0
+    const fileFailed = file !== undefined && filesSent === 0
+    const deliveryFailed = errors.length > 0 && (messageFailed || fileFailed)
+
+    return {
+      content: [{ type: 'text' as const, text: parts.join(' ') }],
+      ...(deliveryFailed ? { isError: true } : {})
+    }
+  }
+
+  // ── Config tool handlers ──────────────────────────────────────────
+
+  private configStatus() {
+    const agent = agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const config = agent.configuration
+    const channels = channelService.listChannels({ agentId: this.agentId })
+
+    const adapterStatuses = application.get('ChannelManager').getAdapterStatuses(this.agentId)
+    const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
+
+    const channelSummary = channels.map((ch) => ({
+      id: ch.id,
+      type: ch.type,
+      name: ch.name,
+      enabled: ch.isActive,
+      connected: statusMap.get(ch.id) ?? false
+    }))
+
+    const result = {
+      agentId: agent.id,
+      name: agent.name,
+      model: agent.model,
+      supported_channel_types: Object.entries(CHANNEL_CONFIG_SCHEMAS).map(([type, schema]) => ({
+        type,
+        description: schema.description,
+        required_fields: schema.required,
+        optional_fields: schema.optional
+      })),
+      channels: channelSummary,
+      heartbeat_enabled: config?.heartbeat_enabled ?? false
+    }
+
+    logger.info('Config status queried', { agentId: this.agentId })
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
+    }
+  }
+
+  private async configAddChannel(args: Record<string, unknown>) {
+    const type = typeof args.type === 'string' ? args.type : undefined
+    const name = typeof args.name === 'string' ? args.name : undefined
+    const authMode = typeof args.auth_mode === 'string' ? args.auth_mode : 'credentials'
+    const enabled = typeof args.enabled === 'boolean' ? args.enabled : undefined
+    const rawConfig = args.config
+
+    if (!type) throw new McpError(ErrorCode.InvalidParams, "'type' is required for add_channel")
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add_channel")
+    if (rawConfig !== undefined && (typeof rawConfig !== 'object' || rawConfig === null || Array.isArray(rawConfig))) {
+      throw new McpError(ErrorCode.InvalidParams, "'config' must be an object")
+    }
+    if (args.auth_mode !== undefined && typeof args.auth_mode !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "'auth_mode' must be a string")
+    }
+    if (args.enabled !== undefined && typeof args.enabled !== 'boolean') {
+      throw new McpError(ErrorCode.InvalidParams, "'enabled' must be a boolean")
+    }
+
+    const schema = CHANNEL_CONFIG_SCHEMAS[type]
+    if (!schema) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Unknown channel type "${type}". Supported: ${Object.keys(CHANNEL_CONFIG_SCHEMAS).join(', ')}`
+      )
+    }
+
+    if (authMode !== 'credentials' && authMode !== 'qr') {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown auth_mode "${authMode}", expected credentials/qr`)
+    }
+    if (authMode === 'qr' && type !== 'wechat' && type !== 'feishu') {
+      throw new McpError(ErrorCode.InvalidParams, `QR authentication is not supported for ${type} channels`)
+    }
+    if (authMode === 'qr' && enabled === false) {
+      throw new McpError(ErrorCode.InvalidParams, 'QR authentication requires the channel to be enabled')
+    }
+
+    let cfg: object = rawConfig ?? {}
+    if (authMode === 'qr' && type === 'wechat') {
+      cfg = { ...rawConfig, token_path: '' }
+    } else if (authMode === 'qr' && type === 'feishu') {
+      const unverifiedChannels = channelService
+        .listChannels({ agentId: this.agentId, type: 'feishu' })
+        .filter((channel) => channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+
+      if (unverifiedChannels.length > 1) {
+        const channelIds = unverifiedChannels.map((channel) => channel.id).join(', ')
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Multiple unverified Feishu channels already exist (${channelIds}). Use reconnect_channel with the intended channel_id instead of creating another channel.`
+        )
+      }
+
+      const existingChannel = unverifiedChannels[0]
+      cfg = {
+        allowed_chat_ids: [],
+        domain: 'feishu',
+        ...existingChannel?.config,
+        ...rawConfig,
+        app_id: '',
+        app_secret: '',
+        encrypt_key: '',
+        verification_token: ''
+      }
+
+      if (existingChannel) {
+        const config = ChannelConfigSchema.parse({ type, ...cfg })
+        channelService.updateChannel(existingChannel.id, {
+          name,
+          config,
+          isActive: true
+        })
+        return await this.configReconnectChannel({ channel_id: existingChannel.id })
+      }
+    }
+    if (authMode === 'credentials') {
+      for (const field of schema.required) {
+        if (!(field in cfg) || !cfg[field]) {
+          throw new McpError(ErrorCode.InvalidParams, `Missing required config field "${field}" for ${type} channel`)
+        }
+      }
+    }
+
+    const config = ChannelConfigSchema.parse({ type, ...cfg })
+    const channelType = config.type
+
+    // For channels that use QR-based setup (WeChat login, Feishu app registration),
+    // connect is blocking (waits for QR scan), so run sync in background
+    // and wait only for the QR URL to return it to the agent.
+    const needsQr = authMode === 'qr'
+
+    if (needsQr) {
+      const newChannel = channelService.createChannel({
+        type: channelType,
+        name,
+        agentId: this.agentId,
+        workspace: this.workspace,
+        config,
+        isActive: enabled ?? true
+      })
+
+      const channelManager = application.get('ChannelManager')
+      const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
+      // Fire-and-forget: syncChannel will complete once the user scans
+      channelManager.syncChannel(newChannel.id).catch((err) => {
+        logger.error(`${type} sync failed`, {
+          agentId: this.agentId,
+          channelId: newChannel.id,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+
+      const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
+      const scanHint =
+        type === 'wechat'
+          ? 'scan with WeChat to log in'
+          : 'scan with Feishu to create a bot app and obtain credentials automatically'
+
+      try {
+        const qrUrl = await qrPromise
+        const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
+        // Extract base64 from data URI: "data:image/png;base64,..."
+        const base64 = qrDataUrl.split(',')[1]
+
+        logger.info(`${channelLabel} channel added, QR code generated`, {
+          agentId: this.agentId,
+          channelId: newChannel.id
+        })
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `${channelLabel} channel created (ID: ${newChannel.id}). QR code generated — display it to the user so they can ${scanHint}.`
+            },
+            {
+              type: 'image' as const,
+              data: base64,
+              mimeType: 'image/png'
+            }
+          ]
+        }
+      } catch (err) {
+        // QR timed out — remove the orphan channel so it doesn't block future connections
+        await this.removeOrphanChannel(newChannel.id)
+
+        logger.warn(`Failed to get ${channelLabel} QR code, orphan channel removed`, {
+          agentId: this.agentId,
+          channelId: newChannel.id,
+          error: err instanceof Error ? err.message : String(err)
+        })
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to set up ${channelLabel} channel: ${err instanceof Error ? err.message : String(err)}. The channel was not saved. Please try again.`
+            }
+          ],
+          isError: true
+        }
+      }
+    }
+
+    const newChannel = await agentChannelWorkflowService.createChannel({
+      type: channelType,
+      name,
+      agentId: this.agentId,
+      workspace: this.workspace,
+      config,
+      isActive: enabled ?? true
+    })
+
+    logger.info('Channel added via config tool', { agentId: this.agentId, channelId: newChannel.id, type })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Channel added and activated:\n${JSON.stringify({ id: newChannel.id, type, name, enabled: newChannel.isActive }, null, 2)}`
+        }
+      ]
+    }
+  }
+
+  private async configUpdateChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for update_channel")
+
+    const existing = channelService.getChannel(channelId)
+    if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (existing.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    const updates: Record<string, unknown> = {}
+    if (args.name !== undefined) updates.name = args.name as string
+    if (args.enabled !== undefined) updates.isActive = args.enabled as boolean
+    if (args.config !== undefined) {
+      updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
+    }
+
+    await agentChannelWorkflowService.updateChannel(channelId, updates)
+
+    logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
+    return {
+      content: [{ type: 'text' as const, text: `Channel "${channelId}" updated and reloaded.` }]
+    }
+  }
+
+  private async configRemoveChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for remove_channel")
+
+    const channel = channelService.getChannel(channelId)
+    if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    await agentChannelWorkflowService.deleteChannel(channelId)
+
+    logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
+    return {
+      content: [{ type: 'text' as const, text: `Channel "${channelId}" (${channel.name}) removed.` }]
+    }
+  }
+
+  private async configReconnectChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
+
+    const channel = channelService.getChannel(channelId)
+    if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    const needsQr =
+      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+
+    const channelManager = application.get('ChannelManager')
+    if (!needsQr) {
+      await channelManager.syncChannel(channelId)
+      return {
+        content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
+      }
+    }
+
+    // QR-based reconnect: sync in background, wait for QR URL
+    const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
+    channelManager.syncChannel(channelId).catch((err) => {
+      logger.error('Reconnect sync failed', {
+        agentId: this.agentId,
+        channelId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    })
+
+    const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
+
+    try {
+      const qrUrl = await qrPromise
+      const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
+      const base64 = qrDataUrl.split(',')[1]
+
+      logger.info(`${channelLabel} channel reconnect QR generated`, { agentId: this.agentId, channelId })
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `${channelLabel} channel "${channelId}" needs re-authentication. Display this QR code for the user to scan.`
+          },
+          {
+            type: 'image' as const,
+            data: base64,
+            mimeType: 'image/png'
+          }
+        ]
+      }
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Failed to generate QR for reconnect: ${err instanceof Error ? err.message : String(err)}`
+          }
+        ],
+        isError: true
+      }
+    }
+  }
+
+  private configRename(args: Record<string, unknown>) {
+    const name = typeof args.name === 'string' ? args.name : undefined
+    if (!name || !name.trim()) throw new McpError(ErrorCode.InvalidParams, "'name' is required for rename")
+
+    agentService.updateAgent(this.agentId, { name: name.trim() })
+
+    logger.info('Agent renamed via config tool', { agentId: this.agentId, name: name.trim() })
+    return {
+      content: [{ type: 'text' as const, text: `Agent renamed to "${name.trim()}".` }]
+    }
+  }
+
+  private configCompleteBootstrap() {
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: true } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    logger.info('Bootstrap marked as completed', { agentId: this.agentId })
+    return {
+      content: [
+        { type: 'text' as const, text: 'Bootstrap completed. Future sessions will use your standard personality.' }
+      ]
+    }
+  }
+
+  private configResetBootstrap() {
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: false } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    logger.info('Bootstrap reset', { agentId: this.agentId })
+    return {
+      content: [
+        { type: 'text' as const, text: 'Bootstrap has been reset. The next session will run the onboarding flow.' }
+      ]
+    }
+  }
+
+  /**
+   * Remove a channel from config that failed to connect (e.g. QR timeout).
+   * Prevents orphaned channels from blocking future connections.
+   */
+  private async removeOrphanChannel(channelId: string): Promise<void> {
+    try {
+      await agentChannelWorkflowService.deleteChannel(channelId)
+    } catch (err) {
+      logger.error('Failed to remove orphan channel', {
+        agentId: this.agentId,
+        channelId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
+  }
+
+  private async removeJob(args: Record<string, unknown>) {
+    const id = typeof args.id === 'string' ? args.id : undefined
+    if (!id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for remove")
+
+    const deleted = await application.get('AgentJobsService').deleteTask(this.agentId, id)
+    if (!deleted) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
+
+    logger.info('Cron job removed via tool', { agentId: this.agentId, taskId: id })
+    return {
+      content: [{ type: 'text' as const, text: `Job "${id}" removed.` }]
+    }
+  }
+}

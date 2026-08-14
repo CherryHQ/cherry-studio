@@ -1,0 +1,909 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { PosixRelativeFilePathSchema, resolvePosixRelativeSegments, sanitizeFilename } from '@shared/utils/file'
+import * as z from 'zod'
+
+import { GroupIdSchema } from './group'
+
+/**
+ * Knowledge domain types.
+ *
+ * Keep this file as the single shared entry point for knowledge data contracts.
+ * Sections below separate persisted entities, runtime search types, and
+ * runtime operation DTOs.
+ */
+
+// ============================================================================
+// Constants and Field Schemas
+// ============================================================================
+
+/**
+ * A path to a material under a knowledge base's `raw/` directory.
+ *
+ * POSIX, not the union brand: material paths are `/`-separated by construction
+ * (main spells them that way before storing) and are read back with `path.join`,
+ * which accepts `/` on Windows too. So a `\` in a stored value is part of a
+ * filename — a file legitimately named `a\b.txt` on Linux — and must survive
+ * round-tripping rather than being re-read as a directory boundary.
+ *
+ * `PosixRelativeFilePathSchema` carries the shape rules (non-empty, not anchored
+ * to a root, every segment legal on a POSIX filesystem). Layered on top are the
+ * two rules that depend on `raw/` being the base, which the shape layer has no
+ * way to know about:
+ *
+ * - **Stays inside it.** `../x` is a perfectly good relative path; as a material
+ *   path it is a traversal out of the knowledge base.
+ * - **Points below it, never at it.** `.` and `a/..` denote `raw/` itself, which
+ *   would make the base its own material — `deleteKnowledgeItemFiles` would then
+ *   remove the entire `raw/` tree instead of one item's file.
+ *
+ * The remaining knowledge rule — the reserved `CHERRY_META_DIR` prefix — stays
+ * imperative in `assertSafeKnowledgeRelativePath` (`main/features/knowledge/
+ * pathStorage.ts`), which guards the filesystem boundary and so also covers
+ * paths derived after this schema has run.
+ *
+ * Not checked here: whether the value could be restored onto Windows. A Linux
+ * user's `a\b.txt` or `CON.txt` is storable but has no Windows spelling — that
+ * is a migration-time conflict (`WindowsRelativeFilePathSchema` is the check),
+ * not a reason to refuse the row.
+ */
+export const KnowledgeRelativePathSchema = PosixRelativeFilePathSchema.refine((value) => {
+  // `PosixRelativeFilePath` permits `../x` — a relative path that points outside
+  // its base. Containment is the base owner's rule, so the material root asserts
+  // it here: `null` is a climb-out, `[]` is the root itself.
+  const segments = resolvePosixRelativeSegments(value)
+  return segments !== null && segments.length > 0
+}, 'must stay inside the knowledge base material root and point below it')
+
+export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
+export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
+export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
+
+/**
+ * Persisted item lifecycle states.
+ *
+ * State machine:
+ *
+ * ```text
+ * file/url/note:
+ *   idle -> processing -> reading -> embedding -> completed
+ *      \                    \             \          \
+ *       +--------------------+-------------+-----------> failed
+ *      \---------------------------------------------> deleting
+ *
+ * directory:
+ *   idle -> preparing -> processing -> completed
+ *      \        \             \          \
+ *       +--------+-------------+-----------> failed
+ *      \---------------------------------> deleting
+ * ```
+ *
+ * - `idle`: item row exists but indexing has not started.
+ * - `preparing`: container expansion is running; only `directory` items may use it.
+ * - `processing`: work has been queued or is running before a more specific phase is known.
+ * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
+ * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
+ * - `completed`: indexing or container reconciliation finished successfully.
+ * - `failed`: workflow failed; `error` must be a non-empty string — either a code the
+ *   UI localizes (e.g. `directory_not_migrated`, set when a v1-indexed folder's vectors
+ *   could not be migrated, so the folder must be deleted and re-uploaded) or a free-form message.
+ * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
+ */
+export const KNOWLEDGE_ITEM_STATUSES = [
+  'idle',
+  'preparing',
+  'processing',
+  'reading',
+  'embedding',
+  'completed',
+  'failed',
+  'deleting'
+] as const
+export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
+export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
+
+export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
+export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
+export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
+
+export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
+export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
+export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
+export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
+// `missing_embedding_model`: the v1 embedding model could not be resolved to a migrated
+// user_model, so the base needs a new embedding model on restore.
+// `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
+// was missing/empty/locked so its dimensions could not be determined. The base (name, model,
+// config, unindexed items) is kept as a restorable `failed` row instead of being dropped, so the
+// user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
+export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
+export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
+export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
+export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
+export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
+
+/**
+ * Item-level error codes stored on `knowledge_item.error`. Two are set today:
+ * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
+ *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
+ * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
+ *   was parked at `failed` instead of silently resumed (see KnowledgeIngestionService.recoverInterruptedItems).
+ * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
+ * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
+ * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
+ */
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted'] as const
+export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
+export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
+export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
+export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
+
+export const KnowledgeChunkSizeSchema = z.number().int().positive()
+export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KNOWLEDGE_CHUNK_STRATEGIES = ['structured', 'delimiter'] as const
+export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
+export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
+// Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
+export const KnowledgeChunkSeparatorSchema = z.string()
+export const KnowledgeThresholdSchema = z.number().min(0).max(1)
+export const KnowledgeDocumentCountSchema = z.number().int().positive()
+export const KnowledgeBaseIdSchema = z.uuidv4()
+export const KnowledgeItemIdSchema = z.uuidv7()
+export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
+export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
+export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
+export const DEFAULT_KNOWLEDGE_CHUNK_STRATEGY: KnowledgeChunkStrategy = 'structured'
+export const DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR = '\\n\\n'
+export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
+export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
+
+// ============================================================================
+// Knowledge Base Entity
+// ============================================================================
+
+/**
+ * Knowledge base metadata stored in SQLite.
+ */
+export const KnowledgeBaseEntitySchema = z.strictObject({
+  id: KnowledgeBaseIdSchema,
+  name: z.string().trim().min(1),
+  groupId: GroupIdSchema.nullable(),
+  dimensions: z.number().int().positive().nullable(),
+  embeddingModelId: z.string().trim().min(1).nullable(),
+  status: KnowledgeBaseStatusSchema,
+  error: KnowledgeBaseErrorCodeSchema.nullable(),
+  rerankModelId: z.string().nullable().optional(),
+  fileProcessorId: z.string().nullable().optional(),
+  chunkSize: KnowledgeChunkSizeSchema,
+  chunkOverlap: KnowledgeChunkOverlapSchema,
+  chunkStrategy: KnowledgeChunkStrategySchema,
+  chunkSeparator: KnowledgeChunkSeparatorSchema,
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+
+/**
+ * Cross-field invariants for a knowledge base row, shared by the read-side entity
+ * schema and the pre-write candidate schema so a rule is defined exactly once.
+ */
+function refineKnowledgeBaseInvariants(
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  ctx: z.RefinementCtx
+): void {
+  if (value.status === 'completed') {
+    if (value.error !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['error'],
+        message: 'Completed knowledge base cannot have an error'
+      })
+    }
+
+    // Embedding model and dimensions are paired: a vector base has both, a
+    // BM25-only base has neither. A half-set pair is invalid either way.
+    if ((value.embeddingModelId === null) !== (value.dimensions === null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Embedding model and dimensions must be set together'
+      })
+    }
+  }
+
+  if (value.status === 'failed' && value.error === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['error'],
+      message: 'Failed knowledge base requires an error'
+    })
+  }
+
+  if (value.chunkOverlap >= value.chunkSize) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkOverlap'],
+      message: 'Chunk overlap must be smaller than chunk size'
+    })
+  }
+
+  if (value.chunkStrategy === 'delimiter' && !value.chunkSeparator) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSeparator'],
+      message: 'Separator is required when chunk strategy is delimiter'
+    })
+  }
+}
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
+export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+
+/**
+ * The full row about to be inserted/updated, validated against the same
+ * invariants as the read-side schema before it ever reaches the DB CHECK
+ * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
+ */
+export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).superRefine(refineKnowledgeBaseInvariants)
+
+/**
+ * A knowledge base that has finished setup and is ready for runtime operations
+ * (opening its index store, BM25 search, indexing). Covers both a vector base
+ * (embedding model + dimensions) and a BM25-only base (neither) — both are valid
+ * `completed` states. Use {@link isCompletedVectorKnowledgeBase} when you
+ * specifically need embeddings/dimensions.
+ */
+export type CompletedKnowledgeBase = KnowledgeBase & {
+  status: 'completed'
+  error: null
+}
+
+export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return base.status === 'completed' && base.error === null
+}
+
+/**
+ * A completed base that uses embeddings: it has a resolved embedding model and a
+ * positive vector width, so vector/hybrid retrieval and the embedding pipeline
+ * can read `dimensions`/`embeddingModelId` as plain non-null values. A base
+ * without an embedding model is BM25-only and is intentionally excluded.
+ */
+export type VectorKnowledgeBase = CompletedKnowledgeBase & {
+  dimensions: number
+  embeddingModelId: string
+}
+
+// Named for the `completed` gate, not just the field shape: a *failed* base with a
+// model and dimensions still returns false here — those fields alone don't mean
+// the base is ready to embed/query.
+export function isCompletedVectorKnowledgeBase(base: KnowledgeBase): base is VectorKnowledgeBase {
+  return (
+    isCompletedKnowledgeBase(base) &&
+    typeof base.dimensions === 'number' &&
+    Number.isInteger(base.dimensions) &&
+    base.dimensions > 0 &&
+    base.embeddingModelId !== null
+  )
+}
+
+// ============================================================================
+// Knowledge Item Data
+// ============================================================================
+
+const KnowledgeItemSharedSchema = z.strictObject({
+  source: z.string().trim().min(1).describe('Original user-facing source identifier for the knowledge item.')
+})
+
+/**
+ * File item data.
+ */
+export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
+  relativePath: KnowledgeRelativePathSchema.describe(
+    'Knowledge-base-relative, POSIX-normalized path for the copied source file.'
+  ),
+  indexedRelativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
+  )
+})
+export type FileItemData = z.infer<typeof FileItemDataSchema>
+
+/**
+ * URL item data.
+ */
+export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  url: z.string().trim().min(1).describe('URL to read and index.'),
+  // Written lazily by main on first index/refresh, never by raw caller input
+  // (add omits it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.'
+  )
+})
+
+/**
+ * Note item data.
+ */
+export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.'),
+  // Written lazily by main on first index, never by raw caller input (add omits
+  // it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured note snapshot markdown, written on first index.'
+  )
+})
+
+/**
+ * Directory item data. The original folder to (re)scan lives in `source` (shared with
+ * every item type); `relativePath` is the deduped `raw/` directory the expanded files
+ * are stored under, mirroring FileItemData's source/relativePath split.
+ */
+export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
+  // Written lazily by main on first expansion (add omits it): the deduped, base-relative
+  // `raw/` directory prefix the container's files live under (e.g. `docs` or `docs_2`).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
+  )
+})
+export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
+
+/**
+ * JSON payload stored in `knowledge_item.data`.
+ */
+export const KnowledgeItemDataSchema = z.union([
+  FileItemDataSchema,
+  UrlItemDataSchema,
+  NoteItemDataSchema,
+  DirectoryItemDataSchema
+])
+export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
+
+// ============================================================================
+// Knowledge Item Entity
+// ============================================================================
+
+const KnowledgeItemEntityBaseSchema = z.strictObject({
+  id: KnowledgeItemIdSchema.describe('Stable knowledge item identifier.'),
+  baseId: KnowledgeBaseIdSchema.describe('Owning knowledge base identifier.'),
+  groupId: KnowledgeItemIdSchema.nullable()
+    .optional()
+    .describe('Parent container item identifier; null or undefined means the item is a root item.'),
+  createdAt: z.iso.datetime().describe('ISO timestamp when the item row was created.'),
+  updatedAt: z.iso.datetime().describe('ISO timestamp when the item row was last updated.')
+})
+
+const IdleKnowledgeItemLifecycleSchema = {
+  status: z.literal('idle').describe('Item row exists but indexing has not started.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const PreparingKnowledgeItemLifecycleSchema = {
+  status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const ProcessingKnowledgeItemLifecycleSchema = {
+  status: z.literal('processing').describe('Work has been queued or is running before a more specific phase is known.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const ReadingKnowledgeItemLifecycleSchema = {
+  status: z.literal('reading').describe('Leaf source documents are being read; only file, url, and note items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const EmbeddingKnowledgeItemLifecycleSchema = {
+  status: z
+    .literal('embedding')
+    .describe('Leaf chunks are being embedded and written to the vector store; only file, url, and note items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const CompletedKnowledgeItemLifecycleSchema = {
+  status: z.literal('completed').describe('Indexing or container reconciliation finished successfully.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const DeletingKnowledgeItemLifecycleSchema = {
+  status: z.literal('deleting').describe('Delete cleanup is in progress; default list, search, and RAG reads hide it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
+const FailedKnowledgeItemLifecycleSchema = {
+  status: z.literal('failed').describe('Workflow failed.'),
+  error: z.string().trim().min(1).describe('Non-empty failure message for failed items.')
+} as const
+
+const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
+  type: TType,
+  data: TData
+) =>
+  [
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...ProcessingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...ReadingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...EmbeddingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...CompletedKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...DeletingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...FailedKnowledgeItemLifecycleSchema
+    })
+  ] as const
+
+const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
+  type: TType,
+  data: TData
+) =>
+  [
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...PreparingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...ProcessingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...CompletedKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...DeletingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...FailedKnowledgeItemLifecycleSchema
+    })
+  ] as const
+
+const FileKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema)
+)
+const UrlKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createLeafKnowledgeItemEntitySchemas('url', UrlItemDataSchema)
+)
+const NoteKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createLeafKnowledgeItemEntitySchemas('note', NoteItemDataSchema)
+)
+const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
+)
+
+/**
+ * Knowledge item record stored in SQLite.
+ */
+export const KnowledgeItemSchema = z.union([
+  FileKnowledgeItemSchema,
+  UrlKnowledgeItemSchema,
+  NoteKnowledgeItemSchema,
+  DirectoryKnowledgeItemSchema
+])
+export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
+export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem, { type: T }>
+
+// ============================================================================
+// Runtime Search and Chunk Types
+// ============================================================================
+
+export const KnowledgeChunkMetadataSchema = z.strictObject({
+  itemId: KnowledgeItemIdSchema,
+  itemType: KnowledgeItemTypeSchema,
+  source: z.string().trim().min(1),
+  chunkIndex: z.number().int().min(0),
+  tokenCount: z.number().int().min(0)
+})
+export type KnowledgeChunkMetadata = z.infer<typeof KnowledgeChunkMetadataSchema>
+export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source'>
+
+/**
+ * Search result returned by retrieval.
+ */
+export const KnowledgeSearchResultSchema = z.strictObject({
+  pageContent: z.string(),
+  score: z.number(),
+  scoreKind: KnowledgeSearchScoreKindSchema,
+  rank: z.number().int().positive(),
+  metadata: KnowledgeChunkMetadataSchema,
+  itemId: KnowledgeItemIdSchema.optional(),
+  chunkId: z.string(),
+  // Concept ID (the material's relative path, OKF §2) and display title of the
+  // source document, so a hit can be followed up with kb_read. Optional
+  // because a not-yet-indexed snapshot has no relativePath to derive the id from.
+  conceptId: z.string().optional(),
+  title: z.string().optional()
+})
+export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
+
+export const KnowledgeItemChunkSchema = z.strictObject({
+  id: z.string(),
+  itemId: KnowledgeItemIdSchema,
+  content: z.string(),
+  metadata: KnowledgeChunkMetadataSchema
+})
+export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
+
+// ============================================================================
+// Runtime Operation Schemas
+// ============================================================================
+
+const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
+  // Optional and paired: a vector base supplies both, a BM25-only base omits both.
+  dimensions: z.number().int().positive().nullable().optional(),
+  embeddingModelId: z.string().trim().min(1).nullable().optional(),
+  rerankModelId: z.string().nullable().optional(),
+  fileProcessorId: z.string().nullable().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  chunkStrategy: KnowledgeChunkStrategySchema.optional(),
+  chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional()
+})
+
+const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
+  // Vector/hybrid retrieval needs an embedding model, and a model is useless
+  // without its vector width — require both or neither.
+  if ((value.embeddingModelId == null) !== (value.dimensions == null)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['dimensions'],
+      message: 'Embedding model and dimensions must be provided together'
+    })
+  }
+
+  if (value.chunkOverlap != null && value.chunkSize == null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSize'],
+      message: 'Chunk size is required when chunk overlap is provided'
+    })
+  }
+
+  if (value.chunkOverlap != null && value.chunkSize != null && value.chunkOverlap >= value.chunkSize) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkOverlap'],
+      message: 'Chunk overlap must be smaller than chunk size'
+    })
+  }
+}
+
+/**
+ * Runtime create-base request. This is intentionally not a DataApi endpoint:
+ * orchestration creates the SQLite row and initializes the vector store.
+ */
+export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend({
+  name: z.string().trim().min(1),
+  groupId: KnowledgeBaseGroupIdInputSchema.optional()
+}).superRefine(refineRuntimeConfig)
+export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
+
+export const RestoreKnowledgeBaseSchema = z
+  .strictObject({
+    sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
+    name: z.string().trim().min(1),
+    // A vector restore supplies the resolved model and vector size; a BM25-only
+    // restore supplies null for both. The renderer probes dimensions when needed.
+    dimensions: z.number().int().positive().nullable(),
+    embeddingModelId: z.string().trim().min(1).nullable()
+  })
+  .superRefine(refineRuntimeConfig)
+export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
+
+// Restore is a partial operation: root items whose source is genuinely gone are skipped rather
+// than aborting the whole restore, so the result reports how many were dropped for the UI to tell
+// the user (a silent count is a silent data loss).
+export const RestoreKnowledgeBaseResultSchema = z.strictObject({
+  base: KnowledgeBaseSchema,
+  skippedMissingSourceCount: z.number().int().nonnegative()
+})
+export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
+
+const CreateKnowledgeItemBaseSchema = z.strictObject({
+  groupId: KnowledgeItemIdSchema.nullable().optional()
+})
+
+// Members shared verbatim by the persisted-create and runtime-add unions. The
+// `file`, `url`, and `note` members differ between the two (persisted carries a
+// main-written base-relative path the add surface must not accept), so they are
+// declared separately below; the remaining `directory` member is declared once
+// and reused.
+const UrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: UrlItemDataSchema
+})
+const NoteItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('note'),
+  data: NoteItemDataSchema
+})
+const DirectoryItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('directory'),
+  data: DirectoryItemDataSchema
+})
+
+export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: FileItemDataSchema
+  }),
+  UrlItemMemberSchema,
+  NoteItemMemberSchema,
+  DirectoryItemMemberSchema
+])
+export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
+
+const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
+  path: AbsoluteFilePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
+  // Restore-only: absolute path to an already-produced processor artifact (e.g. MinerU
+  // Markdown) in the source base. When present, Knowledge copies it in alongside the
+  // source file and indexes from it directly, skipping the file processor.
+  indexedPath: AbsoluteFilePathSchema.optional().describe(
+    'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
+  )
+})
+
+const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  url: z.string().trim().min(1).describe('URL to read and index.'),
+  // Restore-only: absolute path to a captured snapshot markdown in the source base.
+  // When present, Knowledge copies it in and pins the item to it so the first index
+  // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
+  // live page. Omitted by a normal add, which captures lazily on first index.
+  snapshotPath: AbsoluteFilePathSchema.optional().describe(
+    'Absolute path to a captured URL snapshot markdown to copy in, skipping the live re-fetch.'
+  )
+})
+
+const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: RuntimeUrlItemDataSchema
+})
+
+// Runtime note add carries only the caller-supplied content; `relativePath` is
+// written lazily by main on first index (see ensureSnapshot), never by raw
+// caller input, so it is omitted from the add surface.
+const RuntimeNoteItemDataSchema = KnowledgeItemSharedSchema.extend({
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.')
+})
+
+const RuntimeNoteItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('note'),
+  data: RuntimeNoteItemDataSchema
+})
+
+export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: RuntimeFileItemDataSchema
+  }),
+  RuntimeUrlItemMemberSchema,
+  RuntimeNoteItemMemberSchema,
+  DirectoryItemMemberSchema
+])
+export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>
+
+// ============================================================================
+// Add-Item Conflict Resolution
+// ============================================================================
+
+/**
+ * How `addItems` resolves a same-name conflict between an incoming source and an
+ * existing root item (or an earlier item in the same batch). One decision applies
+ * to the whole batch (Finder semantics).
+ *
+ * - `rename` (default): keep all, auto-rename the new file on collision with a
+ *   numeric suffix (the long-standing `reserveImportedFileRelativePath` behavior).
+ *   Internal callers (restore, the v1->v2 migrator) rely on this default.
+ * - `detect`: proceed only when nothing collides; otherwise add nothing and report
+ *   the conflicts so the UI can ask the user. This is the first pass an interactive
+ *   add makes — one round-trip when there is no conflict.
+ * - `replace`: the incoming source wins. Conflicting existing items are purged
+ *   synchronously before the add, and an earlier same-name item in the same batch
+ *   is dropped (last wins).
+ */
+export const KNOWLEDGE_ADD_CONFLICT_STRATEGIES = ['rename', 'detect', 'replace'] as const
+export const KnowledgeAddConflictStrategySchema = z.enum(KNOWLEDGE_ADD_CONFLICT_STRATEGIES)
+export type KnowledgeAddConflictStrategy = z.infer<typeof KnowledgeAddConflictStrategySchema>
+export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrategy = 'rename'
+
+/**
+ * A single same-name conflict reported by a `detect` pass. `title` is the
+ * user-facing display name (so the user recognizes which source collides);
+ * `type` selects the icon. Detection itself keys off a per-type detection key
+ * that is intentionally separate from this display title (see
+ * `getKnowledgeItemConflictKey` vs `getKnowledgeItemDisplayTitle`).
+ */
+export const KnowledgeAddItemConflictSchema = z.object({
+  type: KnowledgeItemTypeSchema,
+  title: z.string()
+})
+export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>
+
+/**
+ * Result of `addItems`. `conflicts` is only returned by a `detect` pass that
+ * found collisions and added nothing; `added` means the batch was applied.
+ */
+export const KnowledgeAddItemsResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('added') }),
+  z.object({ status: z.literal('conflicts'), conflicts: z.array(KnowledgeAddItemConflictSchema) })
+])
+export type KnowledgeAddItemsResult = z.infer<typeof KnowledgeAddItemsResultSchema>
+
+// ============================================================================
+// Item Display Title / Conflict Key Helpers
+// ============================================================================
+
+/**
+ * Minimal structural shape shared by a persisted {@link KnowledgeItem} and a
+ * {@link KnowledgeAddItemInput}: enough to derive a display title and a conflict
+ * key without depending on which of the two it is. Uses string ops only (no
+ * `node:path`) so it is safe in the renderer.
+ */
+export interface KnowledgeItemTitleSource {
+  type: KnowledgeItemType
+  data: {
+    source?: string
+    content?: string
+    url?: string
+    relativePath?: string
+  }
+}
+
+/** Last path segment of a slash/backslash path, trimmed; falls back to the input. */
+export function getKnowledgePathBasename(value: string): string {
+  const normalized = value.replace(/[/\\]+$/, '')
+  const name = normalized.split(/[/\\]/).pop()?.trim()
+  return name || normalized || value
+}
+
+/** First non-empty, trimmed line of note content (the note's display title). */
+export function getKnowledgeNoteFirstLine(content: string): string {
+  return (
+    content
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  )
+}
+
+const SNAPSHOT_TITLE_MAX = 80
+
+/**
+ * File stem a captured note snapshot is stored under, derived from the note's title, falling back to
+ * `note` when sanitizing leaves nothing usable.
+ *
+ * Lives here rather than beside the capture code because the same slug is the note's identity: an
+ * add-input has no snapshot yet, so detection has to predict the name an already-indexed note was
+ * stored under (`Q4: plan` → `Q4_ plan`) or a re-add of an ordinary title would never be detected.
+ * For the same reason the title is reduced to its first line *before* sanitizing — a `source` can
+ * legitimately be the whole note body (the v1 migrator's fallback), and newlines are control
+ * characters, so sanitizing it whole would fold the body into the name as `Title__- item`.
+ */
+export function deriveNoteSnapshotSlug(source: string): string {
+  // Trim after truncating: `sanitizeFilename` only strips *trailing* whitespace, and it turns a tab
+  // landing on the cut into an `_` first, so an 80-char cut would otherwise keep a stray separator.
+  const sanitized = sanitizeFilename(getKnowledgeNoteFirstLine(source).slice(0, SNAPSHOT_TITLE_MAX).trim())
+  if (sanitized && sanitized !== 'untitled') {
+    return sanitized
+  }
+  return 'note'
+}
+
+/**
+ * A note's name, shared by its display title and its conflict key so the two cannot name different
+ * items. Falls back in the order the name actually becomes available: the deduped `raw/` snapshot
+ * name once indexed (`Alpha_2.md` → `Alpha_2`), else the user-supplied title, else the first content
+ * line for notes carrying no title at all.
+ *
+ * The title is read one line at a time because it is not always one: the v1 migrator falls back to
+ * the whole note body when a legacy note has no `sourceUrl` (see `KnowledgeMappings`), and rendering
+ * an entire note as its own row title is worse than the first line it used to show.
+ *
+ * Keying detection off the body's first line instead would split the two axes apart: notes the user
+ * gave distinct titles could not coexist if their bodies opened with the same line, and `replace`
+ * would purge an existing note the conflict dialog had named after a title the user never typed.
+ */
+function getKnowledgeNoteName(data: KnowledgeItemTitleSource['data']): string {
+  const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+  return snapshotName || getKnowledgeNoteFirstLine(data.source || '') || getKnowledgeNoteFirstLine(data.content || '')
+}
+
+/**
+ * User-facing display name for a knowledge item or add-input. Prefers the
+ * `relativePath` — the deduped name stored under `raw/` (e.g. `测试_2.pdf`) — so
+ * that same-name items kept side by side ("保留全部") stay distinguishable:
+ * - file: relativePath basename (always set at add-time) else source basename
+ * - note: see {@link getKnowledgeNoteName}
+ * - url: captured snapshot name (set on first index) else the raw url
+ * - directory: deduped `raw/` directory prefix (set on first expansion, e.g. `docs_2`)
+ *   else the original folder's source basename
+ */
+export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note':
+      return getKnowledgeNoteName(data)
+    case 'url': {
+      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+      return snapshotName || data.url || data.source || ''
+    }
+  }
+}
+
+/**
+ * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
+ * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
+ * `test_2.md`) when present, else the source basename. An add-input has no
+ * relativePath yet, so it keys off the source basename and detection still fires;
+ * an existing item keys off its deduped relativePath, so `replace` targets only
+ * the one colliding copy (relativePath `test.md`) instead of every item sharing a
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
+ * {@link getKnowledgeNoteName} the display title uses, normalized through
+ * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
+ * already-indexed note is stored under. url stays separate from its display title: it keys off the
+ * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
+ * absent at add-time — keying off that would miss real duplicate urls.
+ */
+export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note': {
+      const name = getKnowledgeNoteName(data)
+      // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
+      if (!name) return ''
+      // A stored snapshot name is already a slug; only a raw title still needs normalizing.
+      return data.relativePath ? name : deriveNoteSnapshotSlug(name)
+    }
+    case 'url':
+      return (data.url || '').trim()
+  }
+}

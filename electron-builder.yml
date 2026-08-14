@@ -1,0 +1,238 @@
+appId: com.kangfenmao.CherryStudio
+productName: Cherry Studio
+electronLanguages:
+  - zh-CN
+  - zh-TW
+  - en-US
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
+  - de
+directories:
+  buildResources: build
+
+protocols:
+  - name: Cherry Studio
+    schemes:
+      - cherrystudio
+files:
+  - "**/*"
+  - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
+  - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+  - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
+  - "!**/{.editorconfig,.jekyll-metadata}"
+  - "!src"
+  - "!config"
+  - "!patches"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
+  - "!scripts"
+  - "!local"
+  - "!docs"
+  - "!packages"
+  - "!.swc"
+  - "!.bin"
+  - "!._*"
+  - "!*.log"
+  - "!stats.html"
+  - "!*.md"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}"
+  - "!**/{test,tests,__tests__,powered-test,coverage}/**"
+  - "!**/{example,examples}/**"
+  - "!**/*.{spec,test}.{js,jsx,ts,tsx}"
+  - "!**/*.min.*.map"
+  - "!**/*.d.ts"
+  - "!**/dist/es6/**"
+  - "!**/dist/demo/**"
+  - "!**/amd/**"
+  - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
+  - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
+  - "!node_modules/rollup-plugin-visualizer"
+  - "!node_modules/js-tiktoken"
+  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
+  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
+  - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
+  - "!node_modules/selection-hook/src" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
+  - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
+  - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
+  - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
+  - "!resources/devtools/**" # dev-only extensions are loaded from source in development
+asarUnpack:
+  - resources/**
+  - "!resources/devtools/**"
+  - "**/*.{metal,exp,lib}"
+  - "node_modules/@img/sharp-*/**"
+  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
+  - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
+extraResources:
+  - from: "migrations/sqlite-drizzle"
+    to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
+win:
+  executableName: Cherry Studio
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+  target:
+    - target: nsis
+    - target: portable
+  signtoolOptions:
+    sign: scripts/win-sign.js
+  verifyUpdateCodeSignature: false
+nsis:
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  allowToChangeInstallationDirectory: true
+  oneClick: false
+  include: build/nsis-installer.nsh
+  buildUniversalInstaller: false
+  differentialPackage: false
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
+  buildUniversalInstaller: false
+mac:
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  target:
+    - target: dmg
+    - target: zip
+dmg:
+  writeUpdateInfo: false
+linux:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
+  target:
+    - target: AppImage
+    - target: deb
+    - target: rpm
+  maintainer: electronjs.org
+  category: Utility
+  desktop:
+    entry:
+      Name: Cherry Studio
+      StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
+rpm:
+  # Workaround for electron build issue on rpm package:
+  # https://github.com/electron/forge/issues/3594
+  fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
+publish:
+  provider: generic
+  url: https://releases.cherry-ai.com
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
+beforePack: scripts/before-pack.js
+afterPack: scripts/after-pack.js
+afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/artifact-build-completed.js
+releaseInfo:
+  releaseNotes: |
+    <!--LANG:en-->
+    Cherry Studio 2.0.5 - New Features, Fixes, and Performance
+
+    ✨ New Features
+    - [Agent] Add pi (@earendil-works/pi-coding-agent) as a selectable agent runtime alongside Claude Code, letting agents use supported configured providers with managed skills, Soul mode (opt-in), MCP servers, tool approval, permission modes, mid-turn steering, manual /compact, resume, and compaction. Plan mode and plan/small-model tiers remain Claude-only
+    - [Skills] Skills can now be installed from a GitHub link to their SKILL.md file — pick "GitHub" in the online skill search, or hand an agent the link directly. The search source is now chosen from a dropdown instead of tabs, and skill detail timestamps follow the app language instead of the system locale
+    - [Support] Add the preinstalled Cherry Support Agent for Cherry Studio guidance, troubleshooting, FAQs, and feedback. Its initial model follows Cherry Assistant, and About > Feedback now opens Cherry Support
+    - [Updates] Added a notification setting to show a system notification when an app update is available (off by default)
+
+    🐛 Bug Fixes
+    - [Models] Fix a model re-listed under a provider prefix (e.g. nvidia/gpt-oss-20b) being displayed with the wrong name and size when the catalog has a differently-sized sibling
+    - [Models] Fix OpenVINO Model Server models not appearing in the model manager or "Get models" after a successful download
+    - [Models] Fix model availability checks for chat models also advertised with embedding endpoints, preventing false unavailable status and API Gateway rejection
+    - [Models] Fix image generation failing with "Missing modelDescriptor" for the DashScope models qwen-image-3.0 and qwen-image-3.0-pro
+    - [Models] Fix tiered model pricing so partially specified currencies are preserved and usage can still be priced when providers report an input-token breakdown without an aggregate input-token count
+    - [Models] Fix CherryIN model synchronization retaining four removed DeepSeek aliases, allowing stale entries to be cleaned instead of being treated as available models
+    - [Chat] Fix streamed replies becoming stuck when a chat tab is detached into a new window immediately after sending
+    - [Chat] Fix the chat composer changing width when switching conversations
+    - [Chat] Fix chat attachments with a malformed stored mediaType (e.g. a bare .png label instead of image/png) failing on every model with "file part media type .png" — the mediaType is now normalized before the provider request
+    - [Chat] Fix FileManager base64 image persistence for standard data URLs with media type parameters
+    - [Pins] Pin changes now stay synchronized across open windows, including pinned topic and agent-session ordering and pins removed by cascading deletes
+    - [Topics] Fix topic drag moves across assistants so ownership and ordering update atomically without leaving a partial move after an error
+    - [Topics] Topic naming now uses the Quick Assistant model and no longer has a separate model setting. Action required: review the Quick Assistant model selection if a different topic naming model was previously configured
+    - [Topics] Fix very long conversations (over ~1000 messages) failing to delete with "too many levels of trigger recursion" — deleting the topic or its assistant, and clearing the conversation, now work at any length
+    - [Sidebar] Collapsing and reopening the conversation navigation sidebar now preserves its list state
+    - [Search] Global search now keeps long message previews responsive by rendering only the visible messages
+    - [Artifacts] Fix Markdown artifact previews on Windows when generated file paths omit the slash after the drive letter
+    - [Agent] Newly created agents now appear at the top of the agent list by default
+    - [API Gateway] The API Gateway no longer starts on its own. It now starts only when enabled in Settings → API Gateway, so turning it off finally sticks across restarts. Agents whose model has to be bridged through the gateway ask before starting it, and resend the message once you accept
+    - [Migration] Fix V1-to-V2 migration failures caused by legacy model IDs containing route-reserved characters
+    - [Migration] Fix v1 files whose extension ended in a space or dot (e.g. ".exe ") becoming unreadable after migrating to v2 — opening, hashing or deleting them failed with a missing-file error
+    - [Migration] Fix agent migration skipping filesystem targets when workspaces overlap. Action required: after upgrading, review Agents reported with skipped filesystem targets and restore any missing identity, memory, or workspace files from the preserved v1 data
+    - [i18n] Fix translated UI strings that were wrong or out of date: the max tool-call rounds hint no longer omits or hard-codes the default round limit, the translation input placeholder no longer shows text meant for an older version of that field, and the OpenClaw migration and runtime removal messages now match what the app actually does. Affects German, Greek, Spanish, French, Japanese, Portuguese, Romanian, Russian, Vietnamese and both Chinese locales
+    - [i18n] Fix machine translations being written without validation, preventing damaged locale strings
+    - [Vertex AI] Fix Vertex AI Service Account requests when the official API host is configured explicitly
+
+    ⚡ Performance
+    - [Memory] Reduced memory growth during long-running sessions by bounding retained tabs and Mini App WebViews and sharing assistant topic views
+    - [Memory] Fix renderer memory growth caused by inactive conversation history pages remaining in the SWR cache
+
+    <!--LANG:zh-CN-->
+    Cherry Studio 2.0.5 - 新功能、修复与性能优化
+
+    ✨ 新功能
+    - [Agent] 新增 pi（@earendil-works/pi-coding-agent）作为可选的 Agent 运行时，与 Claude Code 并列，让 Agent 可以使用已配置的受支持服务商，支持托管技能、Soul 模式（可选）、MCP 服务器、工具审批、权限模式、回合中干预、手动 /compact、恢复与压缩。计划模式以及 plan/small 模型层级仍仅限 Claude（Pi SDK 不支持）
+    - [技能] 现在可以通过 GitHub 链接安装技能的 SKILL.md 文件 —— 在在线技能搜索中选择"GitHub"，或直接把链接给到 Agent。搜索来源改为下拉选择而非标签页，技能详情的时间戳跟随应用语言而非系统区域设置
+    - [支持] 新增预装的 Cherry Support 助手，提供 Cherry Studio 使用指引、故障排查、常见问题与反馈。其初始模型跟随 Cherry Assistant，"关于 > 反馈"现在会打开 Cherry Support
+    - [更新] 新增通知设置，在应用有可用更新时显示系统通知（默认关闭）
+
+    🐛 问题修复
+    - [模型] 修复在服务商前缀下重新列出的模型（如 nvidia/gpt-oss-20b）在目录中存在不同尺寸的同族模型时显示错误名称和尺寸的问题
+    - [模型] 修复 OpenVINO Model Server 模型在下载成功后不出现在模型管理器或"获取模型"中的问题
+    - [模型] 修复同时被声明为嵌入端点的聊天模型可用性检查误判为不可用并被 API 网关拒绝的问题
+    - [模型] 修复 DashScope 的 qwen-image-3.0 和 qwen-image-3.0-pro 模型图像生成报 "Missing modelDescriptor" 失败的问题
+    - [模型] 修复分层模型定价在部分货币未指定时丢失、且服务商返回输入 token 明细而无汇总输入 token 数时无法计价的问题
+    - [模型] 修复 CherryIN 模型同步仍保留四个已移除的 DeepSeek 别名的问题，现在可以检测并清理陈旧条目，而不会被当作可用模型
+    - [对话] 修复在发送后立即将对话标签页分离到新窗口时流式回复卡住的问题
+    - [对话] 修复切换对话时输入框宽度变化的问题
+    - [对话] 修复存储的 mediaType 格式错误（如仅有 .png 标签而非 image/png）导致所有模型都报 "file part media type .png" 失败的问题 —— mediaType 现在会在请求前被规范化
+    - [对话] 修复带媒体类型参数的标准 data URL 的 base64 图片在 FileManager 中持久化失败的问题
+    - [置顶] 置顶变更现在在所有打开的窗口间保持同步，包括置顶话题与 Agent 会话的顺序，以及被级联删除移除的置顶
+    - [话题] 修复跨助手拖动话题的移动，所有权与顺序会原子更新，错误后不会留下部分移动
+    - [话题] 话题命名现在使用快捷助手模型，不再有单独的模型设置。需要采取行动：如果之前配置了不同的话题命名模型，请检查快捷助手的模型选择
+    - [话题] 修复超长对话（超过约 1000 条消息）删除时报 "too many levels of trigger recursion" 失败的问题 —— 删除话题或其助手、清空对话现在可在任意长度下正常工作
+    - [侧边栏] 折叠并重新展开对话导航侧边栏现在会保留其列表状态
+    - [搜索] 全局搜索现在只渲染可见消息，让长消息预览保持流畅
+    - [Artifact] 修复 Windows 上生成的文件路径缺少盘符后斜杠时 Markdown artifact 预览失败的问题
+    - [Agent] 新创建的 Agent 现在默认出现在 Agent 列表顶部
+    - [API 网关] API 网关不再自行启动。现在只有在"设置 → API 网关"中启用时才会启动，关闭后重启也能保持关闭。模型需要通过网关桥接的 Agent 会在启动前询问，接受后重新发送消息
+    - [迁移] 修复包含路由保留字符的遗留模型 ID 导致 V1 到 V2 迁移失败的问题
+    - [迁移] 修复扩展名以空格或点结尾的 v1 文件（如 ".exe "）迁移到 v2 后无法读取的问题 —— 打开、哈希或删除会报缺失文件错误
+    - [迁移] 修复工作区重叠时 Agent 迁移跳过文件系统目标的问题。需要采取行动：升级后，请检查被报告跳过文件系统目标的 Agent，并从保留的 v1 数据中恢复任何缺失的身份、记忆或工作区文件
+    - [国际化] 修复翻译错误或过时的界面字符串：最大工具调用轮次提示不再遗漏或硬编码默认轮次上限，翻译输入占位符不再显示旧版本字段文本，OpenClaw 迁移与运行时移除消息现在与实际行为一致。影响德语、希腊语、西班牙语、法语、日语、葡萄牙语、罗马尼亚语、俄语、越南语及两种中文
+    - [国际化] 修复机器翻译未经验证即写入的问题，防止损坏的语言字符串
+    - [Vertex AI] 修复显式配置官方 API 主机时 Vertex AI 服务账号请求失败的问题
+
+    ⚡ 性能优化
+    - [内存] 通过限制保留的标签页和 Mini App WebView、共享助手话题视图，减少长时间运行会话的内存增长
+    - [内存] 修复非活动对话历史页面残留在 SWR 缓存中导致的渲染进程内存增长
+    <!--LANG:END-->

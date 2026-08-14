@@ -1,0 +1,242 @@
+diff --git a/dist/index.js b/dist/index.js
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11edd1ce23d8 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+@@ -3778,6 +3780,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+         summary_index: import_v421.z.number(),
+         delta: import_v421.z.string()
+       }),
++      import_v421.z.object({
++        type: import_v421.z.literal("response.reasoning_text.delta"),
++        item_id: import_v421.z.string(),
++        delta: import_v421.z.string()
++      }),
+       import_v421.z.object({
+         type: import_v421.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v421.z.string(),
+@@ -6105,6 +6112,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c9341f5dd81 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+@@ -3855,6 +3857,11 @@ var openaiResponsesChunkSchema = lazySchema19(
+         summary_index: z21.number(),
+         delta: z21.string()
+       }),
++      z21.object({
++        type: z21.literal("response.reasoning_text.delta"),
++        item_id: z21.string(),
++        delta: z21.string()
++      }),
+       z21.object({
+         type: z21.literal("response.reasoning_summary_part.done"),
+         item_id: z21.string(),
+@@ -6184,6 +6191,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e2f314180 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+@@ -3720,6 +3722,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
+         summary_index: import_v417.z.number(),
+         delta: import_v417.z.string()
+       }),
++      import_v417.z.object({
++        type: import_v417.z.literal("response.reasoning_text.delta"),
++        item_id: import_v417.z.string(),
++        delta: import_v417.z.string()
++      }),
+       import_v417.z.object({
+         type: import_v417.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v417.z.string(),
+@@ -6366,6 +6373,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb8df5a965 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+@@ -3746,6 +3748,11 @@ var openaiResponsesChunkSchema = lazySchema15(
+         summary_index: z17.number(),
+         delta: z17.string()
+       }),
++      z17.object({
++        type: z17.literal("response.reasoning_text.delta"),
++        item_id: z17.string(),
++        delta: z17.string()
++      }),
+       z17.object({
+         type: z17.literal("response.reasoning_summary_part.done"),
+         item_id: z17.string(),
+@@ -6422,6 +6429,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
+index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
+--- a/src/responses/openai-responses-api.ts
++++ b/src/responses/openai-responses-api.ts
+@@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         summary_index: z.number(),
+         delta: z.string(),
+       }),
++      z.object({
++        type: z.literal('response.reasoning_text.delta'),
++        item_id: z.string(),
++        delta: z.string(),
++      }),
+       z.object({
+         type: z.literal('response.reasoning_summary_part.done'),
+         item_id: z.string(),
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..b277aac9d3f9bb972da7ecb5ab03a1ab449df5c5 100644
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   } satisfies ResponsesReasoningProviderMetadata,
+                 },
+               });
++            } else if (value.type === 'response.reasoning_text.delta') {
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id,
++                  } satisfies ResponsesReasoningProviderMetadata,
++                },
++              });
+             } else if (value.type === 'response.reasoning_summary_part.done') {
+               // when OpenAI stores the message data, we can immediately conclude the reasoning part
+               // since we do not need to send the encrypted content.

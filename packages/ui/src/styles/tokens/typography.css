@@ -1,0 +1,54 @@
+/**
+ * Typography
+ * 排版系统 - 字体、字号、行高、段落间距
+ */
+
+:root {
+  /* Font Families */
+  --cs-font-family-heading: Inter;
+  --cs-font-family-body: Inter;
+
+  /* Font Weights (修正单位错误) */
+  --cs-font-weight-regular: 400;
+  --cs-font-weight-medium: 500;
+  --cs-font-weight-bold: 700;
+
+  /* Font Sizes - Body */
+  --cs-font-size-body-xs: 0.75rem; /* 12px */
+  --cs-font-size-body-sm: 0.875rem; /* 14px */
+  --cs-font-size-body-md: 1rem; /* 16px */
+  --cs-font-size-body-lg: 1.125rem; /* 18px */
+
+  /* Font Sizes - Heading */
+  --cs-font-size-heading-xs: 1.25rem; /* 20px */
+  --cs-font-size-heading-sm: 1.5rem; /* 24px */
+  --cs-font-size-heading-md: 2rem; /* 32px */
+  --cs-font-size-heading-lg: 2.5rem; /* 40px */
+  --cs-font-size-heading-xl: 3rem; /* 48px */
+  --cs-font-size-heading-2xl: 3.75rem; /* 60px */
+
+  /* Line Heights - Body */
+  --cs-line-height-body-xs: 1.25rem; /* 20px */
+  --cs-line-height-body-sm: 1.5rem; /* 24px */
+  --cs-line-height-body-md: 1.5rem; /* 24px */
+  --cs-line-height-body-lg: 1.75rem; /* 28px */
+
+  /* Line Heights - Heading */
+  --cs-line-height-heading-xs: 2rem; /* 32px */
+  --cs-line-height-heading-sm: 2.5rem; /* 40px */
+  --cs-line-height-heading-md: 3rem; /* 48px */
+  --cs-line-height-heading-lg: 3.75rem; /* 60px */
+  --cs-line-height-heading-xl: 5rem; /* 80px */
+
+  /* Paragraph Spacing */
+  --cs-paragraph-spacing-body-xs: 0.75rem; /* 12px */
+  --cs-paragraph-spacing-body-sm: 0.875rem; /* 14px */
+  --cs-paragraph-spacing-body-md: 1rem; /* 16px */
+  --cs-paragraph-spacing-body-lg: 1.125rem; /* 18px */
+  --cs-paragraph-spacing-heading-xs: 1.25rem; /* 20px */
+  --cs-paragraph-spacing-heading-sm: 1.5rem; /* 24px */
+  --cs-paragraph-spacing-heading-md: 2rem; /* 32px */
+  --cs-paragraph-spacing-heading-lg: 2.5rem; /* 40px */
+  --cs-paragraph-spacing-heading-xl: 3rem; /* 48px */
+  --cs-paragraph-spacing-heading-2xl: 3.75rem; /* 60px */
+}

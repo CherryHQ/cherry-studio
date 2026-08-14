@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create GitHub PR"
+  short_description: "Create PRs with required template compliance"
+  default_prompt: "Create a pull request for my current branch using the repository template workflow."

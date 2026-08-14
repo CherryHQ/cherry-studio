@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "editorconfig.editorconfig",
+    "lokalise.i18n-ally",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer",
+    "oxc.oxc-vscode",
+    "biomejs.biome"
+  ]
+}

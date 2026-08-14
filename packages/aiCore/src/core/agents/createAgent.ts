@@ -1,0 +1,58 @@
+/**
+ * Agent factory
+ * Reuses createExecutor's provider resolution + plugin pipeline to build a ToolLoopAgent
+ */
+import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { ToolLoopAgentSettings, ToolSet } from 'ai'
+import { ToolLoopAgent } from 'ai'
+
+import type { AiPlugin } from '../plugins'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
+import { createExecutor } from '../runtime'
+
+export type CreateAgentOptions<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>,
+  TOOLS extends ToolSet = {}
+> = {
+  providerId: T
+  providerSettings: TSettingsMap[T]
+  modelId: string
+  plugins?: AiPlugin[]
+  /** Wraps the resolved model (middlewares already applied) before it is handed to the agent */
+  wrapModel?: (model: LanguageModelV3) => LanguageModelV3 | Promise<LanguageModelV3>
+  agentSettings: Omit<ToolLoopAgentSettings<never, TOOLS, never>, 'model'>
+}
+
+export async function createAgent<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>,
+  TOOLS extends ToolSet = {}
+>(options: CreateAgentOptions<TSettingsMap, T, TOOLS>): Promise<ToolLoopAgent<never, TOOLS, never>> {
+  const { providerId, providerSettings, modelId, plugins, wrapModel, agentSettings } = options
+
+  // 1. Create executor (extensionRegistry resolves provider + modelResolver)
+  const executor = await createExecutor<TSettingsMap, T>(providerId, providerSettings, plugins)
+
+  // 2. Register internal plugins (same as streamText/generateText)
+  executor.pluginEngine.usePlugins([executor.createResolveModelPlugin(), executor.createConfigureContextPlugin()])
+
+  // 3. Resolve model + apply middleware via pluginEngine
+  const resolvedModel = await executor.pluginEngine.resolveModel(modelId)
+
+  // 4. Run the transformParams chain over the agent settings. ToolLoopAgent
+  //    holds them for the whole loop and never enters the per-request plugin
+  //    pipeline, so this is the only point where a `transformParams`-only
+  //    plugin (provider-native tool injection) can contribute.
+  const transformedSettings = await executor.pluginEngine.transformAgentSettings(resolvedModel, agentSettings)
+
+  // 5. Apply an optional outermost wrapper (e.g. retry/fallback) around the
+  //    fully resolved model after model-specific middleware and settings transforms.
+  const finalModel = wrapModel ? await wrapModel(resolvedModel) : resolvedModel
+
+  // 6. Build ToolLoopAgent
+  return new ToolLoopAgent({
+    ...transformedSettings,
+    model: finalModel
+  })
+}

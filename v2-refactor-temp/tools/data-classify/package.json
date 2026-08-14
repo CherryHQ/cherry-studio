@@ -1,0 +1,31 @@
+{
+  "name": "data-classify",
+  "version": "2.0.0",
+  "description": "Data classification and code generation tools for Cherry Studio data refactoring",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "extract": "echo \"This command has completed its mission and is no longer supported. If you have any questions, please contact the author.\"",
+    "generate": "node scripts/generate-all.js",
+    "generate:preferences": "node scripts/generate-preferences.js",
+    "generate:boot-config": "node scripts/generate-boot-config.js",
+    "generate:migration": "node scripts/generate-migration.js",
+    "validate": "echo \"This command has completed its mission and is no longer supported. If you have any questions, please contact the author.\"",
+    "validate:gen": "echo \"This command has completed its mission and is no longer supported. If you have any questions, please contact the author.\"",
+    "check:duplicates": "echo \"This command has completed its mission and is no longer supported. If you have any questions, please contact the author.\"",
+    "all": "echo \"This command has completed its mission and is no longer supported. If you have any questions, please contact the author.\""
+  },
+  "keywords": [
+    "data-classification",
+    "code-generation",
+    "migration"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "glob": "^11.0.3"
+  }
+}

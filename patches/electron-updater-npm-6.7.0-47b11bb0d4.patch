@@ -1,0 +1,14 @@
+diff --git a/out/util.js b/out/util.js
+index 9294ffd6ca8f02c2e0f90c663e7e9cdc02c1ac37..f52107493e2995320ee4efd0eb2a8c9bf03291a2 100644
+--- a/out/util.js
++++ b/out/util.js
+@@ -23,7 +23,8 @@ function newUrlFromBase(pathname, baseUrl, addRandomQueryToAvoidCaching = false)
+         result.search = search;
+     }
+     else if (addRandomQueryToAvoidCaching) {
+-        result.search = `noCache=${Date.now().toString(32)}`;
++        // use no cache header instead
++        // result.search = `noCache=${Date.now().toString(32)}`;
+     }
+     return result;
+ }

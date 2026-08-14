@@ -1,0 +1,77 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version bump type or exact version (patch / minor / major / x.y.z / x.y.z-beta.N)"
+        required: true
+        default: "patch"
+        type: string
+
+  # Ensure this workflow only runs from the default branch
+  # (workflow_dispatch already restricts to branches with write access,
+  # but we guard the job to main to prevent accidental runs from feature branches)
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      # Ship the release with up-to-date translations instead of waiting for the daily auto-i18n PR.
+      - name: 🏃‍♀️ Translate
+        env:
+          TRANSLATION_API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
+          TRANSLATION_MODEL: ${{ vars.TRANSLATION_MODEL || 'deepseek/deepseek-v4-flash' }}
+          TRANSLATION_BASE_URL: ${{ vars.TRANSLATION_BASE_URL || 'https://api.ppinfra.com/openai/v1' }}
+          TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+        # auto-translate-i18n.ts exits non-zero when any string kept its placeholder.
+        run: pnpm i18n:sync && pnpm i18n:translate && pnpm format
+
+      # Commit on main so the release branch Claude cuts below carries the translations.
+      - name: 📝 Commit translations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/renderer/i18n src/main/i18n
+          git diff --cached --quiet || git commit -m "🤖 Daily Auto I18N Sync (pre-release)"
+
+      - name: Prepare Release via Claude
+        uses: anthropics/claude-code-action@v1.0.66
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Bash(pnpm build:builtin-knowledge),Edit,Read,Write,Glob,Grep"'
+          prompt: |
+            Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
+
+            Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
+
+            Since this is running in CI (non-interactive), skip all interactive confirmation steps.
+
+            Configure git before making commits:
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}

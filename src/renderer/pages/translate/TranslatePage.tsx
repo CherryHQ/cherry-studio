@@ -1,0 +1,809 @@
+import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+// Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
+// via a nested `export *`, which tsgo fails to resolve on main's program (it
+// resolves fine on feat's full program and via this path). Revert to the barrel
+// once main converges with feat. The `Selector` dir is byte-identical to feat.
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { Navbar } from '@renderer/components/Navbar'
+import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useDrag } from '@renderer/hooks/useDrag'
+import { useFiles } from '@renderer/hooks/useFiles'
+import { useJob } from '@renderer/hooks/useJob'
+import { useModels } from '@renderer/hooks/useModel'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { exportContentToNotes } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
+import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension, isTextFile } from '@renderer/utils/file'
+import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { cn } from '@renderer/utils/style'
+import {
+  createInputScrollHandler,
+  createOutputScrollHandler,
+  determineTargetLanguage,
+  UNKNOWN_LANG_CODE
+} from '@renderer/utils/translate'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
+import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
+import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
+import type { TranslateHistory } from '@shared/data/types/translate'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
+import { createFilePathHandle } from '@shared/utils/file'
+import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { isNonChatModel } from '@shared/utils/model'
+import { isEmpty } from 'es-toolkit/compat'
+import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
+import type { ClipboardEvent, DragEvent, FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import TranslateHistoryList from './components/TranslateHistory'
+import TranslateInputPane from './components/TranslateInputPane'
+import TranslateLanguageBar from './components/TranslateLanguageBar'
+import TranslateOutputPane from './components/TranslateOutputPane'
+import TranslateSettings from './TranslateSettings'
+
+const logger = loggerService.withContext('TranslatePage')
+const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
+const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
+
+const getTitleFromTranslationResult = (translationResult: string) =>
+  translationResult.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_TITLE_MAX_LENGTH)
+
+type OcrJob = {
+  jobId: string
+}
+
+/**
+ * Observes a single image OCR job via `useJob` and reports its terminal result.
+ * Mounted only while the translate page tracks an active job.
+ */
+const OcrJobWatcher: FC<{
+  job: OcrJob
+  onCompleted: (text: string) => void
+  onSettled: (jobId: string) => void
+}> = ({ job, onCompleted, onSettled }) => {
+  const { t } = useTranslation()
+  const { data: snapshot, isTerminal, error } = useJob(job.jobId)
+  const handledRef = useRef(false)
+
+  useEffect(() => {
+    if (handledRef.current) return
+
+    const normalizeError = (error: unknown, fallbackMessage: string) => {
+      if (error instanceof Error) return error
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as { message?: unknown }).message
+        if (typeof message === 'string' && message) return new Error(message)
+      }
+      return new Error(fallbackMessage)
+    }
+
+    const rejectJob = (error: unknown, fallbackMessage: string) => {
+      const normalizedError = normalizeError(error, fallbackMessage)
+      const prefix = t('translate.files.error.ocr')
+      toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
+    }
+
+    // Job became unobservable (post-GC 404 / DataApi fetch failure): surface it once
+    // and unlock the input pane instead of spinning behind the overlay forever.
+    if (error) {
+      handledRef.current = true
+      logger.error('Failed to observe OCR job.', error, { jobId: job.jobId })
+      rejectJob(error, 'Image OCR job became unobservable')
+      onSettled(job.jobId)
+      return
+    }
+
+    if (!isTerminal || !snapshot) return
+    handledRef.current = true
+
+    if (snapshot.status === 'completed') {
+      const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
+      if (parsedOutput.success && parsedOutput.data.artifact.kind === 'text') {
+        onCompleted(parsedOutput.data.artifact.text)
+        toast.success(t('translate.files.ocr_completed'))
+      } else {
+        const failure = new Error('Image OCR completed without a text artifact')
+        if (!parsedOutput.success) {
+          logger.warn('Image OCR job output failed schema validation.', parsedOutput.error, { jobId: job.jobId })
+        } else {
+          logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
+        }
+        rejectJob(failure, failure.message)
+      }
+    } else {
+      rejectJob(snapshot.error, 'Image OCR failed')
+    }
+
+    onSettled(job.jobId)
+  }, [isTerminal, snapshot, error, job, onCompleted, onSettled, t])
+
+  return null
+}
+
+const TranslatePage: FC = () => {
+  const { t } = useTranslation()
+  const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+  const { models } = useModels({ enabled: true })
+  const detectLanguage = useDetectLang()
+  const { add: addHistory } = useTranslateHistory()
+  const { notesPath } = useNotesSettings()
+  const { shikiMarkdownIt } = useCodeStyle()
+  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
+  const { setTimeoutTimer } = useTimer()
+  const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
+  const [autoCopy] = usePreference('feature.translate.page.auto_copy')
+  const [bidirectionalPair] = usePreference('feature.translate.page.bidirectional_pair')
+  const [isScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
+  const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
+  const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
+
+  const [translateInput, setTranslateInput] = useCache('translate.input')
+  const [translateOutput, setTranslateOutput] = useCache('translate.output')
+  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel
+  } = useTranslate({
+    loggerContext: 'TranslatePage',
+    onResponse: smoothUpdate
+  })
+
+  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
+  const isOcrRunning = ocrJob !== null
+
+  const inputScrollRef = useRef<HTMLDivElement>(null)
+  const outputTextRef = useRef<HTMLDivElement>(null)
+  const isProgrammaticScroll = useRef(false)
+
+  const selectedModelId = useMemo(
+    () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
+    [translateModelId]
+  )
+
+  const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
+  const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
+  const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
+
+  const safePersist = useCallback(
+    async (persistPromise: Promise<unknown>, actionName: string) => {
+      try {
+        await persistPromise
+      } catch (error) {
+        logger.error(`Failed to persist ${actionName}`, error as Error)
+        toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  const appendTranslateInput = useCallback(
+    (text: string) => {
+      if (isEmpty(text)) return
+      // Functional update resolves against the latest stored value, so a prior
+      // synchronous setTranslateInput(value) is reflected here without a ref.
+      setTranslateInput((prev) => prev + text)
+    },
+    [setTranslateInput]
+  )
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setTranslateInput(value)
+      if (isEmpty(value)) {
+        setTranslateOutput('')
+      }
+    },
+    [setTranslateInput, setTranslateOutput]
+  )
+
+  const copy = useCallback(
+    async (value: string) => {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+    },
+    [setCopied]
+  )
+
+  const onCopyInput = useCallback(async () => {
+    if (!translateInput) return
+    try {
+      await copy(translateInput)
+    } catch (error) {
+      logger.error('Failed to copy source text:', error as Error)
+      toast.error(t('common.copy_failed'))
+    }
+  }, [copy, t, translateInput])
+
+  const onCopyOutput = useCallback(async () => {
+    try {
+      await copy(translateOutput)
+    } catch (error) {
+      logger.error('Failed to copy text to clipboard:', error as Error)
+      toast.error(t('common.copy_failed'))
+    }
+  }, [copy, t, translateOutput])
+
+  const onExportOutputToNotes = useCallback(() => {
+    const translationResult = translateOutput.trim()
+    if (!translationResult) return
+
+    void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
+      (error) => {
+        logger.error('Failed to export output to notes:', error as Error)
+      }
+    )
+  }, [notesPath, translateOutput])
+
+  const translate = useCallback(
+    async (
+      rawText: string,
+      actualSourceLanguage: TranslateLangCode,
+      actualTargetLanguage: TranslateLangCode
+    ): Promise<void> => {
+      if (isTranslating) return
+
+      smoothReset('')
+      const translated = await runTranslate(rawText, actualTargetLanguage)
+      if (!translated) {
+        return
+      }
+      toast.success(t('translate.complete'))
+
+      if (autoCopy) {
+        setTimeoutTimer(
+          'auto-copy',
+          async () => {
+            try {
+              await copy(translated)
+            } catch (error) {
+              logger.error('Failed to auto copy translated text', error as Error)
+              toast.error(t('translate.error.auto_copy_failed'))
+            }
+          },
+          100
+        )
+      }
+
+      await addHistory({
+        sourceText: rawText,
+        targetText: translated,
+        sourceLanguage: actualSourceLanguage,
+        targetLanguage: actualTargetLanguage
+      })
+    },
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+  )
+
+  const onTranslate = useCallback(async () => {
+    if (!translateInput.trim() || !selectedModelId || isDetecting || isTranslating) return
+
+    let actualSourceLanguage = sourceLanguage
+    if (sourceLanguage === 'auto') {
+      setIsDetecting(true)
+      try {
+        actualSourceLanguage = await detectLanguageOrUnknown(translateInput, detectLanguage, (error) => {
+          logger.error('Failed to detect language', error as Error)
+        })
+        setDetectedLanguage(actualSourceLanguage)
+      } finally {
+        setIsDetecting(false)
+      }
+    } else {
+      setDetectedLanguage(null)
+    }
+
+    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
+
+    const targetResult = determineTargetLanguage(
+      actualSourceLanguage,
+      targetLanguage,
+      shouldUseBidirectionalTarget,
+      bidirectionalPair
+    )
+
+    if (!targetResult.success) {
+      toast.warning(
+        targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
+      )
+      return
+    }
+
+    await translate(translateInput, actualSourceLanguage, targetResult.language)
+  }, [
+    bidirectionalPair,
+    detectLanguage,
+    isBidirectional,
+    isDetecting,
+    setIsDetecting,
+    sourceLanguage,
+    t,
+    targetLanguage,
+    translate,
+    translateInput,
+    selectedModelId,
+    isTranslating
+  ])
+
+  const onAbort = useCallback(() => {
+    if (!isTranslating) return
+    cancel()
+    toast.info(t('translate.info.aborted'))
+  }, [cancel, isTranslating, t])
+
+  const handleExchange = useCallback(() => {
+    if (sourceLanguage === 'auto' || isTranslating || isDetecting) return
+    void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
+    void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
+    setTranslateInput(translateOutput)
+    setTranslateOutput(translateInput)
+  }, [
+    isDetecting,
+    safePersist,
+    setSourceLanguage,
+    setTargetLanguage,
+    setTranslateInput,
+    setTranslateOutput,
+    sourceLanguage,
+    targetLanguage,
+    translateInput,
+    translateOutput,
+    isTranslating
+  ])
+
+  const onHistoryItemClick = useCallback(
+    (history: TranslateHistory) => {
+      const nextTargetLanguage =
+        history.targetLanguage ??
+        (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+
+      setTranslateInput(history.sourceText)
+      setTranslateOutput(history.targetText)
+      void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
+      setHistoryOpen(false)
+    },
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput, targetLanguage]
+  )
+
+  const inputScrollHandler = useMemo(
+    () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
+    [isScrollSyncEnabled]
+  )
+
+  const outputScrollHandler = useMemo(
+    () => createOutputScrollHandler(outputTextRef, inputScrollRef, isProgrammaticScroll, isScrollSyncEnabled),
+    [isScrollSyncEnabled]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const render = async () => {
+      if (!enableMarkdown || !translateOutput) {
+        setRenderedMarkdown('')
+        return
+      }
+      const markdown = await shikiMarkdownIt(translateOutput)
+      if (!cancelled) {
+        setRenderedMarkdown(markdown)
+      }
+    }
+    void render()
+    return () => {
+      cancelled = true
+    }
+  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
+
+  const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
+
+  const handleModelIdSelect = useCallback(
+    (modelId: UniqueModelId | undefined) => {
+      void safePersist(setTranslateModelId(modelId ?? null), 'translate model id')
+    },
+    [safePersist, setTranslateModelId]
+  )
+
+  const readFile = useCallback(
+    async (file: FileMetadata) => {
+      const read = async () => {
+        const fileExtension = getFileExtension(file.path)
+        const isDocument = documentExts.includes(fileExtension)
+        let isText = false
+
+        if (!isDocument) {
+          try {
+            isText = await isTextFile(file.path)
+          } catch (error) {
+            logger.error('Failed to check file type.', error as Error)
+            toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
+            return
+          }
+        }
+
+        if (!isText && !isDocument) {
+          toast.error(t('common.file.not_supported', { type: fileExtension }))
+          logger.error('Unsupported file type.')
+          return
+        }
+
+        const maxSize = isDocument ? 20 * MB : 5 * MB
+        if (file.size > maxSize) {
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+          return
+        }
+
+        try {
+          const result = isDocument
+            ? await window.api.file.readExternal(file.path, true)
+            : await window.api.fs.readText(file.path)
+          appendTranslateInput(result)
+        } catch (error) {
+          logger.error('Failed to read file.', error as Error)
+          toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+        }
+      }
+
+      const promise = read()
+      toast.loading({ title: t('translate.files.reading'), promise })
+    },
+    [appendTranslateInput, t]
+  )
+
+  // Renderer-local only: clears the tracked OCR job so the input pane unlocks.
+  // The backend File Processing job keeps running and its result is discarded
+  // (deliberate — Cancel/settle is a local "dismiss", not a backend cancel).
+  const clearOcrJob = useCallback(() => setOcrJob(null), [])
+
+  const startOcr = useCallback(
+    async (file: FileMetadata) => {
+      let jobId: string
+      try {
+        const snapshot = await ipcApi.request('file_processing.start_job', {
+          feature: 'image_to_text',
+          file: createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
+        })
+        jobId = snapshot.id
+      } catch (error) {
+        logger.error('Failed to start image OCR.', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
+        return
+      }
+
+      setOcrJob({ jobId })
+    },
+    [t]
+  )
+
+  const processFile = useCallback(
+    async (file: FileMetadata) => {
+      if (isImageFileMetadata(file)) {
+        await startOcr(file)
+      } else {
+        await readFile(file)
+      }
+    },
+    [readFile, startOcr]
+  )
+
+  const handleSelectFile = useCallback(async () => {
+    if (selecting || isTranslating || isOcrRunning) return
+    setIsProcessing(true)
+    try {
+      const [file] = await onSelectFile({ multipleSelections: false })
+      if (file) {
+        await processFile(file)
+      }
+    } catch (error) {
+      logger.error('Unknown error when selecting file.', error as Error)
+      toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+    } finally {
+      clearFiles()
+      setIsProcessing(false)
+    }
+  }, [clearFiles, isOcrRunning, onSelectFile, processFile, selecting, t, isTranslating])
+
+  const getSingleFile = useCallback(
+    (files: FileMetadata[] | FileList): FileMetadata | File | null => {
+      if (files.length === 0) return null
+      if (files.length > 1) {
+        toast.error(t('translate.files.error.multiple'))
+        return null
+      }
+      return files[0]
+    },
+    [t]
+  )
+
+  const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop: preventDrop } = useDrag<HTMLDivElement>()
+
+  const onDrop = useCallback(
+    async (e: DragEvent<HTMLDivElement>) => {
+      if (isProcessing || isOcrRunning) return
+      setIsProcessing(true)
+      try {
+        const data = await getTextFromDropEvent(e).catch((error) => {
+          logger.error('getTextFromDropEvent', error as Error)
+          toast.error(t('translate.files.error.unknown'))
+          return null
+        })
+        if (data) {
+          appendTranslateInput(data)
+        }
+
+        const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
+          logger.error('handleDrop:', error as Error)
+          toast.error(t('translate.files.error.unknown'))
+          return null
+        })
+
+        if (droppedFiles) {
+          const file = getSingleFile(droppedFiles) as FileMetadata
+          if (file) {
+            await processFile(file)
+          }
+        }
+      } catch (error) {
+        logger.error('Drop processing failed', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+      } finally {
+        setIsProcessing(false)
+      }
+    },
+    [appendTranslateInput, getSingleFile, isOcrRunning, isProcessing, processFile, t]
+  )
+
+  const onPaste = useCallback(
+    async (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      if (isProcessing || isOcrRunning) return
+      const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
+      if (!hasFiles) return
+      setIsProcessing(true)
+      try {
+        const clipboardText = event.clipboardData.getData('text')
+        if (!isEmpty(clipboardText)) {
+          return
+        }
+
+        event.preventDefault()
+        const file = getSingleFile(event.clipboardData.files) as File
+        if (!file) return
+
+        const filePath = window.api.file.getPathForFile(file)
+        let selectedFile: FileMetadata | null
+
+        if (!filePath) {
+          if (!file.type.startsWith('image/')) {
+            toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
+            return
+          }
+          const tempFilePath = await window.api.file.createTempFile(file.name)
+          const arrayBuffer = await file.arrayBuffer()
+          const uint8Array = new Uint8Array(arrayBuffer)
+          await window.api.file.write(tempFilePath, uint8Array)
+          selectedFile = await window.api.file.get(tempFilePath)
+        } else {
+          selectedFile = await window.api.file.get(filePath)
+        }
+
+        if (!selectedFile) {
+          toast.error(t('translate.files.error.unknown'))
+          return
+        }
+        await processFile(selectedFile)
+      } catch (error) {
+        logger.error('onPaste:', error as Error)
+        toast.error(t('chat.input.file_error'))
+      } finally {
+        setIsProcessing(false)
+      }
+    },
+    [getSingleFile, isOcrRunning, isProcessing, processFile, t]
+  )
+
+  const couldTranslate =
+    !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
+  const couldExchange =
+    sourceLanguage !== 'auto' &&
+    sourceLanguage !== targetLanguage &&
+    !isTranslating &&
+    !isDetecting &&
+    !isProcessing &&
+    !isOcrRunning
+
+  return (
+    <div
+      data-ui="translate.view"
+      className="relative flex h-full flex-col overflow-hidden bg-background"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={preventDrop}>
+      {ocrJob && (
+        <OcrJobWatcher key={ocrJob.jobId} job={ocrJob} onCompleted={appendTranslateInput} onSettled={clearOcrJob} />
+      )}
+      <Navbar />
+
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
+          <TranslateLanguageBar
+            className="px-0 py-0 lg:px-0"
+            sourceLanguage={sourceLanguage}
+            onSourceChange={(language) => void safePersist(setSourceLanguage(language), 'translate source language')}
+            targetLanguage={targetLanguage}
+            onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
+            detectedLanguage={detectedLanguage}
+            isBidirectional={isBidirectional}
+            bidirectionalPair={bidirectionalPair}
+            couldExchange={couldExchange}
+            onExchange={handleExchange}
+          />
+          {isTranslating ? (
+            <button
+              type="button"
+              onClick={onAbort}
+              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-secondary-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:bg-secondary-hover focus-visible:outline-none">
+              <CirclePause size={14} className="lucide-custom" />
+              <span>{t('common.stop')}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onTranslate}
+              disabled={!couldTranslate}
+              className={cn(
+                'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none',
+                couldTranslate
+                  ? 'bg-emerald-600 text-white hover:opacity-90'
+                  : 'cursor-not-allowed bg-muted text-foreground-disabled'
+              )}>
+              <Languages size={14} className="lucide-custom" />
+              <span>{t('translate.button.translate')}</span>
+            </button>
+          )}
+          <span className="flex-1" />
+          <div className="flex items-center gap-1">
+            <ModelSelector
+              multiple={false}
+              selectionType="id"
+              value={selectedModelId}
+              onSelect={handleModelIdSelect}
+              filter={modelSelectorFilter}
+              showTagFilter={false}
+              showPinnedModels
+              prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}
+              align="end"
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={selectedModel?.name ?? t('translate.settings.model_placeholder')}
+                  title={selectedModel?.name ?? t('translate.settings.model_placeholder')}
+                  className="size-8 rounded-full p-0 shadow-none hover:bg-accent">
+                  {selectedModel ? (
+                    selectedModelIcon ? (
+                      <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                        <selectedModelIcon.Avatar size={24} />
+                      </span>
+                    ) : (
+                      <Avatar className="size-6 rounded-full">
+                        <AvatarFallback className="text-[11px]">{getModelInitial(selectedModel)}</AvatarFallback>
+                      </Avatar>
+                    )
+                  ) : (
+                    <Avatar className="size-6 rounded-full">
+                      <AvatarFallback className="text-[11px]">M</AvatarFallback>
+                    </Avatar>
+                  )}
+                </Button>
+              }
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
+              onClick={() =>
+                setHistoryOpen((open) => {
+                  const next = !open
+                  if (next) setSettingsOpen(false)
+                  return next
+                })
+              }
+              aria-label={t('translate.history.title')}
+              aria-pressed={historyOpen}>
+              <History size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={settingsOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
+              onClick={() =>
+                setSettingsOpen((open) => {
+                  const next = !open
+                  if (next) setHistoryOpen(false)
+                  return next
+                })
+              }
+              aria-label={t('translate.settings.title')}
+              aria-pressed={settingsOpen}>
+              <SlidersHorizontal size={14} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-1">
+          <section className="flex min-h-0 min-w-0 flex-col">
+            <TranslateInputPane
+              ref={inputScrollRef}
+              text={translateInput}
+              onTextChange={handleInputChange}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault()
+                  void onTranslate()
+                }
+              }}
+              onScroll={inputScrollHandler}
+              onPaste={onPaste}
+              onDrop={onDrop}
+              onSelectFile={handleSelectFile}
+              onCopy={onCopyInput}
+              onCancelOcr={clearOcrJob}
+              disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
+              ocrProcessing={isOcrRunning}
+              selecting={selecting}
+            />
+          </section>
+
+          <section className="flex min-h-0 min-w-0 flex-col border-border-subtle border-l">
+            <TranslateOutputPane
+              ref={outputTextRef}
+              translatedContent={translateOutput}
+              renderedMarkdown={renderedMarkdown}
+              enableMarkdown={enableMarkdown}
+              translating={isTranslating || isDetecting}
+              copied={copied}
+              onCopy={onCopyOutput}
+              onExportToNotes={onExportOutputToNotes}
+              onScroll={outputScrollHandler}
+            />
+          </section>
+        </div>
+        <TranslateHistoryList
+          isOpen={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onHistoryItemClick={onHistoryItemClick}
+        />
+        <TranslateSettings visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </div>
+    </div>
+  )
+}
+
+export default TranslatePage

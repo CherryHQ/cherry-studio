@@ -1,0 +1,967 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
+import DocumentProcessingSettings from '../DocumentProcessingSettings'
+import OcrSettings from '../OcrSettings'
+
+const setPreferencesMock = vi.hoisted(() => vi.fn())
+const setOverridesMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+const comboboxMockState = vi.hoisted(() => ({
+  onChange: undefined as ((value: string | string[]) => void) | undefined,
+  options: [] as Array<{ value: string; label: string }>,
+  value: undefined as string | string[] | undefined
+}))
+const selectMockState = vi.hoisted(() => ({
+  disabled: false,
+  onValueChange: undefined as ((value: string) => void) | undefined,
+  value: undefined as string | undefined
+}))
+const preferencesMock = vi.hoisted(() => ({
+  defaultDocumentProcessor: null as string | null,
+  defaultImageProcessor: null as string | null
+}))
+const overridesMock = vi.hoisted(() => ({ value: {} }))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  },
+  // useLocalModel, mounted by the panel of any processor that needs one.
+  useIpcOn: () => {}
+}))
+
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof RendererConstantModule>()
+
+  return {
+    ...actual,
+    isMac: false,
+    isWin: true
+  }
+})
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useLanguages: () => ({
+    languages: [
+      { langCode: 'en-us', emoji: 'EN', value: 'English' },
+      { langCode: 'zh-cn', emoji: 'ZH', value: 'Chinese' }
+    ]
+  })
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
+  usePreference: () => [overridesMock.value, setOverridesMock]
+}))
+
+vi.mock('@renderer/components/Scrollbar', () => ({
+  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
+}))
+
+// The API key list popup now renders through the real services/popup store + PopupHost,
+// so opt this file out of the globally installed popup mock (tests/renderer.setup.ts).
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
+    Button: ({
+      asChild,
+      children,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
+      if (asChild) {
+        return <>{children}</>
+      }
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Combobox: ({
+      emptyText,
+      onChange,
+      options,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      emptyText?: string
+      multiple?: boolean
+      onChange?: (value: string | string[]) => void
+      options?: Array<{ value: string; label: string }>
+      value?: string | string[]
+    }) => {
+      comboboxMockState.onChange = onChange
+      comboboxMockState.options = options ?? []
+      comboboxMockState.value = value
+
+      return (
+        <div>
+          {(options ?? []).length === 0 ? <span>{emptyText}</span> : null}
+          {(options ?? []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                const currentValue = Array.isArray(value) ? value : []
+                const nextValue = currentValue.includes(option.value)
+                  ? currentValue.filter((item) => item !== option.value)
+                  : [...currentValue, option.value]
+
+                onChange?.(nextValue)
+              }}>
+              {option.label} ({option.value})
+            </button>
+          ))}
+        </div>
+      )
+    },
+    Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
+      open === false ? null : <>{children}</>,
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
+    DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    InfoTooltip: ({
+      content,
+      iconProps,
+      placement
+    }: {
+      content: React.ReactNode
+      iconProps?: { size?: number }
+      placement?: string
+    }) => (
+      <span data-testid="info-tooltip" data-icon-size={iconProps?.size} data-placement={placement}>
+        {content}
+      </span>
+    ),
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+    MenuItem: ({
+      active,
+      icon,
+      label,
+      suffix,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      active?: boolean
+      icon?: React.ReactNode
+      label: string
+      suffix?: React.ReactNode
+    }) => {
+      void icon
+
+      return (
+        <button type="button" aria-pressed={active} {...props}>
+          {label}
+          {suffix}
+        </button>
+      )
+    },
+    MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Popover: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
+    PopoverContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
+    Select: ({
+      children,
+      disabled,
+      onValueChange,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      disabled?: boolean
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => {
+      selectMockState.disabled = disabled ?? false
+      selectMockState.onValueChange = onValueChange
+      selectMockState.value = value
+      return <div data-value={value}>{children}</div>
+    },
+    SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
+      <button
+        type="button"
+        {...props}
+        disabled={selectMockState.disabled}
+        onClick={() => selectMockState.onValueChange?.(value)}>
+        {children}
+      </button>
+    ),
+    SelectTrigger: (
+      props: React.ButtonHTMLAttributes<HTMLButtonElement> & { selectedValue?: string; size?: string }
+    ) => {
+      const { children, selectedValue, size, ...buttonProps } = props
+      void size
+
+      return (
+        <button type="button" {...buttonProps} disabled={selectMockState.disabled}>
+          {children}
+          {selectedValue ?? selectMockState.value}
+        </button>
+      )
+    },
+    SelectValue: () => null,
+    Textarea: {
+      Input: ({
+        onValueChange,
+        ...props
+      }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
+        <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+      )
+    },
+    Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
+      <>{children}</>
+    )
+  }
+})
+
+describe('processing settings pages', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+  let loggerWarnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    preferencesMock.defaultDocumentProcessor = null
+    preferencesMock.defaultImageProcessor = null
+    overridesMock.value = {}
+    comboboxMockState.onChange = undefined
+    comboboxMockState.options = []
+    comboboxMockState.value = undefined
+    selectMockState.onValueChange = undefined
+    selectMockState.disabled = false
+    selectMockState.value = undefined
+    setPreferencesMock.mockReset()
+    setPreferencesMock.mockResolvedValue(undefined)
+    setOverridesMock.mockReset()
+    setOverridesMock.mockResolvedValue(undefined)
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockResolvedValue({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+    })
+  })
+
+  afterEach(() => {
+    // Unmount the host first so settling leftover popups triggers no React update on a
+    // still-mounted tree, then drain the singleton popup store so the next test starts
+    // empty. Fake timers fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
+  })
+
+  it('selects an image processor and makes it the image-to-text default', async () => {
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        defaultImageProcessor: 'mistral'
+      })
+    })
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
+  })
+
+  it('selects a document processor and makes it the document-to-markdown default', async () => {
+    const user = userEvent.setup()
+    render(<DocumentProcessingSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        defaultDocumentProcessor: 'paddleocr'
+      })
+    })
+    expect(
+      await screen.findByRole('button', {
+        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the web search field treatment for document processing inputs', async () => {
+    const { container } = render(<DocumentProcessingSettings />)
+
+    await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+
+    expect(container.firstElementChild?.firstElementChild).toHaveClass(
+      '[&_input[data-slot=input]]:h-8',
+      '[&_input[data-slot=input]]:rounded-lg',
+      '[&_input[data-slot=input]]:border-border-subtle',
+      '[&_input[data-slot=input]]:bg-muted/30',
+      '[&_input[data-slot=input]]:shadow-none',
+      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
+    )
+  })
+
+  it('shows only the processors for the selected feature', async () => {
+    const ocrSettings = render(<OcrSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.features.document_to_markdown.title')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).toHaveLength(1)
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.mineru.name/ })
+    ).not.toBeInTheDocument()
+
+    ocrSettings.unmount()
+    render(<DocumentProcessingSettings />)
+
+    expect(
+      await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.features.image_to_text.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the selected processor in the header without separate default controls', async () => {
+    preferencesMock.defaultImageProcessor = 'system'
+
+    render(<OcrSettings />)
+
+    expect(
+      await screen.findByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.processors.system.status.available')).toBeInTheDocument()
+    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
+  })
+
+  it('uses the Open MinerU label', async () => {
+    render(<DocumentProcessingSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ })
+    )
+
+    expect(screen.getAllByText('settings.tool.file_processing.processors.open_mineru.name').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
+    ).not.toBeInTheDocument()
+  })
+
+  // This page is the only place the local OCR model's download is reachable from,
+  // so hiding the processor while the model is missing left users with no way to
+  // get it. It must stay listed, with the download right there.
+  it.each([
+    { status: 'not_downloaded', action: 'settings.dependencies.localModels.download' },
+    { status: 'error', action: 'common.retry' }
+  ])('offers the download inline when the local model is $status', async ({ status, action }) => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    // userEvent, not fireEvent: the panel settles two independent probes (the
+    // available-processor list and the local model status), and a bare click can
+    // land on the option node React is about to replace when the second resolves.
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(await screen.findByRole('button', { name: action })).toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).not.toBeInTheDocument()
+    expect(setPreferencesMock).not.toHaveBeenCalled()
+  })
+
+  it('replaces the download with the ready notice once the local model is on disk', async () => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status: 'ready' })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(
+      await screen.findByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.localModels.download' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultImageProcessor: 'local-paddleocr' })
+    })
+  })
+
+  it.each([
+    { result: 'cancelled', rejects: false },
+    { result: null, rejects: true }
+  ])(
+    'keeps the previous default when a local model download does not finish ($result)',
+    async ({ result, rejects }) => {
+      preferencesMock.defaultImageProcessor = 'system'
+      ipcRequestMock.mockImplementation((route: string) => {
+        if (route === 'file_processing.list_available_processors') {
+          return Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+        }
+        if (route === 'local_model.get_status') {
+          return Promise.resolve({ status: 'not_downloaded' })
+        }
+        if (route === 'local_model.download') {
+          return rejects ? Promise.reject(new Error('download failed')) : Promise.resolve({ result })
+        }
+        return Promise.resolve(undefined)
+      })
+
+      const user = userEvent.setup()
+      render(<OcrSettings />)
+
+      await user.click(
+        await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+      )
+      await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+      await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('local_model.download', { model: 'ocr' }))
+      expect(setPreferencesMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('sets the document default only after the local model download succeeds', async () => {
+    preferencesMock.defaultDocumentProcessor = 'mineru'
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'file_processing.list_available_processors') {
+        return Promise.resolve({
+          processorIds: ['paddleocr', 'local-document', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+        })
+      }
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: 'not_downloaded' })
+      }
+      if (route === 'local_model.download') {
+        return Promise.resolve({ result: 'ready' })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentProcessingSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_document.name/ })
+    )
+    expect(setPreferencesMock).not.toHaveBeenCalled()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultDocumentProcessor: 'local-document' })
+    })
+  })
+
+  it('shows OV OCR only when file processing reports it as available', async () => {
+    render(<OcrSettings />)
+
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+
+    ipcRequestMock.mockResolvedValueOnce({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
+    })
+
+    render(<OcrSettings />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('keeps OV OCR hidden and logs when available processor lookup fails', async () => {
+    ipcRequestMock.mockRejectedValueOnce(new Error('IPC failed'))
+
+    render(<OcrSettings />)
+
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        'Failed to list available file processors',
+        expect.objectContaining({ message: 'IPC failed' })
+      )
+    })
+    expect(screen.getByText('settings.tool.file_processing.errors.load_processors_failed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows only the persisted default and disables selection while processor support is unresolved', () => {
+    preferencesMock.defaultImageProcessor = 'system'
+    ipcRequestMock.mockReturnValue(new Promise(() => undefined))
+
+    render(<OcrSettings />)
+
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('stores API key input as file processing overrides', async () => {
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    expect(screen.queryByText('settings.tool.file_processing.fields.model_id')).not.toBeInTheDocument()
+    const apiKeysInput = await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')
+    await user.type(apiKeysInput, ' key-1, key-2 ')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1', 'key-2']
+        }
+      })
+    })
+  })
+
+  it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: 'https://draft.example.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: 'key-1' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1']
+        }
+      })
+    })
+
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    preferencesMock.defaultImageProcessor = 'mistral'
+    rerender(<OcrSettings />)
+
+    expect(screen.getByPlaceholderText('settings.provider.api_host')).toHaveValue('https://draft.example.com')
+  })
+
+  it('reports API host save failures', async () => {
+    const user = userEvent.setup()
+    const error = new Error('persist failed')
+    setOverridesMock.mockRejectedValueOnce(error)
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, 'https://draft.example.com')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+    })
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save API host', error)
+  })
+
+  it('trims API host before persisting', async () => {
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  https://draft.example.com  ')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          capabilities: {
+            image_to_text: {
+              apiHost: 'https://draft.example.com'
+            }
+          }
+        }
+      })
+    })
+    expect(apiHostInput).toHaveValue('https://draft.example.com')
+  })
+
+  it('rejects invalid API host before persisting', async () => {
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  not-a-url  ')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
+    })
+    expect(setOverridesMock).not.toHaveBeenCalled()
+    expect(apiHostInput).toHaveValue('not-a-url')
+  })
+
+  it('opens the file processing API key list popup from the API key field', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <OcrSettings />
+        <PopupHost />
+      </>
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    await user.type(
+      await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'),
+      ' key-1, key-2 '
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
+    // two keys parsed from the API key field (short keys render unmasked).
+    expect(
+      await screen.findByText(
+        'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('key-1')).toBeInTheDocument()
+    expect(screen.getByText('key-2')).toBeInTheDocument()
+  })
+
+  it('reopens the file processing API key list with keys saved from the popup', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <OcrSettings />
+        <PopupHost />
+      </>
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    // The popup opens empty (no keys configured yet).
+    await screen.findByText('error.no_api_key')
+
+    // Add a key containing a comma, then a plain key, through the popup's own UI. Each save
+    // routes through the popup's onSetApiKeys callback back into the API key field.
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key,1' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key2' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    // The API key field now reflects the saved keys with the comma escaped.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
+        'key\\,1, key2'
+      )
+    })
+
+    // Close the popup so single-flight resets, then let the exit phase remove the entry.
+    await act(async () => {
+      for (const entry of [...popupService.getSnapshot()]) {
+        popupService.settle(entry.instanceId, null)
+      }
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+    })
+
+    // Reopening reads the current field value, so the popup now lists the saved keys.
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    expect(await screen.findByText('key,1')).toBeInTheDocument()
+    expect(screen.getByText('key2')).toBeInTheDocument()
+  })
+
+  it('stores System OCR language options on Windows', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        system: {
+          options: {
+            langs: ['en-us']
+          }
+        }
+      })
+    })
+  })
+
+  it('shows PaddleOCR deployment guidance with the deployment link', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
+    render(<OcrSettings />)
+
+    const apiKeyLabel = await screen.findByText('settings.tool.file_processing.fields.api_key')
+    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
+    const deploymentDescription = screen.getByText(
+      'settings.tool.file_processing.processors.paddleocr.deployment.description'
+    )
+
+    expect(deploymentDescription).toBeInTheDocument()
+    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(
+      screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
+    ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)
+  })
+
+  it('stores PaddleOCR model changes per feature', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
+    const { rerender } = render(<OcrSettings />)
+
+    await user.click(await screen.findByRole('button', { name: 'PP-OCRv5' }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            }
+          }
+        }
+      })
+    })
+
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    rerender(<DocumentProcessingSettings />)
+
+    await user.click(await screen.findByRole('button', { name: 'PP-StructureV3' }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            },
+            document_to_markdown: {
+              modelId: 'PP-StructureV3'
+            }
+          }
+        }
+      })
+    })
+  })
+
+  it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+    overridesMock.value = {
+      paddleocr: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'PP-StructureV3'
+          },
+          image_to_text: {
+            modelId: 'PP-OCRv5'
+          }
+        }
+      }
+    }
+
+    const { rerender } = render(<OcrSettings />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-OCRv5')
+    })
+
+    rerender(<DocumentProcessingSettings />)
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-StructureV3')
+    })
+  })
+
+  it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
+    render(<OcrSettings />)
+
+    expect(await screen.findByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
+  })
+
+  it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
+    render(<DocumentProcessingSettings />)
+
+    expect(await screen.findByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
+  })
+
+  it('manages Tesseract language packs with the settings combobox', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'tesseract'
+    overridesMock.value = {
+      tesseract: {
+        options: {
+          langs: ['eng']
+        }
+      }
+    }
+
+    render(<OcrSettings />)
+
+    expect(await screen.findByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: ['eng', 'chi_sim']
+          }
+        }
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: /English \(eng\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: []
+          }
+        }
+      })
+    })
+  })
+})

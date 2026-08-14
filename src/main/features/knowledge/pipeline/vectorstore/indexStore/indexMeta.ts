@@ -1,0 +1,61 @@
+import { KNOWLEDGE_INDEX_SCHEMA_VERSION } from './schema'
+import type { SqliteExecutor } from './types'
+
+export interface IndexMetaInput {
+  baseId: string
+}
+
+/**
+ * Ensure the index database's `meta` row exists and belongs to this base.
+ *
+ * On first open it writes the single (`id = 1`) identity row with the schema
+ * version and base id; on a re-open it leaves the existing row intact
+ * (`INSERT OR IGNORE`). Either way it then verifies the stored `base_id` equals
+ * the expected one and rejects otherwise, so an `index.sqlite` swapped in from
+ * another base is refused rather than silently mounted
+ * (knowledge-technical-design.md §4.1).
+ *
+ * That base_id mismatch is the ONLY refusal here. A blank or recreated file has
+ * no row to mismatch — it is stamped as a fresh empty index and mounts cleanly;
+ * the store-open path logs an error when that happens under a base that already
+ * has completed items (see KnowledgeVectorStoreService).
+ */
+export function ensureIndexMeta(executor: SqliteExecutor, input: IndexMetaInput): void {
+  const now = Date.now()
+  executor.execute(
+    `INSERT OR IGNORE INTO meta (id, schema_version, base_id, created_at, updated_at)
+     VALUES (1, ?, ?, ?, ?)`,
+    [KNOWLEDGE_INDEX_SCHEMA_VERSION, input.baseId, now, now]
+  )
+
+  const stored = executor.execute(`SELECT base_id FROM meta WHERE id = 1`)
+  const storedBaseId = stored.rows[0]?.base_id as string | undefined
+  if (storedBaseId !== input.baseId) {
+    throw new Error(
+      `index.sqlite belongs to a different base: expected base_id '${input.baseId}', found '${storedBaseId ?? '(none)'}'`
+    )
+  }
+}
+
+/**
+ * Read the stored `meta.schema_version`, or `null` when there is nothing to compare
+ * against — a brand-new/blank file has no `meta` table yet (probed via `sqlite_master`
+ * so the read never throws "no such table"), and a malformed row yields `null` too.
+ * The store-open path compares this to {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}: a
+ * non-null mismatch means an old layout that must be rebuilt before the DDL is applied.
+ */
+export function readIndexSchemaVersion(executor: SqliteExecutor): number | null {
+  const hasMeta = executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'`)
+  if (hasMeta.rows.length === 0) {
+    return null
+  }
+  const result = executor.execute(`SELECT schema_version FROM meta WHERE id = 1`)
+  const version = result.rows[0]?.schema_version
+  return typeof version === 'number' ? version : null
+}
+
+/** Whether the index database holds at least one material row (store-open diagnostics probe). */
+export function hasAnyMaterial(executor: SqliteExecutor): boolean {
+  const result = executor.execute(`SELECT 1 FROM material LIMIT 1`)
+  return result.rows.length > 0
+}

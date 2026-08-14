@@ -1,0 +1,198 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+const { fileEntryService } = await import('@data/services/FileEntryService')
+const { fileRefService } = await import('@data/services/FileRefService')
+const { read, readChunk } = await import('../read')
+
+import type { FileManagerDeps } from '../../deps'
+
+describe('internal/content/read', () => {
+  const dbh = setupTestDatabase()
+  let tmp: string
+  let onFsEventCalls: Array<{ path: string; state: string }>
+  let deps: FileManagerDeps
+
+  beforeEach(async () => {
+    MockMainDbServiceUtils.setDb(dbh.db)
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-readtest-'))
+    onFsEventCalls = []
+    deps = {
+      fileEntryService,
+      fileRefService,
+      danglingCache: {
+        check: vi.fn(),
+        onFsEvent: vi.fn((p: AbsoluteFilePath, state: 'present' | 'missing') => {
+          onFsEventCalls.push({ path: p, state })
+        }),
+        addEntry: vi.fn(),
+        removeEntry: vi.fn(),
+        initFromDb: vi.fn(),
+        subscribe: vi.fn(() => () => {}),
+        onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
+        clear: vi.fn()
+      },
+      versionCache: {
+        get: vi.fn(),
+        set: vi.fn(),
+        invalidate: vi.fn(),
+        clear: vi.fn()
+      },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+    }
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('reads text content for an existing external entry', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
+    const file = path.join(tmp, 'note.txt')
+    await writeFile(file, 'hello world', 'utf-8')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'note',
+      ext: 'txt',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const result = await read(deps, id)
+    expect(result.content).toBe('hello world')
+    expect(result.mime).toBe('text/plain')
+    expect(result.version.size).toBe('hello world'.length)
+  })
+
+  it('reads base64 content with inferred mime', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c02' as FileEntryId
+    const file = path.join(tmp, 'pic.png')
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    await writeFile(file, bytes)
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'pic',
+      ext: 'png',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const result = await read(deps, id, { encoding: 'base64' })
+    expect(result.content).toBe(bytes.toString('base64'))
+    expect(result.mime).toBe('image/png')
+  })
+
+  it('reads binary content as Uint8Array', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c03' as FileEntryId
+    const file = path.join(tmp, 'doc.pdf')
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46])
+    await writeFile(file, bytes)
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'doc',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const result = await read(deps, id, { encoding: 'binary' })
+    expect(result.content).toBeInstanceOf(Uint8Array)
+    expect(result.mime).toBe('application/pdf')
+  })
+
+  it('reads a byte range for an existing external entry', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c04' as FileEntryId
+    const file = path.join(tmp, 'range.pdf')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5]))
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const chunk = await readChunk(deps, id, 2, 3)
+
+    expect(Array.from(chunk.content)).toEqual([2, 3, 4])
+    expect(chunk.mime).toBe('application/pdf')
+    expect(chunk.version.size).toBe(6)
+  })
+
+  it('throws when entry id does not exist', async () => {
+    await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc' as FileEntryId)).rejects.toThrow(/not found/i)
+  })
+
+  it('updates DanglingCache to "missing" on ENOENT for external entry', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
+    const file = path.join(tmp, 'gone.txt')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'gone',
+      ext: 'txt',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await expect(read(deps, id)).rejects.toThrow(/ENOENT/)
+    expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
+  })
+
+  it('updates DanglingCache to "missing" when a chunk read finds an external file missing', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c11' as FileEntryId
+    const file = path.join(tmp, 'gone-range.pdf')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'gone-range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await expect(readChunk(deps, id, 0, 4)).rejects.toThrow(/ENOENT/)
+    expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
+  })
+})

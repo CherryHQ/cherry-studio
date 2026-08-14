@@ -1,0 +1,193 @@
+import ProviderSpecificSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderSpecificSettings'
+import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const useProviderMock = vi.fn()
+const useProviderMetaMock = vi.fn()
+const isProviderSupportAuthMock = vi.fn()
+const providerOauthModuleLoadedMock = vi.fn()
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: (...args: any[]) => useProviderMock(...args)
+}))
+
+vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
+}))
+
+vi.mock('@shared/utils/provider', () => ({
+  isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args),
+  isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws' || provider?.authType === 'api-key-aws',
+  isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp',
+  matchesPreset: (provider: any, presetId: string) =>
+    provider?.id === presetId || provider?.presetProviderId === presetId
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOauth', () => {
+  providerOauthModuleLoadedMock()
+  return {
+    default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
+  }
+})
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInOauth', () => ({
+  default: ({ providerId }: any) => <div>{`cherryin-oauth-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DmxapiSettings', () => ({
+  default: ({ providerId }: any) => <div>{`dmxapi-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/OvmsSettings', () => ({
+  default: () => <div>ovms-settings</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/LmStudioSettings', () => ({
+  default: ({ providerId }: any) => <div>{`lmstudio-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/GpuStackSettings', () => ({
+  default: ({ providerId }: any) => <div>{`gpustack-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/GithubCopilotSettings', () => ({
+  default: ({ providerId }: any) => <div>{`copilot-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/AwsBedrockSettings', () => ({
+  default: ({ providerId }: any) => <div>{`aws-bedrock-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSettings', () => ({
+  default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/RadeonCloudBenefits', () => ({
+  default: () => <div>radeon-cloud-benefits</div>
+}))
+
+describe('ProviderSpecificSettings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useProviderMetaMock.mockReturnValue({
+      isCherryIN: false,
+      isDmxapi: false
+    })
+    isProviderSupportAuthMock.mockReturnValue(false)
+  })
+
+  it('does not load a provider-specific panel when its registry entry does not match', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'openai', isEnabled: true }
+    })
+
+    render(<ProviderSpecificSettings providerId="openai" placement="beforeAuth" />)
+
+    expect(providerOauthModuleLoadedMock).not.toHaveBeenCalled()
+  })
+
+  it('renders matching beforeAuth blocks', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'openai', isEnabled: true }
+    })
+    isProviderSupportAuthMock.mockReturnValue(true)
+
+    render(<ProviderSpecificSettings providerId="openai" placement="beforeAuth" />)
+
+    expect(await screen.findByText('provider-oauth-openai')).toBeInTheDocument()
+    expect(providerOauthModuleLoadedMock).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    {
+      providerId: 'cherryin',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: true, isDmxapi: false },
+      expectedText: 'cherryin-oauth-cherryin'
+    },
+    {
+      providerId: 'dmxapi',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: true },
+      expectedText: 'dmxapi-settings-dmxapi'
+    },
+    {
+      providerId: 'ovms',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'ovms-settings'
+    },
+    {
+      providerId: 'radeon-cloud',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'radeon-cloud-benefits'
+    },
+    {
+      providerId: 'lmstudio',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'lmstudio-settings-lmstudio'
+    },
+    {
+      providerId: 'gpustack',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'gpustack-settings-gpustack'
+    },
+    {
+      providerId: 'copilot',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'copilot-settings-copilot'
+    },
+    {
+      providerId: 'aws-bedrock',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'aws-bedrock-settings-aws-bedrock',
+      authType: 'iam-aws'
+    },
+    {
+      providerId: 'aws-bedrock',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'aws-bedrock-settings-aws-bedrock',
+      authType: 'api-key-aws'
+    },
+    {
+      providerId: 'vertexai',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'vertexai-settings-vertexai',
+      authType: 'iam-gcp'
+    }
+  ])(
+    'renders the expected provider-specific block for $providerId',
+    async ({ providerId, placement, meta, expectedText, authType, supportAuth }: any) => {
+      useProviderMock.mockReturnValue({
+        provider: { id: providerId, name: providerId, isEnabled: true, ...(authType ? { authType } : {}) }
+      })
+      useProviderMetaMock.mockReturnValue(meta)
+      if (supportAuth !== undefined) {
+        isProviderSupportAuthMock.mockReturnValue(supportAuth)
+      }
+
+      render(<ProviderSpecificSettings providerId={providerId} placement={placement} />)
+
+      expect(await screen.findByText(expectedText)).toBeInTheDocument()
+    }
+  )
+
+  it('does not render AMD GPU Cloud OAuth while account login is disabled', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'radeon-cloud', name: 'AMD GPU Cloud', isEnabled: true }
+    })
+    useProviderMetaMock.mockReturnValue({ isCherryIN: false, isDmxapi: false })
+    isProviderSupportAuthMock.mockReturnValue(false)
+
+    const { container } = render(<ProviderSpecificSettings providerId="radeon-cloud" placement="beforeAuth" />)
+
+    expect(container.textContent).not.toContain('provider-oauth-radeon-cloud')
+  })
+})

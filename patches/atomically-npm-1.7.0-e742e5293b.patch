@@ -1,0 +1,12 @@
+diff --git a/dist/utils/temp.js b/dist/utils/temp.js
+index c0844f640f7927ff87edda13f7c853d10ebb8dd0..3ca3d29e0f4ee700c43ebde47002883955b664b3 100644
+--- a/dist/utils/temp.js
++++ b/dist/utils/temp.js
+@@ -2,6 +2,7 @@
+ /* IMPORT */
+ Object.defineProperty(exports, "__esModule", { value: true });
+ const path = require("path");
++const process = require("process");
+ const consts_1 = require("../consts");
+ const fs_1 = require("./fs");
+ /* TEMP */
