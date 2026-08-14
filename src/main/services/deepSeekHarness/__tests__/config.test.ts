@@ -207,6 +207,12 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('must be used through the Unified Gateway')
     expect(() =>
       resolveDeepSeekHarnessEndpoint(
+        providerWithoutDeveloperRole,
+        model({ reasoning: undefined, endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      )
+    ).toThrow('must be used through the Unified Gateway')
+    expect(() =>
+      resolveDeepSeekHarnessEndpoint(
         { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
         model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
       )
@@ -216,12 +222,31 @@ describe('DeepSeek Harness config transaction', () => {
       resolveDeepSeekHarnessEndpoint(
         { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
         model({
-          capabilities: [],
           reasoning: undefined,
           endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
         })
       )
     ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+  })
+
+  it('uses pi-ai DeepSeek compatibility for reasoning models on the official chat endpoint', () => {
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        provider({
+          id: 'deepseek',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' }
+          }
+        }),
+        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      protocol: 'openai-completions',
+      baseUrl: 'https://api.deepseek.com/v1'
+    })
   })
 
   it('preserves comments, unrelated routes, and old managed models while selecting the new default', async () => {

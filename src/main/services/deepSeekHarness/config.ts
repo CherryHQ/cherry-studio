@@ -334,10 +334,13 @@ export function resolveDeepSeekHarnessEndpoint(
       ? provider.defaultChatEndpoint
       : DIRECT_ENDPOINTS.find(hasBaseUrl)
 
+  const dshMarksModelAsReasoning = typeof projectReasoningEfforts(model) === 'object'
+  const selectedBaseUrl = endpoint ? provider.endpointConfigs?.[endpoint]?.baseUrl : undefined
+  const piAiUsesSystemRole =
+    endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && selectedBaseUrl?.includes('deepseek.com')
   const requiresDeveloperRole =
     endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
-    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
-      (model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined))
+    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && dshMarksModelAsReasoning && !piAiUsesSystemRole)
   if (provider.apiFeatures.developerRole === false && requiresDeveloperRole) {
     if (
       declaredModelEndpoints?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
