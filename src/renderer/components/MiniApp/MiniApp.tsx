@@ -5,7 +5,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
-import { useTabs } from '@renderer/hooks/tab'
+import { useTabsActions } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { toast } from '@renderer/services/toast'
@@ -40,7 +40,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     removeCustomMiniApp
   } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
-  const { openTab } = useTabs()
+  const { openTab } = useTabsActions()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)

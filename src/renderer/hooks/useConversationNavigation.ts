@@ -1,4 +1,4 @@
-import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
+import { type TabsActionsContextValue, useOptionalTabsActions } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import type { ConversationAppId } from '@renderer/types/conversation'
@@ -25,7 +25,7 @@ export interface ConversationNavigation {
 }
 
 function openConversationTabImpl(
-  tabs: TabsContextValue | null,
+  tabs: TabsActionsContextValue | null,
   appId: ConversationAppId,
   key: string,
   title?: string
@@ -58,7 +58,7 @@ function openConversationWindowImpl(appId: ConversationAppId, key: string, title
  * app has no `conversationRoute`.
  */
 export function useConversationNavigation(appId: ConversationAppId): ConversationNavigation {
-  const tabs = useOptionalTabsContext()
+  const tabs = useOptionalTabsActions()
   const isDetachedWindowFrame = useWindowFrame().mode === 'window'
 
   return useMemo<ConversationNavigation>(

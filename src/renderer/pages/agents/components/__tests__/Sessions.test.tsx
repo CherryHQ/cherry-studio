@@ -371,6 +371,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
+  useOptionalTabsActions: () => tabsContextMocks,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
 }))

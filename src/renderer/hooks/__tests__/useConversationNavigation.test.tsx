@@ -12,7 +12,7 @@ const tabsMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useOptionalTabsContext: () => tabsMock.ctx
+  useOptionalTabsActions: () => tabsMock.ctx
 }))
 
 vi.mock('@renderer/services/resourceListRevealEvents', () => ({

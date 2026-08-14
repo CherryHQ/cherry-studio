@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({ openTab: mocks.openTab })
+  useTabsActions: () => ({ openTab: mocks.openTab })
 }))
 
 vi.mock('react-i18next', () => ({

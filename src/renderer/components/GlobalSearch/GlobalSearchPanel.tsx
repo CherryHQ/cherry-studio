@@ -24,7 +24,7 @@ import {
   GroupedVirtualList,
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
-import { useTabs } from '@renderer/hooks/tab'
+import { useTabsActions } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -303,7 +303,7 @@ function TimeFilterDropdown({
 
 export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { t, i18n } = useTranslation()
-  const { openTab } = useTabs()
+  const { openTab } = useTabsActions()
   const chatNav = useConversationNavigation('assistants')
   const agentNav = useConversationNavigation('agents')
   const invalidateCache = useInvalidateCache()

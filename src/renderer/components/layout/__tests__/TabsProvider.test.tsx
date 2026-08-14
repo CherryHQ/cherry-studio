@@ -5,6 +5,7 @@ import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -119,7 +120,7 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-import { useTabsContext } from '@renderer/hooks/tab'
+import { useTabsActions, useTabsContext } from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -144,6 +145,17 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+function ActionOnlyTabUpdater({ onRender }: { onRender: () => void }) {
+  const { updateTab } = useTabsActions()
+  onRender()
+
+  return (
+    <button type="button" onClick={() => updateTab('home', { title: 'Updated title' })}>
+      Update home title
+    </button>
+  )
 }
 
 // Surfaces restored-session state: active tab id, each tab's awake/dormant state, and the id list.
@@ -330,6 +342,23 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('does not invalidate action-only consumers when tab state changes', async () => {
+    const user = userEvent.setup()
+    const onActionConsumerRender = vi.fn()
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ActionOnlyTabUpdater onRender={onActionConsumerRender} />
+        <TabSnapshot />
+      </TabsProvider>
+    )
+
+    expect(onActionConsumerRender).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Update home title' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-titles')).toHaveTextContent('Updated title'))
+    expect(onActionConsumerRender).toHaveBeenCalledTimes(1)
+  })
+
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider

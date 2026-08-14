@@ -24,14 +24,7 @@ export interface OpenTabOptions {
   isPinned?: boolean
 }
 
-export interface TabsContextValue {
-  // State
-  tabs: Tab[]
-  activeTabId: string
-  activeTab: Tab | undefined
-  isLoading: boolean
-
-  // Basic operations
+export interface TabsActionsContextValue {
   addTab: (tab: Tab) => void
   closeTab: (id: string) => void
   /** Close tabs in one batch; `activateId` designates the surviving tab to activate when the active tab is closed. */
@@ -56,7 +49,15 @@ export interface TabsContextValue {
   attachTab: (tabData: Tab) => void
 }
 
+export interface TabsContextValue extends TabsActionsContextValue {
+  tabs: Tab[]
+  activeTabId: string
+  activeTab: Tab | undefined
+  isLoading: boolean
+}
+
 export const TabsContext = createContext<TabsContextValue | null>(null)
+export const TabsActionsContext = createContext<TabsActionsContextValue | null>(null)
 
 export function useTabsContext() {
   const context = use(TabsContext)
@@ -68,4 +69,16 @@ export function useTabsContext() {
 
 export function useOptionalTabsContext() {
   return use(TabsContext)
+}
+
+export function useTabsActions() {
+  const context = use(TabsActionsContext)
+  if (!context) {
+    throw new Error('useTabsActions must be used within a TabsProvider')
+  }
+  return context
+}
+
+export function useOptionalTabsActions() {
+  return use(TabsActionsContext)
 }

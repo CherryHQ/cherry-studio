@@ -95,7 +95,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({
+  useTabsActions: () => ({
     openTab: mocks.openTab
   })
 }))

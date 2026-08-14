@@ -1,6 +1,12 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import {
+  type OpenTabOptions,
+  TabsActionsContext,
+  type TabsActionsContextValue,
+  TabsContext,
+  type TabsContextValue
+} from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
@@ -246,6 +252,12 @@ export function TabsProvider({
 
   // Active tab ID - in-memory storage, seeded from the restored session
   const [activeTabId, setActiveTabIdState] = useState<string>(() => initialSessionRef.current!.activeTabId)
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
+  const setActiveTabId = useCallback((id: string) => {
+    activeTabIdRef.current = id
+    setActiveTabIdState(id)
+  }, [])
 
   // Render the normalized pinned set on the first pass, then commit it to the persistent cache.
   // This avoids mounting background pinned routers before the effect runs while keeping the cache
@@ -332,7 +344,7 @@ export function TabsProvider({
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
-      const tab = tabs.find((t) => t.id === id)
+      const tab = projectedTabsRef.current.find((t) => t.id === id)
       if (!tab) return
 
       if (storesPinned(tab)) {
@@ -341,14 +353,14 @@ export function TabsProvider({
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       }
     },
-    [tabs, setPinnedTabs, storesPinned]
+    [setPinnedTabs, storesPinned]
   )
 
   const setActiveTab = useCallback(
     (id: string) => {
       const targetTab = projectedTabsRef.current.find((t) => t.id === id)
       if (!targetTab) return
-      if (id === activeTabId && !targetTab.isDormant) return
+      if (id === activeTabIdRef.current && !targetTab.isDormant) return
 
       // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {
@@ -371,9 +383,9 @@ export function TabsProvider({
         setNormalTabs((prev) => prev.map(update))
       }
 
-      setActiveTabIdState(id)
+      setActiveTabId(id)
     },
-    [activeTabId, prepareTabsForCommit, setPinnedTabs, storesPinned]
+    [prepareTabsForCommit, setActiveTabId, setPinnedTabs, storesPinned]
   )
 
   const addTab = useCallback(
@@ -408,13 +420,15 @@ export function TabsProvider({
         })
       }
 
-      setActiveTabIdState(tab.id)
+      setActiveTabId(tab.id)
     },
-    [prepareTabsForCommit, setActiveTab, setPinnedTabs, storesPinned]
+    [prepareTabsForCommit, setActiveTab, setActiveTabId, setPinnedTabs, storesPinned]
   )
 
   const closeTabs = useCallback(
     (ids: readonly string[], activateId?: string) => {
+      const tabs = projectedTabsRef.current
+      const activeTabId = activeTabIdRef.current
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
@@ -470,9 +484,9 @@ export function TabsProvider({
         })
       }
 
-      setActiveTabIdState(newActiveId)
+      setActiveTabId(newActiveId)
     },
-    [tabs, activeTabId, setPinnedTabs, storesPinned]
+    [setActiveTabId, setPinnedTabs, storesPinned]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -485,7 +499,7 @@ export function TabsProvider({
       const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
 
       if (!forceNew) {
-        const existingTab = tabs.find((t) => t.type === type && t.url === url)
+        const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
         if (existingTab) {
           setActiveTab(existingTab.id)
           return existingTab.id
@@ -507,7 +521,7 @@ export function TabsProvider({
       addTab(newTab)
       return newTab.id
     },
-    [tabs, setActiveTab, addTab]
+    [setActiveTab, addTab]
   )
 
   /**
@@ -516,7 +530,7 @@ export function TabsProvider({
    */
   const pinTab = useCallback(
     (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
+      const tab = projectedTabsRef.current.find((t) => t.id === id)
       if (!tab || tab.isPinned) return
 
       // Remove from normalTabs
@@ -526,7 +540,7 @@ export function TabsProvider({
 
       logger.info('Tab pinned', { tabId: id })
     },
-    [tabs, setPinnedTabs]
+    [setPinnedTabs]
   )
 
   /**
@@ -534,7 +548,7 @@ export function TabsProvider({
    */
   const unpinTab = useCallback(
     (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
+      const tab = projectedTabsRef.current.find((t) => t.id === id)
       if (!tab || !tab.isPinned) return
 
       // Remove from pinnedTabs
@@ -544,7 +558,7 @@ export function TabsProvider({
 
       logger.info('Tab unpinned', { tabId: id })
     },
-    [tabs, setPinnedTabs]
+    [setPinnedTabs]
   )
 
   /**
@@ -577,7 +591,7 @@ export function TabsProvider({
    */
   const detachTab = useCallback(
     (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = projectedTabsRef.current.find((t) => t.id === tabId)
       if (!tab) return
 
       // Send IPC message to create new window
@@ -586,7 +600,7 @@ export function TabsProvider({
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)
     },
-    [tabs, closeTab]
+    [closeTab]
   )
 
   /**
@@ -595,7 +609,7 @@ export function TabsProvider({
   const attachTab = useCallback(
     (tabData: Tab) => {
       // Check if tab already exists
-      const exists = tabs.find((t) => t.id === tabData.id)
+      const exists = projectedTabsRef.current.find((t) => t.id === tabData.id)
       if (exists) {
         setActiveTab(tabData.id)
         logger.info('Tab already exists, activating', { tabId: tabData.id })
@@ -613,7 +627,7 @@ export function TabsProvider({
       addTab(restoredTab)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [addTab, tabs, setActiveTab]
+    [addTab, setActiveTab]
   )
 
   // Listen for tab attach requests (from Main Process)
@@ -624,36 +638,30 @@ export function TabsProvider({
    */
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId])
 
-  const value: TabsContextValue = {
-    // State
-    tabs,
-    activeTabId,
-    activeTab,
-    isLoading: false,
+  const actions = useMemo<TabsActionsContextValue>(
+    () => ({
+      addTab,
+      attachTab,
+      closeTab,
+      closeTabs,
+      detachTab,
+      openTab,
+      pinTab,
+      reorderTabs,
+      setActiveTab,
+      unpinTab,
+      updateTab
+    }),
+    [addTab, attachTab, closeTab, closeTabs, detachTab, openTab, pinTab, reorderTabs, setActiveTab, unpinTab, updateTab]
+  )
+  const value = useMemo<TabsContextValue>(
+    () => ({ ...actions, tabs, activeTabId, activeTab, isLoading: false }),
+    [actions, tabs, activeTabId, activeTab]
+  )
 
-    // Basic operations
-    addTab,
-    closeTab,
-    closeTabs,
-    setActiveTab,
-    updateTab,
-
-    // High-level Tab operations
-    openTab,
-
-    // Pin operations
-    pinTab,
-    unpinTab,
-
-    // Detach
-    detachTab,
-
-    // Attach
-    attachTab,
-
-    // Drag and drop
-    reorderTabs
-  }
-
-  return <TabsContext value={value}>{children}</TabsContext>
+  return (
+    <TabsActionsContext value={actions}>
+      <TabsContext value={value}>{children}</TabsContext>
+    </TabsActionsContext>
+  )
 }
