@@ -16,6 +16,7 @@ import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@sh
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isNonChatModel } from '@shared/utils/model'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 import { Mutex } from 'async-mutex'
 
 import {
@@ -228,7 +229,7 @@ export class DeepSeekHarnessService extends BaseService {
       }
     }
 
-    if (provider.authType !== 'api-key') {
+    if (isLoginBasedProvider(provider)) {
       throw new Error('This provider must be used through the Unified Gateway')
     }
     const { protocol, baseUrl } = resolveDeepSeekHarnessEndpoint(provider, model)

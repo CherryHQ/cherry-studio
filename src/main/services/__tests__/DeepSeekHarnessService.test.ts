@@ -212,8 +212,37 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
-  it('rejects OAuth direct mode even when a provider is marked as credential-optional', async () => {
-    mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth', authOptional: true })
+  it('uses an enabled API key obtained through CherryIN-style OAuth in direct mode', async () => {
+    mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth' })
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+
+    await expect(service.start(startInput)).resolves.toEqual({ success: true, url: 'http://127.0.0.1:43123' })
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ credentialValue: 'sk-direct' })
+    )
+    await service.stop()
+  })
+
+  it('rejects direct mode when an OAuth-obtained API key is no longer available', async () => {
+    mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth' })
+    mocks.providerGetApiKeys.mockReturnValue([])
+
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result).toEqual({ success: false, message: 'Provider anthropic has no enabled API key' })
+    expect(mocks.writeConfig).not.toHaveBeenCalled()
+    expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
+  it('rejects OAuth-only direct mode even when stale key metadata is present', async () => {
+    mocks.providerGet.mockReturnValue({
+      ...provider,
+      authType: 'oauth',
+      authMethods: ['oauth'],
+      authOptional: true
+    })
     const result = await new DeepSeekHarnessService().start(startInput)
 
     expect(result).toEqual({ success: false, message: 'This provider must be used through the Unified Gateway' })

@@ -49,7 +49,7 @@ describe('DeepSeek Harness provider support', () => {
       ...partial
     }) as unknown as Provider
 
-  it('offers the Unified Gateway and only directly-authenticated supported providers', () => {
+  it('offers the Unified Gateway and providers with usable API-key credentials', () => {
     expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.DEEPSEEK_HARNESS)).toBe(true)
     const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.DEEPSEEK_HARNESS]([
       provider({
@@ -67,10 +67,17 @@ describe('DeepSeek Harness provider support', () => {
         endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
       }),
       provider({
-        id: 'oauth',
+        id: 'oauth-with-api-key',
         authType: 'oauth',
-        authOptional: true,
         apiKeys: [{ id: 'key', isEnabled: true }],
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
+      }),
+      provider({
+        id: 'oauth-only',
+        authType: 'oauth',
+        authMethods: ['oauth'],
+        authOptional: true,
+        apiKeys: [{ id: 'stale-key', isEnabled: true }],
         endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
       }),
       provider({
@@ -80,6 +87,6 @@ describe('DeepSeek Harness provider support', () => {
       })
     ])
 
-    expect(supported.map((item) => item.id)).toEqual(['api-key', 'keyless'])
+    expect(supported.map((item) => item.id)).toEqual(['api-key', 'keyless', 'oauth-with-api-key'])
   })
 })
