@@ -3157,6 +3157,8 @@
         "delete_confirm_title": "确认批量删除",
         "loaded_only_hint": "仅作用于已加载项，共 {{total}} 项",
         "reindex": "重新索引",
+        "reindex_none_eligible": "选中的数据源都在处理中，暂时无法重新索引",
+        "reindex_skipped": "已跳过 {{count}} 个处理中的数据源",
         "selected_count": "已选 {{count}} 项"
       },
       "chunks_count": "{{count}} chunks",

@@ -3157,6 +3157,8 @@
         "delete_confirm_title": "Delete Selected Data Sources?",
         "loaded_only_hint": "Applies to loaded items only ({{total}} total)",
         "reindex": "Reindex",
+        "reindex_none_eligible": "All selected data sources are still processing and cannot be reindexed yet",
+        "reindex_skipped": "Skipped {{count}} data source(s) still processing",
         "selected_count": "{{count}} selected"
       },
       "chunks_count": "{{count}} chunks",
