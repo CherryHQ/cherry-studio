@@ -143,9 +143,31 @@ vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
 }))
 
+vi.mock('../../feedback/FeedbackDialog', () => ({
+  default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => (
+    <div data-testid="feedback-shell" data-open={open}>
+      {open ? <div role="dialog">feedback-dialog</div> : null}
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close-feedback
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  SidebarShellActions: ({ layout, onSettingsClick }: { layout: string; onSettingsClick: () => void }) => (
-    <button type="button" data-testid={`sidebar-shell-actions-${layout}`} onClick={onSettingsClick} />
+  SidebarShellActions: ({
+    layout,
+    onFeedbackClick,
+    onSettingsClick
+  }: {
+    layout: string
+    onFeedbackClick: () => void
+    onSettingsClick: () => void
+  }) => (
+    <>
+      <button type="button" data-testid={`sidebar-shell-actions-${layout}`} onClick={onSettingsClick} />
+      <button type="button" data-testid={`sidebar-feedback-${layout}`} onClick={onFeedbackClick} />
+    </>
   )
 }))
 
@@ -194,7 +216,7 @@ vi.mock('../../Sidebar', async () => {
       title?: string
       logo?: ReactNode
       user?: unknown
-      actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
+      actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       width?: number
       onResizePreview?: (width: number | null) => void
       onDismiss?: () => void
@@ -211,6 +233,7 @@ vi.mock('../../Sidebar', async () => {
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
           data-testid="floating-sidebar">
+          {typeof actions === 'function' ? actions('full') : actions}
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
@@ -367,6 +390,26 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('keeps feedback mounted when the floating sidebar closes', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+    const floatingSidebar = screen.getByTestId('floating-sidebar')
+    await user.click(within(floatingSidebar).getByTestId('sidebar-feedback-full'))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('feedback-dialog')
+
+    await user.click(within(floatingSidebar).getByRole('button', { name: 'dismiss' }))
+
+    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveTextContent('feedback-dialog')
+
+    await user.click(screen.getByRole('button', { name: 'close-feedback' }))
+    expect(screen.getByTestId('feedback-shell')).toHaveAttribute('data-open', 'false')
   })
 
   it('renders sidebar menu items in visible preference order', () => {
