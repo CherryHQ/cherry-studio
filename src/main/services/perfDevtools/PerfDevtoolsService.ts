@@ -11,15 +11,15 @@ import type { WebSocketServer } from 'ws'
 const logger = loggerService.withContext('PerfDevtoolsService')
 
 /**
- * 面板连接的固定 localhost 端口。
- * 与 resources/devtools/main-perf/panel.js 的 PERF_DEVTOOLS_PORT 保持一致。
+ * Fixed localhost port the bundled panel connects to.
+ * Keep in sync with PERF_DEVTOOLS_PORT in resources/devtools/main-perf/panel.js.
  */
 export const PERF_DEVTOOLS_DEFAULT_PORT = 38998
 
 const MEMORY_SAMPLE_INTERVAL_MS = 2000
 const MAX_MEMORY_SAMPLES = 900
 
-/** WebSocket 中本服务用到的那一小部分，便于测试替身。 */
+/** The slice of WebSocket this service uses, so tests can substitute a fake. */
 interface PanelSocket {
   readyState: number
   send(payload: string): void
@@ -28,8 +28,8 @@ interface PanelSocket {
 }
 
 /**
- * 开发期性能面板的后端：把 core/perf 的 span 与内存采样推给打包的
- * Main Perf DevTools 扩展。仅在开发模式启用。
+ * Backend for the development-only performance panel: streams core/perf spans and memory
+ * samples to the bundled Main Perf DevTools extension. Development mode only.
  */
 @Injectable('PerfDevtoolsService')
 @ServicePhase(Phase.Background)
@@ -40,7 +40,7 @@ export class PerfDevtoolsService extends BaseService {
   private readonly allowedOrigins = new Set<string>()
   private readonly memory: MemorySample[] = []
 
-  /** recorder 可注入，测试才能用可控时钟而不碰全局单例。 */
+  /** The recorder is injectable so tests can drive a controlled clock without touching the singleton. */
   constructor(private readonly recorder: PerfRecorder = perf) {
     super()
   }
@@ -57,8 +57,9 @@ export class PerfDevtoolsService extends BaseService {
   }
 
   /**
-   * 与 MainNetworkDevtoolsService 同因：Background 阶段在 app.whenReady() 之前跑，
-   * onInit 里取 session.defaultSession 会抛。onAllReady 时 app 已就绪。
+   * Same reason as MainNetworkDevtoolsService: the Background phase runs before
+   * app.whenReady(), so reaching session.defaultSession in onInit would throw.
+   * By onAllReady the app is ready.
    */
   protected async onAllReady(): Promise<void> {
     await installBundledDevtools('main-perf', 'Main Perf', (extension) => {

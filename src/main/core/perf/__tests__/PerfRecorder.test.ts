@@ -1,18 +1,54 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PerfRecorder } from '../PerfRecorder'
 
-/** 可控时钟：每次调用返回队列里的下一个值，用尽后停在最后一个。 */
+/** Scripted clock: each call yields the next value, then holds at the last one. */
 function clockOf(...values: number[]) {
   let index = 0
   return () => values[Math.min(index++, values.length - 1)]
 }
 
-/** 单调递增时钟，步长固定。 */
+/** Monotonic clock with a fixed step. */
 function tickingClock(step = 1) {
   let value = 0
   return () => (value += step)
 }
+
+describe('shared perf recorder gating', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it('stays off in a production build so shipped users pay nothing', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('CS_DIAGNOSTICS', '')
+    vi.resetModules()
+
+    const { perf } = await import('../PerfRecorder')
+
+    expect(perf.enabled).toBe(false)
+  })
+
+  it('turns on in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.resetModules()
+
+    const { perf } = await import('../PerfRecorder')
+
+    expect(perf.enabled).toBe(true)
+  })
+
+  it('turns on in a packaged build when CS_DIAGNOSTICS is set', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('CS_DIAGNOSTICS', '1')
+    vi.resetModules()
+
+    const { perf } = await import('../PerfRecorder')
+
+    expect(perf.enabled).toBe(true)
+  })
+})
 
 describe('PerfRecorder disabled', () => {
   it('records nothing and never touches the clock', () => {

@@ -1,5 +1,5 @@
 import { BaseService, type InitPhaseMeasure } from '@main/core/lifecycle'
-import { PerfRecorder } from '@main/core/perf'
+import { PerfRecorder, type PerfSpanHandle } from '@main/core/perf'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 class SampleService extends BaseService {
@@ -16,10 +16,11 @@ class FailingService extends BaseService {
 type Initable = { _doInit(measure?: InitPhaseMeasure): Promise<void> }
 
 /**
- * LifecycleManager 注入的那个钩子的等价物 —— 这里直接用真 recorder，
- * 断言的是「服务的 onInit / onReady 会成为服务 span 的子节点」这个契约。
+ * The equivalent of the hook LifecycleManager injects, wired to a real recorder so the
+ * assertion is on the contract itself: a service's onInit / onReady become children of
+ * that service's span.
  */
-function spanMeasure(recorder: PerfRecorder, parent: { id: string }): InitPhaseMeasure {
+function spanMeasure(recorder: PerfRecorder, parent: PerfSpanHandle): InitPhaseMeasure {
   return (name) => {
     const span = recorder.start(name, { track: 'bootstrap', parent })
     return () => span.end()

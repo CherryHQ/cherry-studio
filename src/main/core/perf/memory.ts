@@ -5,7 +5,7 @@ import type { MemorySample, ProcessMetric } from './types'
 
 const logger = loggerService.withContext('perfMemory')
 
-/** main 进程自身的内存切片。调用成本约几微秒，可以按秒级频率采。 */
+/** A slice of this process's own memory. Costs a few microseconds, so second-level sampling is fine. */
 export function sampleMemory(now: () => number = () => performance.now()): MemorySample {
   const usage = process.memoryUsage()
   return {
@@ -19,8 +19,8 @@ export function sampleMemory(now: () => number = () => performance.now()): Memor
 }
 
 /**
- * 全进程（main / renderer / GPU / utility）的 CPU 与内存。
- * 比 `process.memoryUsage()` 贵得多，只在面板主动请求时调用，不要放进定时器。
+ * CPU and memory for every process (main / renderer / GPU / utility).
+ * Far more expensive than `process.memoryUsage()` — call it on panel request only, never on a timer.
  */
 export function collectProcessMetrics(): ProcessMetric[] {
   try {

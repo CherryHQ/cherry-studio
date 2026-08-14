@@ -307,7 +307,7 @@ body {
   background: rgb(var(--color-bar));
 }
 
-/* 分组行：半透明叠加，重叠处自然加深 —— 深浅即并发度 */
+/* Group rows: translucent bars overlay, so overlaps darken — depth of color is concurrency. */
 .bar.is-merged {
   background: rgba(var(--color-bar), 0.42);
 }
@@ -326,7 +326,7 @@ body {
   pointer-events: none;
 }
 
-/* track 折叠且 span 过多时的密度条 */
+/* Density strip for a collapsed track holding too many spans to draw individually. */
 .density {
   position: absolute;
   top: 6px;

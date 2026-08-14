@@ -8,22 +8,23 @@ import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type Ser
 
 const logger = loggerService.withContext('Lifecycle')
 
-/**
- * Abstract base class for all lifecycle-managed services
- * Provides lifecycle hooks and state management.
- * All services are singletons - attempting to instantiate twice will throw an error.
- */
 export type InitPhaseName = 'onInit' | 'onReady'
 
 /**
- * 由 LifecycleManager 注入的初始化阶段计时钩子：给定阶段名，返回一个结束函数。
- * 用回调而非直接依赖 `@main/core/perf`，是为了让 BaseService 不背上基础设施
- * 依赖 —— 它是几乎所有服务测试的基类，多一个静态 import 就会打穿大量 partial mock。
+ * Init-phase timing hook injected by LifecycleManager: given a phase name, returns its ender.
+ * A callback rather than a direct `@main/core/perf` dependency keeps BaseService free of
+ * infrastructure imports — it is the base class of nearly every service test, and one more
+ * static import breaks a great many partial mocks.
  */
 export type InitPhaseMeasure = (name: InitPhaseName) => () => void
 
 const noopMeasure: InitPhaseMeasure = () => () => {}
 
+/**
+ * Abstract base class for all lifecycle-managed services
+ * Provides lifecycle hooks and state management.
+ * All services are singletons - attempting to instantiate twice will throw an error.
+ */
 export abstract class BaseService {
   /** Track instantiated service classes to prevent duplicate instantiation */
   private static instances = new WeakSet<object>()
@@ -290,8 +291,12 @@ export abstract class BaseService {
     await this.runInitPhase('onReady', () => this.onReady(), measure)
   }
 
-  /** 计时在 finally 里收口，失败的启动同样留下它的耗时。 */
-  private async runInitPhase(name: InitPhaseName, run: () => Promise<void>, measure: InitPhaseMeasure): Promise<void> {
+  /** The ender runs in `finally`, so a failed startup still records what it cost. */
+  private async runInitPhase(
+    name: InitPhaseName,
+    run: () => Promise<void> | void,
+    measure: InitPhaseMeasure
+  ): Promise<void> {
     const end = measure(name)
     try {
       await run()

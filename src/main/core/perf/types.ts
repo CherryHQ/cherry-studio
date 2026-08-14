@@ -1,22 +1,22 @@
 /**
- * 面板泳道。新增泳道 = 在这里加一个成员 + 在 resources/devtools/main-perf/panel.js
- * 的 TRACKS 里补图标。
+ * Panel lane. Adding a lane means adding a member here AND an icon entry in
+ * TRACKS in resources/devtools/main-perf/panel.js.
  */
 export type PerfTrack = 'bootstrap' | 'ipc' | 'db' | 'dataapi' | 'window' | 'custom'
 
-/** 附加信息，必须是 JSON 可序列化的值。 */
+/** Extra context attached to a span. Must hold JSON-serializable values only. */
 export type PerfDetail = Record<string, unknown>
 
 export interface PerfSpanHandle {
   readonly id: string
-  /** 重复调用是无操作。detail 与 start 时的 detail 浅合并。 */
+  /** A second call is a no-op. `detail` is shallow-merged over the one given to `start()`. */
   end(detail?: PerfDetail): void
 }
 
 export interface PerfStartOptions {
-  /** 归属泳道，决定面板里的分组。默认 'custom'。 */
+  /** Lane this span belongs to, which drives panel grouping. Defaults to 'custom'. */
   track?: PerfTrack
-  /** 父 span 句柄，用于在面板中还原层级。不传即为该 track 的顶层。 */
+  /** Parent handle, used to rebuild hierarchy in the panel. Omit for a lane-level span. */
   parent?: PerfSpanHandle
   detail?: PerfDetail
 }
@@ -26,7 +26,7 @@ export interface PerfSpan {
   name: string
   track: PerfTrack
   parentId?: string
-  /** ms since timeOrigin，与 perf_hooks 同基准 */
+  /** ms since timeOrigin — the same base as perf_hooks entries. */
   startTime: number
   duration: number
   detail?: PerfDetail

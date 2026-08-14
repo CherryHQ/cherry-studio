@@ -49,6 +49,37 @@ Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/
 
 The `slow-*` thresholds are defined in one place — `SLOW_THRESHOLD_MS` in `src/main/core/diagnostics.ts`.
 
+## Main Perf panel
+
+Development builds also ship an interactive panel fed by the span kernel in `src/main/core/perf`.
+
+Open it from any renderer window's DevTools → the `Main Perf` tab. The panel is designed for DevTools' undocked window size, so undock into a separate window first.
+
+| Area | Contents |
+|---|---|
+| Overview | Whole-session thumbnail; drag to zoom a time range, double-click to reset |
+| Main area | Spans grouped by track: track row → same-name group row (count/avg/max) → instances. Shares its time axis with the memory chart below |
+| Memory | main-process rss / heapUsed, one sample every 2s |
+| Processes | `app.getAppMetrics()` CPU and memory for every process, refreshed on demand |
+
+Instrumenting code:
+
+```ts
+import { perf } from '@main/core/perf'
+
+const span = perf.start('knowledge.embed', { track: 'custom', detail: { chunk: 3 } })
+// …
+span.end({ vectors: 128 })
+```
+
+`track` is a fixed enum (`bootstrap` / `ipc` / `db` / `dataapi` / `window` / `custom`). Adding a lane means editing both `PerfTrack` in `src/main/core/perf/types.ts` and `TRACKS` in `resources/devtools/main-perf/panel.js`.
+
+Collection turns on when `NODE_ENV=development` or `CS_DIAGNOSTICS` is set. When off, `perf.start()` returns a shared frozen handle — it allocates nothing and never reads the clock. The panel and its websocket server (127.0.0.1:38998) are development-only.
+
+Every completed span is also written to the Node performance timeline, so attaching Chrome DevTools with `--inspect` and recording a Performance profile shows them in the Timings track.
+
+Grouping rule: the tree follows `parentId`, and within one parent's children, same-name siblings merge into a group row. A group holding a single instance collapses away — which is why `bootstrap`, whose span names are unique, reads as a plain gantt tree with no redundant layer, while `ipc` and `db` aggregate. Concurrent same-name spans are drawn as translucent overlapping bars on the group row (darker = more concurrency); expand the group to see each instance on its own row.
+
 ## Reading the CPU profile
 
 Written to `boot-whenReady.cpuprofile` in the app logs directory (next to `app.<date>.log`; `application.getPath('app.logs')`). Open in Chrome DevTools (Performance → Load profile) or VS Code's built-in `.cpuprofile` viewer. Sort by **self time** for true CPU attribution.

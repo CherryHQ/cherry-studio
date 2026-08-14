@@ -100,7 +100,7 @@ export class LifecycleManager extends EventEmitter {
   private phaseEpoch = 0
   private serviceSpans: Map<string, ServiceSpan> = new Map()
 
-  /** perf 埋点：bootstrap 泳道的根与各阶段 span，服务 span 挂在对应阶段下。 */
+  /** perf instrumentation: the bootstrap lane root and per-phase spans; service spans hang off their phase. */
   private bootstrapSpan: PerfSpanHandle | null = null
   private readonly phaseSpans = new Map<Phase, PerfSpanHandle>()
 
@@ -175,7 +175,7 @@ export class LifecycleManager extends EventEmitter {
 
     const phaseStart = performance.now()
     this.phaseEpoch = phaseStart
-    // 根 span 在第一个阶段开始时建立，最后一个阶段结束时收口。
+    // The root span opens with the first phase and closes when the last one completes.
     this.bootstrapSpan ??= perf.start('bootstrap', { track: 'bootstrap' })
     this.phaseSpans.set(phase, perf.start(`phase:${phase}`, { track: 'bootstrap', parent: this.bootstrapSpan }))
     const lagSampler = DIAGNOSTICS_ENABLED ? new EventLoopLagSampler() : null

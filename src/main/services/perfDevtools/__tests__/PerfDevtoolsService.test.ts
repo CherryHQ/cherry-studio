@@ -24,7 +24,7 @@ vi.mock('@main/core/devtools', () => ({ installBundledDevtools: vi.fn() }))
 
 import { PerfDevtoolsService } from '../PerfDevtoolsService'
 
-/** 最小 WebSocket 替身：记录发出的帧，并能模拟面板发来的消息。 */
+/** Minimal WebSocket stand-in: records outgoing frames and can replay panel messages. */
 class FakeSocket extends EventEmitter {
   readyState = 1
   sent: string[] = []
@@ -43,7 +43,7 @@ class FakeSocket extends EventEmitter {
   }
 }
 
-/** 触达服务内部的连接处理，避免真的开端口。 */
+/** Reaches the service's connection handling without opening a real port. */
 interface ServiceInternals {
   handleConnection(socket: FakeSocket, origin: string | undefined): void
   registerOrigin(origin: string): void
@@ -51,7 +51,7 @@ interface ServiceInternals {
 
 function createService(recorder: PerfRecorder) {
   const service = new PerfDevtoolsService(recorder)
-  // onInit 会开端口，这里只订阅 span 流，等价于 onInit 里那一句。
+  // onInit would bind a port; subscribe to the span stream only — the same line onInit runs.
   recorder.onSpan((span) => (service as unknown as { broadcast(m: unknown): void }).broadcast({ type: 'span', span }))
   return service as unknown as ServiceInternals
 }

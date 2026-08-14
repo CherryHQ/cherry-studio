@@ -6,7 +6,7 @@ import type { PerfDetail, PerfSpan, PerfSpanHandle, PerfStartOptions, PerfTrack 
 const DEFAULT_MAX_SPANS = 5000
 const DEFAULT_TRACK: PerfTrack = 'custom'
 
-/** 关闭时返回的共享句柄：不分配对象、不读时钟、不生成 id。 */
+/** Shared handle returned while disabled: allocates nothing, reads no clock, mints no id. */
 const NOOP_HANDLE: PerfSpanHandle = Object.freeze({
   id: '',
   end() {}
@@ -19,8 +19,9 @@ interface PerfRecorderOptions {
 }
 
 /**
- * 扁平 span + 可选父引用的埋点内核。完成的 span 有两个出口：自有环形缓冲
- * （供 Main Perf 面板）与 Node 标准 timeline（供 `--inspect` 下的原生 Performance 面板）。
+ * Flat spans with an optional parent reference. A completed span has two outlets: this
+ * recorder's own ring buffer (feeding the Main Perf panel) and the Node performance
+ * timeline (feeding the native Performance panel when attached with `--inspect`).
  */
 export class PerfRecorder {
   readonly enabled: boolean
@@ -28,8 +29,9 @@ export class PerfRecorder {
   private readonly maxSpans: number
   private readonly now: () => number
   /**
-   * 懒建：LifecycleManager 依赖 perf，而 perf 从 lifecycle barrel 取 Emitter，构成
-   * 循环导入。把 Emitter 的解引用推迟到订阅时，就不依赖 barrel 里的声明顺序。
+   * Created lazily. LifecycleManager depends on perf while perf pulls Emitter from the
+   * lifecycle barrel, so the two modules form an import cycle; deferring the Emitter
+   * dereference to first subscription keeps this independent of the barrel's export order.
    */
   private emitter: Emitter<PerfSpan> | null = null
   readonly onSpan: Event<PerfSpan> = (listener) => (this.emitter ??= new Emitter<PerfSpan>()).event(listener)
@@ -88,8 +90,9 @@ export class PerfRecorder {
   }
 
   /**
-   * detail 走结构化克隆，含函数等不可克隆值时整条 measure 都不会写入 —— 退回不带
-   * detail 再写一次，保证 timeline 不因附加信息而丢条目。
+   * `detail` is structured-cloned, and a non-cloneable value (a function, say) drops the
+   * whole measure rather than just the detail. Retry without it so the timeline never
+   * loses an entry over its optional payload.
    */
   private writeTimeline(span: PerfSpan): void {
     const start = span.startTime
@@ -100,16 +103,17 @@ export class PerfRecorder {
       try {
         performance.measure(span.name, { start, end })
       } catch {
-        // timeline 是附加出口，写不进去也不该影响采集。
+        // The timeline is a secondary outlet; failing to write it must not affect collection.
       }
     }
   }
 }
 
 /**
- * 直接读 env 而非 `isDev` from `@main/core/platform`：本模块被 lifecycle 基座导入，
- * 模块求值时读任何外部模块的导出，都会变成每个服务测试的 partial mock 的必填项。
- * `diagnostics.ts` 自读 `CS_DIAGNOSTICS` 是同一个理由。
+ * Reads the env var directly instead of `isDev` from `@main/core/platform`: the lifecycle
+ * substrate imports this module, so reading any external module's export at evaluation time
+ * would make it a required key in every service test's partial mock. `diagnostics.ts` reads
+ * `CS_DIAGNOSTICS` itself for the same reason.
  */
 const PERF_ENABLED = process.env.NODE_ENV === 'development' || DIAGNOSTICS_ENABLED
 
