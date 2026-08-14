@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -9,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))
 
-import { buildDshCompositionYaml, type DshCompositionInput } from '../compositionBuilder'
+import { buildDshCompositionYaml, type DshCompositionInput, toDshPluginUrl } from '../compositionBuilder'
 import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
@@ -123,14 +124,25 @@ describe('buildDshCompositionYaml', () => {
     expect(yaml).toContain('cwd: "C:\\\\Users\\\\Cherry\\\\workspace"')
   })
 
-  it('resolves every plugin specifier to an absolute on-disk path', () => {
+  it('emits every plugin entry as an importable on-disk file URL', () => {
     const yml = buildDshCompositionYaml(makeInput())
     const specifiers = [...yml.matchAll(/^ {2}name: (".*")$/gm)].map(([, quoted]) => JSON.parse(quoted) as string)
 
     expect(specifiers.length).toBeGreaterThan(0)
     for (const specifier of specifiers) {
-      expect(path.isAbsolute(specifier), `not absolute: ${specifier}`).toBe(true)
+      expect(new URL(specifier).protocol).toBe('file:')
+      expect(path.isAbsolute(fileURLToPath(specifier)), `not absolute: ${specifier}`).toBe(true)
     }
+  })
+
+  it('converts Windows drive paths to ESM-compatible file URLs', () => {
+    const pluginPath = 'C:\\Users\\xxx\\Code\\cherry-studio\\node_modules\\@deepseek-ai\\dsh-tool-pwsh\\lib\\index.js'
+    const pluginUrl = toDshPluginUrl(pluginPath)
+
+    expect(pluginUrl).toBe(
+      'file:///C:/Users/xxx/Code/cherry-studio/node_modules/@deepseek-ai/dsh-tool-pwsh/lib/index.js'
+    )
+    expect(fileURLToPath(pluginUrl, { windows: true })).toBe(pluginPath)
   })
 
   it('inlines the provider route and model declaration', () => {

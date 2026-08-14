@@ -214,8 +214,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       permissionMode: this.permissionMode,
       persona,
       customBase: prompt.base.kind === 'custom',
-      skillDirs: snapshot.additionalSkillPaths,
-      platform: process.platform
+      skillDirs: snapshot.additionalSkillPaths
     })
     this.compositionPath = path.join(dshRoot, 'compositions', `${this.input.sessionId}.${this.generation}.yml`)
     await mkdir(path.dirname(this.compositionPath), { recursive: true })
