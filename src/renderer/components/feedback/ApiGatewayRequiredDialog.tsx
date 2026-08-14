@@ -4,10 +4,6 @@ import { useIpcOn } from '@renderer/ipc'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props {
-  sessionId: string
-}
-
 /**
  * Main refuses to bridge an agent through a disabled API gateway (it never starts it implicitly),
  * so it asks here instead. Enabling persists the preference, which is also what makes the gateway
@@ -16,16 +12,20 @@ interface Props {
  * Enabling is ALL this does. Resending the failed message would be a request the user never
  * approved, rebuilt from text alone — dropping attachments, knowledge scope and the reasoning /
  * fast-mode selection frozen with the original turn.
+ *
+ * Mounted globally in AppShell: it listens for every 'api_gateway.required' event regardless
+ * of which tab is active, ensuring the prompt is always shown even if the triggering session
+ * is in a background tab or dormant.
  */
-export function ApiGatewayRequiredDialog({ sessionId }: Props) {
+export function ApiGatewayRequiredDialog() {
   const [open, setOpen] = useState(false)
 
-  useIpcOn('api_gateway.required', (payload) => {
-    if (payload.sessionId === sessionId) setOpen(true)
+  useIpcOn('api_gateway.required', () => {
+    setOpen(true)
   })
 
-  // Every agent chat renders this, but the prompt is rare — keep the gateway preference and
-  // shared-cache subscriptions out of the common path until it actually fires.
+  // The prompt is rare — keep the gateway preference and shared-cache subscriptions
+  // out of the common path until it actually fires.
   if (!open) return null
   return <GatewayPrompt onOpenChange={setOpen} />
 }
