@@ -729,20 +729,30 @@ const Sessions = ({
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
 
-      const success = await deleteSession(id)
-      if (!success || activeSessionId !== id) return
-
-      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
-      // never jump to an unrelated agent's session. When that agent has no other session left, open a
-      // fresh empty one for it instead of stranding the view.
+      // Resolve the neighbour within the *same agent* (both layouts) so deletion never jumps to an
+      // unrelated agent's session, and switch to it BEFORE deleting. Deleting publishes a by-id data
+      // change that revalidates the just-deleted session as 404; if that id were still the URL-bound
+      // active session, AgentPage's route-recovery effect would clear the route and re-enter bare,
+      // which then creates a stray empty session. Switching first makes the 404 land on a session that
+      // is no longer bound, so recovery stays dormant.
       const agentScopedSessions = deletedSession
         ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
         : filteredGroupedSessions
       const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
-      if (next) {
-        setActiveSessionId(next.id)
+      const wasActive = activeSessionIdRef.current === id
+      if (next && wasActive) setActiveSessionId(next.id)
+
+      const success = await deleteSession(id)
+      if (!success) {
+        // Delete failed: undo the optimistic switch so the user stays on what they tried to delete.
+        if (next && wasActive) setActiveSessionId(id)
         return
       }
+      // A non-active session was deleted, or we already switched to the neighbour above.
+      if (!wasActive || next) return
+
+      // The deleted session was its agent's last one: open a fresh empty one for it instead of
+      // stranding the view.
 
       const seed = deletedSession
         ? buildCreateSessionSeed({
@@ -773,7 +783,7 @@ const Sessions = ({
         if (!createdSession) setActiveSessionId(null)
       }
     },
-    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
+    [agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
   )
 
   const handleRenameSession = useCallback(

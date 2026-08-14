@@ -2280,6 +2280,48 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
   })
 
+  it('switches to the neighbour before deleting the active session so the by-id 404 never binds the route', async () => {
+    // Regression: deleting the active session used to switch to the neighbour only AFTER awaiting
+    // deleteSession, so the just-deleted id was still the URL-bound active session when its by-id
+    // revalidation returned 404. That tripped AgentPage's route-recovery effect, which cleared the
+    // route bare and re-created a stray empty session. The switch must precede the delete.
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'A session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'B session', agentId: 'agent-a', orderKey: 'b' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+    sessionDataMocks.deleteSession.mockResolvedValue(true)
+
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('B session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-b'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+    )
+    // The neighbour switch (session-a) must land before the delete (session-b); the inverse order
+    // is exactly what let the route-recovery race create a stray session.
+    const switchOrder = setActiveSessionId.mock.invocationCallOrder.at(-1)!
+    const deleteOrder = sessionDataMocks.deleteSession.mock.invocationCallOrder.at(-1)!
+    expect(switchOrder).toBeLessThan(deleteOrder)
+  })
+
   it('creates an agent-scoped session, not a cross-agent jump, after deleting an agent last session in the modern sidebar', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
