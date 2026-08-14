@@ -94,6 +94,7 @@ describe('DeepSeek Harness config transaction', () => {
 
   afterEach(async () => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -109,6 +110,7 @@ describe('DeepSeek Harness config transaction', () => {
       resolveDeepSeekHarnessEndpoint(
         provider({
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true },
           endpointConfigs: {
             [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/v1/' },
             [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
@@ -123,7 +125,10 @@ describe('DeepSeek Harness config transaction', () => {
     })
 
     expect(
-      resolveDeepSeekHarnessEndpoint(provider(), model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))
+      resolveDeepSeekHarnessEndpoint(
+        provider({ apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true } }),
+        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      )
     ).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       protocol: 'openai-responses',
@@ -135,7 +140,7 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('has no DeepSeek Harness compatible endpoint')
   })
 
-  it('uses an advertised Anthropic route when a reasoning Chat endpoint cannot accept developer messages', () => {
+  it('uses an advertised Anthropic route when the selected endpoint cannot preserve developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
@@ -164,6 +169,59 @@ describe('DeepSeek Harness config transaction', () => {
       protocol: 'openai-completions',
       baseUrl: 'https://proxy.example/v1'
     })
+
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        {
+          ...openAiFirstProvider,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
+          }
+        },
+        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages',
+      baseUrl: 'https://proxy.example/anthropic'
+    })
+  })
+
+  it('rejects direct endpoints whose developer-role limitation cannot be represented by DSH', () => {
+    const providerWithoutDeveloperRole = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(() =>
+      resolveDeepSeekHarnessEndpoint(
+        providerWithoutDeveloperRole,
+        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      )
+    ).toThrow('must be used through the Unified Gateway')
+    expect(() =>
+      resolveDeepSeekHarnessEndpoint(
+        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      )
+    ).toThrow('must be used through the Unified Gateway')
+
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+        model({
+          capabilities: [],
+          reasoning: undefined,
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        })
+      )
+    ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
   })
 
   it('preserves comments, unrelated routes, and old managed models while selecting the new default', async () => {
@@ -282,5 +340,19 @@ describe('DeepSeek Harness config transaction', () => {
     expect(await readFile(lockPath, 'utf8')).toBe('external owner')
     await unlink(lockPath)
     await expect(pendingWrite).resolves.toBeDefined()
+  })
+
+  it('reclaims a managed lock after its owner process has exited', async () => {
+    const lockPath = path.join(dir, '.credentials.yaml.lock')
+    await writeFile(lockPath, JSON.stringify({ version: 1, pid: 424242, token: 'orphaned-owner' }), { mode: 0o600 })
+    vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
+      if (pid === 424242 && signal === 0) {
+        throw Object.assign(new Error('process not found'), { code: 'ESRCH' })
+      }
+      return true
+    }) as typeof process.kill)
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).resolves.toBeDefined()
+    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

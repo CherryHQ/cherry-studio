@@ -41,6 +41,12 @@ interface HeldLock {
   handle: FileHandle
 }
 
+interface LockOwner {
+  version: 1
+  pid: number
+  token: string
+}
+
 const SETTINGS_FILE = 'settings.yaml'
 const CREDENTIALS_FILE = '.credentials.yaml'
 const FILE_MODE = 0o600
@@ -72,6 +78,68 @@ function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT'
 }
 
+function parseLockOwner(content: string): LockOwner | undefined {
+  try {
+    const owner = JSON.parse(content) as Partial<LockOwner>
+    if (
+      owner.version === 1 &&
+      Number.isSafeInteger(owner.pid) &&
+      Number(owner.pid) > 0 &&
+      typeof owner.token === 'string' &&
+      owner.token.length > 0
+    ) {
+      return owner as LockOwner
+    }
+  } catch {
+    // Locks from DSH or older Cherry versions have no ownership metadata.
+  }
+  return undefined
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
+}
+
+async function reclaimOrphanedLock(lockPath: string): Promise<boolean> {
+  let observed: string
+  try {
+    observed = await fs.readFile(lockPath, 'utf8')
+  } catch (error) {
+    if (isMissing(error)) return true
+    throw error
+  }
+
+  const owner = parseLockOwner(observed)
+  if (!owner || isProcessAlive(owner.pid)) return false
+
+  try {
+    if ((await fs.readFile(lockPath, 'utf8')) !== observed) return false
+    await fs.unlink(lockPath)
+    return true
+  } catch (error) {
+    if (isMissing(error)) return true
+    throw error
+  }
+}
+
+async function createLock(lockPath: string): Promise<HeldLock> {
+  const handle = await fs.open(lockPath, 'wx', FILE_MODE)
+  try {
+    const owner: LockOwner = { version: 1, pid: process.pid, token: crypto.randomUUID() }
+    await handle.writeFile(JSON.stringify(owner), 'utf8')
+    return { path: lockPath, handle }
+  } catch (error) {
+    await handle.close().catch(() => {})
+    await fs.unlink(lockPath).catch(() => {})
+    throw error
+  }
+}
+
 async function acquireLock(filePath: string): Promise<HeldLock> {
   const lockPath = `${filePath}.lock`
   const startedAt = Date.now()
@@ -79,9 +147,10 @@ async function acquireLock(filePath: string): Promise<HeldLock> {
 
   while (true) {
     try {
-      return { path: lockPath, handle: await fs.open(lockPath, 'wx', FILE_MODE) }
+      return await createLock(lockPath)
     } catch (error) {
       if (!isAlreadyExists(error)) throw error
+      if (await reclaimOrphanedLock(lockPath)) continue
       const elapsed = Date.now() - startedAt
       if (elapsed >= LOCK_TIMEOUT_MS) {
         throw new Error(`Timed out waiting for DeepSeek Harness config lock: ${path.basename(lockPath)}`)
@@ -271,14 +340,19 @@ export function resolveDeepSeekHarnessEndpoint(
       ? provider.defaultChatEndpoint
       : DIRECT_ENDPOINTS.find(hasBaseUrl)
 
-  if (
-    endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
-    provider.apiFeatures.developerRole === false &&
-    (model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined) &&
-    declaredModelEndpoints?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
-    hasBaseUrl(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  ) {
-    endpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  const requiresDeveloperRole =
+    endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
+    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+      (model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined))
+  if (provider.apiFeatures.developerRole === false && requiresDeveloperRole) {
+    if (
+      declaredModelEndpoints?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
+      hasBaseUrl(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    ) {
+      endpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    } else {
+      throw new Error(`Provider ${provider.id} must be used through the Unified Gateway for DeepSeek Harness`)
+    }
   }
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
