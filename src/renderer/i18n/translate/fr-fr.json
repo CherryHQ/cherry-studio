@@ -2959,6 +2959,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Commentaires",
+    "guide": "Guide d’utilisation",
+    "star": "Star sur GitHub",
+    "title": "Aide",
+    "whats_new": "Nouveautés"
+  },
   "history": {
     "continue_chat": "Continuer la conversation",
     "error": {
@@ -6027,7 +6034,7 @@
           "title": "Archive de diagnostic"
         },
         "errors": {
-          "busy": "Une autre archive de diagnostic est déjà en cours d’exportation",
+          "busy": "Une autre opération de diagnostic est déjà en cours",
           "copy_failed": "Impossible de copier l'adresse e-mail de l'assistance",
           "destination_conflict": "L'emplacement d'enregistrement sélectionné entre en conflit avec les données de diagnostic. Choisissez un autre dossier.",
           "email_client_failed": "Impossible d'ouvrir un client de messagerie. Vous pouvez copier l'adresse e-mail de l'assistance à la place.",
@@ -6076,6 +6083,48 @@
           "title": "Archive de diagnostic exportée"
         },
         "unknown": "Inconnu",
+        "upload": {
+          "actions": {
+            "consent_upload": "Accepter et envoyer",
+            "open_form": "Ouvrir le formulaire",
+            "uploading": "Envoi en cours..."
+          },
+          "dialog": {
+            "description": "Créez un paquet de diagnostic et envoyez-le anonymement à l’équipe Cherry Studio.",
+            "title": "Envoyer le paquet de diagnostic"
+          },
+          "errors": {
+            "open_form_failed": "Impossible d’ouvrir le formulaire de commentaires",
+            "upload_failed": "Impossible de créer ou d’enregistrer le paquet de diagnostic"
+          },
+          "manual": {
+            "description": "Le fichier ZIP a été enregistré dans Téléchargements et le formulaire anonyme a été ouvert. Sélectionnez-y le fichier enregistré pour terminer l’envoi.",
+            "title": "Envoi manuel requis"
+          },
+          "privacy": {
+            "description": "Le paquet contient toujours des informations sur l’application et l’appareil. Les journaux et enregistrements détaillés sélectionnés peuvent contenir vos saisies, des emplacements de fichiers, le contenu des requêtes et réponses ainsi que des informations de connexion aux services. Il est envoyé anonymement vers un formulaire Feishu privé et sa taille est limitée à {{size}}. En cliquant sur « Accepter et envoyer », vous acceptez la création et l’envoi de ce paquet.",
+            "title": "Avis de confidentialité"
+          },
+          "reasons": {
+            "attachment_upload_failed": "La pièce jointe n’a pas pu être envoyée automatiquement.",
+            "form_changed": "La structure du formulaire de commentaires a changé et n’a pas pu être vérifiée en toute sécurité.",
+            "form_unavailable": "Le formulaire de commentaires est actuellement indisponible.",
+            "network_failed": "La requête réseau n’a pas pu aboutir.",
+            "submission_rejected": "Le formulaire de commentaires a refusé l’envoi."
+          },
+          "success": {
+            "description": "Taille du fichier {{size}} · {{included}} fichiers collectés · {{omitted}} fichiers non collectés",
+            "title": "Paquet de diagnostic envoyé"
+          },
+          "unknown": {
+            "description": "Le fichier ZIP a été enregistré dans Téléchargements, mais la réponse du serveur a été interrompue. Il a peut-être déjà été envoyé. Vérifiez avant d’ouvrir le formulaire afin d’éviter un double envoi.",
+            "title": "L’envoi a peut-être réussi"
+          },
+          "unknown_without_copy": {
+            "description": "La réponse du serveur a été interrompue et le fichier ZIP de diagnostic n’a pas pu être enregistré localement. Ne relancez pas l’envoi, car le même avis pourrait être envoyé deux fois.",
+            "title": "L’envoi a peut-être réussi, mais aucune copie locale n’a été enregistrée"
+          }
+        },
         "warning": "Certaines informations de diagnostic n'étaient pas disponibles. L'archive exportée est peut-être incomplète."
       },
       "downloading": "Téléchargement de la mise à jour en cours...",
@@ -6084,24 +6133,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discutez avec Cherry Support pour obtenir de l'aide ou partager vos commentaires.",
-          "title": "Utiliser Agent"
+          "description": "Discutez avec l'Agent Cherry Support intégré pour obtenir de l'aide sur Cherry Studio ou partager vos commentaires.",
+          "title": "Demander à Cherry Support"
         },
-        "agent_error": "Impossible d'ouvrir Cherry Support pour envoyer un commentaire. Veuillez réessayer.",
+        "agent_error": "Impossible d'ouvrir Cherry Support. Veuillez réessayer.",
         "button": "Faire un retour",
+        "diagnostics": {
+          "description": "Vérifiez les informations de diagnostic récentes, puis envoyez-les anonymement en une seule étape.",
+          "title": "Envoyer le paquet de diagnostic"
+        },
         "dialog": {
           "description": "Choisissez comment partager votre retour d'expérience et aidez-nous à améliorer Cherry Studio.",
           "title": "Choisir un canal de retour d'information"
         },
         "github": {
           "description": "Créer un rapport de bug ou une demande de fonctionnalité sur GitHub.",
+          "error": "Impossible d'ouvrir les issues GitHub. Veuillez réessayer.",
           "title": "Problème GitHub"
         },
         "recommended": "Recommandé",
-        "survey": {
-          "description": "Partagez vos commentaires via notre enquête Feishu.",
-          "title": "Enquête de retour d'information"
-        },
         "title": "Retour d'information"
       },
       "label": "À propos de nous",

@@ -166,6 +166,7 @@ const AgentPage = () => {
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const isActiveTab = useIsActiveTab()
   const currentTabId = useCurrentTabId()
@@ -243,8 +244,11 @@ const AgentPage = () => {
   const sessionRevealRequestIdRef = useRef(0)
   const initialEmptySessionEvaluatedRef = useRef(false)
   const routeFeedbackComposerLaunch = useMemo<FeedbackComposerLaunch | null>(
-    () => (isFeedbackIntent && routeSessionId ? createFeedbackComposerLaunch(routeSessionId) : null),
-    [isFeedbackIntent, routeSessionId]
+    () =>
+      isFeedbackIntent && routeSessionId
+        ? createFeedbackComposerLaunch(routeSessionId, t('settings.about.feedback.agent.description'))
+        : null,
+    [isFeedbackIntent, routeSessionId, t]
   )
   const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(
     routeFeedbackComposerLaunch
@@ -253,7 +257,6 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
-  const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()

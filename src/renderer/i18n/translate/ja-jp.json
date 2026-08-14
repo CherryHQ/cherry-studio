@@ -2959,6 +2959,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "フィードバック",
+    "guide": "ユーザーガイド",
+    "star": "GitHubでスター",
+    "title": "ヘルプ",
+    "whats_new": "新機能"
+  },
   "history": {
     "continue_chat": "チャットを続ける",
     "error": {
@@ -6027,7 +6034,7 @@
           "title": "診断バンドル"
         },
         "errors": {
-          "busy": "別の診断バンドルをエクスポートしています",
+          "busy": "別の診断バンドル処理がすでに進行中です",
           "copy_failed": "サポート用メールアドレスをコピーできませんでした",
           "destination_conflict": "選択した保存場所が診断データと競合しています。別のフォルダーを選択してください。",
           "email_client_failed": "メールクライアントを開けませんでした。代わりにサポート用メールアドレスをコピーできます。",
@@ -6076,6 +6083,48 @@
           "title": "診断バンドルをエクスポートしました"
         },
         "unknown": "不明",
+        "upload": {
+          "actions": {
+            "consent_upload": "同意してアップロード",
+            "open_form": "フォームを開く",
+            "uploading": "アップロード中..."
+          },
+          "dialog": {
+            "description": "診断バンドルを作成し、Cherry Studio チームに匿名で送信します。",
+            "title": "診断バンドルをアップロード"
+          },
+          "errors": {
+            "open_form_failed": "フィードバックフォームを開けませんでした",
+            "upload_failed": "診断バンドルを作成または保存できませんでした"
+          },
+          "manual": {
+            "description": "ZIP ファイルは「ダウンロード」に保存され、匿名フォームが開かれました。フォームで保存済みのファイルを選択し、送信を完了してください。",
+            "title": "手動アップロードが必要です"
+          },
+          "privacy": {
+            "description": "バンドルには常にアプリとデバイスの情報が含まれます。選択したログや詳細記録には、入力内容、ファイルの場所、リクエストとレスポンスの内容、サービス接続情報が含まれる場合があります。バンドルは非公開の Feishu フォームに匿名で送信され、サイズは {{size}} に制限されます。「同意してアップロード」をクリックすると、このバンドルの作成と送信に同意したものとみなされます。",
+            "title": "プライバシーに関するお知らせ"
+          },
+          "reasons": {
+            "attachment_upload_failed": "添付ファイルを自動でアップロードできませんでした。",
+            "form_changed": "フィードバックフォームの構造が変更され、安全に検証できませんでした。",
+            "form_unavailable": "フィードバックフォームは現在利用できません。",
+            "network_failed": "ネットワークリクエストを完了できませんでした。",
+            "submission_rejected": "フィードバックフォームで送信が拒否されました。"
+          },
+          "success": {
+            "description": "ファイルサイズ {{size}} · 収集済み {{included}} ファイル · 未収集 {{omitted}} ファイル",
+            "title": "診断バンドルをアップロードしました"
+          },
+          "unknown": {
+            "description": "ZIP ファイルは「ダウンロード」に保存されましたが、サーバーからの応答が途切れました。すでに送信済みの可能性があります。重複送信を避けるため、フォームを開く前に確認してください。",
+            "title": "送信済みの可能性があります"
+          },
+          "unknown_without_copy": {
+            "description": "サーバーからの応答が中断され、診断 ZIP をローカルに保存できませんでした。同じフィードバックが重複して送信される可能性があるため、アップロードをやり直さないでください。",
+            "title": "送信が成功している可能性がありますが、ローカルコピーは保存されていません"
+          }
+        },
         "warning": "一部の診断情報を取得できなかったため、エクスポートされたバンドルが不完全な可能性があります。"
       },
       "downloading": "ダウンロード中...",
@@ -6084,24 +6133,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Cherry Support とチャットして、ヘルプを受けたりフィードバックを共有したりできます。",
-          "title": "エージェントを使用する"
+          "description": "組み込みの Cherry Support Agent に、Cherry Studio の使い方や問題について相談したり、フィードバックを送信したりできます。",
+          "title": "Cherry Support に相談"
         },
-        "agent_error": "フィードバック用の Cherry Support を開けません。もう一度お試しください。",
+        "agent_error": "Cherry Support を開けません。もう一度お試しください。",
         "button": "フィードバック",
+        "diagnostics": {
+          "description": "最近の診断情報を確認し、ワンクリックで匿名アップロードします。",
+          "title": "診断バンドルをアップロード"
+        },
         "dialog": {
           "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",
           "title": "フィードバックチャンネルを選択してください"
         },
         "github": {
           "description": "GitHubでバグ報告や機能要望を作成する。",
+          "error": "GitHub Issue を開けませんでした。もう一度お試しください。",
           "title": "GitHub Issue"
         },
         "recommended": "おすすめ",
-        "survey": {
-          "description": "Feishuアンケートを通じてフィードバックをお寄せください。",
-          "title": "フィードバック調査"
-        },
         "title": "フィードバック"
       },
       "label": "について",

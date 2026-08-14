@@ -2959,6 +2959,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Ghid de utilizare",
+    "star": "Stea pe GitHub",
+    "title": "Ajutor",
+    "whats_new": "Noutăți"
+  },
   "history": {
     "continue_chat": "Continuă conversația",
     "error": {
@@ -6027,7 +6034,7 @@
           "title": "Pachet de diagnosticare"
         },
         "errors": {
-          "busy": "Se exportă deja un alt pachet de diagnosticare",
+          "busy": "Este deja în curs o altă operațiune cu un pachet de diagnosticare",
           "copy_failed": "Nu s-a putut copia adresa de e-mail pentru asistență",
           "destination_conflict": "Locația de salvare selectată intră în conflict cu datele de diagnosticare. Alege un alt director.",
           "email_client_failed": "Nu s-a putut deschide un client de e-mail. În schimb, poți copia adresa de e-mail pentru asistență.",
@@ -6076,6 +6083,48 @@
           "title": "Pachet de diagnosticare exportat"
         },
         "unknown": "Necunoscut",
+        "upload": {
+          "actions": {
+            "consent_upload": "Acceptă și încarcă",
+            "open_form": "Deschide formularul",
+            "uploading": "Se încarcă..."
+          },
+          "dialog": {
+            "description": "Creează un pachet de diagnosticare și trimite-l anonim echipei Cherry Studio.",
+            "title": "Încarcă pachetul de diagnosticare"
+          },
+          "errors": {
+            "open_form_failed": "Formularul de feedback nu a putut fi deschis",
+            "upload_failed": "Pachetul de diagnosticare nu a putut fi creat sau salvat"
+          },
+          "manual": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, iar formularul anonim a fost deschis. Selectează acolo fișierul salvat pentru a finaliza trimiterea.",
+            "title": "Este necesară încărcarea manuală"
+          },
+          "privacy": {
+            "description": "Pachetul include întotdeauna informații despre aplicație și dispozitiv. Jurnalele și înregistrările detaliate selectate pot conține informații introduse de tine, locații de fișiere, conținutul solicitărilor și răspunsurilor și informații despre conexiunile la servicii. Este trimis anonim către un formular Feishu privat și este limitat la {{size}}. Dacă apeși „Acceptă și încarcă”, ești de acord cu crearea și trimiterea acestui pachet.",
+            "title": "Notificare privind confidențialitatea"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Atașamentul nu a putut fi încărcat automat.",
+            "form_changed": "Structura formularului de feedback s-a modificat și nu a putut fi verificată în siguranță.",
+            "form_unavailable": "Formularul de feedback nu este disponibil momentan.",
+            "network_failed": "Solicitarea de rețea nu a putut fi finalizată.",
+            "submission_rejected": "Formularul de feedback a respins trimiterea."
+          },
+          "success": {
+            "description": "Dimensiune fișier {{size}} · {{included}} fișiere colectate · {{omitted}} fișiere necolectate",
+            "title": "Pachetul de diagnosticare a fost încărcat"
+          },
+          "unknown": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, dar răspunsul serverului a fost întrerupt. Este posibil ca trimiterea să fi fost deja finalizată. Verifică înainte de a deschide formularul pentru a evita trimiterea de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit"
+          },
+          "unknown_without_copy": {
+            "description": "Răspunsul serverului a fost întrerupt, iar fișierul ZIP de diagnosticare nu a putut fi salvat local. Nu reîncerca încărcarea, deoarece același feedback ar putea fi trimis de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit, dar nu a fost salvată nicio copie locală"
+          }
+        },
         "warning": "Unele informații de diagnosticare nu au fost disponibile. Este posibil ca pachetul exportat să fie incomplet."
       },
       "downloading": "Se descarcă...",
@@ -6084,24 +6133,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Cherry Support pentru ajutor sau pentru a împărtăși feedback-ul tău.",
-          "title": "Folosește agentul"
+          "description": "Discută cu Agentul Cherry Support integrat pentru ajutor cu Cherry Studio sau pentru a trimite feedback.",
+          "title": "Cere ajutor Cherry Support"
         },
-        "agent_error": "Nu se poate deschide Cherry Support pentru feedback. Încearcă din nou.",
+        "agent_error": "Cherry Support nu poate fi deschis. Încearcă din nou.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Verifică informațiile recente de diagnosticare, apoi încarcă-le anonim într-un singur pas.",
+          "title": "Încarcă pachetul de diagnosticare"
+        },
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
           "title": "Alege un canal de feedback"
         },
         "github": {
           "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "error": "Problemele GitHub nu au putut fi deschise. Încearcă din nou.",
           "title": "Problemă GitHub"
         },
         "recommended": "Recomandat",
-        "survey": {
-          "description": "Împărtășiți feedback-ul prin sondajul nostru Feishu.",
-          "title": "Sondaj de feedback"
-        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",
