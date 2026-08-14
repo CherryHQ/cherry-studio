@@ -1,3 +1,4 @@
+export { collectProcessMetrics, sampleMemory } from './memory'
 export { perf, PerfRecorder } from './PerfRecorder'
 export type {
   MemorySample,
