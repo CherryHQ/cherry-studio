@@ -1376,6 +1376,16 @@
         "failed": "Export failed",
         "image": "Export as image",
         "image_exporting_keep_page": "Exporting image. Please stay on this page.",
+        "image_mode": {
+          "cancel_hint": "Cancelling aborts this export",
+          "count": "{{count}} image(s) will be exported",
+          "embed": "Embed in file (default)",
+          "folder": "Export as image folder",
+          "none": "Without images",
+          "skipped": "Skipped {{count}} image(s) (over 10 MiB or unreadable)",
+          "title": "Export images",
+          "write_failed": "Failed to write {{count}} image(s)"
+        },
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
