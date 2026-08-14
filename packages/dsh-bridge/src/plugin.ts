@@ -19,6 +19,7 @@ import { type BridgeLink, connectBridgeLink } from './link'
 import { decideToolCall, detectGlobalInstall } from './policy'
 import {
   BRIDGE_SOCKET_ENV,
+  BRIDGE_TOKEN_ENV,
   type BridgeContextUsage,
   type BridgePolicy,
   type BridgeToolDescriptor,
@@ -39,11 +40,13 @@ interface RegisteredBridgeTool {
 // No Config schema: env is the channel (a YAML `config` would need a Schemastery schema).
 export function apply(ctx: Context): void {
   const socketPath = process.env[BRIDGE_SOCKET_ENV]
-  if (!socketPath) {
+  const bridgeToken = process.env[BRIDGE_TOKEN_ENV]
+  if (!socketPath || !bridgeToken) {
     // stderr only — stdout is the SDK's JSON-RPC channel.
-    console.error(`[cherry-bridge] ${BRIDGE_SOCKET_ENV} is not set; bridge disabled`)
+    console.error(`[cherry-bridge] ${!socketPath ? BRIDGE_SOCKET_ENV : BRIDGE_TOKEN_ENV} is not set; bridge disabled`)
     return
   }
+  delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
@@ -62,7 +65,7 @@ export function apply(ctx: Context): void {
       pendingAsks.clear()
     }
   })
-  link.send({ type: 'ready', pid: process.pid })
+  link.send({ type: 'ready', pid: process.pid, token: bridgeToken })
   ctx.effect(
     () => () => {
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
@@ -83,7 +86,13 @@ export function apply(ctx: Context): void {
           replaceTools(message.sessionId, message.tools)
           if (message.resume) {
             try {
-              await ctx.agents.resume({ resumeSessionId: SessionId(message.sessionId), agentOptions })
+              const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(message.sessionId), agentOptions })
+              if (resumed.agent.session.header.cwd !== message.cwd) {
+                await resumed.dispose()
+                throw new Error(
+                  `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(message.cwd)}`
+                )
+              }
             } catch (error) {
               if (!isMissingSessionError(error)) throw error
               // No persisted log for this id yet — degrade to a fresh create (pi parity).
@@ -308,7 +317,7 @@ export function apply(ctx: Context): void {
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.
   ctx.tools.guard((exec) => {
-    if (exec.name !== 'bash') return undefined
+    if (exec.name !== 'bash' && exec.name !== 'pwsh') return undefined
     const command = (exec.arguments as { command?: unknown } | null | undefined)?.command
     if (typeof command !== 'string' || !command.trim()) return undefined
     const reason = detectGlobalInstall(command)

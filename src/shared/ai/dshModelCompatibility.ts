@@ -6,10 +6,10 @@
  * the two sides cannot drift. No service imports, no runtime state — this file
  * must stay importable from both processes.
  *
- * dsh drives models through `dsh-llm-pi-ai`, whose hand-declared route config
- * accepts only the wire protocols it can completely describe with an API key,
- * an endpoint, and headers; providers whose Cherry endpoint has no dsh
- * equivalent are unsupported for dsh agents.
+ * dsh drives models through `dsh-llm-pi-ai`. Cherry injects OpenAI and
+ * Anthropic as declared routes and reuses pi-ai's Google catalog route for
+ * Generate Content; providers whose Cherry endpoint has no equivalent remain
+ * unsupported for dsh agents.
  */
 
 import { MODALITY } from '@cherrystudio/provider-registry'
@@ -20,13 +20,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
- * The wire protocols `dsh-llm-pi-ai` (0.1.0-rc.6) accepts for a hand-declared
- * provider route — its `PROTOCOLS` table. Narrower than pi's family set: Azure
- * (needs an api-version), Bedrock/Vertex (signed requests), and
- * `google-generative-ai` (not yet in the table) are all refused at composition
- * load, so mapping them here would ship agents that cannot boot.
+ * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.6).
+ * OpenAI and Anthropic use hand-declared protocol routes; Google Generate
+ * Content reuses pi-ai's built-in `google` catalog provider. Azure and signed
+ * Bedrock/Vertex routes cannot be expressed by this composition contract.
  */
-export type DshApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses'
+export type DshApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
 
 /**
  * Map a Cherry endpoint (`endpointType` + resolved `adapterFamily`) to the dsh
@@ -57,22 +56,31 @@ export function mapEndpointToDshApi(
       return 'openai-responses'
     case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
       return 'openai-completions'
-    // google-generative-ai is absent from dsh's hand-declared PROTOCOLS table;
-    // rerank/embeddings/audio/image/video/ollama are not chat protocols it drives.
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+      return 'google-generative-ai'
+    // Rerank/embeddings/audio/image/video/ollama are not chat protocols it drives.
     default:
       return undefined
   }
 }
 
 /**
- * The effective chat endpoint the runtime would use: the model's first
- * declared endpoint, else the provider default. Mirrors
- * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
- * renderer, which has no main-only resolver, can reuse it).
+ * The effective chat endpoint the dsh runtime uses. Dual OpenAI-chat +
+ * Anthropic models prefer Anthropic when that route is configured, matching
+ * the main-process injection path.
  */
-function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
+export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
+  const preferredEndpoint =
+    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
+    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
+    provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      : undefined
   return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
+    preferredEndpoint ??
+    model.endpointTypes?.[0] ??
+    resolveGatewayChatRoute(provider, model)?.endpointType ??
+    provider.defaultChatEndpoint
   )
 }
 
@@ -81,7 +89,7 @@ export function resolveDshApi(provider: Provider, model: Model): DshApi | undefi
   // dsh runs as a subprocess with no per-request transport injection, so every login-based
   // provider is undrivable — including the app-managed OAuth ones pi adapts in-process.
   if (isLoginBasedProvider(provider)) return undefined
-  const endpointType = resolveEndpointType(provider, model)
+  const endpointType = resolveDshEndpointType(provider, model)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }

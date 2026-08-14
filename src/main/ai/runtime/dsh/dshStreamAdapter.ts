@@ -11,10 +11,10 @@
  * - `assistant/chunk` block-start/deltas/block-end → text and reasoning chunks
  * - `tool/call` → tool-input-start + tool-input-available (raw JSON args parsed defensively)
  * - `tool/result` → tool-output-available / tool-output-error
- * - `assistant/message` usage → accumulated `message-metadata` + per-call sink callback
+ * - terminal usage chunks → per-attempt accounting; `assistant/message` → successful-turn metadata
  * - `turn/end` → sink callback with the wire reason
  * - `compaction/start|summary|end` → host compaction runtime events via the sink
- * - `llm/retry` → api-retry status via the sink
+ * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
  * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
  */
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -52,7 +52,7 @@ export type DshCompactionRuntimeEvent = Extract<
 
 export interface DshStreamSink {
   enqueue(chunk: CherryUIMessageChunk): void
-  /** One provider call's token accounting (`assistant/message`); the connection owns invocation records. */
+  /** One provider attempt's token accounting; the connection owns invocation records. */
   onAssistantUsage(info: {
     turn: number
     seq: number
@@ -99,6 +99,14 @@ export class DshStreamAdapter {
   private firstTokenAt?: number
   private thinkingMs = 0
   private readonly reasoningOpenedAt = new Map<number, number>()
+  /** Terminal usage arrives before either assistant/message or retry/failure boundaries. */
+  private pendingProviderUsage?: {
+    turn: number
+    step: number
+    seq: number
+    usage: DshTokenUsageLike
+    metrics?: DshInvocationMetrics
+  }
   /** Open compaction folds by compactionId — dsh's lock pairs every start with an end. */
   private readonly activeCompactions = new Map<
     string,
@@ -143,13 +151,17 @@ export class DshStreamAdapter {
     const data = isRecord(event.data) ? event.data : {}
     switch (event.type) {
       case 'turn/start':
+        this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
         this.startedTools.clear()
         this.resetStepTiming()
         return
+      case 'step/start':
+        this.startProviderAttempt(data, true)
+        return
       case 'assistant/chunk':
         this.ensureTurnOpen()
-        this.handleAssistantChunk(data)
+        this.handleAssistantChunk(data, numeric(event.seq))
         return
       case 'tool/call':
         this.ensureTurnOpen()
@@ -164,6 +176,7 @@ export class DshStreamAdapter {
         this.handleAssistantMessage(data, numeric(event.seq))
         return
       case 'turn/end': {
+        this.flushPendingProviderUsage()
         // A turn that never carried content (a stale goal round rejected at pre-step)
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
@@ -177,7 +190,15 @@ export class DshStreamAdapter {
         return
       }
       case 'llm/retry':
+        this.flushPendingProviderUsage()
         this.handleRetry(data)
+        return
+      case 'llm/retry-started':
+        this.startProviderAttempt(data, false)
+        return
+      case 'step/end':
+        this.flushPendingProviderUsage()
+        this.resetStepTiming()
         return
       case 'compaction/start':
         this.handleCompactionStart(data)
@@ -189,7 +210,7 @@ export class DshStreamAdapter {
         this.handleCompactionEnd(data)
         return
       default:
-        // step/*, user/message, todo/write, request/*, approval/*, llm/retry-started,
+        // user/message, todo/write, request/*, approval/*,
         // compaction/prune, session/end-seed, and unknown types: the unknown-event
         // MUST-refuse rule applies to log reconstruction (the runtime's job), not here.
         return
@@ -200,14 +221,11 @@ export class DshStreamAdapter {
     return `dsh-${this.turnSeq}-${index}`
   }
 
-  private handleAssistantChunk(data: Record<string, unknown>): void {
+  private handleAssistantChunk(data: Record<string, unknown>, seq: number): void {
     const stepKey = `${numeric(data.turn)}:${numeric(data.step)}`
     if (stepKey !== this.lastStepKey) {
-      this.lastStepKey = stepKey
-      this.turnSeq += 1
-      this.openBlocks.clear()
-      this.resetStepTiming()
-      this.stepStartedAt = Date.now()
+      // Compatibility fallback for logs produced without a visible step/start.
+      this.startProviderAttempt(data, true)
     }
     const chunk = data.chunk
     if (!isRecord(chunk) || typeof chunk.type !== 'string') return
@@ -242,11 +260,27 @@ export class DshStreamAdapter {
         }
         return
       }
+      case 'usage':
+        if (isRecord(chunk.usage)) this.captureProviderUsage(data, seq, chunk.usage as DshTokenUsageLike)
+        return
       default:
-        // tool-call-delta / usage / finish: tools and usage surface via the
-        // tool/call, tool/result, and assistant/message events instead.
+        // tool-call-delta / finish surface through durable tool and message events.
         return
     }
+  }
+
+  private startProviderAttempt(data: Record<string, unknown>, newStep: boolean): void {
+    if (newStep) {
+      this.flushPendingProviderUsage()
+      const stepKey = `${numeric(data.turn)}:${numeric(data.step)}`
+      if (stepKey !== this.lastStepKey) {
+        this.lastStepKey = stepKey
+        this.turnSeq += 1
+        this.openBlocks.clear()
+      }
+    }
+    this.resetStepTiming()
+    this.stepStartedAt = Date.now()
   }
 
   private openBlock(index: number, kind: 'text' | 'reasoning'): void {
@@ -267,10 +301,12 @@ export class DshStreamAdapter {
     const startedAt = this.stepStartedAt
     if (startedAt === undefined) return undefined
     const now = Date.now()
+    const openThinkingMs = [...this.reasoningOpenedAt.values()].reduce((total, openedAt) => total + now - openedAt, 0)
+    const thinkingMs = this.thinkingMs + openThinkingMs
     const metrics: DshInvocationMetrics = {
       ...(this.firstTokenAt !== undefined ? { timeFirstTokenMs: this.firstTokenAt - startedAt } : {}),
       timeCompletionMs: now - startedAt,
-      ...(this.thinkingMs > 0 ? { timeThinkingMs: this.thinkingMs } : {})
+      ...(thinkingMs > 0 ? { timeThinkingMs: thinkingMs } : {})
     }
     this.resetStepTiming()
     return metrics
@@ -333,42 +369,78 @@ export class DshStreamAdapter {
   }
 
   private handleAssistantMessage(data: Record<string, unknown>, seq: number): void {
-    if (!isRecord(data.usage)) return
-    const usage = data.usage as DshTokenUsageLike
-    // dsh token counts are DISJOINT: billed input = input + cacheRead + cacheWrite.
-    const promptTokens = numeric(usage.inputTokens) + numeric(usage.cacheReadTokens) + numeric(usage.cacheWriteTokens)
-    const completionTokens = numeric(usage.outputTokens)
-    this.turnUsage.promptTokens += promptTokens
-    this.turnUsage.completionTokens += completionTokens
-    this.turnUsage.totalTokens += promptTokens + completionTokens
-    if (usage.reasoningTokens !== undefined) {
-      this.turnUsage.thoughtsTokens += numeric(usage.reasoningTokens)
-      this.turnUsage.hasReasoning = true
-    }
-    this.sink.enqueue({
-      type: 'message-metadata',
-      messageMetadata: {
-        totalTokens: this.turnUsage.totalTokens,
-        stats: {
-          inputTokens: this.turnUsage.promptTokens,
-          outputTokens: this.turnUsage.completionTokens,
-          totalTokens: this.turnUsage.totalTokens,
-          ...(this.turnUsage.hasReasoning
-            ? { outputTokenDetails: { reasoningTokens: this.turnUsage.thoughtsTokens } }
-            : {})
-        }
+    const turn = numeric(data.turn)
+    const step = numeric(data.step)
+    const messageUsage = isRecord(data.usage) ? (data.usage as DshTokenUsageLike) : undefined
+    if (messageUsage) {
+      // dsh token counts are DISJOINT: billed input = input + cacheRead + cacheWrite.
+      const promptTokens =
+        numeric(messageUsage.inputTokens) +
+        numeric(messageUsage.cacheReadTokens) +
+        numeric(messageUsage.cacheWriteTokens)
+      const completionTokens = numeric(messageUsage.outputTokens)
+      this.turnUsage.promptTokens += promptTokens
+      this.turnUsage.completionTokens += completionTokens
+      this.turnUsage.totalTokens += promptTokens + completionTokens
+      if (messageUsage.reasoningTokens !== undefined) {
+        this.turnUsage.thoughtsTokens += numeric(messageUsage.reasoningTokens)
+        this.turnUsage.hasReasoning = true
       }
-    })
+      this.sink.enqueue({
+        type: 'message-metadata',
+        messageMetadata: {
+          totalTokens: this.turnUsage.totalTokens,
+          stats: {
+            inputTokens: this.turnUsage.promptTokens,
+            outputTokens: this.turnUsage.completionTokens,
+            totalTokens: this.turnUsage.totalTokens,
+            ...(this.turnUsage.hasReasoning
+              ? { outputTokenDetails: { reasoningTokens: this.turnUsage.thoughtsTokens } }
+              : {})
+          }
+        }
+      })
+    }
+
+    const pending = this.takePendingProviderUsage(turn, step)
+    const usage = pending?.usage ?? messageUsage
+    if (!usage) return
     const message = isRecord(data.message) ? data.message : undefined
     const source = message && isRecord(message.source) ? message.source : undefined
-    const metrics = this.takeStepMetrics()
+    const metrics = pending?.metrics ?? this.takeStepMetrics()
     this.sink.onAssistantUsage({
-      turn: numeric(data.turn),
-      seq,
+      turn,
+      seq: pending?.seq ?? seq,
       usage,
       ...(typeof source?.model === 'string' ? { model: source.model } : {}),
       ...(metrics ? { metrics } : {})
     })
+  }
+
+  private captureProviderUsage(data: Record<string, unknown>, seq: number, usage: DshTokenUsageLike): void {
+    this.flushPendingProviderUsage()
+    const metrics = this.takeStepMetrics()
+    this.pendingProviderUsage = {
+      turn: numeric(data.turn),
+      step: numeric(data.step),
+      seq,
+      usage,
+      ...(metrics ? { metrics } : {})
+    }
+  }
+
+  private takePendingProviderUsage(turn: number, step: number) {
+    const pending = this.pendingProviderUsage
+    if (!pending || pending.turn !== turn || pending.step !== step) return undefined
+    this.pendingProviderUsage = undefined
+    return pending
+  }
+
+  private flushPendingProviderUsage(): void {
+    const pending = this.pendingProviderUsage
+    if (!pending) return
+    this.pendingProviderUsage = undefined
+    this.sink.onAssistantUsage(pending)
   }
 
   /** `maxRetries` is absent only in the retry plugin's `always` mode, which this composition never selects. */

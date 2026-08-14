@@ -230,6 +230,91 @@ describe('DshStreamAdapter', () => {
     }
   })
 
+  it('starts provider timing at step/start before the first streamed chunk', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(0)
+      const { adapter, onAssistantUsage } = makeAdapter()
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
+      vi.advanceTimersByTime(400)
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      vi.advanceTimersByTime(50)
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'text-delta', index: 0, text: 'answer' }))
+      vi.advanceTimersByTime(50)
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }))
+      adapter.handleEvent(
+        envelope('assistant/message', {
+          turn: 1,
+          step: 1,
+          usage: { inputTokens: 10, outputTokens: 5 },
+          message: { role: 'assistant' }
+        })
+      )
+
+      expect(onAssistantUsage).toHaveBeenCalledOnce()
+      expect(onAssistantUsage.mock.calls[0][0].metrics).toEqual({
+        timeFirstTokenMs: 450,
+        timeCompletionMs: 500
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('records failed retry attempts and deduplicates the successful terminal usage chunk', () => {
+    const { adapter, chunks, onAssistantUsage } = makeAdapter()
+    adapter.beginTurn()
+    adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+    adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
+    adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } }))
+    adapter.handleEvent(
+      envelope('llm/retry', {
+        turn: 1,
+        step: 1,
+        retry: 1,
+        maxRetries: 2,
+        delayMs: 0,
+        failure: { code: 'RATE_LIMIT', status: 429 }
+      })
+    )
+    adapter.handleEvent(envelope('llm/retry-started', { turn: 1, step: 1, retry: 1 }))
+    adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } }))
+    adapter.handleEvent(
+      envelope('assistant/message', {
+        turn: 1,
+        step: 1,
+        usage: { inputTokens: 20, outputTokens: 5 },
+        message: { role: 'assistant', source: { model: 'deepseek-chat' } }
+      })
+    )
+
+    expect(onAssistantUsage).toHaveBeenCalledTimes(2)
+    expect(onAssistantUsage.mock.calls.map((call) => call[0].usage)).toEqual([
+      expect.objectContaining({ inputTokens: 10, outputTokens: 1 }),
+      expect.objectContaining({ inputTokens: 20, outputTokens: 5 })
+    ])
+    expect(chunks.filter((chunk) => chunk.type === 'message-metadata')).toEqual([
+      expect.objectContaining({ messageMetadata: expect.objectContaining({ totalTokens: 25 }) })
+    ])
+  })
+
+  it('records terminal usage when the final provider attempt fails', () => {
+    const { adapter, onAssistantUsage } = makeAdapter()
+    adapter.beginTurn()
+    adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+    adapter.handleEvent(envelope('step/start', { turn: 2, step: 1 }))
+    adapter.handleEvent(chunkEnvelope(2, 1, { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } }))
+    adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
+    adapter.handleEvent(
+      envelope('turn/end', { turn: 2, reason: { kind: 'error', error: { message: 'provider failed' } } })
+    )
+
+    expect(onAssistantUsage).toHaveBeenCalledOnce()
+    expect(onAssistantUsage.mock.calls[0][0].usage).toMatchObject({ inputTokens: 30, outputTokens: 2 })
+  })
+
   it('omits metrics when no chunk streamed before the assistant message', () => {
     const { adapter, onAssistantUsage } = makeAdapter()
     adapter.handleEvent(

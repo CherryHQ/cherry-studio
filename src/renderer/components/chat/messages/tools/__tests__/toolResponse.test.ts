@@ -255,6 +255,7 @@ describe('toolResponse adapter', () => {
   it.each([
     ['pi-agent', 'bash', 'Bash'],
     ['dsh-agent', 'bash', 'Bash'],
+    ['dsh-agent', 'pwsh', 'Bash'],
     ['dsh-agent', 'read', 'Read'],
     ['dsh-agent', 'write', 'Write'],
     ['dsh-agent', 'edit', 'Edit'],

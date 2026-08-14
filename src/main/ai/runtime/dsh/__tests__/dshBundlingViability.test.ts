@@ -1,6 +1,7 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
@@ -29,6 +30,8 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-sdk-jsonrpc-server',
       '@deepseek-ai/dsh-llm-pi-ai',
       '@deepseek-ai/dsh-llm-retry',
+      '@deepseek-ai/dsh-pwsh-local',
+      '@deepseek-ai/dsh-pwsh-sandbox',
       '@deepseek-ai/dsh-sandbox-local',
       '@deepseek-ai/dsh-sandbox-policy',
       '@deepseek-ai/dsh-subprocess-local',
@@ -48,6 +51,8 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-goal-round-driver',
       '@deepseek-ai/dsh-tool-goal',
       '@deepseek-ai/dsh-session-persistence-jsonl',
+      '@deepseek-ai/dsh-shell-env',
+      '@deepseek-ai/dsh-tool-pwsh',
       '@cherrystudio/dsh-bridge/plugin'
     ]
     for (const specifier of specifiers) {
@@ -55,6 +60,20 @@ describe('dsh SDK bundling viability', () => {
       expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
       expect(existsSync(resolved), `missing on disk: ${resolved}`).toBe(true)
     }
+  })
+
+  it('imports the built bridge plugin with production-declared runtime dependencies', async () => {
+    const require_ = createRequire(import.meta.url)
+    const pluginPath = require_.resolve('@cherrystudio/dsh-bridge/plugin')
+    const manifest = JSON.parse(readFileSync(path.join(path.dirname(pluginPath), '..', 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>
+    }
+
+    expect(manifest.dependencies).toMatchObject({
+      '@deepseek-ai/dsh-llm': '0.1.0-rc.6',
+      '@deepseek-ai/dsh-session': '0.1.0-rc.6'
+    })
+    await expect(import(pathToFileURL(pluginPath).href)).resolves.toMatchObject({ apply: expect.any(Function) })
   })
 
   it('loads the unified sharp stack through attachment-local and decodes a real PNG', async () => {

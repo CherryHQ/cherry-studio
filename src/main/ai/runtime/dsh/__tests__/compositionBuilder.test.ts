@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { MODALITY } from '@cherrystudio/provider-registry'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { describe, expect, it, vi } from 'vitest'
@@ -128,6 +128,22 @@ describe('buildDshCompositionYaml', () => {
     )
   })
 
+  it('uses the official sandboxed pwsh stack on Windows', () => {
+    const yaml = buildDshCompositionYaml(
+      makeInput({ platform: 'win32', workspacePath: 'C:\\Users\\Cherry\\workspace' })
+    )
+
+    expect(yaml).toContain('dsh-pwsh-sandbox')
+    expect(yaml).toContain('dsh-tool-pwsh')
+    expect(yaml).toContain('dsh-shell-env')
+    expect(yaml).not.toContain('dsh-bash-sandbox')
+    expect(yaml).toContain('dsh-sandbox-local')
+    expect(yaml).toContain('dsh-sandbox-policy')
+    expect(yaml).toContain('toolBash: false')
+    expect(yaml).toContain('workspaceRoot: "C:\\\\Users\\\\Cherry\\\\workspace"')
+    expect(yaml).toContain('cwd: "C:\\\\Users\\\\Cherry\\\\workspace"')
+  })
+
   it('resolves every plugin specifier to an absolute on-disk path', () => {
     const yml = buildDshCompositionYaml(makeInput())
     const specifiers = [...yml.matchAll(/^ {2}name: (".*")$/gm)].map(([, quoted]) => JSON.parse(quoted) as string)
@@ -177,6 +193,75 @@ describe('buildDshCompositionYaml', () => {
     expect(audioYml).toMatch(/input:\n\s+- "text"/)
     expect(audioYml).not.toContain('- "audio"')
   })
+
+  it('uses the same Anthropic preference as the shared filter for dual-protocol models', () => {
+    const provider = {
+      id: 'dual',
+      name: 'Dual',
+      apiFeatures: DEFAULT_API_FEATURES,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai', baseUrl: 'https://openai.example' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://anthropic.example' }
+      }
+    } as unknown as Provider
+    const model = {
+      id: 'dual::model',
+      providerId: 'dual',
+      apiModelId: 'model',
+      name: 'Dual model',
+      capabilities: [],
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    } as unknown as Model
+
+    const injection = buildDshProviderInjection(provider, model, SECRET_API_KEY)
+
+    expect(injection.api).toBe('anthropic-messages')
+    expect(injection.baseUrl).toBe('https://anthropic.example')
+  })
+
+  it.each(['gemini', 'cherryin', 'aihubmix', 'dmxapi'])(
+    "reuses pi-ai's Google catalog provider for %s without an unsupported explicit api override",
+    (providerId) => {
+      const provider = {
+        id: providerId,
+        name: providerId,
+        apiFeatures: DEFAULT_API_FEATURES,
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            adapterFamily: 'google',
+            baseUrl: 'https://generativelanguage.googleapis.com'
+          }
+        }
+      } as unknown as Provider
+      const model = {
+        id: `${providerId}::gemini-2.5-pro`,
+        providerId,
+        apiModelId: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        capabilities: [],
+        contextWindow: 1_000_000,
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      } as unknown as Model
+      const injection = buildDshProviderInjection(provider, model, SECRET_API_KEY)
+      const yaml = buildDshCompositionYaml(
+        makeInput({
+          providerName: injection.providerName,
+          api: injection.api,
+          baseUrl: injection.baseUrl,
+          modelConfig: injection.modelConfig
+        })
+      )
+
+      expect(injection.providerName).toBe('google')
+      expect(injection.usageCapture.providerId).toBe(providerId)
+      expect(injection.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
+      expect(yaml).toContain('"google":')
+      expect(yaml).not.toContain('api: "google-generative-ai"')
+    }
+  )
 
   it('declares reasoning capabilities and freezes an explicit effort in the provider profile', () => {
     const injection = makeInjection(

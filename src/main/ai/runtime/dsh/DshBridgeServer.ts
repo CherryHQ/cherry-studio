@@ -5,7 +5,7 @@
  * cancel / policyUpdate), the `ready` handshake, and the interactive
  * approval round-trip (`approvalAsk` → tool-approval registry → answer).
  */
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
@@ -53,7 +53,7 @@ export interface DshBridgeServerOptions {
   /** Resolve responder availability at ask-time so warm connections follow the current turn. */
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
-  onToolCall: (name: string, args: unknown, signal?: AbortSignal) => Promise<BridgeToolCallResult>
+  onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
 }
 
 interface PendingResult {
@@ -70,11 +70,14 @@ function createBridgeSocketPath(): string {
 
 export class DshBridgeServer {
   readonly socketPath = createBridgeSocketPath()
+  readonly authenticationToken = randomBytes(32).toString('base64url')
 
   private server?: net.Server
   private connection?: net.Socket
+  private readonly unauthenticatedSockets = new Set<net.Socket>()
   private requestSeq = 0
   private readonly pendingResults = new Map<string, PendingResult>()
+  private readonly activeToolCalls = new Map<string, AbortController>()
   private ready = false
   private readonly readyWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
   private closed = false
@@ -175,7 +178,10 @@ export class DshBridgeServer {
     if (this.closed) return
     this.closed = true
     this.failPending(new Error('dsh bridge server closed'))
+    this.abortToolCalls()
     for (const waiter of this.readyWaiters.splice(0)) waiter.reject(new Error('dsh bridge server closed'))
+    for (const socket of this.unauthenticatedSockets) socket.destroy()
+    this.unauthenticatedSockets.clear()
     this.connection?.destroy()
     this.connection = undefined
     const server = this.server
@@ -193,26 +199,51 @@ export class DshBridgeServer {
       socket.destroy()
       return
     }
-    this.connection = socket
+    this.unauthenticatedSockets.add(socket)
+    let authenticated = false
+    socket.setTimeout(READY_TIMEOUT_MS, () => socket.destroy())
     socket.on('error', (error) => logger.warn('dsh bridge socket error', { error }))
     socket.on('close', () => {
+      this.unauthenticatedSockets.delete(socket)
       if (this.connection === socket) this.connection = undefined
-      this.failPending(new Error('dsh bridge plugin disconnected'))
+      if (authenticated) {
+        this.failPending(new Error('dsh bridge plugin disconnected'))
+        this.abortToolCalls()
+      }
     })
     socket.on(
       'data',
-      createBridgeFrameDecoder((message) => this.handleMessage(message))
+      createBridgeFrameDecoder((message) => {
+        if (!authenticated) {
+          if (!this.authenticate(socket, message)) socket.destroy()
+          else authenticated = true
+          return
+        }
+        this.handleMessage(message)
+      })
     )
+  }
+
+  private authenticate(socket: net.Socket, message: unknown): boolean {
+    if (this.closed || this.connection || !isRecord(message)) return false
+    if (message.type !== 'ready' || !Number.isSafeInteger(message.pid) || typeof message.token !== 'string')
+      return false
+    const expected = Buffer.from(this.authenticationToken)
+    const received = Buffer.from(message.token)
+    if (expected.length !== received.length || !timingSafeEqual(expected, received)) return false
+
+    this.unauthenticatedSockets.delete(socket)
+    socket.setTimeout(0)
+    this.connection = socket
+    this.ready = true
+    for (const waiter of this.readyWaiters.splice(0)) waiter.resolve()
+    return true
   }
 
   private handleMessage(message: unknown): void {
     if (typeof message !== 'object' || message === null) return
     const frame = message as Record<string, unknown>
     switch (frame.type) {
-      case 'ready':
-        this.ready = true
-        for (const waiter of this.readyWaiters.splice(0)) waiter.resolve()
-        return
       case 'result': {
         const pending = this.takePending(frame.id)
         if (!pending) return
@@ -244,6 +275,9 @@ export class DshBridgeServer {
       case 'toolCall':
         void this.handleToolCall(frame)
         return
+      case 'toolCallCancel':
+        if (frame.sessionId === this.options.sessionId) this.activeToolCalls.get(String(frame.id ?? ''))?.abort()
+        return
       case 'approvalAsk':
         this.handleApprovalAsk(frame)
         return
@@ -258,12 +292,21 @@ export class DshBridgeServer {
       this.answerToolCall(id, { ok: false, error: 'dsh bridge tool call used the wrong session' })
       return
     }
+    if (!id || this.activeToolCalls.has(id)) {
+      this.answerToolCall(id, { ok: false, error: 'dsh bridge tool call id is missing or already active' })
+      return
+    }
+    const controller = new AbortController()
+    this.activeToolCalls.set(id, controller)
     try {
-      // The wire has no tool-cancel frame yet; plugin-local abort discards any late host result.
-      const result = await this.options.onToolCall(String(call.name ?? ''), call.args)
+      const result = await this.options.onToolCall(String(call.name ?? ''), call.args, controller.signal)
+      if (controller.signal.aborted) return
       this.answerToolCall(id, { ok: true, ...result })
     } catch (error) {
+      if (controller.signal.aborted) return
       this.answerToolCall(id, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    } finally {
+      if (this.activeToolCalls.get(id) === controller) this.activeToolCalls.delete(id)
     }
   }
 
@@ -345,4 +388,13 @@ export class DshBridgeServer {
     }
     this.pendingResults.clear()
   }
+
+  private abortToolCalls(): void {
+    for (const controller of this.activeToolCalls.values()) controller.abort()
+    this.activeToolCalls.clear()
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

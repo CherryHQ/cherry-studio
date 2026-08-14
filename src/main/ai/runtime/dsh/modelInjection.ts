@@ -18,9 +18,10 @@ import {
   type DshApi,
   hasDshTextInput,
   hasKnownDshContextWindow,
-  mapEndpointToDshApi
+  mapEndpointToDshApi,
+  resolveDshEndpointType
 } from '@shared/ai/dshModelCompatibility'
-import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
@@ -146,9 +147,9 @@ export interface DshModelConfig {
 }
 
 export interface DshProviderInjection {
-  /** dsh provider route key (the `providers` dict key). Cherry's provider id. */
+  /** dsh provider route key (the `providers` dict key); Google uses pi-ai's catalog key. */
   providerName: string
-  /** Resolved dsh wire protocol for the route's `api` field. */
+  /** Resolved transport family; Google is selected by catalog key rather than an explicit `api` field. */
   api: DshApi
   /** Endpoint for the route's `baseURL` field. */
   baseUrl: string
@@ -167,12 +168,7 @@ export interface DshProviderInjection {
 }
 
 function resolveDshEndpoint(provider: Provider, model: Model) {
-  const preferredEndpoint =
-    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
-    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      : undefined
-  return resolveEffectiveEndpoint(provider, model, preferredEndpoint)
+  return resolveEffectiveEndpoint(provider, model, resolveDshEndpointType(provider, model))
 }
 
 /**
@@ -213,7 +209,8 @@ export function buildDshProviderInjection(
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
-    providerName: provider.id,
+    // rc.6 reaches Google Generate Content only through pi-ai's built-in catalog route.
+    providerName: api === 'google-generative-ai' ? 'google' : provider.id,
     api,
     baseUrl,
     ...(headers ? { headers } : {}),
@@ -246,12 +243,14 @@ export function buildDshProviderInjection(
   }
 }
 
-/** dsh's LLM layer IS pi-ai, so pi's base-url rules apply verbatim for the three supported protocols. */
+/** dsh's LLM layer is pi-ai, so its transport-specific base URL rules apply. */
 function formatDshBaseUrl(baseUrl: string, api: DshApi): string {
   switch (api) {
     case 'openai-completions':
     case 'openai-responses':
       return formatApiHost(baseUrl)
+    case 'google-generative-ai':
+      return formatApiHost(baseUrl, true, 'v1beta')
     case 'anthropic-messages':
       // Anthropic's SDK appends `/v1/messages` itself; pi-ai needs the gateway
       // root rather than a versioned API prefix.

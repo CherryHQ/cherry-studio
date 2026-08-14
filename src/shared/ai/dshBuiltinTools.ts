@@ -13,8 +13,8 @@ export type DshBuiltinToolDescriptor = {
   permissionClass?: 'read' | 'edit'
 }
 
-// Single source for the built-ins Cherry's dsh composition mounts (dsh-tool-fs read/read_image/write/edit,
-// dsh-tool-bash bash, dsh-tool-todo todo_write), shared by the driver and the edit-dialog catalog.
+// Stable catalog identities for the built-ins Cherry's dsh composition mounts. The shell toggle remains
+// `bash` across platforms; the runtime maps it to dsh-tool-pwsh's native `pwsh` identity on Windows.
 export const DSH_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
   { name: 'read_image', category: 'file', approval: 'auto', permissionClass: 'read' },
@@ -31,6 +31,12 @@ export const DSH_BUILTIN_TOOLS = [
   { name: 'create_goal', category: 'orchestration', approval: 'auto' },
   { name: 'update_goal', category: 'orchestration', approval: 'auto' }
 ] as const satisfies readonly DshBuiltinToolDescriptor[]
+
+/** Project stable catalog identities onto the native tool names mounted by this platform. */
+export function getDshRuntimeBuiltinTools(platform: string): readonly DshBuiltinToolDescriptor[] {
+  if (platform !== 'win32') return DSH_BUILTIN_TOOLS
+  return DSH_BUILTIN_TOOLS.map((tool) => (tool.name === 'bash' ? { ...tool, name: 'pwsh' } : tool))
+}
 
 export const DSH_BUILTIN_TOOL_CATEGORIES = [
   'file',

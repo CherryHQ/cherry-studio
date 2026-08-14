@@ -27,11 +27,29 @@ const startSpan = vi.fn((name: string, options: Record<string, any>) => {
 })
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
+const runtimeMocks = vi.hoisted(() => ({
+  snapshot: undefined as any,
+  bridgeRequest: vi.fn().mockResolvedValue(undefined)
+}))
+
+const baseSnapshot = () => ({
+  signature: 'sig-1',
+  agent: { id: 'agent-1', configuration: {}, disabledTools: [] },
+  session: { agentId: 'agent-1', workspace: { path: '/workspace' } },
+  provider: {},
+  model: {},
+  enabledApiKeys: [],
+  additionalSkillPaths: [],
+  mcpServerSnapshots: [],
+  linkedChannel: null
+})
+
 /** Push-driven stand-in for the SDK's notification subscription. */
 class FakeSubscription {
   private readonly pending: unknown[] = []
   private wake?: () => void
   private closed = false
+  private failure?: Error
 
   push(notification: unknown): void {
     this.pending.push(notification)
@@ -43,9 +61,15 @@ class FakeSubscription {
     this.wake?.()
   }
 
+  fail(error: Error): void {
+    this.failure = error
+    this.wake?.()
+  }
+
   async *[Symbol.asyncIterator](): AsyncIterator<unknown> {
     while (!this.closed) {
       while (this.pending.length > 0) yield this.pending.shift()
+      if (this.failure) throw this.failure
       if (this.closed) return
       await new Promise<void>((resolve) => {
         this.wake = resolve
@@ -63,17 +87,7 @@ vi.mock('node:fs/promises', () => ({
 }))
 vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
-  captureDshConnectionSnapshot: vi.fn().mockResolvedValue({
-    signature: 'sig-1',
-    agent: { id: 'agent-1', configuration: {}, disabledTools: [] },
-    session: { agentId: 'agent-1', workspace: { path: '/workspace' } },
-    provider: {},
-    model: {},
-    enabledApiKeys: [],
-    additionalSkillPaths: [],
-    mcpServerSnapshots: [],
-    linkedChannel: null
-  })
+  captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: vi.fn(() => ({
@@ -93,9 +107,10 @@ vi.mock('../compositionBuilder', () => ({
 vi.mock('../DshBridgeServer', () => ({
   DshBridgeServer: vi.fn(() => ({
     socketPath: '/tmp/dsh.sock',
+    authenticationToken: 'bridge-token',
     listen: vi.fn().mockResolvedValue(undefined),
     whenReady: vi.fn().mockResolvedValue(undefined),
-    request: vi.fn().mockResolvedValue(undefined),
+    request: runtimeMocks.bridgeRequest,
     close: vi.fn().mockResolvedValue(undefined)
   }))
 }))
@@ -152,6 +167,8 @@ const connectInput = {
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
+  runtimeMocks.snapshot = baseSnapshot()
+  runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
   spans.length = 0
   startSpan.mockClear()
 })
@@ -194,4 +211,44 @@ describe('DshRuntimeConnection tracing', () => {
 
     await connection.close()
   })
+
+  it('rebuilds after a bypassPermissions downgrade even though live policy can be patched', async () => {
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'bypassPermissions' }, disabledTools: [] }
+    }
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    runtimeMocks.bridgeRequest.mockClear()
+    runtimeMocks.snapshot = baseSnapshot()
+
+    await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat' })).resolves.toBe('rebuild')
+    expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'policyUpdate',
+        policy: expect.objectContaining({ permissionMode: 'default' })
+      })
+    )
+
+    await connection.close()
+  })
+
+  it.each(['idle', 'active'] as const)(
+    'closes its event stream when the notification transport dies while %s',
+    async (state) => {
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const events = connection.events[Symbol.asyncIterator]()
+      await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' }, done: false })
+      if (state === 'active') await connection.send({ message: {} } as never)
+
+      subscription.fail(new Error('notification transport died'))
+      await drain()
+
+      await expect(events.next()).resolves.toMatchObject({
+        value: { type: 'error', error: expect.objectContaining({ message: 'notification transport died' }) },
+        done: false
+      })
+      await expect(events.next()).resolves.toEqual({ value: undefined, done: true })
+      await connection.close()
+    }
+  )
 })

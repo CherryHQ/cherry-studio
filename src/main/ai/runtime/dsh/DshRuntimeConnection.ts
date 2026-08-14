@@ -3,7 +3,12 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { BRIDGE_SOCKET_ENV, type BridgePermissionMode, type BridgePolicy } from '@cherrystudio/dsh-bridge'
+import {
+  BRIDGE_SOCKET_ENV,
+  BRIDGE_TOKEN_ENV,
+  type BridgePermissionMode,
+  type BridgePolicy
+} from '@cherrystudio/dsh-bridge'
 import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -20,7 +25,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { DSH_BUILTIN_TOOLS, type DshBuiltinToolDescriptor } from '@shared/ai/dshBuiltinTools'
+import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -58,7 +63,7 @@ import { resolveDshProviderInjectionFromSnapshot } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
 
-const DSH_TOOL_DESCRIPTORS: readonly DshBuiltinToolDescriptor[] = DSH_BUILTIN_TOOLS
+const DSH_TOOL_DESCRIPTORS: readonly DshBuiltinToolDescriptor[] = getDshRuntimeBuiltinTools(process.platform)
 const DSH_READ_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
 const DSH_EDIT_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 // Class-less `approval: 'auto'` built-ins (todo_write, goal state ops): session-log-only side
@@ -66,7 +71,12 @@ const DSH_EDIT_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClas
 const DSH_AUTO_APPROVED_BUILTIN_TOOLS = DSH_TOOL_DESCRIPTORS.filter(
   (tool) => tool.approval === 'auto' && tool.permissionClass === undefined
 ).map((tool) => tool.name)
-const DSH_BUILTIN_TOOL_ALIASES = new Map(DSH_BUILTIN_TOOLS.map((tool) => [tool.name.toLowerCase(), tool.name]))
+const DSH_BUILTIN_TOOL_ALIASES = new Map(DSH_TOOL_DESCRIPTORS.map((tool) => [tool.name.toLowerCase(), tool.name]))
+const DSH_SHELL_TOOL_NAME = DSH_TOOL_DESCRIPTORS.find((tool) => tool.category === 'shell')?.name
+if (DSH_SHELL_TOOL_NAME) {
+  DSH_BUILTIN_TOOL_ALIASES.set('bash', DSH_SHELL_TOOL_NAME)
+  DSH_BUILTIN_TOOL_ALIASES.set('pwsh', DSH_SHELL_TOOL_NAME)
+}
 
 export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly generation = randomUUID()
@@ -204,7 +214,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       permissionMode: this.permissionMode,
       persona,
       customBase: prompt.base.kind === 'custom',
-      skillDirs: snapshot.additionalSkillPaths
+      skillDirs: snapshot.additionalSkillPaths,
+      platform: process.platform
     })
     this.compositionPath = path.join(dshRoot, 'compositions', `${this.input.sessionId}.${this.generation}.yml`)
     await mkdir(path.dirname(this.compositionPath), { recursive: true })
@@ -258,6 +269,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
+          [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot
         }
       })
@@ -358,6 +370,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const { agent } = snapshot
 
     const nextPermissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
+    const sandboxBoundaryChanged = isBypassMode(nextPermissionMode) !== isBypassMode(this.permissionMode)
     // A mode change can alter admission for the live tool loop, so defer it to idle.
     // Disabled tools only tighten policy and still push immediately below.
     const applicablePermissionMode = this.turnActive ? this.permissionMode : nextPermissionMode
@@ -384,6 +397,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       }
     }
     if (
+      sandboxBoundaryChanged ||
       snapshot.signature !== this.connectionSignature ||
       (input.reasoningEffort ?? 'default') !== this.reasoningEffort
     ) {
@@ -494,6 +508,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       if (this.closed) return
       logger.error('dsh notification stream failed', error as Error)
       this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.close()
     }
   }
 
@@ -614,8 +629,12 @@ function toBridgePermissionMode(mode: AgentPermissionMode | undefined): BridgePe
   return mode === 'acceptEdits' || mode === 'bypassPermissions' ? mode : 'default'
 }
 
+function isBypassMode(mode: BridgePermissionMode): boolean {
+  return mode === 'bypassPermissions'
+}
+
 /**
- * Alias only known dsh built-ins from legacy Claude casing (`Bash` → `bash`). MCP ids are
+ * Alias only known dsh built-ins from legacy Claude casing and the stable shell toggle. MCP ids are
  * runtime-native and case-sensitive, so preserve them exactly or their hard block silently misses.
  */
 function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {

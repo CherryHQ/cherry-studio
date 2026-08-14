@@ -85,7 +85,10 @@ export function connectBridgeLink(options: {
         const pending = { resolve, reject, signal, onAbort: undefined as (() => void) | undefined }
         if (signal) {
           pending.onAbort = () => {
-            if (takeToolCall(id)) reject(abortError())
+            if (!takeToolCall(id)) return
+            if (connected)
+              socket.write(encodeBridgeMessage({ type: 'toolCallCancel', id, sessionId: request.sessionId }))
+            reject(abortError())
           }
           signal.addEventListener('abort', pending.onAbort, { once: true })
         }

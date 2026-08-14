@@ -1,4 +1,5 @@
 import { MODALITY } from '@cherrystudio/provider-registry'
+import { getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -31,6 +32,12 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
+  it('projects the stable shell toggle to pwsh only on Windows', () => {
+    expect(getDshRuntimeBuiltinTools('darwin').map((tool) => tool.name)).toContain('bash')
+    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).toContain('pwsh')
+    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).not.toContain('bash')
+  })
+
   it('covers every agent runtime and keeps structural invariants explicit', () => {
     expect(Object.keys(AGENT_RUNTIME_CAPABILITIES).sort()).toEqual(['claude-code', 'dsh', 'pi'])
 

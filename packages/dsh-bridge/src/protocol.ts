@@ -5,6 +5,7 @@
  */
 
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
+export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
 
 export type BridgePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 
@@ -67,7 +68,7 @@ export interface BridgeContextUsage {
 }
 
 export type BridgeToHostMessage =
-  | { type: 'ready'; pid: number }
+  | { type: 'ready'; pid: number; token: string }
   | { type: 'result'; id: string; ok: boolean; error?: string }
   | { type: 'contextUsageResult'; id: string; ok: boolean; usage?: BridgeContextUsage; error?: string }
   /** `handled: false` = not a registered command (admission miss) — the host falls back to a prompt.
@@ -82,6 +83,7 @@ export type BridgeToHostMessage =
       error?: string
     }
   | { type: 'toolCall'; id: string; sessionId: string; name: string; args: unknown }
+  | { type: 'toolCallCancel'; id: string; sessionId: string }
   | {
       type: 'approvalAsk'
       id: string

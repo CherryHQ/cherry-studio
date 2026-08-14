@@ -24,6 +24,7 @@ const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['bash', AgentToolsType.Bash],
+  ['pwsh', AgentToolsType.Bash],
   ['edit', AgentToolsType.Edit],
   ['read', AgentToolsType.Read],
   ['skill', AgentToolsType.Skill],

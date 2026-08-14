@@ -25,7 +25,7 @@ async function makeHarness(
   onToolCall: (
     name: string,
     args: unknown,
-    signal?: AbortSignal
+    signal: AbortSignal
   ) => Promise<{ text: string; data?: unknown }> = async () => {
     throw new Error('unexpected tool call')
   }
@@ -55,6 +55,8 @@ async function makeHarness(
     socket.once('connect', resolve)
     socket.once('error', reject)
   })
+  socket.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: server.authenticationToken }))
+  await server.whenReady()
 
   const harness: Harness = {
     server,
@@ -85,6 +87,39 @@ afterEach(async () => {
 })
 
 describe('DshBridgeServer', () => {
+  it('rejects an unauthenticated first client without blocking the expected plugin', async () => {
+    const server = new DshBridgeServer({
+      sessionId: SESSION_ID,
+      emit: () => undefined,
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      onToolCall: async () => ({ text: 'unused' })
+    })
+    await server.listen()
+    const bad = net.connect(server.socketPath)
+    const good = net.connect(server.socketPath)
+    try {
+      await Promise.all(
+        [bad, good].map(
+          (socket) =>
+            new Promise<void>((resolve, reject) => {
+              socket.once('connect', resolve)
+              socket.once('error', reject)
+            })
+        )
+      )
+      const ready = server.whenReady(2_000)
+      bad.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: 'wrong-token' }))
+      await new Promise<void>((resolve) => bad.once('close', () => resolve()))
+
+      good.write(encodeBridgeMessage({ type: 'ready', pid: process.pid, token: server.authenticationToken }))
+      await expect(ready).resolves.toBeUndefined()
+    } finally {
+      bad.destroy()
+      good.destroy()
+      await server.close()
+    }
+  })
+
   it('round-trips a context usage query and surfaces error frames', async () => {
     const harness = await makeHarness()
     const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })
@@ -145,7 +180,6 @@ describe('DshBridgeServer', () => {
 
   it('resolves whenReady on the ready frame and correlates request/result', async () => {
     const harness = await makeHarness()
-    harness.socket.write(encodeBridgeMessage({ type: 'ready', pid: 4242 }))
     await harness.server.whenReady()
 
     const openResult = harness.server.request({
@@ -176,7 +210,6 @@ describe('DshBridgeServer', () => {
 
   it('rejects a request whose result reports a failure', async () => {
     const harness = await makeHarness()
-    harness.socket.write(encodeBridgeMessage({ type: 'ready', pid: 1 }))
     await harness.server.whenReady()
 
     const prompt = harness.server.request({ type: 'prompt', sessionId: SESSION_ID, contentBlocks: [] })
@@ -208,7 +241,11 @@ describe('DshBridgeServer', () => {
       text: 'mcp__cherry-tools__web_search:ok',
       data: { query: 'Cherry Studio' }
     })
-    expect(onToolCall).toHaveBeenCalledWith('mcp__cherry-tools__web_search', { query: 'Cherry Studio' })
+    expect(onToolCall).toHaveBeenCalledWith(
+      'mcp__cherry-tools__web_search',
+      { query: 'Cherry Studio' },
+      expect.any(AbortSignal)
+    )
 
     onToolCall.mockRejectedValueOnce(new Error('provider unavailable'))
     harness.socket.write(
@@ -226,6 +263,40 @@ describe('DshBridgeServer', () => {
       ok: false,
       error: 'provider unavailable'
     })
+  })
+
+  it('aborts active host tools on a cancel frame, plugin disconnect, and server close', async () => {
+    const signals: AbortSignal[] = []
+    const onToolCall = vi.fn(
+      async (_name: string, _args: unknown, signal?: AbortSignal) =>
+        await new Promise<{ text: string }>((_resolve, reject) => {
+          if (!signal) return reject(new Error('missing abort signal'))
+          signals.push(signal)
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+        })
+    )
+    const cancelled = await makeHarness('stream', onToolCall)
+    cancelled.socket.write(
+      encodeBridgeMessage({ type: 'toolCall', id: 'cancel-me', sessionId: SESSION_ID, name: 'slow', args: {} })
+    )
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    cancelled.socket.write(encodeBridgeMessage({ type: 'toolCallCancel', id: 'cancel-me', sessionId: SESSION_ID }))
+    await vi.waitFor(() => expect(signals[0].aborted).toBe(true))
+
+    cancelled.socket.write(
+      encodeBridgeMessage({ type: 'toolCall', id: 'disconnect-me', sessionId: SESSION_ID, name: 'slow', args: {} })
+    )
+    await vi.waitFor(() => expect(signals).toHaveLength(2))
+    cancelled.socket.destroy()
+    await vi.waitFor(() => expect(signals[1].aborted).toBe(true))
+
+    const closed = await makeHarness('stream', onToolCall)
+    closed.socket.write(
+      encodeBridgeMessage({ type: 'toolCall', id: 'close-me', sessionId: SESSION_ID, name: 'slow', args: {} })
+    )
+    await vi.waitFor(() => expect(signals).toHaveLength(3))
+    await closed.server.close()
+    expect(signals[2].aborted).toBe(true)
   })
 
   it('round-trips approvalAsk through the registry to allowed-once', async () => {
@@ -287,7 +358,6 @@ describe('DshBridgeServer', () => {
 
   it('rejects pending requests when the plugin disconnects', async () => {
     const harness = await makeHarness()
-    harness.socket.write(encodeBridgeMessage({ type: 'ready', pid: 1 }))
     await harness.server.whenReady()
 
     const pending = harness.server.request({ type: 'cancel', sessionId: SESSION_ID })

@@ -1,5 +1,6 @@
 export {
   BRIDGE_SOCKET_ENV,
+  BRIDGE_TOKEN_ENV,
   type BridgeContextUsage,
   type BridgePermissionMode,
   type BridgePolicy,
