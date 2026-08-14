@@ -554,11 +554,6 @@
           "helper": "Introdu variabile de mediu personalizate (una pe linie, în formatul CHEIE=valoare)",
           "label": "Variabile de mediu"
         },
-        "maxTurns": {
-          "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
-          "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
-          "label": "Limită de schimburi în conversație"
-        },
         "permissionMode": {
           "description": "Controlează modul în care agentul gestionează acțiunile care necesită aprobare.",
           "label": "Mod de permisiune",
@@ -3479,10 +3474,6 @@
           },
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
-          },
-          "max_turns": {
-            "help": "0 înseamnă să folosească valoarea implicită",
-            "label": "Număr maxim de runde de conversație"
           },
           "mcps": {
             "add": "Adaugă server MCP",
