@@ -524,9 +524,75 @@ export const exportMessageAsMarkdown = async (
   }
 }
 
+// GitHub-style alert marker (e.g. "[!NOTE]") leading the first paragraph inside a quote
+const ALERT_MARKER_RE = /^\[!([A-Za-z][\w-]*)\]/
+
+// Fixed alert-type → Notion callout icon/color pairs (issue #16388 spec)
+const ALERT_CALLOUT_MAP: Record<string, { emoji: string; color: string }> = {
+  NOTE: { emoji: '💡', color: 'blue_background' },
+  TIP: { emoji: '✅', color: 'green_background' },
+  IMPORTANT: { emoji: '⭐', color: 'purple_background' },
+  WARNING: { emoji: '⚠️', color: 'yellow_background' },
+  CAUTION: { emoji: '🚫', color: 'red_background' }
+}
+const UNKNOWN_ALERT_CALLOUT = { emoji: '📝', color: 'gray_background' }
+
+const stripLeadingNewline = (segment: any): any =>
+  segment?.text ? { ...segment, text: { ...segment.text, content: segment.text.content.replace(/^\n/, '') } } : segment
+
+// Drop the marker from the paragraph's rich text segments; marker may share a segment
+// with the body or occupy its own (e.g. bolded marker).
+const stripAlertMarker = (segments: any[], markerLength: number): any[] => {
+  const [first, ...rest] = segments
+  const remainder = first.text.content.slice(markerLength).replace(/^\n/, '')
+  if (remainder) {
+    return [{ ...first, text: { ...first.text, content: remainder } }, ...rest]
+  }
+  return rest.length > 0 ? [stripLeadingNewline(rest[0]), ...rest.slice(1)] : []
+}
+
+const quoteToCallout = (block: any): any => {
+  const firstChild = block.quote?.children?.[0]
+  if (firstChild?.type !== 'paragraph') {
+    return block
+  }
+  const segments = firstChild.paragraph.rich_text ?? []
+  const match = ALERT_MARKER_RE.exec(segments[0]?.text?.content ?? '')
+  if (!match) {
+    return block
+  }
+  const style = ALERT_CALLOUT_MAP[match[1].toUpperCase()] ?? UNKNOWN_ALERT_CALLOUT
+  return {
+    object: 'block',
+    type: 'callout',
+    callout: {
+      rich_text: stripAlertMarker(segments, match[0].length),
+      icon: { type: 'emoji', emoji: style.emoji },
+      color: style.color,
+      children: block.quote.children.slice(1)
+    }
+  }
+}
+
+// Rewrite GitHub-style alert quotes ("> [!TYPE]") in martian output into native
+// Notion callout blocks; plain quotes are left untouched.
+export const rewriteAlertQuotesToCallouts = (blocks: any[]): any[] => {
+  const rewriteBlock = (block: any): any => {
+    if (!block?.type) {
+      return block
+    }
+    const payload = block[block.type]
+    const current = Array.isArray(payload?.children)
+      ? { ...block, [block.type]: { ...payload, children: payload.children.map(rewriteBlock) } }
+      : block
+    return current.type === 'quote' ? quoteToCallout(current) : current
+  }
+  return blocks.map(rewriteBlock)
+}
+
 const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
   const { markdownToBlocks } = await loadNotionDependencies()
-  return markdownToBlocks(markdown)
+  return rewriteAlertQuotesToCallouts(markdownToBlocks(markdown))
 }
 
 const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
@@ -540,7 +606,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
     const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
 
     // 使用 markdownToBlocks 处理思维链内容
-    const childrenBlocks = markdownToBlocks(processedContent)
+    const childrenBlocks = rewriteAlertQuotesToCallouts(markdownToBlocks(processedContent))
 
     return [
       {
