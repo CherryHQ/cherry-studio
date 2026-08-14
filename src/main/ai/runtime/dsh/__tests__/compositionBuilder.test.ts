@@ -257,7 +257,7 @@ describe('buildDshCompositionYaml', () => {
       )
 
       expect(injection.providerName).toBe('google')
-      expect(injection.usageCapture.providerId).toBe(providerId)
+      expect(injection.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId })
       expect(injection.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
       expect(yaml).toContain('"google":')
       expect(yaml).not.toContain('api: "google-generative-ai"')

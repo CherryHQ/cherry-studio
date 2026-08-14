@@ -9,7 +9,9 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
@@ -30,6 +32,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
@@ -52,14 +55,9 @@ import {
 } from './DshCherryToolBridge'
 import { captureDshConnectionSnapshot, DshInvalidConnectionSnapshotError } from './dshConnectionSignature'
 import { loadDshSdk } from './dshSdk'
-import {
-  type DshInvocationMetrics,
-  DshStreamAdapter,
-  type DshTokenUsageLike,
-  type DshTurnEndReasonLike
-} from './dshStreamAdapter'
+import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
-import { resolveDshProviderInjectionFromSnapshot } from './modelInjection'
+import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
 
@@ -153,12 +151,22 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // dsh has no native permission modes; the bridge plugin enforces the pushed policy.
     this.permissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = resolveDshProviderInjectionFromSnapshot(
-      snapshot.provider,
-      snapshot.model,
-      snapshot.enabledApiKeys,
-      this.input.reasoningEffort ?? 'default'
-    )
+    let injection: DshProviderInjection
+    try {
+      injection = await resolveDshProviderInjectionFromSnapshot(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys,
+        this.input.reasoningEffort ?? 'default'
+      )
+    } catch (error) {
+      // Same prompt path as claude: the renderer offers to enable the disabled gateway.
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    }
     this.modelId = injection.modelId
     this.contextWindow = injection.modelConfig.contextWindow
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
@@ -500,8 +508,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (params?.sessionId !== this.input.sessionId) continue
-        this.traceRecorder?.handleEvent(params.event)
-        this.adapter.handleEvent(params.event)
+        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
+        // single wire-boundary cast sound. Unknown merged types fall through the adapter.
+        const event = params.event as SessionEvent
+        this.traceRecorder?.handleEvent(event)
+        this.adapter.handleEvent(event)
       }
     } catch (error) {
       if (this.closed) return
@@ -549,7 +560,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
   }
 
-  private handleTurnEnd(reason: DshTurnEndReasonLike): void {
+  private handleTurnEnd(reason: TurnEndReason): void {
     if (this.closed) return
     this.turnActive = false
     switch (reason.kind) {
@@ -563,20 +574,20 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.eventQueue.push({ type: 'turn-complete' })
         return
       case 'error': {
-        const message = reason.error?.message?.trim() || 'dsh agent turn failed'
+        const message = reason.error.message.trim() || 'dsh agent turn failed'
         this.eventQueue.push({ type: 'error', error: new Error(message) })
         return
       }
       default:
-        // 'blocked' and unknown kinds fail loud rather than stranding the host turn.
-        this.eventQueue.push({ type: 'error', error: new Error(`dsh turn ended: ${reason.kind ?? 'unknown'}`) })
+        // 'blocked' and merge-extended kinds fail loud rather than stranding the host turn.
+        this.eventQueue.push({ type: 'error', error: new Error(`dsh turn ended: ${reason.kind}`) })
     }
   }
 
   private recordProviderInvocation(info: {
     turn: number
     seq: number
-    usage: DshTokenUsageLike
+    usage: TokenUsage
     model?: string
     metrics?: DshInvocationMetrics
   }): void {

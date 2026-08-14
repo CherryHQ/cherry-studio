@@ -8,8 +8,8 @@
  *
  * dsh drives models through `dsh-llm-pi-ai`. Cherry injects OpenAI and
  * Anthropic as declared routes and reuses pi-ai's Google catalog route for
- * Generate Content; providers whose Cherry endpoint has no equivalent remain
- * unsupported for dsh agents.
+ * Generate Content; providers whose Cherry endpoint has no equivalent fall
+ * back to the local API Gateway when the model is gateway-routable.
  */
 
 import { MODALITY } from '@cherrystudio/provider-registry'
@@ -17,6 +17,7 @@ import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -93,5 +94,8 @@ export function hasDshTextInput(model: Model): boolean {
 
 /** Whether a dsh agent can use this provider+model. Used for renderer filtering. */
 export function isDshCompatibleModel(provider: Provider, model: Model): boolean {
-  return resolveDshApi(provider, model) !== undefined && hasKnownDshContextWindow(model) && hasDshTextInput(model)
+  // No native wire family → the local API Gateway can still front any gateway-routable
+  // model as OpenAI-compatible (claude's picker rule); everything else stays fail-closed.
+  if (resolveDshApi(provider, model) === undefined && !isGatewayRoutableModel(model)) return false
+  return hasKnownDshContextWindow(model) && hasDshTextInput(model)
 }
