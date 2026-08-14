@@ -605,7 +605,6 @@ export async function buildClaudeCodeSessionSettings(
     agentProgressSummaries: true,
     forwardSubagentText: true,
     permissionMode: agentConfig?.permission_mode,
-    maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,

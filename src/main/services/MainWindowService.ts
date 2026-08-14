@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -37,6 +38,12 @@ export class MainWindowService extends BaseService {
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private lastRendererProcessCrashTime: number = 0
+  /**
+   * Armed only between onReady and the initial window's ready-to-show:
+   * launch-to-tray suppresses exactly one show — the process's first Main
+   * window. Runtime rebuilds (showMainWindow with init data) always show.
+   */
+  private suppressInitialLaunchShow = false
 
   constructor() {
     super()
@@ -66,11 +73,21 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
+        // Tab attach delivery is only valid while the renderer's listener is
+        // mounted; a reload or crash tears it down. Mirrors ProtocolService's
+        // readiness reset wiring.
+        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
+        // Destroyed-before-ready leaves the launch flag armed; clear it so the
+        // next rebuild is not suppressed. Also drops tab delivery readiness
+        // (queue is kept — it flushes into the next ready renderer).
+        this.suppressInitialLaunchShow = false
+        resetMainRendererTabAttachDelivery()
       })
     )
 
@@ -111,6 +128,8 @@ export class MainWindowService extends BaseService {
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
+      // Suppress only the process-launch window; runtime rebuilds must show.
+      this.suppressInitialLaunchShow = true
     }
 
     // Dev-only: load DevTools extensions before the main window's page loads so
@@ -328,9 +347,11 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // showMode is 'manual' for the main window — first show is owned here.
-      // tray-on-launch suppresses the initial show; otherwise restore Dock and show.
-      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
-      if (!isLaunchToTray) {
+      // Launch-to-tray suppresses only the process's initial window (armed in
+      // onReady, consumed once); runtime rebuilds must always become visible.
+      const suppressShow = this.suppressInitialLaunchShow
+      this.suppressInitialLaunchShow = false
+      if (!suppressShow) {
         //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()

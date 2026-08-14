@@ -50,7 +50,6 @@ export const AgentConfigurationSchema = z
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
-    max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
@@ -74,7 +73,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
  *
  * `safeParse` failure on `.loose()` schemas means a *known* key has the wrong
  * type — not unknown extras. Returning the raw blob as-is would launder a
- * type mismatch (e.g. `max_turns: "5"`) into the response, defeating downstream
+ * type mismatch (e.g. `heartbeat_interval: "5"`) into the response, defeating downstream
  * `?? DEFAULT` fallbacks. Instead, drop only the offending top-level keys so
  * those branches can fire normally; well-typed fields and unknown extras are
  * preserved.

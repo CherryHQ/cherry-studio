@@ -1250,14 +1250,12 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
-    expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },

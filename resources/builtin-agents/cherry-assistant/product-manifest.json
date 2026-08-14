@@ -747,6 +747,7 @@
         "openai-codex",
         "opencode",
         "openclaw",
+        "deepseek-harness",
         "gemini-cli",
         "qwen-code",
         "kimi-code",
