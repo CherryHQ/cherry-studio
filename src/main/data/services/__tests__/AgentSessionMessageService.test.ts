@@ -73,7 +73,7 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
-  describe('findPendingAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
+  describe('findCrashOrphanedAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error with the given data', async () => {
       const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
@@ -92,19 +92,68 @@ describe('AgentSessionMessageService', () => {
         message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
       })
 
-      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([
         { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
       ])
 
       now.mockReturnValue(5_000)
       const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
       agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
-      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
       expect(row.data).toEqual(finalizedData)
       expect(session.lastActivityAt).toBe(1_000)
+    })
+
+    it('finds settled assistant rows whose approval registry was lost on restart', () => {
+      const ORPHANED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d013'
+      const COMPLETE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d014'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ORPHANED,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolCallId: 'tool-call-1',
+                toolName: 'screenshot',
+                state: 'approval-requested',
+                input: {},
+                approval: { id: 'approval-1' }
+              }
+            ]
+          }
+        }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: COMPLETE,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolCallId: 'tool-call-2',
+                toolName: 'list_tabs',
+                state: 'output-available',
+                input: {},
+                output: {}
+              }
+            ]
+          }
+        }
+      })
+
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([
+        expect.objectContaining({ id: ORPHANED, sessionId: SESSION_ID })
+      ])
     })
 
     it('discards resume tokens only for the affected sessions', async () => {

@@ -673,13 +673,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
     window.addEventListener('resize', handleAnchorUpdate)
 
+    // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
-      // On unmount the composer must not keep yielding rail space.
-      setRailGutterPx(0)
     }
   }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
 

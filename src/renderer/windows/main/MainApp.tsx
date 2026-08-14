@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import AppLogo from '@renderer/assets/images/logo.png'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -12,15 +13,25 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
-import OnboardingPage from './onboarding/OnboardingPage'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
+const OnboardingPage = lazy(() => import('./onboarding/OnboardingPage'))
+
+// MainWindowRuntime removes the HTML boot spinner as soon as it mounts, so a suspended first-run
+// screen needs its own stand-in or the window goes blank. Mirrors main/index.html's `#spinner`.
+function BootFallback(): React.ReactElement {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center">
+      <img src={AppLogo} alt="" className="w-25 rounded-full" />
+    </div>
+  )
+}
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
@@ -63,7 +74,13 @@ export function MainWindowContent(): React.ReactElement {
 
   return (
     <TabsProvider>
-      {providerSetupStatus === 'pending' ? <OnboardingPage /> : <AppShell />}
+      {providerSetupStatus === 'pending' ? (
+        <Suspense fallback={<BootFallback />}>
+          <OnboardingPage />
+        </Suspense>
+      ) : (
+        <AppShell />
+      )}
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
