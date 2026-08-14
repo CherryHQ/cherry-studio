@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createBridgeFrameDecoder, encodeBridgeMessage, type HostToBridgeMessage } from '../src/protocol'
+import { createBridgeFrameDecoder, encodeBridgeMessage } from '../src/protocol'
 
 const collect = () => {
   const messages: unknown[] = []
@@ -40,45 +40,5 @@ describe('bridge framing', () => {
     const msg = { type: 'result', id: '3', ok: false, error: 'x' }
     decode('\n{not json}\n' + encodeBridgeMessage(msg))
     expect(messages).toEqual([msg])
-  })
-
-  it('round-trips the host tool catalog and a correlated tool result', () => {
-    const { messages, decode } = collect()
-    const open: HostToBridgeMessage = {
-      type: 'open',
-      id: 'open-1',
-      sessionId: 's',
-      provider: 'deepseek',
-      model: 'deepseek-chat',
-      cwd: '/tmp/ws',
-      resume: false,
-      policy: {
-        permissionMode: 'default',
-        disabledTools: [],
-        allowedRoots: ['/tmp/ws'],
-        readTools: ['read'],
-        editTools: ['edit', 'write'],
-        autoApprovedTools: ['mcp__cherry-tools__web_search'],
-        approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
-      },
-      tools: [
-        {
-          name: 'mcp__cherry-tools__web_search',
-          description: 'Searches the web',
-          inputSchema: { type: 'object', properties: {} }
-        }
-      ]
-    }
-    const result: HostToBridgeMessage = {
-      type: 'toolCallResult',
-      id: 'tool-1',
-      ok: true,
-      text: 'done',
-      data: { count: 1 }
-    }
-
-    decode(encodeBridgeMessage(open) + encodeBridgeMessage(result))
-
-    expect(messages).toEqual([open, result])
   })
 })

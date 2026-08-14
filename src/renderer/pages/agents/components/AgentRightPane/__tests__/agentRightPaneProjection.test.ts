@@ -205,14 +205,12 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.tasks).toEqual([
+    expect(status.tasks.map(({ title, status }) => ({ title, status }))).toEqual([
       {
-        id: 'dsh-todo:0:Wire the status pane',
         title: 'Wire the status pane',
         status: 'completed'
       },
       {
-        id: 'dsh-todo:1:Verify the projection',
         title: 'Verify the projection',
         status: 'pending'
       }

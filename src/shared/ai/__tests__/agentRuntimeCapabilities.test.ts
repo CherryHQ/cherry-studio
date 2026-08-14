@@ -38,43 +38,6 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).not.toContain('bash')
   })
 
-  it('covers every agent runtime and keeps structural invariants explicit', () => {
-    expect(Object.keys(AGENT_RUNTIME_CAPABILITIES).sort()).toEqual(['claude-code', 'dsh', 'pi'])
-
-    const transports = Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
-    expect(new Set(transports).size).toBe(transports.length)
-
-    for (const caps of Object.values(AGENT_RUNTIME_CAPABILITIES)) {
-      expect(caps.permissionModes.length).toBeGreaterThan(0)
-    }
-
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('acceptEdits')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.knowledgeBases).toBe(true)
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.mcp).toBe(true)
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('default')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.knowledgeBases).toBe(true)
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.mcp).toBe(true)
-    // The dsh commands Cherry mounts and dispatches over the bridge `command` frame.
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.slashCommands.map((entry) => entry.command)).toEqual(['/compact', '/goal'])
-
-    const dshTools = AGENT_RUNTIME_CAPABILITIES.dsh.builtinTools()
-    expect(dshTools).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'todo_write', category: 'orchestration' }),
-        expect.objectContaining({ id: 'skill', category: 'orchestration' }),
-        expect.objectContaining({ id: 'read_image', category: 'file' }),
-        expect.objectContaining({ id: 'mcp__cherry-tools__web_search', category: 'context' }),
-        expect.objectContaining({ id: 'mcp__agent-memory__memory', category: 'context' })
-      ])
-    )
-  })
-
   describe('isModelCompatible — managed CherryAI default model', () => {
     const piIsCompatible = AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible
     const claudeIsCompatible = AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible

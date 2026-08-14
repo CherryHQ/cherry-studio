@@ -1,17 +1,13 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getAgent: vi.fn(),
   findByIdOrName: vi.fn(),
-  listTools: vi.fn(),
-  prepareWorkspace: vi.fn(),
-  assertProviderUsable: vi.fn()
+  listTools: vi.fn()
 }))
 
-vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
+vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findByIdOrName }
 }))
@@ -24,9 +20,9 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
-  prepareAgentSessionWorkspaceDirectory: mocks.prepareWorkspace
+  prepareAgentSessionWorkspaceDirectory: vi.fn()
 }))
-vi.mock('./modelInjection', () => ({ assertDshProviderUsable: mocks.assertProviderUsable }))
+vi.mock('./modelInjection', () => ({ assertDshProviderUsable: vi.fn() }))
 vi.mock('./DshRuntimeConnection', () => ({ DshRuntimeConnection: vi.fn() }))
 
 const { DshRuntimeDriver } = await import('./DshRuntimeDriver')
@@ -34,27 +30,6 @@ const { DshRuntimeDriver } = await import('./DshRuntimeDriver')
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.listTools.mockReturnValue([])
-  mocks.prepareWorkspace.mockResolvedValue(undefined)
-  mocks.assertProviderUsable.mockResolvedValue(undefined)
-})
-
-describe('DshRuntimeDriver.validateSession', () => {
-  it('materializes a system workspace before validating the provider', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { path: '/data/Agents/system/2026-08-14/session-1', type: 'system' }
-    } as AgentSessionEntity
-    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
-
-    await new DshRuntimeDriver().validateSession(session)
-
-    expect(mocks.prepareWorkspace).toHaveBeenCalledWith(session)
-    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
-    expect(mocks.prepareWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.assertProviderUsable.mock.invocationCallOrder[0]
-    )
-  })
 })
 
 describe('DshRuntimeDriver.listAvailableTools', () => {

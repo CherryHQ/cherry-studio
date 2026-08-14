@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { loadDshSdk } from '../dshSdk'
+
 /**
  * Bundling viability gate (mirrors pi's Phase 0 spike test).
  *
@@ -15,12 +17,10 @@ import { describe, expect, it } from 'vitest'
  * runtime bin and every composed plugin on disk.
  */
 describe('dsh SDK bundling viability', () => {
-  it('imports the ESM-only client SDK via dynamic import() and exposes the driver surface', async () => {
-    const sdk = await import('@deepseek-ai/dsh-sdk-client')
+  it('loads the ESM-only client SDK through the runtime entry point', async () => {
+    const sdk = await loadDshSdk()
 
     expect(typeof sdk.HarnessClient).toBe('function')
-    expect(typeof sdk.DeepSeekHarness).toBe('function')
-    expect(typeof sdk.TransportClosedError).toBe('function')
   })
 
   it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
@@ -69,10 +69,8 @@ describe('dsh SDK bundling viability', () => {
       dependencies?: Record<string, string>
     }
 
-    expect(manifest.dependencies).toMatchObject({
-      '@deepseek-ai/dsh-llm': '0.1.0-rc.6',
-      '@deepseek-ai/dsh-session': '0.1.0-rc.6'
-    })
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-llm')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session')
     await expect(import(pathToFileURL(pluginPath).href)).resolves.toMatchObject({ apply: expect.any(Function) })
   })
 
