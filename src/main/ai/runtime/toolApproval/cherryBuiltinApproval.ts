@@ -9,6 +9,8 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
+import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
@@ -24,9 +26,6 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-
-import { MOVE_TO_TRASH_TOOL_NAME } from '../../moveToTrash'
-import { SAVE_ATTACHMENT_TOOL_NAME } from '../../saveAttachment'
 
 /** The in-process MCP server id that hosts the cherry builtin tools. */
 export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
@@ -85,8 +84,8 @@ export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
 
 /**
  * Assistant MCP tools that must retain per-call approval even when the Agent uses acceptEdits or
- * bypassPermissions. `diagnose` reads local device state; the other tools mutate app settings or
- * create persistent business data.
+ * auto. `diagnose` reads local device state; the other tools mutate app settings or create
+ * persistent business data. (pi's `bypassPermissions` is an explicit opt-out and lifts even this.)
  */
 export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
   'mcp__assistant__diagnose',

@@ -356,14 +356,12 @@ export class AgentSessionMessageService {
     return { rowsAffected: result.changes }
   }
 
-  /**
-   * Assistant rows still in `pending` — used by the agent-session boot reconcile to resolve turns
-   * a prior main-process crash left stuck (the runtime never reached its terminal write, and the
-   * in-memory entry map is empty after a restart, so nothing else settles them). Returns
-   * `sessionId` + `data` alongside the id so the caller can terminalize interrupted parts and
-   * invalidate the affected sessions' resume tokens.
-   */
-  findPendingAssistantMessages(): Array<{ id: string; sessionId: string; data: AgentSessionMessageEntity['data'] }> {
+  /** Assistant rows whose in-memory owner cannot survive a main-process restart. */
+  findCrashOrphanedAssistantMessages(): Array<{
+    id: string
+    sessionId: string
+    data: AgentSessionMessageEntity['data']
+  }> {
     const database = application.get('DbService').getDb()
     return database
       .select({
@@ -372,7 +370,18 @@ export class AgentSessionMessageService {
         data: sessionMessagesTable.data
       })
       .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
+      .where(
+        and(
+          eq(sessionMessagesTable.role, 'assistant'),
+          or(
+            eq(sessionMessagesTable.status, 'pending'),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+            )`
+          )
+        )
+      )
       .all()
   }
 

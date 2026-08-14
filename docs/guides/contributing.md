@@ -75,16 +75,9 @@ Please read the following key information before submitting a Pull Request:
 
 ### Branch Strategy
 
-**The v2 refactor has merged into `main`.** `main` is now the default branch for active development, where v1 and v2 code coexist. Expect large, frequent, and breaking changes during this phase.
+`main` is the default branch for active development — submit features, refactors, optimizations, and fixes here.
 
-- **`main` branch**: New feature development, refactoring, optimizations, and fixes for the current codebase go here. Before touching subsystems being replaced, read [docs/references/data](../references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal.
-- **`v1` branch**: Maintenance line for the shipped v1 release — its hotfixes and subsequent v1 releases go here, via `hotfix/*` branches (e.g., `hotfix/fix-crash-on-startup`), with minimal scope. Target your PR to `v1`, not `main`. A v1 fix does **not** auto-carry to `main`; if the same bug exists on `main`, open a separate forward-port PR targeting `main`.
-
-### Participate in v2 Development
-
-v2 is the next major milestone for Cherry Studio, and we invite every developer to actively participate! Whether it's new feature development, architecture optimization, or code refactoring, contributions on `main` are welcome. Let's build a better Cherry Studio together!
-
-Thank you for your understanding and continued support during this important development phase!
+- **`main` branch**: New feature development, refactoring, optimizations, and fixes go here.
 
 ## Contact Us
 
