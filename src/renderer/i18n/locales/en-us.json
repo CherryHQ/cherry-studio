@@ -2918,6 +2918,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "User guide",
+    "star": "Star us on GitHub",
+    "title": "Help",
+    "whats_new": "What's new"
+  },
   "history": {
     "continue_chat": "Continue Chatting",
     "error": {
@@ -5986,7 +5993,7 @@
           "title": "Diagnostic bundle"
         },
         "errors": {
-          "busy": "Another diagnostic bundle is already being exported",
+          "busy": "Another diagnostic bundle operation is already in progress",
           "copy_failed": "Could not copy the support email",
           "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
           "email_client_failed": "Could not open an email client. You can copy the support email instead.",
@@ -6035,6 +6042,48 @@
           "title": "Diagnostic bundle exported"
         },
         "unknown": "Unknown",
+        "upload": {
+          "actions": {
+            "consent_upload": "Agree and upload",
+            "open_form": "Open form",
+            "uploading": "Uploading..."
+          },
+          "dialog": {
+            "description": "Build a diagnostic bundle and send it anonymously to the Cherry Studio team.",
+            "title": "Upload diagnostic bundle"
+          },
+          "errors": {
+            "open_form_failed": "Could not open the feedback form",
+            "upload_failed": "Could not build or preserve the diagnostic bundle"
+          },
+          "manual": {
+            "description": "The ZIP was saved to Downloads and the anonymous form was opened. Select the saved file there to finish submitting it.",
+            "title": "Manual upload required"
+          },
+          "privacy": {
+            "description": "The bundle always includes app and device information. Selected logs and detailed records may contain things you entered, file locations, request and response content, and service connection information. It is sent anonymously to a private Feishu form and is limited to {{size}}. By clicking Agree and upload, you consent to building and sending this bundle.",
+            "title": "Privacy notice"
+          },
+          "reasons": {
+            "attachment_upload_failed": "The attachment could not be uploaded automatically.",
+            "form_changed": "The feedback form structure changed and could not be verified safely.",
+            "form_unavailable": "The feedback form is currently unavailable.",
+            "network_failed": "The network request could not be completed.",
+            "submission_rejected": "The feedback form rejected the submission."
+          },
+          "success": {
+            "description": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+            "title": "Diagnostic bundle uploaded"
+          },
+          "unknown": {
+            "description": "The ZIP was saved to Downloads, but the server response was interrupted. It may already have been submitted. Check before opening the form to avoid sending it twice.",
+            "title": "Submission may have succeeded"
+          },
+          "unknown_without_copy": {
+            "description": "The server response was interrupted and the diagnostic ZIP could not be saved locally. Do not retry the upload, because it may send the same feedback twice.",
+            "title": "Submission may have succeeded, but no local copy was saved"
+          }
+        },
         "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
       },
       "downloading": "Downloading...",
@@ -6043,24 +6092,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Support to get help or share feedback.",
-          "title": "Use Agent"
+          "description": "Chat with the built-in Cherry Support Agent for help with Cherry Studio or to share feedback.",
+          "title": "Ask Cherry Support"
         },
-        "agent_error": "Unable to open Cherry Support for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support. Please try again.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Review recent diagnostic information, then upload it anonymously in one step.",
+          "title": "Upload diagnostic bundle"
+        },
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
           "title": "Choose a feedback channel"
         },
         "github": {
           "description": "Create a bug report or feature request on GitHub.",
+          "error": "Unable to open GitHub Issues. Please try again.",
           "title": "GitHub Issue"
         },
         "recommended": "Recommended",
-        "survey": {
-          "description": "Share feedback through our Feishu survey.",
-          "title": "Feedback survey"
-        },
         "title": "Feedback"
       },
       "label": "About & Feedback",

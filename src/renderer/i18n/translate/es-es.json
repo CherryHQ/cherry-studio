@@ -2918,6 +2918,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Comentarios",
+    "guide": "Guía de usuario",
+    "star": "Estrella en GitHub",
+    "title": "Ayuda",
+    "whats_new": "Novedades"
+  },
   "history": {
     "continue_chat": "Continuar chat",
     "error": {
@@ -5986,7 +5993,7 @@
           "title": "Paquete de diagnóstico"
         },
         "errors": {
-          "busy": "Ya se está exportando otro paquete de diagnóstico",
+          "busy": "Ya hay otra operación de paquete de diagnóstico en curso",
           "copy_failed": "No se pudo copiar el correo de soporte",
           "destination_conflict": "La ubicación elegida para guardar entra en conflicto con los datos de diagnóstico. Elige otra carpeta.",
           "email_client_failed": "No se pudo abrir un cliente de correo. Puedes copiar el correo de soporte en su lugar.",
@@ -6035,6 +6042,48 @@
           "title": "Paquete de diagnóstico exportado"
         },
         "unknown": "Desconocido",
+        "upload": {
+          "actions": {
+            "consent_upload": "Aceptar y subir",
+            "open_form": "Abrir formulario",
+            "uploading": "Subiendo..."
+          },
+          "dialog": {
+            "description": "Crea un paquete de diagnóstico y envíalo de forma anónima al equipo de Cherry Studio.",
+            "title": "Subir paquete de diagnóstico"
+          },
+          "errors": {
+            "open_form_failed": "No se pudo abrir el formulario de comentarios",
+            "upload_failed": "No se pudo crear ni guardar el paquete de diagnóstico"
+          },
+          "manual": {
+            "description": "El archivo ZIP se guardó en Descargas y se abrió el formulario anónimo. Selecciona allí el archivo guardado para completar el envío.",
+            "title": "Se requiere una carga manual"
+          },
+          "privacy": {
+            "description": "El paquete siempre incluye información de la aplicación y del dispositivo. Los registros y datos detallados seleccionados pueden contener texto que hayas introducido, ubicaciones de archivos, contenido de solicitudes y respuestas e información sobre conexiones de servicios. Se envía de forma anónima a un formulario privado de Feishu y tiene un límite de {{size}}. Al hacer clic en «Aceptar y subir», aceptas que se cree y envíe este paquete.",
+            "title": "Aviso de privacidad"
+          },
+          "reasons": {
+            "attachment_upload_failed": "No se pudo subir automáticamente el archivo adjunto.",
+            "form_changed": "La estructura del formulario de comentarios cambió y no se pudo verificar de forma segura.",
+            "form_unavailable": "El formulario de comentarios no está disponible en este momento.",
+            "network_failed": "No se pudo completar la solicitud de red.",
+            "submission_rejected": "El formulario de comentarios rechazó el envío."
+          },
+          "success": {
+            "description": "Tamaño del archivo {{size}} · {{included}} archivos recopilados · {{omitted}} archivos no recopilados",
+            "title": "Paquete de diagnóstico subido"
+          },
+          "unknown": {
+            "description": "El archivo ZIP se guardó en Descargas, pero la respuesta del servidor se interrumpió. Puede que ya se haya enviado. Compruébalo antes de abrir el formulario para evitar enviarlo dos veces.",
+            "title": "Es posible que el envío haya finalizado"
+          },
+          "unknown_without_copy": {
+            "description": "La respuesta del servidor se interrumpió y el ZIP de diagnóstico no se pudo guardar localmente. No vuelvas a intentar la carga, ya que podrías enviar los mismos comentarios dos veces.",
+            "title": "Es posible que el envío se haya completado, pero no se guardó ninguna copia local"
+          }
+        },
         "warning": "Parte de la información de diagnóstico no estaba disponible. El paquete exportado puede estar incompleto."
       },
       "downloading": "Descargando actualización...",
@@ -6043,24 +6092,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatea con Cherry Support para obtener ayuda o compartir tus comentarios.",
-          "title": "Usar Agente"
+          "description": "Chatea con el Agent integrado de Cherry Support para obtener ayuda con Cherry Studio o compartir comentarios.",
+          "title": "Preguntar a Cherry Support"
         },
-        "agent_error": "No se puede abrir Cherry Support para enviar comentarios. Inténtalo de nuevo.",
+        "agent_error": "No se puede abrir Cherry Support. Inténtalo de nuevo.",
         "button": "Enviar feedback",
+        "diagnostics": {
+          "description": "Revisa la información de diagnóstico reciente y súbela de forma anónima en un solo paso.",
+          "title": "Subir paquete de diagnóstico"
+        },
         "dialog": {
           "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
           "title": "Elige un canal de retroalimentación"
         },
         "github": {
           "description": "Crea un informe de error o una solicitud de funcionalidad en GitHub.",
+          "error": "No se pudieron abrir los issues de GitHub. Inténtalo de nuevo.",
           "title": "Problema de GitHub"
         },
         "recommended": "Recomendado",
-        "survey": {
-          "description": "Comparta sus comentarios a través de nuestra encuesta de Feishu.",
-          "title": "Encuesta de retroalimentación"
-        },
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
