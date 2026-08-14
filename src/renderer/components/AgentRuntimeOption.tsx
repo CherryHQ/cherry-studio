@@ -51,7 +51,7 @@ function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; 
       <ItemMedia
         variant={compact ? 'default' : 'icon'}
         className={cn(compact ? 'size-4.5 text-muted-foreground' : 'border-border-subtle bg-muted/60')}>
-        <Icon className={compact ? 'size-4.5' : undefined} />
+        <Icon className={cn(compact && 'size-4.5', runtime === 'dsh' && 'scale-150')} />
       </ItemMedia>
       <ItemContent className={cn('min-w-0 text-left', compact && 'gap-0.5')}>
         <ItemTitle className={compact ? 'block max-w-full truncate' : undefined}>
