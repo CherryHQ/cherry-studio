@@ -4,8 +4,8 @@ import React, { memo } from 'react'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
+import ProviderModelCheck from './ProviderModelCheck'
 import ProviderModelDownload from './ProviderModelDownload'
-import ProviderModelHealthCheck from './ProviderModelHealthCheck'
 import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
 
@@ -21,8 +21,8 @@ function ModelListContent({
   providerId: string
   modelPullGuideVersion?: number
 }) {
-  const { isHealthChecking } = useModelListHealthRun()
-  const disabled = isHealthChecking
+  const { isModelChecking } = useModelListHealthRun()
+  const disabled = isModelChecking
 
   return (
     <>
@@ -31,6 +31,7 @@ function ModelListContent({
         disabled={disabled}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
+            <ProviderModelCheck />
             <ProviderModelPullReconcile
               providerId={providerId}
               disabled={toolbarDisabled}
@@ -44,7 +45,6 @@ function ModelListContent({
           </ButtonGroup>
         )}
       />
-      <ProviderModelHealthCheck disabled={disabled} hasVisibleModels={false} renderTrigger={false} />
     </>
   )
 }

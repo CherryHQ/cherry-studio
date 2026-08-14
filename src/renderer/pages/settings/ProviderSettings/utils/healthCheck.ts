@@ -145,9 +145,12 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
   let successCount = 0
   let partialCount = 0
   let failedCount = 0
+  let skippedCount = 0
 
   for (const result of results) {
-    if (result.status === HealthStatus.SUCCESS) {
+    if (result.kind === 'skipped') {
+      skippedCount++
+    } else if (result.status === HealthStatus.SUCCESS) {
       successCount++
     } else if (result.status === HealthStatus.FAILED) {
       const hasSuccessKey = result.keyResults.some((keyResult) => keyResult.status === HealthStatus.SUCCESS)
@@ -168,6 +171,9 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
   }
   if (failedCount > 0) {
     summaryParts.push(t('settings.models.check.model_status_failed', { count: failedCount }))
+  }
+  if (skippedCount > 0) {
+    summaryParts.push(t('settings.models.check.model_status_skipped', { count: skippedCount }))
   }
 
   if (summaryParts.length === 0) {

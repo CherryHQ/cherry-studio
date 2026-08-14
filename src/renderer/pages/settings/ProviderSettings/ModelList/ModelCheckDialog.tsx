@@ -1,0 +1,270 @@
+import {
+  Alert,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  SegmentedControl,
+  Switch
+} from '@cherrystudio/ui'
+import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { maskApiKey } from '@renderer/utils/api'
+import type { Model } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { sortBy } from 'es-toolkit/compat'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import ApiKeyCheckResults from './ApiKeyCheckResults'
+import { useModelListHealthRun } from './modelListHealthContext'
+
+type CheckMode = 'single' | 'all'
+type ModelOption = ComboboxOption<{ model: Model }>
+
+function getKeySelection(value: string): ModelCheckKeySelection {
+  return value === 'all' ? { mode: 'all' } : { mode: 'single', keyId: value }
+}
+
+function clampTimeout(value: number) {
+  if (!Number.isFinite(value)) return 15
+  return Math.min(60, Math.max(5, Math.round(value)))
+}
+
+function getSkipReasonDescription(model: Model, t: ReturnType<typeof useTranslation>['t']) {
+  const reason = getModelHealthCheckSkipReason(model)
+  if (!reason) return undefined
+  if (reason.kind === 'unsupported_probe') return t('settings.models.check.skip_reason_unsupported_probe')
+  const output =
+    reason.output === 'image'
+      ? t('settings.models.check.generation_output_image')
+      : reason.output === 'video'
+        ? t('settings.models.check.generation_output_video')
+        : t('settings.models.check.generation_output_audio')
+  return t('settings.models.check.skip_reason_generation_cost', {
+    output
+  })
+}
+
+function ApiKeyField({
+  entries,
+  value,
+  onChange
+}: {
+  entries: readonly ApiKeyEntry[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  const enabledEntries = entries.filter((entry) => entry.isEnabled)
+  const options: ComboboxOption[] = enabledEntries.length
+    ? [
+        { value: 'all', label: t('settings.models.check.all_enabled_keys') },
+        ...enabledEntries.map((entry) => ({
+          value: entry.id,
+          label: `${entry.label?.trim() || t('settings.provider.api_key.unnamed')} · ${maskApiKey(entry.key)}`
+        }))
+      ]
+    : []
+
+  return (
+    <div className="space-y-2">
+      <Label>{t('settings.models.check.key_scope')}</Label>
+      <Combobox
+        options={options}
+        value={value}
+        disabled={enabledEntries.length === 0}
+        onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? 'all') : next)}
+        placeholder={enabledEntries.length === 0 ? t('settings.models.check.no_api_keys') : undefined}
+        searchable={enabledEntries.length > 5}
+        className="w-full justify-between"
+        popoverClassName="w-(--radix-popover-trigger-width)"
+        emptyText={t('settings.models.check.no_api_keys')}
+      />
+    </div>
+  )
+}
+
+export default function ModelCheckDialog() {
+  const { t } = useTranslation()
+  const health = useModelListHealthRun()
+  const [mode, setMode] = useState<CheckMode>('single')
+  const [singleModelId, setSingleModelId] = useState('')
+  const [singleKey, setSingleKey] = useState('all')
+  const [allKey, setAllKey] = useState('all')
+  const [isConcurrent, setIsConcurrent] = useState(true)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(15)
+  const [isStarting, setIsStarting] = useState(false)
+  const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
+  const checkableModels = useMemo(
+    () => sortedModels.filter((model) => !getModelHealthCheckSkipReason(model)),
+    [sortedModels]
+  )
+  const modelOptions = useMemo<ModelOption[]>(
+    () =>
+      sortedModels.map((model) => ({
+        value: model.id,
+        label: model.name,
+        model,
+        disabled: Boolean(getModelHealthCheckSkipReason(model)),
+        description: getSkipReasonDescription(model, t)
+      })),
+    [sortedModels, t]
+  )
+  const selectedModel = sortedModels.find((model) => model.id === singleModelId) ?? checkableModels[0]
+  const checkableCount = checkableModels.length
+  const skippedCount = sortedModels.length - checkableCount
+  const hasEnabledApiKeys = health.apiKeyEntries.some((entry) => entry.isEnabled)
+  const singleModelResult = health.singleModelResult
+  const showSingleResult =
+    singleModelResult != null && selectedModel != null && singleModelResult.model.id === selectedModel.id
+
+  useEffect(() => {
+    if (!health.modelCheckOpen) return
+    setMode('single')
+    setSingleModelId((current) =>
+      current && checkableModels.some((model) => model.id === current) ? current : (checkableModels[0]?.id ?? '')
+    )
+  }, [checkableModels, health.modelCheckOpen])
+
+  useEffect(() => {
+    const enabledIds = new Set(health.apiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => entry.id))
+    if (singleKey !== 'all' && !enabledIds.has(singleKey)) setSingleKey('all')
+    if (allKey !== 'all' && !enabledIds.has(allKey)) setAllKey('all')
+  }, [allKey, health.apiKeyEntries, singleKey])
+
+  const handleStart = async () => {
+    setIsStarting(true)
+    try {
+      if (mode === 'single') {
+        if (!selectedModel) return
+        await health.startSingleModelCheck({ model: selectedModel, keySelection: getKeySelection(singleKey) })
+        return
+      }
+
+      const timeout = clampTimeout(timeoutSeconds)
+      setTimeoutSeconds(timeout)
+      await health.startHealthCheck({
+        keySelection: getKeySelection(allKey),
+        isConcurrent,
+        timeout: timeout * 1000
+      })
+    } finally {
+      setIsStarting(false)
+    }
+  }
+
+  return (
+    <Dialog open={health.modelCheckOpen} onOpenChange={(open) => !open && health.closeModelCheck()}>
+      <DialogContent className="gap-4 sm:max-w-145">
+        <DialogHeader>
+          <DialogTitle>{t('settings.models.check.title')}</DialogTitle>
+        </DialogHeader>
+        <SegmentedControl<CheckMode>
+          className="w-fit"
+          value={mode}
+          disabled={health.isSingleModelChecking}
+          options={[
+            { value: 'single', label: t('settings.models.check.single_model') },
+            { value: 'all', label: t('settings.models.check.all_models') }
+          ]}
+          onValueChange={setMode}
+        />
+        <Alert type="warning" showIcon description={t('settings.models.check.disclaimer')} />
+
+        {mode === 'single' ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t('settings.models.check.model')}</Label>
+              <Combobox<{ model: Model }>
+                options={modelOptions}
+                value={selectedModel?.id ?? ''}
+                onChange={(value) => {
+                  setSingleModelId(Array.isArray(value) ? (value[0] ?? '') : value)
+                  health.resetSingleModelResult()
+                }}
+                className="w-full justify-between"
+                popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-72"
+                emptyText={t('common.no_results')}
+                searchPlaceholder={t('common.search')}
+              />
+            </div>
+            {health.requiresApiKey ? (
+              <ApiKeyField
+                entries={health.apiKeyEntries}
+                value={singleKey}
+                onChange={(value) => {
+                  setSingleKey(value)
+                  health.resetSingleModelResult()
+                }}
+              />
+            ) : null}
+            {showSingleResult ? (
+              <ApiKeyCheckResults
+                keyResults={singleModelResult.keyResults}
+                apiKeyEntries={health.apiKeyEntries}
+                savingKeyId={health.savingKeyId}
+                onToggleKey={health.toggleApiKey}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border-subtle bg-muted/30 px-3 py-2 text-sm">
+              {t('settings.models.check.model_count', { checkable: checkableCount, skipped: skippedCount })}
+            </div>
+            {health.requiresApiKey ? (
+              <ApiKeyField entries={health.apiKeyEntries} value={allKey} onChange={setAllKey} />
+            ) : null}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor="model-check-concurrent">{t('settings.models.check.enable_concurrent')}</Label>
+                <p className="mt-1 text-muted-foreground text-xs">{t('settings.models.check.concurrent_hint')}</p>
+              </div>
+              <Switch id="model-check-concurrent" checked={isConcurrent} onCheckedChange={setIsConcurrent} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="model-check-timeout">{t('settings.models.check.timeout')}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="model-check-timeout"
+                  type="number"
+                  min={5}
+                  max={60}
+                  value={timeoutSeconds}
+                  className="w-24"
+                  onChange={(event) => setTimeoutSeconds(Number(event.target.value))}
+                  onBlur={() => setTimeoutSeconds(clampTimeout(timeoutSeconds))}
+                />
+                <span className="text-muted-foreground text-sm">{t('settings.models.check.timeout_unit')}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={health.closeModelCheck}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            loading={isStarting || (mode === 'single' && health.isSingleModelChecking)}
+            disabled={
+              isStarting ||
+              health.isModelChecking ||
+              (health.requiresApiKey && !hasEnabledApiKeys) ||
+              (mode === 'single' ? !selectedModel : checkableCount === 0)
+            }
+            onClick={() => void handleStart()}>
+            {t('settings.models.check.start')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

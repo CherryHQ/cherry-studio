@@ -1,13 +1,33 @@
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { resolveModelCheckCredentials } from '../../utils/healthCheck'
+import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
+import { HealthStatus } from '../../types/healthCheck'
+import {
+  getModelHealthCheckSkipReason,
+  resolveModelCheckCredentials,
+  summarizeHealthResults
+} from '../../utils/healthCheck'
 
 const entries: ApiKeyEntry[] = [
   { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
   { id: 'key-2', key: 'sk-disabled', label: 'Disabled', isEnabled: false },
   { id: 'key-3', key: 'sk-backup', label: 'Backup', isEnabled: true }
 ]
+
+function createModel(id: string, capabilities: Model['capabilities']): Model {
+  return {
+    id: `openai::${id}`,
+    providerId: 'openai',
+    name: id,
+    capabilities,
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
 
 describe('resolveModelCheckCredentials', () => {
   it('keeps stable identity while selecting all enabled API keys', () => {
@@ -45,5 +65,86 @@ describe('resolveModelCheckCredentials', () => {
     expect(resolveModelCheckCredentials([], { mode: 'all' }, false)).toEqual([
       { kind: 'provider-auth', id: 'provider-auth', key: '' }
     ])
+  })
+})
+
+describe('summarizeHealthResults', () => {
+  it('includes skipped models alongside passed, partial, and failed outcomes', () => {
+    const model: Model = {
+      id: 'openai::model',
+      providerId: 'openai',
+      name: 'Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
+    const successKey = {
+      kind: 'ok',
+      credential: { kind: 'api-key', entry: entries[0] },
+      status: HealthStatus.SUCCESS,
+      checking: false,
+      latency: 1
+    } satisfies ApiKeyWithStatus
+    const failedKey = {
+      kind: 'failed',
+      credential: { kind: 'api-key', entry: entries[2] },
+      status: HealthStatus.FAILED,
+      checking: false,
+      error: { name: 'Error', message: 'failed', stack: null }
+    } satisfies ApiKeyWithStatus
+    const results: ModelWithStatus[] = [
+      { kind: 'ok', model, status: HealthStatus.SUCCESS, checking: false, keyResults: [successKey], latency: 1 },
+      {
+        kind: 'failed',
+        model: { ...model, id: 'openai::partial' },
+        status: HealthStatus.FAILED,
+        checking: false,
+        keyResults: [successKey, failedKey]
+      },
+      {
+        kind: 'failed',
+        model: { ...model, id: 'openai::failed' },
+        status: HealthStatus.FAILED,
+        checking: false,
+        keyResults: [failedKey]
+      },
+      {
+        kind: 'skipped',
+        model: { ...model, id: 'openai::image' },
+        status: HealthStatus.NOT_CHECKED,
+        checking: false,
+        keyResults: [],
+        skipReason: { kind: 'generation_cost', output: 'image' }
+      }
+    ]
+
+    expect(summarizeHealthResults(results, 'OpenAI')).toMatch(/skipped|跳过/i)
+  })
+})
+
+describe('getModelHealthCheckSkipReason', () => {
+  it('skips generation and speech models with an explicit reason', () => {
+    expect(getModelHealthCheckSkipReason(createModel('image', [MODEL_CAPABILITY.IMAGE_GENERATION]))).toEqual({
+      kind: 'generation_cost',
+      output: 'image'
+    })
+    expect(getModelHealthCheckSkipReason(createModel('video', [MODEL_CAPABILITY.VIDEO_GENERATION]))).toEqual({
+      kind: 'generation_cost',
+      output: 'video'
+    })
+    expect(getModelHealthCheckSkipReason(createModel('audio', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toEqual({
+      kind: 'generation_cost',
+      output: 'audio'
+    })
+    expect(getModelHealthCheckSkipReason(createModel('speech-to-text', [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toEqual({
+      kind: 'unsupported_probe'
+    })
+  })
+
+  it('keeps text, embedding, and rerank models available for checks', () => {
+    expect(getModelHealthCheckSkipReason(createModel('chat', []))).toBeNull()
+    expect(getModelHealthCheckSkipReason(createModel('embedding', [MODEL_CAPABILITY.EMBEDDING]))).toBeNull()
+    expect(getModelHealthCheckSkipReason(createModel('rerank', [MODEL_CAPABILITY.RERANK]))).toBeNull()
   })
 })

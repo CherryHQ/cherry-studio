@@ -1,15 +1,21 @@
+import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ModelWithStatus } from '../../types/healthCheck'
 import { HealthStatus } from '../../types/healthCheck'
 import { useHealthCheck } from '../useHealthCheck'
 
 const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderApiKeysMock = vi.fn()
-
+const useAuthenticationApiKeyMock = vi.fn()
+const useProviderEndpointsMock = vi.fn()
+const useProviderMetaMock = vi.fn()
 const checkModelsHealthMock = vi.fn()
+const toastErrorMock = vi.fn()
+const toastSuccessMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
@@ -24,213 +30,333 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth',
   checkModelsHealth: (...args: any[]) => checkModelsHealthMock(...args)
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useAuthenticationApiKey', () => ({
+  useAuthenticationApiKey: () => useAuthenticationApiKeyMock()
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpoints', () => ({
+  useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: (...args: any[]) => toastErrorMock(...args),
+    success: (...args: any[]) => toastSuccessMock(...args)
+  }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn()
-    })
+    withContext: () => ({ error: vi.fn() })
   }
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => key }
+  default: { t: (key: string, options?: object) => `${key}${options ? `:${JSON.stringify(options)}` : ''}` }
 }))
 
+const chatModel: Model = {
+  id: 'openai::gpt-4o',
+  providerId: 'openai',
+  name: 'GPT-4o',
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+}
+const rerankModel: Model = {
+  id: 'openai::rerank-1',
+  providerId: 'openai',
+  name: 'Rerank',
+  capabilities: [MODEL_CAPABILITY.RERANK],
+  supportsStreaming: false,
+  isEnabled: true,
+  isHidden: false
+}
+const imageModel: Model = {
+  id: 'openai::gpt-image-1',
+  providerId: 'openai',
+  name: 'GPT Image',
+  capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+  supportsStreaming: false,
+  isEnabled: true,
+  isHidden: false
+}
+const primaryKey = { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true }
+const backupKey = { id: 'key-2', key: 'sk-backup', label: 'Backup', isEnabled: true }
+
+function okResult(model = chatModel, key = primaryKey): ModelWithStatus {
+  return {
+    kind: 'ok',
+    model,
+    status: HealthStatus.SUCCESS,
+    checking: false,
+    latency: 12,
+    keyResults: [
+      {
+        kind: 'ok',
+        credential: { kind: 'api-key', entry: key },
+        status: HealthStatus.SUCCESS,
+        checking: false,
+        latency: 12
+      }
+    ]
+  }
+}
+
 describe('useHealthCheck', () => {
+  let apiKeys = [primaryKey, backupKey]
+  let models = [chatModel, imageModel, rerankModel]
+  let inputApiKey = 'sk-primary,sk-backup'
+  const commitInputApiKeyNow = vi.fn()
+  const refetchApiKeys = vi.fn()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    }
+    apiKeys = [primaryKey, backupKey]
+    models = [chatModel, imageModel, rerankModel]
+    inputApiKey = 'sk-primary,sk-backup'
+    commitInputApiKeyNow.mockResolvedValue(undefined)
+    refetchApiKeys.mockImplementation(async () => ({ keys: apiKeys }))
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
-    useModelsMock.mockReturnValue({
-      models: [
-        { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] },
-        { id: 'openai::gpt-3.5', providerId: 'openai', name: 'GPT-3.5', capabilities: [] },
-        {
-          id: 'openai::rerank-1',
-          providerId: 'openai',
-          name: 'Rerank',
-          capabilities: [MODEL_CAPABILITY.RERANK]
-        }
-      ]
-    })
-    useProviderApiKeysMock.mockReturnValue({
-      data: { keys: [{ id: 'k1', key: 'sk-a', isEnabled: true }] }
-    })
+    useModelsMock.mockImplementation(() => ({ models }))
+    useProviderApiKeysMock.mockImplementation(() => ({ data: { keys: apiKeys }, refetch: refetchApiKeys }))
+    useAuthenticationApiKeyMock.mockImplementation(() => ({ commitInputApiKeyNow, inputApiKey }))
+    useProviderEndpointsMock.mockReturnValue({ apiHost: 'https://api.openai.com', anthropicApiHost: '' })
+    useProviderMetaMock.mockReturnValue({ isApiKeyFieldVisible: true })
   })
 
-  it('aborts the in-flight run and clears state when providerId changes', async () => {
-    // T4: pin the abort + runId staleness contract — switching providers
-    // mid-check must drop the in-flight callback before it touches state.
-    let resolveCheck: (() => void) | undefined
-    const onCheckedRef: { current?: (result: any, index: number) => void } = {}
-    checkModelsHealthMock.mockImplementation(async (_options, onChecked) => {
-      onCheckedRef.current = onChecked
-      await new Promise<void>((resolve) => {
-        resolveCheck = resolve
-      })
-    })
+  it('starts in the background and streams results into their original model rows', async () => {
+    let finishCheck: ((results: ModelWithStatus[]) => void) | undefined
+    let onChecked: ((result: ModelWithStatus, index: number) => void) | undefined
+    checkModelsHealthMock.mockImplementation(
+      (options, callback) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          onChecked = callback
+          finishCheck = resolve
+          expect(options.models).toEqual([chatModel, rerankModel])
+        })
+    )
 
-    const { result, rerender } = renderHook(({ providerId }) => useHealthCheck(providerId), {
-      initialProps: { providerId: 'openai' }
-    })
+    const { result } = renderHook(() => useHealthCheck('openai'))
 
     await act(async () => {
-      void result.current.startHealthCheck({ apiKeys: ['sk-a'], isConcurrent: false, timeout: 5000 })
-      await Promise.resolve()
+      await expect(
+        result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+      ).resolves.toBe(true)
     })
+
     expect(result.current.isChecking).toBe(true)
-    expect(result.current.modelStatuses.length).toBe(3)
-    expect(checkModelsHealthMock.mock.calls[0]?.[0].models.map((model: { id: string }) => model.id)).toEqual([
-      'openai::gpt-4o',
-      'openai::gpt-3.5',
-      'openai::rerank-1'
+    expect(result.current.modelStatuses).toEqual([
+      expect.objectContaining({ kind: 'checking', model: chatModel }),
+      expect.objectContaining({ kind: 'skipped', model: imageModel }),
+      expect.objectContaining({ kind: 'checking', model: rerankModel })
     ])
 
-    rerender({ providerId: 'anthropic' })
-
-    // Switching provider aborts the previous run; modelStatuses + isChecking are cleared.
-    expect(result.current.isChecking).toBe(false)
-    expect(result.current.modelStatuses).toEqual([])
-
-    // Late onChecked from the aborted run must NOT land on the new mount.
-    act(() => {
-      onCheckedRef.current?.({ kind: 'ok', model: { id: 'openai::gpt-4o' }, status: 'success' } as any, 0)
-    })
-    expect(result.current.modelStatuses).toEqual([])
-
-    resolveCheck?.()
-  })
-
-  it('closeHealthCheck aborts the controller and increments runIdRef to drop late callbacks', async () => {
-    let onCheckedHandler: ((result: any, index: number) => void) | undefined
-    let abortSignalCaptured: AbortSignal | undefined
-    checkModelsHealthMock.mockImplementation(async (options, onChecked) => {
-      onCheckedHandler = onChecked
-      abortSignalCaptured = options.signal
-      await new Promise<void>((resolve) => {
-        options.signal?.addEventListener('abort', () => resolve(), { once: true })
-      })
-    })
-
-    const { result } = renderHook(() => useHealthCheck('openai'))
+    act(() => onChecked?.(okResult(rerankModel), 1))
+    expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
 
     await act(async () => {
-      void result.current.startHealthCheck({ apiKeys: ['sk-a'], isConcurrent: false, timeout: 5000 })
+      finishCheck?.([okResult(chatModel), okResult(rerankModel)])
       await Promise.resolve()
+    })
+
+    expect(result.current.isChecking).toBe(false)
+    expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
+  })
+
+  it('enters the shared loading state while credentials are still being prepared', async () => {
+    let resolveCommit!: () => void
+    commitInputApiKeyNow.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveCommit = resolve
+      })
+    )
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    const { result } = renderHook(() => useHealthCheck('openai'))
+
+    let startTask!: Promise<boolean>
+    act(() => {
+      startTask = result.current.startHealthCheck({
+        keySelection: { mode: 'all' },
+        isConcurrent: true,
+        timeout: 15000
+      })
     })
 
     expect(result.current.isChecking).toBe(true)
+    expect(checkModelsHealthMock).not.toHaveBeenCalled()
 
-    act(() => {
-      result.current.closeHealthCheck()
+    await act(async () => {
+      resolveCommit()
+      await expect(startTask).resolves.toBe(true)
     })
-
-    expect(abortSignalCaptured?.aborted).toBe(true)
-    expect(result.current.isChecking).toBe(false)
-    expect(result.current.healthCheckOpen).toBe(false)
-
-    // Late callback should not mutate modelStatuses since runId bumped on close.
-    const statusesBefore = result.current.modelStatuses
-    act(() => {
-      onCheckedHandler?.({ kind: 'ok', model: { id: 'openai::gpt-4o' }, status: 'success' } as any, 0)
-    })
-    expect(result.current.modelStatuses).toBe(statusesBefore)
+    await waitFor(() => expect(result.current.isChecking).toBe(false))
   })
 
-  it('unmount aborts the in-flight controller', async () => {
-    let abortSignal: AbortSignal | undefined
-    checkModelsHealthMock.mockImplementation(async (options) => {
-      abortSignal = options.signal
-      await new Promise<void>((resolve) => {
-        options.signal?.addEventListener('abort', () => resolve(), { once: true })
+  it('accepts the credential refresh caused by its own preflight save', async () => {
+    let resolveRefetch!: (value: { keys: typeof apiKeys }) => void
+    refetchApiKeys.mockReturnValueOnce(
+      new Promise<{ keys: typeof apiKeys }>((resolve) => {
+        resolveRefetch = resolve
+      })
+    )
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    const { result, rerender } = renderHook(() => useHealthCheck('openai'))
+
+    let startTask!: Promise<boolean>
+    act(() => {
+      startTask = result.current.startHealthCheck({
+        keySelection: { mode: 'all' },
+        isConcurrent: true,
+        timeout: 15000
       })
     })
+    await waitFor(() => expect(refetchApiKeys).toHaveBeenCalled())
 
-    const { result, unmount } = renderHook(() => useHealthCheck('openai'))
-
-    await act(async () => {
-      void result.current.startHealthCheck({ apiKeys: ['sk-a'], isConcurrent: false, timeout: 5000 })
-      await Promise.resolve()
-    })
-
-    expect(abortSignal?.aborted).toBe(false)
-    unmount()
-    await waitFor(() => expect(abortSignal?.aborted).toBe(true))
-  })
-
-  it('marks generation models as skipped without probing them while still probing rerank models', async () => {
-    const chatModel = { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] }
-    const rerankModel = {
-      id: 'openai::rerank-1',
-      providerId: 'openai',
-      name: 'Rerank',
-      capabilities: [MODEL_CAPABILITY.RERANK]
-    }
-    const imageModel = {
-      id: 'openai::gpt-image-1',
-      providerId: 'openai',
-      name: 'GPT Image',
-      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
-    }
-    const videoModel = {
-      id: 'openai::sora',
-      providerId: 'openai',
-      name: 'Sora',
-      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
-    }
-    useModelsMock.mockReturnValue({ models: [chatModel, imageModel, rerankModel, videoModel] })
-    checkModelsHealthMock.mockImplementation(async (options, onChecked) => {
-      onChecked(
-        {
-          kind: 'ok',
-          model: options.models[0],
-          status: HealthStatus.SUCCESS,
-          checking: false,
-          keyResults: [],
-          latency: 1
-        },
-        0
-      )
-      onChecked(
-        {
-          kind: 'ok',
-          model: options.models[1],
-          status: HealthStatus.SUCCESS,
-          checking: false,
-          keyResults: [],
-          latency: 2
-        },
-        1
-      )
-      return []
-    })
-
-    const { result } = renderHook(() => useHealthCheck('openai'))
+    apiKeys = apiKeys.map((entry) =>
+      entry.id === primaryKey.id ? { ...entry, label: 'Saved during preflight' } : entry
+    )
+    rerender()
 
     await act(async () => {
-      await result.current.startHealthCheck({ apiKeys: ['sk-a'], isConcurrent: false, timeout: 5000 })
+      resolveRefetch({ keys: apiKeys })
+      await expect(startTask).resolves.toBe(true)
     })
 
     expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
-    expect(checkModelsHealthMock.mock.calls[0]?.[0].models).toEqual([chatModel, rerankModel])
-    expect(result.current.modelStatuses).toHaveLength(4)
-    expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
-    expect(result.current.modelStatuses[1]).toMatchObject({
-      kind: 'skipped',
-      model: imageModel,
-      skipReason: { kind: 'generation_cost', output: 'image' }
+  })
+
+  it('commits pending keys, refetches, then resolves one selected enabled key by id', async () => {
+    apiKeys = [primaryKey]
+    const latestBackup = { ...backupKey, label: 'Latest backup' }
+    refetchApiKeys.mockResolvedValue({ keys: [primaryKey, latestBackup] })
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel, latestBackup), okResult(rerankModel, latestBackup)])
+
+    const { result } = renderHook(() => useHealthCheck('openai'))
+
+    await act(async () => {
+      await result.current.startHealthCheck({
+        keySelection: { mode: 'single', keyId: latestBackup.id },
+        isConcurrent: false,
+        timeout: 5000
+      })
     })
-    expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
-    expect(result.current.modelStatuses[3]).toMatchObject({
-      kind: 'skipped',
-      model: videoModel,
-      skipReason: { kind: 'generation_cost', output: 'video' }
+
+    expect(commitInputApiKeyNow.mock.invocationCallOrder[0]).toBeLessThan(refetchApiKeys.mock.invocationCallOrder[0])
+    expect(refetchApiKeys.mock.invocationCallOrder[0]).toBeLessThan(checkModelsHealthMock.mock.invocationCallOrder[0])
+    expect(checkModelsHealthMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: [{ kind: 'api-key', entry: latestBackup }],
+        isConcurrent: false,
+        timeout: 5000
+      }),
+      expect.any(Function)
+    )
+  })
+
+  it('keeps existing results when preflight cannot resolve an enabled key', async () => {
+    checkModelsHealthMock.mockResolvedValueOnce([okResult(chatModel), okResult(rerankModel)])
+    const { result } = renderHook(() => useHealthCheck('openai'))
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
     })
+    const previousResults = result.current.modelStatuses
+
+    apiKeys = [{ ...primaryKey, isEnabled: false }]
+    refetchApiKeys.mockResolvedValue({ keys: apiKeys })
+    await act(async () => {
+      await expect(
+        result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+      ).resolves.toBe(false)
+    })
+
+    expect(result.current.modelStatuses).toBe(previousResults)
+    expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
+    expect(toastErrorMock).toHaveBeenCalled()
+  })
+
+  it('aborts and clears on provider or credential content changes but not key enablement changes', async () => {
+    let signal: AbortSignal | undefined
+    checkModelsHealthMock.mockImplementation(
+      (options) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          signal = options.signal
+          options.signal.addEventListener('abort', () => resolve([]), { once: true })
+        })
+    )
+    const { result, rerender } = renderHook(({ providerId }) => useHealthCheck(providerId), {
+      initialProps: { providerId: 'openai' }
+    })
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    apiKeys = apiKeys.map((entry) => ({ ...entry, isEnabled: !entry.isEnabled }))
+    rerender({ providerId: 'openai' })
+    expect(signal?.aborted).toBe(false)
+    expect(result.current.modelStatuses).not.toEqual([])
+
+    apiKeys = apiKeys.map((entry) => (entry.id === primaryKey.id ? { ...entry, label: 'Renamed' } : entry))
+    rerender({ providerId: 'openai' })
+    expect(signal?.aborted).toBe(true)
+    expect(result.current.modelStatuses).toEqual([])
+  })
+
+  it('drops late callbacks after a provider switch', async () => {
+    let onChecked: ((result: ModelWithStatus, index: number) => void) | undefined
+    checkModelsHealthMock.mockImplementation(
+      (options, callback) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          onChecked = callback
+          options.signal.addEventListener('abort', () => resolve([]), { once: true })
+        })
+    )
+    const { result, rerender } = renderHook(({ providerId }) => useHealthCheck(providerId), {
+      initialProps: { providerId: 'openai' }
+    })
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    rerender({ providerId: 'anthropic' })
+    act(() => onChecked?.(okResult(chatModel), 0))
+    expect(result.current.modelStatuses).toEqual([])
+  })
+
+  it('prunes only deleted model results after a completed run', async () => {
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    const { result, rerender } = renderHook(() => useHealthCheck('openai'))
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    models = [rerankModel]
+    rerender()
+
+    await waitFor(() => expect(result.current.modelStatuses.map((status) => status.model.id)).toEqual([rerankModel.id]))
+  })
+
+  it('aborts the background run on unmount', async () => {
+    let signal: AbortSignal | undefined
+    checkModelsHealthMock.mockImplementation(
+      (options) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          signal = options.signal
+          options.signal.addEventListener('abort', () => resolve([]), { once: true })
+        })
+    )
+    const { result, unmount } = renderHook(() => useHealthCheck('openai'))
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    unmount()
+    expect(signal?.aborted).toBe(true)
   })
 })
