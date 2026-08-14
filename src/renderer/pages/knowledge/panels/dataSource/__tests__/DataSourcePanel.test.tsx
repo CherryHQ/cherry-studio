@@ -308,6 +308,8 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
             'knowledge.data_source.bulk.delete': '删除',
             'knowledge.data_source.bulk.reindex': '重新索引',
+            'knowledge.data_source.bulk.reindex_skipped': `已跳过 ${options?.count} 个处理中的数据源`,
+            'knowledge.data_source.bulk.reindex_none_eligible': '选中的数据源都在处理中，暂时无法重新索引',
             'knowledge.data_source.bulk.delete_confirm_title': '确认批量删除',
             'knowledge.data_source.table.columns.name': '名称',
             'knowledge.data_source.table.columns.type': '类型',
@@ -1066,6 +1068,66 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
+  })
+
+  // The main process rejects a reindex batch outright when any selected subtree is still
+  // active, so sending in-flight rows would also drop the failed ones the user meant to retry
+  // (issue #18508: concurrent embedding leaves some rows processing, select-all then fails).
+  it('sends only completed/failed rows to bulk reindex and reports the skipped in-flight ones', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'failed' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-3', originName: '年度总结.pdf', status: 'completed' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(onReindexItems).toHaveBeenCalledWith(['file-1', 'file-3'])
+    })
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个处理中的数据源')
+  })
+
+  it('skips the reindex request entirely when every selected row is still in flight', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'embedding' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('选中的数据源都在处理中，暂时无法重新索引')
+    })
+    expect(onReindexItems).not.toHaveBeenCalled()
+    // Selection survives so the user can switch to another bulk action (delete allows in-flight rows).
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
   })
 
   it('confirms bulk delete for selected rows and clears selection after one bulk operation', async () => {

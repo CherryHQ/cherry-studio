@@ -554,11 +554,6 @@
           "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
           "label": "環境變數"
         },
-        "maxTurns": {
-          "description": "設定 Agent 自動執行的請求／回覆輪次數。",
-          "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
-          "label": "對話輪次上限"
-        },
         "permissionMode": {
           "description": "控制 Agent 在需要授權時的處理方式。",
           "label": "權限模式",
@@ -2918,6 +2913,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "問題回饋",
+    "guide": "使用指南",
+    "star": "GitHub 按讚",
+    "title": "幫助",
+    "whats_new": "新功能"
+  },
   "history": {
     "continue_chat": "繼續聊天",
     "error": {
@@ -3448,10 +3450,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
-          },
-          "max_turns": {
-            "help": "0 表示使用預設值",
-            "label": "最大對話回合數"
           },
           "mcps": {
             "add": "新增 MCP 伺服器",
@@ -5986,7 +5984,7 @@
           "title": "診斷包"
         },
         "errors": {
-          "busy": "另一個診斷包正在匯出",
+          "busy": "已有其他診斷包操作正在進行",
           "copy_failed": "無法複製支援電子郵件",
           "destination_conflict": "所選儲存位置與診斷資料衝突，請選擇其他資料夾。",
           "email_client_failed": "無法開啟電子郵件應用程式。您可以改為複製支援電子郵件。",
@@ -6035,6 +6033,48 @@
           "title": "已匯出診斷包"
         },
         "unknown": "未知",
+        "upload": {
+          "actions": {
+            "consent_upload": "同意並上傳",
+            "open_form": "開啟表單",
+            "uploading": "正在上傳..."
+          },
+          "dialog": {
+            "description": "產生診斷包並匿名傳送給 Cherry Studio 團隊。",
+            "title": "上傳診斷包"
+          },
+          "errors": {
+            "open_form_failed": "無法開啟回饋表單",
+            "upload_failed": "無法產生或儲存診斷包"
+          },
+          "manual": {
+            "description": "ZIP 已儲存至下載資料夾，並已開啟匿名表單。請在表單中選取該檔案以完成提交。",
+            "title": "需要手動上傳"
+          },
+          "privacy": {
+            "description": "診斷包一律包含應用程式與裝置資訊。所選記錄與詳細活動資料可能包含您輸入的內容、檔案位置、請求與回應內容，以及服務連線資訊。診斷包將匿名傳送至私人飛書表單，大小上限為 {{size}}。點選「同意並上傳」即表示您同意產生並傳送此診斷包。",
+            "title": "隱私權說明"
+          },
+          "reasons": {
+            "attachment_upload_failed": "無法自動上傳附件。",
+            "form_changed": "回饋表單結構已變更，無法安全驗證。",
+            "form_unavailable": "回饋表單目前無法使用。",
+            "network_failed": "網路請求未能完成。",
+            "submission_rejected": "回饋表單拒絕了本次提交。"
+          },
+          "success": {
+            "description": "檔案大小 {{size}} · 已收集 {{included}} 個檔案 · 未收集 {{omitted}} 個檔案",
+            "title": "診斷包已上傳"
+          },
+          "unknown": {
+            "description": "ZIP 已儲存至下載資料夾，但伺服器回應中斷，可能已經提交成功。開啟表單前請先確認，避免重複提交。",
+            "title": "可能已提交"
+          },
+          "unknown_without_copy": {
+            "description": "伺服器回應中斷，且診斷包無法儲存至下載資料夾。請勿再次上傳，否則可能重複提交同一份意見回饋。",
+            "title": "可能已提交，但未能儲存本機副本"
+          }
+        },
         "warning": "部分診斷資訊目前無法取得，匯出的診斷包可能不完整。"
       },
       "downloading": "正在下載...",
@@ -6043,24 +6083,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "與 Cherry 支援對話，取得使用協助或提交回饋。",
-          "title": "使用 Agent"
+          "description": "使用內建的問題回饋 Agent 取得 Cherry Studio 使用協助或提交回饋。",
+          "title": "向問題回饋助手求助"
         },
-        "agent_error": "無法開啟 Cherry 支援以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟問題回饋助手，請再試一次。",
         "button": "回饋",
+        "diagnostics": {
+          "description": "確認最近的診斷資訊後，一鍵匿名上傳。",
+          "title": "上傳診斷包"
+        },
         "dialog": {
           "description": "選擇分享回饋的方式，幫助我們讓 Cherry Studio 變得更好。",
           "title": "選擇回饋管道"
         },
         "github": {
           "description": "在 GitHub 上建立錯誤回報或功能請求。",
+          "error": "無法開啟 GitHub Issue，請再試一次。",
           "title": "GitHub 問題"
         },
         "recommended": "推薦",
-        "survey": {
-          "description": "透過我們的飛書問卷分享回饋。",
-          "title": "意見調查"
-        },
         "title": "回饋"
       },
       "label": "關於與回饋",
