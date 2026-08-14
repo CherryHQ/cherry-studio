@@ -49,12 +49,10 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
     result.kind === 'skipped'
       ? t('settings.models.check.status_skipped')
       : result.kind === 'ok'
-        ? result.latency != null
-          ? `${t('settings.models.check.passed')} · ${result.latency} ms`
-          : t('settings.models.check.passed')
+        ? t('settings.models.check.passed')
         : partial
           ? t('settings.models.check.keys_failed_count', { failed: failedCount, total: result.keyResults.length })
-          : healthCheckErrorToDisplayString(result.error) || t('settings.models.check.failed')
+          : t('settings.models.check.failed')
   const Icon = result.kind === 'skipped' ? Info : result.kind === 'ok' ? CheckCircle2 : partial ? CircleAlert : CircleX
   const color =
     result.kind === 'ok' ? 'text-success' : result.kind === 'skipped' ? 'text-muted-foreground' : 'text-error'

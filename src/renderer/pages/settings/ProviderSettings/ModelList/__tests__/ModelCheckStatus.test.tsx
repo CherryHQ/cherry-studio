@@ -32,7 +32,7 @@ describe('ModelCheckStatus', () => {
     expect(screen.getByText('settings.models.check.status_checking')).toBeInTheDocument()
   })
 
-  it('shows both the passed state and its fastest latency', () => {
+  it('shows the passed state without inline latency details', () => {
     const result: ModelWithStatus = {
       kind: 'ok',
       model,
@@ -43,10 +43,10 @@ describe('ModelCheckStatus', () => {
     }
     render(<ModelCheckStatus result={result} apiKeyEntries={[]} savingKeyId={null} onToggleKey={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: /settings.models.check.passed · 42 ms/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Chat: settings.models.check.passed' })).toBeInTheDocument()
   })
 
-  it('uses a focusable failed status trigger and exposes the full error in a portal popover', async () => {
+  it('shows the failed state without inline error details and exposes the full error in a portal popover', async () => {
     const entry = { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true }
     const result: ModelWithStatus = {
       kind: 'failed',
@@ -66,7 +66,7 @@ describe('ModelCheckStatus', () => {
     }
     render(<ModelCheckStatus result={result} apiKeyEntries={[entry]} savingKeyId={null} onToggleKey={vi.fn()} />)
 
-    const trigger = screen.getByRole('button', { name: /Chat: full provider error/ })
+    const trigger = screen.getByRole('button', { name: 'Chat: settings.models.check.failed' })
     fireEvent.click(trigger)
     expect(await screen.findAllByText('full provider error')).not.toHaveLength(0)
   })
