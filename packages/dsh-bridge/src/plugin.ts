@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
-import { type ContentBlock, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -30,6 +30,12 @@ export const name = 'cherry-bridge'
 export const inject = ['approval', 'agents', 'tools', 'tokenMeter']
 
 type AskResolve = (outcome: 'allowed-once' | 'rejected' | 'cancelled') => void
+
+/** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
+interface BridgeToolOutputValue {
+  text: string
+  data?: unknown
+}
 
 interface RegisteredBridgeTool {
   descriptorKey: string
@@ -128,9 +134,7 @@ export function apply(ctx: Context): void {
           })
           return
         }
-        agent.followup(
-          createUserMessage({ content: message.contentBlocks as ContentBlock[], source: { kind: 'user' } })
-        )
+        agent.followup(createUserMessage({ content: message.contentBlocks, source: { kind: 'user' } }))
         link.send({ type: 'result', id: message.id, ok: true })
         return
       }
@@ -295,7 +299,8 @@ export function apply(ctx: Context): void {
           additionalProperties: false
         },
         render(_args, value) {
-          return [{ type: 'text', text: (value as { text: string }).text }]
+          // The registry validated `value` against output.schema before render — the cast restates it.
+          return [{ type: 'text', text: (value as BridgeToolOutputValue).text }]
         }
       },
       execute(args, exec) {

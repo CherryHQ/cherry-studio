@@ -8,6 +8,12 @@
  * request the agent loop never sees. All of them hang off the host's per-session
  * trace root.
  */
+// The dsh-compaction-basic / dsh-llm-retry / dsh-user-approval imports load their SessionEventMap merges.
+import type {} from '@deepseek-ai/dsh-compaction-basic'
+import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-llm-retry'
+import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
+import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import { loggerService } from '@logger'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { type Attributes, type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -30,9 +36,9 @@ interface PendingToolCall {
 export class DshTraceRecorder {
   /** `${turn}:${step}` → provider span. */
   private readonly stepSpans = new Map<string, Span>()
-  private readonly pendingTools = new Map<string, PendingToolCall>()
+  private readonly pendingTools = new Map<CallId, PendingToolCall>()
   /** approvalId → callId; `approval/decided` carries only the approval identity. */
-  private readonly approvalCalls = new Map<string, string>()
+  private readonly approvalCalls = new Map<ApprovalRequestId, CallId>()
   private readonly compactionSpans = new Map<string, Span>()
 
   constructor(
@@ -40,34 +46,32 @@ export class DshTraceRecorder {
     private readonly route: { provider: string; model: string }
   ) {}
 
-  handleEvent(event: unknown): void {
-    if (!isRecord(event) || typeof event.type !== 'string') return
-    const data = isRecord(event.data) ? event.data : {}
+  handleEvent(event: SessionEvent): void {
     switch (event.type) {
       case 'step/start':
-        return this.startStepSpan(stepKey(data))
+        return this.startStepSpan(stepKey(event.data))
       case 'assistant/message':
-        return this.endStepSpan(stepKey(data), data)
+        return this.endStepSpan(stepKey(event.data), event.data)
       case 'step/end':
         // A step whose model request failed emits no assistant/message.
-        return this.failStepSpan(stepKey(data))
+        return this.failStepSpan(stepKey(event.data))
       case 'llm/retry':
         // Retries happen inside the step, so the span covers every attempt.
-        return this.recordRetry(stepKey(data), data)
+        return this.recordRetry(stepKey(event.data), event.data)
       case 'tool/call':
-        return this.trackToolCall(data)
+        return this.trackToolCall(event.data)
       case 'approval/asked':
-        return this.trackApprovalAsked(data)
+        return this.trackApprovalAsked(event.data)
       case 'approval/decided':
-        return this.trackApprovalDecided(data)
+        return this.trackApprovalDecided(event.data)
       case 'tool/result':
-        return this.endToolSpan(data)
+        return this.endToolSpan(event.data)
       case 'compaction/start':
-        return this.startCompactionSpan(data)
+        return this.startCompactionSpan(event.data)
       case 'compaction/summary':
-        return this.annotateCompactionSpan(data)
+        return this.annotateCompactionSpan(event.data)
       case 'compaction/end':
-        return this.endCompactionSpan(data)
+        return this.endCompactionSpan(event.data)
       case 'turn/end':
         // A standalone compaction outlives the turn; only close() settles those.
         return this.endTurnSpans('dsh turn ended')
@@ -104,14 +108,12 @@ export class DshTraceRecorder {
     if (span) this.stepSpans.set(key, span)
   }
 
-  private endStepSpan(key: string, data: Record<string, unknown>): void {
+  private endStepSpan(key: string, data: SessionEventMap['assistant/message']): void {
     const span = this.stepSpans.get(key)
     if (!span) return
     this.stepSpans.delete(key)
     try {
-      const message = isRecord(data.message) ? data.message : undefined
-      const source = message && isRecord(message.source) ? message.source : undefined
-      const responseModel = typeof source?.model === 'string' ? source.model.trim() : ''
+      const responseModel = data.message.source.model?.trim()
       if (responseModel) span.setAttribute('gen_ai.response.model', responseModel)
       applyUsageAttributes(span, data.usage)
     } catch (error) {
@@ -128,36 +130,31 @@ export class DshTraceRecorder {
   }
 
   /** A failed attempt leaves no other mark: the step span covers the whole retry sequence. */
-  private recordRetry(key: string, data: Record<string, unknown>): void {
+  private recordRetry(key: string, data: SessionEventMap['llm/retry']): void {
     const span = this.stepSpans.get(key)
     if (!span) return
-    const failure = isRecord(data.failure) ? data.failure : {}
     span.addEvent('llm.retry', {
-      'cs.retry.attempt': numeric(data.retry),
-      'cs.retry.delay_ms': numeric(data.delayMs),
-      'error.type': typeof failure.code === 'string' ? failure.code : 'UNKNOWN'
+      'cs.retry.attempt': data.retry,
+      'cs.retry.delay_ms': data.delayMs,
+      'error.type': data.failure.code
     })
   }
 
-  private trackToolCall(data: Record<string, unknown>): void {
-    const toolCallId = String(data.callId ?? '')
-    if (!toolCallId || this.pendingTools.has(toolCallId)) return
-    this.pendingTools.set(toolCallId, { name: String(data.name ?? 'unknown'), startTime: Date.now() })
+  private trackToolCall(data: SessionEventMap['tool/call']): void {
+    if (this.pendingTools.has(data.callId)) return
+    this.pendingTools.set(data.callId, { name: data.name, startTime: Date.now() })
   }
 
-  private trackApprovalAsked(data: Record<string, unknown>): void {
-    const approvalId = String(data.id ?? '')
-    const toolCallId = String(data.callId ?? '')
-    if (!approvalId || !this.pendingTools.has(toolCallId)) return
-    this.approvalCalls.set(approvalId, toolCallId)
+  private trackApprovalAsked(data: SessionEventMap['approval/asked']): void {
+    if (data.callId === undefined || !this.pendingTools.has(data.callId)) return
+    this.approvalCalls.set(data.id, data.callId)
   }
 
   /** Execution begins at the decision — restart the pending call's clock there. */
-  private trackApprovalDecided(data: Record<string, unknown>): void {
-    const approvalId = String(data.id ?? '')
-    const toolCallId = this.approvalCalls.get(approvalId)
-    if (!toolCallId) return
-    this.approvalCalls.delete(approvalId)
+  private trackApprovalDecided(data: SessionEventMap['approval/decided']): void {
+    const toolCallId = this.approvalCalls.get(data.id)
+    if (toolCallId === undefined) return
+    this.approvalCalls.delete(data.id)
     const pending = this.pendingTools.get(toolCallId)
     if (!pending) return
     const decidedAt = Date.now()
@@ -168,23 +165,22 @@ export class DshTraceRecorder {
     })
   }
 
-  private endToolSpan(data: Record<string, unknown>): void {
-    const message = isRecord(data.message) ? data.message : {}
-    const block = Array.isArray(message.content) && isRecord(message.content[0]) ? message.content[0] : undefined
-    const toolCallId = String(block?.toolCallId ?? '')
-    const pending = this.pendingTools.get(toolCallId)
+  private endToolSpan(data: SessionEventMap['tool/result']): void {
+    const block = data.message.content.find((entry) => entry.type === 'tool-result')
+    if (!block) return
+    const pending = this.pendingTools.get(block.toolCallId)
     if (!pending) return
-    this.pendingTools.delete(toolCallId)
-    const failed = data.error !== undefined || block?.isError === true
+    this.pendingTools.delete(block.toolCallId)
+    const failed = data.error !== undefined || block.isError === true
     this.emitToolSpan(
-      toolCallId,
+      block.toolCallId,
       pending,
       failed ? { code: SpanStatusCode.ERROR, message: `${pending.name} failed` } : { code: SpanStatusCode.OK }
     )
   }
 
   private emitToolSpan(
-    toolCallId: string,
+    toolCallId: CallId,
     pending: PendingToolCall,
     status: { code: SpanStatusCode; message?: string }
   ): void {
@@ -204,65 +200,55 @@ export class DshTraceRecorder {
   }
 
   /** The summarization request the agent loop never sees: no step, no assistant/message. */
-  private startCompactionSpan(data: Record<string, unknown>): void {
-    const compactionId = String(data.compactionId ?? '')
-    if (!compactionId || this.compactionSpans.has(compactionId)) return
+  private startCompactionSpan(data: SessionEventMap['compaction/start']): void {
+    if (this.compactionSpans.has(data.compactionId)) return
     const span = startAgentRuntimeChildSpan(this.getContext(), 'dsh.compact_context', SpanKind.CLIENT, {
       'gen_ai.operation.name': 'chat',
       'gen_ai.provider.name': this.route.provider,
       'gen_ai.request.model': this.route.model
     })
-    if (span) this.compactionSpans.set(compactionId, span)
+    if (span) this.compactionSpans.set(data.compactionId, span)
   }
 
-  private annotateCompactionSpan(data: Record<string, unknown>): void {
-    const span = this.compactionSpans.get(String(data.compactionId ?? ''))
+  private annotateCompactionSpan(data: SessionEventMap['compaction/summary']): void {
+    const span = this.compactionSpans.get(data.compactionId)
     if (!span) return
     try {
-      if (typeof data.provider === 'string' && data.provider) span.setAttribute('gen_ai.provider.name', data.provider)
-      if (typeof data.model === 'string' && data.model) span.setAttribute('gen_ai.response.model', data.model)
-      span.setAttribute('cs.compaction_shadowed_tokens', numeric(data.shadowedTokenCount))
+      if (data.provider) span.setAttribute('gen_ai.provider.name', data.provider)
+      if (data.model) span.setAttribute('gen_ai.response.model', data.model)
+      span.setAttribute('cs.compaction_shadowed_tokens', data.shadowedTokenCount)
       applyUsageAttributes(span, data.usage)
     } catch (error) {
       logger.warn('Failed to annotate dsh compaction span', { error })
     }
   }
 
-  private endCompactionSpan(data: Record<string, unknown>): void {
-    const compactionId = String(data.compactionId ?? '')
-    const span = this.compactionSpans.get(compactionId)
+  private endCompactionSpan(data: SessionEventMap['compaction/end']): void {
+    const span = this.compactionSpans.get(data.compactionId)
     if (!span) return
-    this.compactionSpans.delete(compactionId)
-    const error = typeof data.error === 'string' ? data.error : undefined
-    endAgentRuntimeSpan(span, error ? { code: SpanStatusCode.ERROR, message: error } : { code: SpanStatusCode.OK })
+    this.compactionSpans.delete(data.compactionId)
+    endAgentRuntimeSpan(
+      span,
+      data.error ? { code: SpanStatusCode.ERROR, message: data.error } : { code: SpanStatusCode.OK }
+    )
   }
 }
 
 /** dsh token counts are DISJOINT: billed input = input + cacheRead + cacheWrite. */
-function applyUsageAttributes(span: Span, rawUsage: unknown): void {
-  if (!isRecord(rawUsage)) return
-  const cacheReadTokens = numeric(rawUsage.cacheReadTokens)
-  const cacheWriteTokens = numeric(rawUsage.cacheWriteTokens)
+function applyUsageAttributes(span: Span, usage: TokenUsage | undefined): void {
+  if (!usage) return
+  const cacheReadTokens = usage.cacheReadTokens ?? 0
+  const cacheWriteTokens = usage.cacheWriteTokens ?? 0
   const attributes: Attributes = {
-    'gen_ai.usage.input_tokens': numeric(rawUsage.inputTokens) + cacheReadTokens + cacheWriteTokens,
-    'gen_ai.usage.output_tokens': numeric(rawUsage.outputTokens),
+    'gen_ai.usage.input_tokens': usage.inputTokens + cacheReadTokens + cacheWriteTokens,
+    'gen_ai.usage.output_tokens': usage.outputTokens,
     'gen_ai.usage.cache_read_tokens': cacheReadTokens,
     'gen_ai.usage.cache_write_tokens': cacheWriteTokens,
-    ...(rawUsage.reasoningTokens !== undefined
-      ? { 'gen_ai.usage.reasoning_tokens': numeric(rawUsage.reasoningTokens) }
-      : {})
+    ...(usage.reasoningTokens !== undefined ? { 'gen_ai.usage.reasoning_tokens': usage.reasoningTokens } : {})
   }
   span.setAttributes(attributes)
 }
 
-function stepKey(data: Record<string, unknown>): string {
-  return `${numeric(data.turn)}:${numeric(data.step)}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function numeric(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+function stepKey(data: { turn: number; step: number }): string {
+  return `${data.turn}:${data.step}`
 }

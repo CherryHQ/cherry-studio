@@ -1,3 +1,8 @@
+import type {} from '@deepseek-ai/dsh-compaction-basic'
+import type { AssistantMessage, CallId, ContentBlock, MessageId, ToolResultMessage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-llm-retry'
+import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
+import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +53,31 @@ const traceContext: AgentRuntimeTraceContext = {
 }
 
 let seq = 0
-const envelope = (type: string, data: unknown) => ({ type, seq: ++seq, time: 0, data })
+const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T]): SessionEvent =>
+  ({ type, seq: ++seq, time: 0, data }) as SessionEvent
+type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
+type DshRetryId = SessionEventMap['llm/retry']['retryId']
+const callId = (id: string) => id as CallId
+const approvalId = (id: string) => id as ApprovalRequestId
+const assistantMessage = (model = 'deepseek-chat-0711'): AssistantMessage => ({
+  id: 'msg-1' as MessageId,
+  role: 'assistant',
+  content: [],
+  source: { kind: 'model', provider: 'deepseek', model }
+})
+const toolResultMessage = (id: string, isError?: boolean): ToolResultMessage => ({
+  id: `msg-${id}` as MessageId,
+  role: 'user',
+  content: [
+    {
+      type: 'tool-result',
+      toolCallId: callId(id),
+      content: [] as ContentBlock[],
+      ...(isError !== undefined ? { isError } : {})
+    }
+  ],
+  source: { kind: 'tool', callId: callId(id) }
+})
 
 function makeRecorder(context?: AgentRuntimeTraceContext) {
   return new DshTraceRecorder(() => context, { provider: 'deepseek', model: 'deepseek-chat' })
@@ -67,7 +96,7 @@ describe('DshTraceRecorder', () => {
       envelope('assistant/message', {
         turn: 1,
         step: 1,
-        message: { source: { provider: 'deepseek', model: 'deepseek-chat-0711' } },
+        message: assistantMessage(),
         usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2, reasoningTokens: 4 }
       })
     )
@@ -117,15 +146,25 @@ describe('DshTraceRecorder', () => {
     recorder.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     recorder.handleEvent(
       envelope('llm/retry', {
+        retryId: 'r-1' as DshRetryId,
         turn: 1,
         step: 1,
+        provider: 'deepseek',
+        mode: 'normal',
+        policyKey: 'k',
         retry: 1,
+        maxRetries: 2,
         delayMs: 500,
         failure: { message: 'server error', code: 'SERVER', status: 500 }
       })
     )
     recorder.handleEvent(
-      envelope('assistant/message', { turn: 1, step: 1, usage: { inputTokens: 1, outputTokens: 1 } })
+      envelope('assistant/message', {
+        turn: 1,
+        step: 1,
+        message: assistantMessage(),
+        usage: { inputTokens: 1, outputTokens: 1 }
+      })
     )
 
     expect(spans).toHaveLength(1)
@@ -139,14 +178,14 @@ describe('DshTraceRecorder', () => {
 
   it('records one tool span per call and fails the span on an error result', () => {
     const recorder = makeRecorder(traceContext)
-    recorder.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'call-1', name: 'bash', arguments: '{}' }))
-    recorder.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'call-2', name: 'read', arguments: '{}' }))
     recorder.handleEvent(
-      envelope('tool/result', { turn: 1, step: 1, message: { content: [{ toolCallId: 'call-1', isError: true }] } })
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('call-1'), name: 'bash', arguments: '{}' })
     )
     recorder.handleEvent(
-      envelope('tool/result', { turn: 1, step: 1, message: { content: [{ toolCallId: 'call-2' }] } })
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('call-2'), name: 'read', arguments: '{}' })
     )
+    recorder.handleEvent(envelope('tool/result', { turn: 1, step: 1, message: toolResultMessage('call-1', true) }))
+    recorder.handleEvent(envelope('tool/result', { turn: 1, step: 1, message: toolResultMessage('call-2') }))
 
     const toolSpans = spans.filter((span) => span.name === 'dsh.execute_tool')
     expect(toolSpans.map((span) => span.options.attributes['gen_ai.tool.name'])).toEqual(['bash', 'read'])
@@ -159,14 +198,16 @@ describe('DshTraceRecorder', () => {
     try {
       const recorder = makeRecorder(traceContext)
       const calledAt = Date.now()
-      recorder.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'call-1', name: 'bash', arguments: '{}' }))
-      recorder.handleEvent(envelope('approval/asked', { id: 'ask-1', toolName: 'bash', callId: 'call-1' }))
-      vi.advanceTimersByTime(30_000)
-      recorder.handleEvent(envelope('approval/decided', { id: 'ask-1', outcome: 'allowed-once' }))
-      vi.advanceTimersByTime(200)
       recorder.handleEvent(
-        envelope('tool/result', { turn: 1, step: 1, message: { content: [{ toolCallId: 'call-1' }] } })
+        envelope('tool/call', { turn: 1, step: 1, callId: callId('call-1'), name: 'bash', arguments: '{}' })
       )
+      recorder.handleEvent(
+        envelope('approval/asked', { id: approvalId('ask-1'), toolName: 'bash', callId: callId('call-1') })
+      )
+      vi.advanceTimersByTime(30_000)
+      recorder.handleEvent(envelope('approval/decided', { id: approvalId('ask-1'), outcome: 'allowed-once' }))
+      vi.advanceTimersByTime(200)
+      recorder.handleEvent(envelope('tool/result', { turn: 1, step: 1, message: toolResultMessage('call-1') }))
 
       const [span] = spans
       expect(span.options.startTime).toBe(calledAt + 30_000)
@@ -178,17 +219,20 @@ describe('DshTraceRecorder', () => {
 
   it('records the compaction summarization request the agent loop never reports', () => {
     const recorder = makeRecorder(traceContext)
-    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1', turn: 1 }))
+    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1' as DshCompactionId, turn: 1 }))
     recorder.handleEvent(
       envelope('compaction/summary', {
-        compactionId: 'c-1',
+        compactionId: 'c-1' as DshCompactionId,
+        summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
+        shadowedRange: { start: 2, end: 10 },
+        shadowedSeqs: [2, 6, 10],
+        shadowedTokenCount: 4200,
         provider: 'deepseek',
         model: 'deepseek-chat-0711',
-        shadowedTokenCount: 4200,
         usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 10 }
       })
     )
-    recorder.handleEvent(envelope('compaction/end', { compactionId: 'c-1', turn: 1 }))
+    recorder.handleEvent(envelope('compaction/end', { compactionId: 'c-1' as DshCompactionId, turn: 1 }))
 
     expect(spans).toHaveLength(1)
     const [span] = spans
@@ -204,15 +248,17 @@ describe('DshTraceRecorder', () => {
 
   it('fails the compaction span on a failed compaction', () => {
     const recorder = makeRecorder(traceContext)
-    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1', turn: null }))
-    recorder.handleEvent(envelope('compaction/end', { compactionId: 'c-1', turn: null, error: 'summarize failed' }))
+    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1' as DshCompactionId, turn: null }))
+    recorder.handleEvent(
+      envelope('compaction/end', { compactionId: 'c-1' as DshCompactionId, turn: null, error: 'summarize failed' })
+    )
 
     expect(spans[0].setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.ERROR, message: 'summarize failed' })
   })
 
   it('keeps a standalone compaction span open across a turn boundary', () => {
     const recorder = makeRecorder(traceContext)
-    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1', turn: null }))
+    recorder.handleEvent(envelope('compaction/start', { compactionId: 'c-1' as DshCompactionId, turn: null }))
     recorder.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     expect(spans[0].end).not.toHaveBeenCalled()
 
@@ -226,8 +272,10 @@ describe('DshTraceRecorder', () => {
   it('closes spans stranded by a turn that ended mid-flight', () => {
     const recorder = makeRecorder(traceContext)
     recorder.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
-    recorder.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'call-1', name: 'bash', arguments: '{}' }))
-    recorder.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'aborted' } }))
+    recorder.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('call-1'), name: 'bash', arguments: '{}' })
+    )
+    recorder.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'aborted', reason: { kind: 'user' } } }))
 
     expect(spans).toHaveLength(2)
     for (const span of spans) {
@@ -239,10 +287,10 @@ describe('DshTraceRecorder', () => {
   it('starts no spans while the session has no trace context', () => {
     const recorder = makeRecorder()
     recorder.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
-    recorder.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'call-1', name: 'bash', arguments: '{}' }))
     recorder.handleEvent(
-      envelope('tool/result', { turn: 1, step: 1, message: { content: [{ toolCallId: 'call-1' }] } })
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('call-1'), name: 'bash', arguments: '{}' })
     )
+    recorder.handleEvent(envelope('tool/result', { turn: 1, step: 1, message: toolResultMessage('call-1') }))
 
     expect(startSpan).not.toHaveBeenCalled()
   })

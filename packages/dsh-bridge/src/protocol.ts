@@ -2,12 +2,24 @@
  * Wire contract of the Cherry ↔ dsh-bridge side channel (newline-delimited JSON
  * over a per-connection unix socket / named pipe). Single source shared by the
  * plugin (dsh subprocess) and the driver (Cherry main).
+ *
+ * Framing mirrors dsh's own SDK stdio wire (one compact JSON frame per line) so
+ * both channels of the subprocess share one debugging model. Deliberately NOT a
+ * JSON-RPC 2.0 envelope: both peers are Cherry-owned, so the discriminated
+ * `type` + `id` already carry method and correlation without the extra layer.
  */
 
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
 export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
 
 export type BridgePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
+
+/** Wire-owned on purpose — NOT dsh's TextBlock: the socket schema must not drift with an rc dep,
+ *  and dsh's wider ContentBlock (image attachment refs are subprocess-local) cannot cross this wire. */
+export interface BridgeTextBlock {
+  type: 'text'
+  text: string
+}
 
 export interface BridgeToolDescriptor {
   name: string
@@ -49,7 +61,7 @@ export type HostToBridgeMessage =
       policy: BridgePolicy
       tools: BridgeToolDescriptor[]
     }
-  | { type: 'prompt'; id: string; sessionId: string; contentBlocks: unknown[] }
+  | { type: 'prompt'; id: string; sessionId: string; contentBlocks: BridgeTextBlock[] }
   | { type: 'cancel'; id: string; sessionId: string }
   | { type: 'policyUpdate'; id: string; sessionId: string; policy: BridgePolicy }
   | { type: 'contextUsage'; id: string; sessionId: string }

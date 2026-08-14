@@ -4,6 +4,7 @@ export {
   type BridgeContextUsage,
   type BridgePermissionMode,
   type BridgePolicy,
+  type BridgeTextBlock,
   type BridgeToHostMessage,
   type BridgeToolCallResult,
   type BridgeToolDescriptor,
