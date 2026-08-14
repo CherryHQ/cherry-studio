@@ -284,15 +284,30 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
+        // Custom OpenAI-compatible providers pointing at Volcengine Ark:
+        // any doubao-seedream-* model must use the doubao extension (POSTs JSON
+        // to /images/generations), not the generic /images/edits multipart path.
+        // Use hardcoded 'doubao' as providerId so the extension registry resolves correctly
+        // for user-created providers (which have UUID ids, not preset ids).
+        /^doubao-seedream/i.test(model.apiModelId ?? model.id) &&
+        /ark\.cn-beijing\.volces\.com/i.test(getBaseUrl(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) ?? ''),
+      build: withSelectedApiKey((ctx) => ({
+        providerId: 'doubao' as const,
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      }))
+    },
+    {
+      match: (p, id) =>
+        id === 'openai-compatible' &&
+        isGenerateImageModel(model) &&
         (p.id === SystemProviderIds.modelscope ||
           p.id === SystemProviderIds.ppio ||
           p.id === SystemProviderIds.silicon ||
           p.id === SystemProviderIds.doubao ||
-          // Custom OpenAI-compatible providers pointing at Volcengine Ark:
-          // any doubao-seedream-* model must use the doubao extension (POSTs JSON
-          // to /images/generations), not the generic /images/edits multipart path.
-          (/^doubao-seedream/i.test(model.apiModelId ?? model.id) &&
-            /ark\.cn-beijing\.volces\.com/i.test(getBaseUrl(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) ?? '')) ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: withSelectedApiKey((ctx) => ({

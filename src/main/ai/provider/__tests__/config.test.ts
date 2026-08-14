@@ -1000,6 +1000,37 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
     })
 
+    it('routes CUSTOM OpenAI-compatible providers pointing at Ark (doubao-seedream-*) through Doubao config', async () => {
+      // Bug: a user-defined provider (uuid id, not 'doubao') that points at Ark and
+      // selects a doubao-seedream-* model must still flow through the Doubao extension.
+      // The match clause in config.ts uses `ctx.actualProvider.id` as the routed
+      // providerId — that id is the user's uuid, NOT 'doubao', so the doubao branch
+      // would be silently skipped. This was the root cause of issue #18540.
+      const provider = makeProvider({
+        id: 'custom-ark-uuid-1234',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-ark-uuid-1234',
+        apiModelId: 'doubao-seedream-5-0-pro',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      // The routed providerId must be 'doubao' so the doubao extension picks it up,
+      // even though the actual provider has a custom uuid id.
+      expect(config.providerId).toBe('doubao')
+      expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
+    })
+
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
       const provider = makeProvider({
         id: 'doubao',
