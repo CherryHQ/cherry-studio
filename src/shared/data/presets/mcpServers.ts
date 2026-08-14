@@ -1,38 +1,35 @@
 /**
- * @deprecated Temporary placement. Extracted verbatim from the v1 Redux store
- * (the former `src/renderer/store/mcp.ts`, since deleted) during the Redux store removal.
+ * Builtin (preset) MCP server definitions
  *
- * This default built-in MCP server catalog should NOT live in the renderer. In v2 it needs to be
- * migrated to the data layer / main process (e.g. seeded alongside the MCP runtime factory under
- * `src/main/ai/mcp/`), not hardcoded in the UI. It is parked here only as an interim home until
- * that v2 migration lands.
- */
-import { type BuiltinMcpServer, BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { nanoid } from 'nanoid'
-
-const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
-
-/**
- * User-installable built-in MCP servers shown in the UI.
+ * Single source of truth for the built-in MCP servers: the renderer lists them for install,
+ * and `BuiltinMcpServerSeeder` reconciles already-installed rows against them.
  *
  * Note: The `hub` server (@cherry/hub) is intentionally excluded because:
  * - It's a meta-server that aggregates all other MCP servers
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
-export const builtinMcpServers: BuiltinMcpServer[] = [
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+
+/** A builtin server as declared in code; the `id` is assigned by the database on install. */
+export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+
+const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
+
+export const PRESET_MCP_SERVERS: McpServerPreset[] = [
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.flomo,
     reference: 'https://flomoapp.com',
-    type: 'inMemory',
+    type: 'streamableHttp',
+    baseUrl: 'https://flomoapp.com/mcp',
+    headers: { APP: 'Cherry Studio' },
     isActive: false,
     provider: 'flomo',
     installSource: 'builtin',
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',
@@ -44,7 +41,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.memory,
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     type: 'inMemory',
@@ -58,7 +54,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
@@ -67,7 +62,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.braveSearch,
     type: 'inMemory',
     isActive: false,
@@ -80,7 +74,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.fetch,
     type: 'inMemory',
     isActive: true,
@@ -89,7 +82,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
     args: ['/Users/username/Desktop'],
@@ -101,7 +93,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.difyKnowledge,
     type: 'inMemory',
     isActive: false,
@@ -114,7 +105,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.python,
     type: 'inMemory',
     isActive: false,
@@ -123,8 +113,7 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
-    name: '@cherry/didi-mcp',
+    name: BuiltinMcpServerNames.didiMcp,
     reference: 'https://mcp.didichuxing.com/',
     type: 'inMemory',
     isActive: false,
@@ -137,7 +126,6 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.browser,
     type: 'inMemory',
     isActive: false,
@@ -146,13 +134,14 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     isTrusted: true
   },
   {
-    id: nanoid(),
     name: BuiltinMcpServerNames.nowledgeMem,
     reference: 'https://mem.nowledge.co/',
-    type: 'inMemory',
+    type: 'streamableHttp',
+    baseUrl: 'http://127.0.0.1:14242/mcp',
+    headers: { APP: 'Cherry Studio' },
     isActive: false,
     provider: 'Nowledge',
     installSource: 'builtin',
     isTrusted: true
   }
-] as const
+]
