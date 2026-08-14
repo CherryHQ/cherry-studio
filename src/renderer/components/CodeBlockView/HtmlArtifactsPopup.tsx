@@ -147,6 +147,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
+      setCaptureOpen(false)
+
       try {
         const title = extractHtmlTitle(html)
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
@@ -168,8 +170,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         }
       } catch (error) {
         logger.error('Failed to capture HTML artifact preview', error as Error)
-      } finally {
-        setCaptureOpen(false)
       }
     },
     [html, t]

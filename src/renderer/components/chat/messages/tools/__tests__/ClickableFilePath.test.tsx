@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -7,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
@@ -199,6 +202,16 @@ describe('ClickableFilePath', () => {
     expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
     expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()
     expect(container.querySelector('[role="separator"], hr')).toBeNull()
+  })
+
+  it('should dismiss the actions menu after selecting the file manager', async () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('button', { name: /Finder/ }))
+
+    await waitFor(() => expect(mockShowInFolder).toHaveBeenCalledWith('/tmp/test.ts'))
+    expect(screen.queryByRole('button', { name: /Finder/ })).not.toBeInTheDocument()
   })
 
   it('should call openArtifactFile on Enter key', async () => {
