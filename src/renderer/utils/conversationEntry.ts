@@ -1,6 +1,9 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+
+const logger = loggerService.withContext('conversationEntry')
 
 /**
  * Entry-target resolution for the conversation routes (`/app/chat`, `/app/agents`),
@@ -30,8 +33,17 @@ export async function resolveChatEntryTopicId(): Promise<string | null> {
     }
   }
 
-  const { topic } = await dataApiService.get('/topics/latest')
-  return topic?.id ?? null
+  // Mirror the by-id branch: a transient failure here (e.g. a row mid-cascade-delete
+  // surfacing through the join) falls through to a bare entry instead of escaping into
+  // `beforeLoad`, where it would push the route into an error state and compound the
+  // delete/recovery race.
+  try {
+    const { topic } = await dataApiService.get('/topics/latest')
+    return topic?.id ?? null
+  } catch (error) {
+    logger.warn('Falling through after topic latest failed', error as Error)
+    return null
+  }
 }
 
 export async function resolveAgentEntrySessionId(): Promise<string | null> {
@@ -45,6 +57,15 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
     }
   }
 
-  const { session } = await dataApiService.get('/agent-sessions/latest')
-  return session?.id ?? null
+  // Mirror the by-id branch: a transient failure here (e.g. a session row
+  // mid-cascade-delete surfacing through the workspace join) falls through to a
+  // bare entry instead of escaping into `beforeLoad`, where it would push the
+  // route into an error state and compound the delete/recovery race.
+  try {
+    const { session } = await dataApiService.get('/agent-sessions/latest')
+    return session?.id ?? null
+  } catch (error) {
+    logger.warn('Falling through after session latest failed', error as Error)
+    return null
+  }
 }

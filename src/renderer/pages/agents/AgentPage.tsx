@@ -281,9 +281,14 @@ const AgentPage = () => {
   })
   const reenterAgentRoute = useCallback(() => {
     initialEmptySessionEvaluatedRef.current = false
+    // The bound session is gone. Drop the remembered id too, otherwise the bare re-entry
+    // re-reads it in `resolveAgentEntrySessionId`, 404s, and (when latest also lands on a
+    // mid-delete row) the recovery effect fires again — a navigate loop React aborts as a
+    // maximum-update-depth render error that tears down the whole window.
+    setLastUsedSessionId(null)
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
-  }, [clearActiveSession, navigate])
+  }, [clearActiveSession, navigate, setLastUsedSessionId])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
