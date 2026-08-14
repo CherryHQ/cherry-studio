@@ -98,6 +98,10 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
  * Build a fresh environment on Windows by copying `process.env` and replacing
  * PATH with the current registry value. This avoids the stale PATH problem
  * where `cmd.exe /c set` only inherits the Electron parent process's env.
+ *
+ * Throws when the registry is unreadable: `process.env` alone is the boot-time
+ * PATH, i.e. exactly the stale value this function exists to replace. Reporting
+ * it as a capture would record it as last-known-good and hide the failure.
  */
 async function getWindowsEnvironment(): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
@@ -106,18 +110,18 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
   }
 
   const registryPath = await readWindowsRegistryPath(env)
-  if (registryPath) {
-    const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
-    for (const key of pathKeys) {
-      env[key] = registryPath
-    }
-    if (pathKeys.length === 0) {
-      env.Path = registryPath
-    }
-    logger.debug('Replaced PATH with fresh registry value')
-  } else {
-    logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
+  if (!registryPath) {
+    throw new Error('Could not read PATH from the Windows registry')
   }
+
+  const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
+  for (const key of pathKeys) {
+    env[key] = registryPath
+  }
+  if (pathKeys.length === 0) {
+    env.Path = registryPath
+  }
+  logger.debug('Replaced PATH with fresh registry value')
 
   return env
 }

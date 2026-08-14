@@ -129,6 +129,16 @@ function getAbortReason(signal: AbortSignal): Error {
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
+export type ConnectOptions = {
+  /**
+   * Accept a cached shell environment instead of capturing a fresh one. For
+   * background warmers only: they connect on their own schedule, so they must
+   * not make the user wait behind a login-shell capture per batch. A connect the
+   * user asked for leaves this unset — it may need a tool installed seconds ago.
+   */
+  passiveEnv?: boolean
+}
+
 type CallToolArgs = {
   serverId: string
   name: string
@@ -425,14 +435,15 @@ export class McpRuntimeService extends BaseService {
 
   public async withClient<T>(
     serverId: string,
-    operation: (client: Client, server: McpServer) => Promise<T>
+    operation: (client: Client, server: McpServer) => Promise<T>,
+    options?: ConnectOptions
   ): Promise<T> {
     const server = this.getServerById(serverId)
-    const client = await this.getOrCreateClient(server)
+    const client = await this.getOrCreateClient(server, options)
     return operation(client, server)
   }
 
-  private async getOrCreateClient(server: McpServer): Promise<Client> {
+  private async getOrCreateClient(server: McpServer, options?: ConnectOptions): Promise<Client> {
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -591,10 +602,10 @@ export class McpRuntimeService extends BaseService {
             const connectEnv: Record<string, string> = { ...server.env }
 
             // Get login shell environment first - needed for command detection and server execution.
-            // Fresh: only reached when actually establishing a connection (cached and pending
-            // clients return earlier), and that is exactly when the user expects a tool they
-            // just installed to be found — a cached PATH would fail the connect until restart.
-            const loginShellEnv = await getShellEnv({ fresh: true })
+            // Fresh by default: reached only when actually establishing a connection, which is
+            // when the user expects a tool they just installed to be found — a cached PATH would
+            // fail the connect until restart. Background warmers opt out (see ConnectOptions).
+            const loginShellEnv = await getShellEnv({ fresh: !options?.passiveEnv })
 
             // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {

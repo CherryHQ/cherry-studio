@@ -189,6 +189,29 @@ describe('McpRuntimeService stdio environment', () => {
     platformSpy.mockRestore()
   })
 
+  it('captures a fresh env for a connect, and accepts a cached one only when the caller opts out', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // A connect must see a tool the user installed after launch (issue #18528).
+    await service.withClient(server.id, async () => undefined)
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: true })
+
+    // Background warmers connect on their own schedule and take the cache. A
+    // second server so this actually connects instead of reusing the client.
+    const warmed = { ...server, id: 'warmed-server', name: 'warmed-server' } as McpServer
+    getByIdMock.mockReturnValue(warmed)
+    await service.withClient(warmed.id, async () => undefined, { passiveEnv: true })
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: false })
+  })
+
   it('preserves distinct PATH key casing on POSIX', async () => {
     const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })

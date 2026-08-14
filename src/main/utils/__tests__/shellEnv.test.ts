@@ -156,6 +156,22 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(env.Path).toContain('C:\\StaleOldPath')
   })
 
+  it('should not record an unreadable registry as the last known good env', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\NodeJS' })
+    await getShellEnv()
+
+    // process.env holds the boot-time PATH — the very value the registry read
+    // exists to replace, so a failed read must not pass as a capture.
+    mockRegistryPaths()
+    const env = await refreshShellEnv()
+
+    expect(env.Path).toContain('C:\\NodeJS')
+    expect(env.Path).not.toContain('C:\\StaleOldPath')
+    expect(MockMainCacheServiceUtils.getCacheValue<Record<string, string>>('system.shell_env.last_good')?.Path).toBe(
+      'C:\\Windows;C:\\NodeJS'
+    )
+  })
+
   // -- %VAR% expansion ------------------------------------------------------
 
   it('should expand %SystemRoot% in registry PATH', async () => {
