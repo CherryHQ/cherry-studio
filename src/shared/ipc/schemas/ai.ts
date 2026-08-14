@@ -157,6 +157,7 @@ export const aiRequestSchemas = {
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
