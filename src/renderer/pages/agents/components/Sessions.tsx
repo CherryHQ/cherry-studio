@@ -721,6 +721,13 @@ const Sessions = ({
     },
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
+
+  // Silent creation for a stranded agent: when the deleted (non-active) session was that agent's
+  // only one, open a fresh empty session for it without activating it or switching the user's view.
+  const { trigger: createSessionSilently } = useMutation('POST', '/agent-sessions', {
+    refresh: ['/agent-sessions']
+  })
+
   const handleDeleteSession = useCallback(
     async (id: string) => {
       // Capture the deleted session before removal so selection can be scoped to its agent even
@@ -730,7 +737,43 @@ const Sessions = ({
         sessionItemsRef.current.find((session) => session.id === id)
 
       const success = await deleteSession(id)
-      if (!success || activeSessionId !== id) return
+      if (!success) return
+
+      // Deleting a non-active session must not move the active selection. But if the removed session
+      // was its agent's only one, silently open a fresh empty session for that agent so it stays in
+      // the list instead of vanishing.
+      if (activeSessionId !== id) {
+        const deletedAgentHasSessionsLeft = deletedSession
+          ? filteredGroupedSessions.some((session) => session.agentId === deletedSession.agentId && session.id !== id)
+          : true
+        if (!deletedAgentHasSessionsLeft) {
+          const seed = deletedSession
+            ? buildCreateSessionSeed({
+                agentId: deletedSession.agentId,
+                workspace: deletedSession.workspace,
+                workspaceId: deletedSession.workspaceId
+              })
+            : null
+          if (seed?.agentId) {
+            try {
+              await createSessionSilently({
+                body: {
+                  agentId: seed.agentId,
+                  name: '',
+                  workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+                }
+              })
+            } catch (err) {
+              logger.error('Failed to create session after deleting last session of an agent', {
+                err,
+                sessionId: id
+              })
+              toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+            }
+          }
+        }
+        return
+      }
 
       // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
       // never jump to an unrelated agent's session. When that agent has no other session left, open a
@@ -773,7 +816,16 @@ const Sessions = ({
         if (!createdSession) setActiveSessionId(null)
       }
     },
-    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
+    [
+      activeSessionId,
+      agentIdFilter,
+      createSessionSilently,
+      deleteSession,
+      filteredGroupedSessions,
+      onCreateSession,
+      setActiveSessionId,
+      t
+    ]
   )
 
   const handleRenameSession = useCallback(

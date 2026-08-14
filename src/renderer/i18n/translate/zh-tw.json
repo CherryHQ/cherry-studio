@@ -554,11 +554,6 @@
           "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
           "label": "環境變數"
         },
-        "maxTurns": {
-          "description": "設定 Agent 自動執行的請求／回覆輪次數。",
-          "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
-          "label": "對話輪次上限"
-        },
         "permissionMode": {
           "description": "控制 Agent 在需要授權時的處理方式。",
           "label": "權限模式",
@@ -3455,10 +3450,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
-          },
-          "max_turns": {
-            "help": "0 表示使用預設值",
-            "label": "最大對話回合數"
           },
           "mcps": {
             "add": "新增 MCP 伺服器",

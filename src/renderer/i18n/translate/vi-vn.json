@@ -554,11 +554,6 @@
           "helper": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
           "label": "Biến môi trường"
         },
-        "maxTurns": {
-          "description": "Xác định số chu kỳ yêu cầu/phản hồi mà Agent có thể tự động hoàn thành.",
-          "helper": "Giá trị cao hơn cho phép các phiên hoạt động tự động kéo dài hơn; giá trị thấp hơn giữ cho các phiên ngắn.",
-          "label": "Giới hạn lượt hội thoại"
-        },
         "permissionMode": {
           "description": "Kiểm soát cách Agent xử lý các hành động cần phê duyệt.",
           "label": "Chế độ cấp quyền",
@@ -3455,10 +3450,6 @@
           },
           "heartbeat_interval": {
             "label": "Khoảng cách nhịp tim (phút)"
-          },
-          "max_turns": {
-            "help": "0 có nghĩa là sử dụng giá trị mặc định",
-            "label": "Số lượt hội thoại tối đa"
           },
           "mcps": {
             "add": "Thêm máy chủ MCP",

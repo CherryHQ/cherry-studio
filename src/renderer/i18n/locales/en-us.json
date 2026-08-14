@@ -554,11 +554,6 @@
           "helper": "Enter custom environment variables (one per line, format: KEY=value)",
           "label": "Environment Variables"
         },
-        "maxTurns": {
-          "description": "Define how many request/response cycles the agent may complete automatically.",
-          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
-          "label": "Conversation turn limit"
-        },
         "permissionMode": {
           "description": "Control how the agent handles actions that require approval.",
           "label": "Permission mode",
@@ -3157,6 +3152,8 @@
         "delete_confirm_title": "Delete Selected Data Sources?",
         "loaded_only_hint": "Applies to loaded items only ({{total}} total)",
         "reindex": "Reindex",
+        "reindex_none_eligible": "All selected data sources are still processing and cannot be reindexed yet",
+        "reindex_skipped": "Skipped {{count}} data source(s) still processing",
         "selected_count": "{{count}} selected"
       },
       "chunks_count": "{{count}} chunks",
@@ -3455,10 +3452,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
-          },
-          "max_turns": {
-            "help": "0 means use the default",
-            "label": "Max conversation turns"
           },
           "mcps": {
             "add": "Add MCP server",
