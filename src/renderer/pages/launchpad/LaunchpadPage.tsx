@@ -250,17 +250,18 @@ export default function LaunchpadPage() {
                 type="button"
                 onClick={openDeepSeekHarness}
                 className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
-                <span className="flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-muted shadow-sm">
+                <span className="flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-muted shadow-none dark:shadow-sm">
                   <ProviderAvatarPrimitive
                     providerId="deepseek"
                     providerName="DeepSeek"
                     logo="icon:deepseek"
-                    size={48}
+                    size={52}
                     className="rounded-xl [&_[data-slot=avatar-fallback]]:bg-transparent"
+                    iconStyle={{ transform: 'scale(1.2)' }}
                   />
                 </span>
-                <span className="w-max whitespace-nowrap text-[12px] text-foreground">
-                  {t('code.cli_tools.deepseek_harness')}
+                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+                  {t('launchpad.deepseek_harness_shortcut')}
                 </span>
               </button>
             </div>

@@ -6,7 +6,7 @@ import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceType
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -84,8 +84,16 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
 }))
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
-  ProviderAvatarPrimitive: ({ className, size }: { className?: string; size?: number }) => (
-    <svg aria-hidden="true" className={className} data-size={size} data-testid="provider-avatar" />
+  ProviderAvatarPrimitive: ({
+    className,
+    size,
+    iconStyle
+  }: {
+    className?: string
+    size?: number
+    iconStyle?: CSSProperties
+  }) => (
+    <svg aria-hidden="true" className={className} data-size={size} data-testid="provider-avatar" style={iconStyle} />
   )
 }))
 
@@ -138,11 +146,11 @@ vi.mock('react-i18next', () => ({
           'agent.sidebar_title': 'Agent',
           'title.chat': 'Chat',
           'assistants.presets.title': 'Library',
-          'code.cli_tools.deepseek_harness': 'DeepSeek Harness',
           'code.title': 'Code',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
+          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -286,12 +294,15 @@ describe('LaunchpadPage', () => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
-    const shortcut = screen.getByRole('button', { name: 'DeepSeek Harness' })
+    const shortcut = screen.getByRole('button', { name: 'DSH' })
     const iconSurface = shortcut.firstElementChild
 
     expect(iconSurface).toHaveClass('bg-muted')
     expect(iconSurface).not.toHaveClass('bg-card')
-    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-size', '48')
+    expect(iconSurface).toHaveClass('shadow-none', 'dark:shadow-sm')
+    expect(iconSurface).not.toHaveClass('shadow-sm')
+    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-size', '52')
+    expect(screen.getByTestId('provider-avatar')).toHaveStyle({ transform: 'scale(1.2)' })
     expect(screen.getByTestId('provider-avatar')).toHaveClass('[&_[data-slot=avatar-fallback]]:bg-transparent')
 
     await user.click(shortcut)

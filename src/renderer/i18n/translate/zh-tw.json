@@ -3425,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理側邊欄",
     "minapps": "小程式",
     "miniApps": "小程式",

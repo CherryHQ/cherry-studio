@@ -3425,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "サイドバーを管理",
     "minapps": "ミニアプリ",
     "miniApps": "アプリ",

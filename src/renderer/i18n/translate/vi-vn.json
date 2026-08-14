@@ -3425,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Quản lý Thanh bên",
     "minapps": "Mini-app",
     "miniApps": "Mini-app",

@@ -3425,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Управление боковой панелью",
     "minapps": "Мини-приложения",
     "miniApps": "Приложения",

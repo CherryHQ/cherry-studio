@@ -3425,6 +3425,7 @@
   },
   "launchpad": {
     "apps": "Applications",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gérer la barre latérale",
     "minapps": "Mini-apps",
     "miniApps": "Mini-applications",
