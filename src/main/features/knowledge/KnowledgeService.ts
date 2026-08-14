@@ -11,6 +11,7 @@ import type {
   KnowledgeItem,
   KnowledgeItemChunk,
   KnowledgeSearchResult,
+  ReindexKnowledgeItemsResult,
   RestoreKnowledgeBaseDto,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
@@ -114,8 +115,8 @@ export class KnowledgeService extends BaseService {
     await this.ingestionService.deleteItems(baseId, itemIds)
   }
 
-  async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.ingestionService.reindexItems(baseId, itemIds)
+  async reindexItems(baseId: string, itemIds: string[]): Promise<ReindexKnowledgeItemsResult> {
+    return await this.ingestionService.reindexItems(baseId, itemIds)
   }
 
   /** Configure an embedding model on a BM25-only base and backfill embeddings in place (see KnowledgeIngestionService.enableEmbeddingModel). */

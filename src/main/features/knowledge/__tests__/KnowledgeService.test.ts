@@ -1796,6 +1796,93 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
   })
 
+  it('reindexes the readable roots and drops the ones whose source is gone', async () => {
+    const service = new KnowledgeService()
+    // A v1-migrated folder child: its `<prefix>/<name>` path is path-shaped but never backed by a
+    // raw/ file (KnowledgeMigrator copies no folder bytes), so its source always reads as missing.
+    const migratedChild: KnowledgeItemOf<'file'> = {
+      ...createFileItem('file-1', 'kb-1', '/legacy/docs/x.md', 'completed'),
+      groupId: 'dir-1',
+      data: { source: '/legacy/docs/x.md', relativePath: 'docs/x.md' as PosixRelativeFilePath }
+    }
+    const healthyFile = createFileItem('file-2', 'kb-1', '/docs/report.pdf', 'completed')
+    const healthyNote = createNoteItem('note-1', 'kb-1', null, 'completed')
+    probeKnowledgeFileMock.mockImplementation(async (_baseId: string, relativePath: string) =>
+      relativePath === 'docs/x.md' ? 'missing' : 'readable'
+    )
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        if (!options.includeRoots) {
+          return []
+        }
+        const byId = { 'file-1': migratedChild, 'file-2': healthyFile, 'note-1': healthyNote }
+        return rootIds.map((id) => byId[id as keyof typeof byId])
+      }
+    )
+
+    // The unreadable root keeps its vectors (never enqueued); the readable ones still run, and the
+    // caller is told how many were left behind so the UI can say so.
+    await expect(service.reindexItems('kb-1', ['file-1', 'file-2', 'note-1'])).resolves.toEqual({
+      skippedMissingSourceCount: 1
+    })
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.reindex-subtree',
+      { baseId: 'kb-1', rootItemIds: ['file-2', 'note-1'] },
+      expect.any(Object)
+    )
+  })
+
+  it('rejects the whole batch when a root source cannot be verified, so the user retries', async () => {
+    const service = new KnowledgeService()
+    // Transient probe failure (an unplugged drive, a permission blip) — unlike a source that is
+    // gone for good, this one may come back, so silently skipping it would leave the item on stale
+    // vectors with nothing telling the user to try again.
+    const flakyFile = createFileItem('file-1', 'kb-1', '/volumes/ext/report.pdf', 'completed')
+    const healthyNote = createNoteItem('note-1', 'kb-1', null, 'completed')
+    probeKnowledgeFileMock.mockResolvedValue('unverifiable')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        if (!options.includeRoots) {
+          return []
+        }
+        const byId = { 'file-1': flakyFile, 'note-1': healthyNote }
+        return rootIds.map((id) => byId[id as keyof typeof byId])
+      }
+    )
+
+    await expect(service.reindexItems('kb-1', ['file-1', 'note-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores the in-flight subtree of a dropped root when admitting a reindex batch', async () => {
+    const service = new KnowledgeService()
+    const migratedContainer = createDirectoryItem('dir-1', null, 'completed')
+    const indexingChild = createNoteItem('note-2', 'kb-1', 'dir-1', 'processing')
+    const healthyNote = createNoteItem('note-1', 'kb-1', null, 'completed')
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        const items = rootIds.flatMap((id) =>
+          id === 'dir-1' ? [...(options.includeRoots ? [migratedContainer] : []), indexingChild] : [healthyNote]
+        )
+        return options.includeRoots ? items : items.filter((item) => item.groupId !== null)
+      }
+    )
+
+    await service.reindexItems('kb-1', ['dir-1', 'note-1'])
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.reindex-subtree',
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      expect.any(Object)
+    )
+  })
+
   it('rejects reindex of a directory whose source folder no longer exists, without deleting its vectors', async () => {
     const service = new KnowledgeService()
     // A v1-migrated folder: completed, but its original folder path is gone (untrustworthy v1 path)
@@ -2557,6 +2644,28 @@ describe('KnowledgeService', () => {
       const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
 
       expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('fails instead of reporting a document applied when its source is gone', async () => {
+      const service = new KnowledgeService()
+      // An interactive reindex skips a root whose source is gone; this one must not, because
+      // `applied` tells the agent the document is current again.
+      const goneFile = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
+      getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
+        relativePath === CONCEPT_ID ? { materialId: 'file-1', relativePath: CONCEPT_ID } : null
+      )
+      knowledgeItemGetByIdMock.mockReturnValue(goneFile)
+      probeKnowledgeFileMock.mockResolvedValue('missing')
+      knowledgeItemGetSubtreeItemsMock.mockImplementation(
+        (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+          options.includeRoots ? [goneFile] : []
+      )
+
+      await expect(service.refreshConcepts('kb-1', [CONCEPT_ID])).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+
       expect(enqueueMock).not.toHaveBeenCalled()
     })
   })

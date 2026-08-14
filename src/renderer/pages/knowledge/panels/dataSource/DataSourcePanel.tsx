@@ -5,7 +5,12 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelStatus } from '@shared/data/presets/localModel'
-import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeItem,
+  KnowledgeItemOf,
+  KnowledgeItemType,
+  ReindexKnowledgeItemsResult
+} from '@shared/data/types/knowledge'
 import type { TFunction } from 'i18next'
 import { ChevronLeft, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -46,7 +51,7 @@ export interface DataSourcePanelProps {
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
-  onReindexItems: (itemIds: string[]) => void | Promise<unknown>
+  onReindexItems: (itemIds: string[]) => Promise<ReindexKnowledgeItemsResult>
 }
 
 type LocalEmbeddingStatus = Exclude<LocalModelStatus, 'ready'>
@@ -243,14 +248,23 @@ const DataSourcePanelContent = ({
       return
     }
 
+    let result: ReindexKnowledgeItemsResult
     try {
-      await onReindexItems(reindexableItems.map((item) => item.id))
+      result = await onReindexItems(reindexableItems.map((item) => item.id))
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
     }
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.bulk.reindex_skipped', { count: skippedCount }))
+    }
+    // Reindex drops the sources it can never rebuild (a deleted file, a v1-migrated folder child
+    // whose bytes were never copied into the base) instead of failing the batch — say so, or the
+    // user reads a clean run as "everything refreshed".
+    if (result.skippedMissingSourceCount > 0) {
+      toast.warning(
+        t('knowledge.data_source.bulk.reindex_skipped_missing_sources', { count: result.skippedMissingSourceCount })
+      )
     }
     setSelectedIds(new Set())
   }, [items, onReindexItems, selectedIds, t])

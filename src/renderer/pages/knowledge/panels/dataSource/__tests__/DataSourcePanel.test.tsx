@@ -22,7 +22,7 @@ type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onDeleteItems' | 'on
 const DataSourcePanel = ({
   onDeleteItems = vi.fn(),
   onPreviewFile = defaultOnPreviewFile,
-  onReindexItems = vi.fn(),
+  onReindexItems = vi.fn().mockResolvedValue({ skippedMissingSourceCount: 0 }),
   ...props
 }: TestDataSourcePanelProps) => (
   <DataSourcePanelComponent
@@ -309,6 +309,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.bulk.delete': '删除',
             'knowledge.data_source.bulk.reindex': '重新索引',
             'knowledge.data_source.bulk.reindex_skipped': `已跳过 ${options?.count} 个处理中的数据源`,
+            'knowledge.data_source.bulk.reindex_skipped_missing_sources': `已跳过 ${options?.count} 个源文件或文件夹已丢失的数据源`,
             'knowledge.data_source.bulk.reindex_none_eligible': '选中的数据源都在处理中，暂时无法重新索引',
             'knowledge.data_source.bulk.delete_confirm_title': '确认批量删除',
             'knowledge.data_source.table.columns.name': '名称',
@@ -1041,7 +1042,7 @@ describe('DataSourcePanel', () => {
   })
 
   it('clears the current selection after bulk reindex succeeds', async () => {
-    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+    const onReindexItems = vi.fn().mockResolvedValue({ skippedMissingSourceCount: 0 })
 
     render(
       <DataSourcePanel
@@ -1074,7 +1075,7 @@ describe('DataSourcePanel', () => {
   // active, so sending in-flight rows would also drop the failed ones the user meant to retry
   // (issue #18508: concurrent embedding leaves some rows processing, select-all then fails).
   it('sends only completed/failed rows to bulk reindex and reports the skipped in-flight ones', async () => {
-    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+    const onReindexItems = vi.fn().mockResolvedValue({ skippedMissingSourceCount: 0 })
 
     render(
       <DataSourcePanel
@@ -1101,8 +1102,37 @@ describe('DataSourcePanel', () => {
     expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个处理中的数据源')
   })
 
+  // Reindex drops the roots it can never rebuild (a deleted file, a v1-migrated folder child whose
+  // bytes were never copied into the base) instead of failing the batch, so a clean-looking run
+  // must still say how many sources were left behind.
+  it('reports the sources reindex dropped because their file or folder is gone', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue({ skippedMissingSourceCount: 2 })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 2 个源文件或文件夹已丢失的数据源')
+    })
+  })
+
   it('skips the reindex request entirely when every selected row is still in flight', async () => {
-    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+    const onReindexItems = vi.fn().mockResolvedValue({ skippedMissingSourceCount: 0 })
 
     render(
       <DataSourcePanel

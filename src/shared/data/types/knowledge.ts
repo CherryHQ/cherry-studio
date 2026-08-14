@@ -642,6 +642,15 @@ export const RestoreKnowledgeBaseResultSchema = z.strictObject({
 })
 export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
 
+// Reindex is partial for the same reason restore is: a root whose source is genuinely gone can
+// never be rebuilt, so it is skipped instead of failing the batch, and the count is reported so the
+// UI can say so. A source that merely could not be verified is NOT counted here — it is transient,
+// so the whole call still fails and asks the user to retry.
+export const ReindexKnowledgeItemsResultSchema = z.strictObject({
+  skippedMissingSourceCount: z.number().int().nonnegative()
+})
+export type ReindexKnowledgeItemsResult = z.infer<typeof ReindexKnowledgeItemsResultSchema>
+
 const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
 })

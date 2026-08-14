@@ -279,9 +279,13 @@ export class KnowledgeConceptService {
   async refreshConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
     const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'refreshConcepts')
     if (found.length > 0) {
+      // `applied` promises these documents were re-indexed, so this batch must not partially
+      // succeed: an interactive reindex may skip a root whose source is gone, but reporting a
+      // skipped document as applied would tell the agent a stale document is now current.
       await this.ingestionService.reindexItems(
         baseId,
-        found.map((entry) => entry.itemId)
+        found.map((entry) => entry.itemId),
+        { requireAll: true }
       )
     }
     return { applied: found.map((entry) => entry.conceptId), notFound }

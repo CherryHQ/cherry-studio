@@ -18,7 +18,8 @@ import {
   type KnowledgeAddItemsResult,
   type KnowledgeBase,
   type KnowledgeItem,
-  type KnowledgeItemStatus
+  type KnowledgeItemStatus,
+  type ReindexKnowledgeItemsResult
 } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
@@ -219,20 +220,37 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     )
   }
 
-  async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
+  /**
+   * `requireAll` fails the call instead of skipping a root whose source is gone, for callers whose
+   * result would otherwise claim work that never happened (`refreshConcepts`).
+   */
+  async reindexItems(
+    baseId: string,
+    itemIds: string[],
+    options: { requireAll?: boolean } = {}
+  ): Promise<ReindexKnowledgeItemsResult> {
     assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
-      return
+      return { skippedMissingSourceCount: 0 }
     }
 
-    await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    const admission = await this.resolveReindexableRoots(baseId, rootItemIds, options)
+    // A rejected batch already threw, so an empty list here only means every selected row was
+    // deleted since it was resolved — nothing left to enqueue.
+    if (admission.rootItemIds.length > 0) {
+      this.enqueueReindexSubtree(baseId, admission.rootItemIds)
+    }
 
+    return { skippedMissingSourceCount: admission.skippedMissingSourceCount }
+  }
+
+  /** Enqueue the reindex-subtree job for roots that admission has already cleared. */
+  private enqueueReindexSubtree(baseId: string, rootItemIds: string[]): void {
     knowledgeBaseService.getById(baseId)
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
-    const jobManager = application.get('JobManager')
-    jobManager.enqueue(
+    application.get('JobManager').enqueue(
       'knowledge.reindex-subtree',
       { baseId, rootItemIds },
       {
@@ -250,24 +268,28 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * keeps going through `restoreBase` because it does invalidate existing vectors.
    *
    * Runs the same admission checks `reindexItems` would run, but before committing the
-   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
-   * must never end up with a model set and no vectors to back it, since there is nothing
-   * to roll back to once it is committed.
+   * model and over every item — a base whose backfill is doomed (missing source, subtree
+   * still running, ...) must never end up with a model set and no vectors to back it, since
+   * there is nothing to roll back to once it is committed. Reindex may skip an unreadable
+   * root and still be useful; a backfill that skips one leaves the base permanently
+   * half-embedded, so it takes the all-or-nothing form.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
     const rootItemIds = rootItems.map((item) => item.id)
 
-    if (rootItemIds.length > 0) {
-      assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
-      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    if (rootItemIds.length === 0) {
+      return knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
     }
+
+    assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+    // Admit once, then enqueue exactly what was admitted. Re-running admission after the commit
+    // would let a source that vanished in between be skipped instead of reported, which is the one
+    // outcome this flow cannot absorb.
+    const admission = await this.resolveReindexableRoots(baseId, rootItemIds, { requireAll: true })
 
     const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
-
-    if (rootItemIds.length > 0) {
-      await this.reindexItems(baseId, rootItemIds)
-    }
+    this.enqueueReindexSubtree(baseId, admission.rootItemIds)
 
     return updatedBase
   }
@@ -469,23 +491,45 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
   }
 
-  private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
+  /**
+   * Reindex admission: returns the selected roots that may be enqueued, in the caller's order, plus
+   * how many were dropped because their source is gone for good.
+   *
+   * Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
+   * so a root whose source is gone would lose its vectors with nothing to rebuild from — it must
+   * never be enqueued. Only the root's own source matters: a directory is rescanned from data.source
+   * and its children recreated (never read from their raw/ files), a file leaf reads its own raw/
+   * file, and note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on
+   * its own is a file root whose raw/ file never existed, so it is unreadable here too.
+   *
+   * The two unreadable states are not interchangeable, so they are not handled alike:
+   * - `missing` is permanent. Failing the batch over it would make a v1-migrated base — which
+   *   reliably holds at least one such item — impossible to reindex at all, so it is dropped from
+   *   the batch (the same call the reindex job already makes right before the delete) and counted
+   *   for the caller to report. Only when nothing is left does the batch fail, so a single-item
+   *   reindex still says exactly why it cannot run.
+   * - `unverifiable` is transient (permission/IO error, an unplugged drive). Dropping it silently
+   *   would leave stale vectors behind with nothing telling the user to try again, so it still
+   *   fails the whole call with the retry hint — one retry is a far cheaper price than a source the
+   *   user believes was refreshed.
+   *
+   * `requireAll` restores the all-or-nothing contract for `enableEmbeddingModel`, which commits an
+   * embedding model that cannot be rolled back once any item is left without vectors.
+   */
+  private async resolveReindexableRoots(
+    baseId: string,
+    rootItemIds: string[],
+    options: { requireAll?: boolean } = {}
+  ): Promise<{ rootItemIds: string[]; skippedMissingSourceCount: number }> {
     // rootItemIds comes from getOutermostSelectedItemIds, which guarantees the roots are mutually
     // non-descendant (disjoint subtrees), so one batched query's union equals the per-root sum.
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
     const rootIdSet = new Set(rootItemIds)
     const roots = subtreeItems.filter((item) => rootIdSet.has(item.id))
 
-    // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
-    // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-    // front. Only the root's own source matters: a directory is rescanned from data.source and its
-    // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
-    // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
-    // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
-    // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
-    // which should retry rather than be destroyed).
     const sourceStates = await Promise.all(roots.map((root) => classifyKnowledgeItemSource(baseId, root)))
 
+    const rebuildableRootIdSet = new Set<string>()
     const missingSourceItemIds: string[] = []
     const unverifiableSourceItemIds: string[] = []
     roots.forEach((root, index) => {
@@ -493,18 +537,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         missingSourceItemIds.push(root.id)
       } else if (sourceStates[index] === 'unverifiable') {
         unverifiableSourceItemIds.push(root.id)
+      } else {
+        rebuildableRootIdSet.add(root.id)
       }
     })
 
-    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
-    for (const item of subtreeItems) {
-      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
-        continue
-      }
-      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
-    }
-
-    if (missingSourceItemIds.length > 0) {
+    if (missingSourceItemIds.length > 0 && (options.requireAll || rebuildableRootIdSet.size === 0)) {
       throw DataApiErrorFactory.validation(
         {
           item: [`Knowledge item source no longer exists on disk for ${missingSourceItemIds.length} item(s)`]
@@ -522,8 +560,35 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       )
     }
 
+    const reindexableRootIds = rootItemIds.filter((itemId) => rebuildableRootIdSet.has(itemId))
+    const skippedMissingSourceCount = missingSourceItemIds.length
+    if (skippedMissingSourceCount > 0) {
+      logger.warn('Excluding knowledge roots whose source no longer exists from the reindex batch', {
+        baseId,
+        missingSourceItemIds
+      })
+    }
+    if (reindexableRootIds.length === 0) {
+      return { rootItemIds: reindexableRootIds, skippedMissingSourceCount }
+    }
+
+    // Status blocks only the roots that are actually being enqueued: an excluded root's subtree is
+    // left untouched, so its in-flight work must not veto the rest of the batch.
+    const statusItems =
+      reindexableRootIds.length === rootItemIds.length
+        ? subtreeItems
+        : knowledgeItemService.getSubtreeItems(baseId, reindexableRootIds, { includeRoots: true })
+
+    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    for (const item of statusItems) {
+      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
+        continue
+      }
+      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
+    }
+
     if (blockingStatusCounts.size === 0) {
-      return
+      return { rootItemIds: reindexableRootIds, skippedMissingSourceCount }
     }
 
     const statusSummary = [...blockingStatusCounts.entries()]

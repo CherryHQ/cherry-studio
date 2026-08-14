@@ -8,6 +8,7 @@ import {
   KnowledgeBaseSchema,
   KnowledgeItemChunkSchema,
   KnowledgeSearchResultSchema,
+  ReindexKnowledgeItemsResultSchema,
   RestoreKnowledgeBaseResultSchema,
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
@@ -63,7 +64,12 @@ export const knowledgeRequestSchemas = {
     output: KnowledgeAddItemsResultSchema
   }),
   'knowledge.delete_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
-  'knowledge.reindex_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
+  // Partial like restore_base: roots whose source is gone for good are skipped instead of failing
+  // the batch, so the caller needs the count to tell the user how many were left behind.
+  'knowledge.reindex_items': defineRoute({
+    input: itemIdsInputSchema,
+    output: ReindexKnowledgeItemsResultSchema
+  }),
   // First-time embedding setup on a BM25-only base that already has items: sets the
   // model/dimensions in place and backfills embeddings, instead of restoring into a
   // new base. Switching an already-configured model still goes through restore_base.

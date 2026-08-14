@@ -3198,6 +3198,7 @@
         "reindex": "Reindex",
         "reindex_none_eligible": "All selected data sources are still processing and cannot be reindexed yet",
         "reindex_skipped": "Skipped {{count}} data source(s) still processing",
+        "reindex_skipped_missing_sources": "Skipped {{count}} data source(s) whose file or folder no longer exists",
         "selected_count": "{{count}} selected"
       },
       "chunks_count": "{{count}} chunks",

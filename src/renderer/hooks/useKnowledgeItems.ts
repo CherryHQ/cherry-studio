@@ -8,7 +8,8 @@ import {
   type KnowledgeAddItemInput,
   type KnowledgeAddItemsResult,
   type KnowledgeItem,
-  type KnowledgeItemStatus
+  type KnowledgeItemStatus,
+  type ReindexKnowledgeItemsResult
 } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -271,7 +272,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
   const invalidateCache = useInvalidateCache()
 
   const reindexItems = useCallback(
-    async (itemIds: string[]): Promise<void> => {
+    async (itemIds: string[]): Promise<ReindexKnowledgeItemsResult> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -279,20 +280,31 @@ export const useReindexKnowledgeItem = (baseId: string) => {
       setError(undefined)
       setIsReindexing(true)
 
+      // One selection is split across several calls (KNOWLEDGE_RUNTIME_ITEMS_MAX per call), and each
+      // call rejects on its own when nothing in *it* can be rebuilt. A batch that happens to hold
+      // only unreadable sources must therefore not abort the batches after it — those still carry
+      // sources the user asked to refresh — so every batch is attempted and the counts summed. A
+      // batch that failed still surfaces its error once the whole selection has been through.
+      let skippedMissingSourceCount = 0
       let reindexError: Error | undefined
       try {
         for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
-          await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })
+          try {
+            const result = await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })
+            skippedMissingSourceCount += result.skippedMissingSourceCount
+          } catch (batchError) {
+            reindexError ??= normalizeKnowledgeError(batchError)
+          }
         }
-      } catch (error) {
-        reindexError = normalizeKnowledgeError(error)
 
-        reindexLogger.error('Failed to reindex knowledge source', reindexError, {
-          baseId,
-          itemIds
-        })
+        if (reindexError) {
+          reindexLogger.error('Failed to reindex knowledge source', reindexError, {
+            baseId,
+            itemIds
+          })
 
-        setError(reindexError)
+          setError(reindexError)
+        }
       } finally {
         await refreshKnowledgeItemsCaches(
           invalidateCache,
@@ -311,11 +323,16 @@ export const useReindexKnowledgeItem = (baseId: string) => {
       if (reindexError) {
         throw reindexError
       }
+
+      return { skippedMissingSourceCount }
     },
     [baseId, invalidateCache]
   )
 
-  const reindexItem = useCallback((item: KnowledgeItem): Promise<void> => reindexItems([item.id]), [reindexItems])
+  const reindexItem = useCallback(
+    (item: KnowledgeItem): Promise<ReindexKnowledgeItemsResult> => reindexItems([item.id]),
+    [reindexItems]
+  )
 
   return {
     reindexItems,

@@ -25,7 +25,7 @@ describe('useReindexKnowledgeItem', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
-    mockIpcRequest.mockResolvedValue(undefined)
+    mockIpcRequest.mockResolvedValue({ skippedMissingSourceCount: 0 })
   })
 
   it('reindexes one knowledge item through orchestration IPC and refreshes the list', async () => {
@@ -33,7 +33,7 @@ describe('useReindexKnowledgeItem', () => {
     const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
 
     await act(async () => {
-      await expect(result.current.reindexItem(item)).resolves.toBeUndefined()
+      await expect(result.current.reindexItem(item)).resolves.toEqual({ skippedMissingSourceCount: 0 })
     })
 
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.reindex_items', { baseId: 'base-1', itemIds: ['note-1'] })
@@ -47,7 +47,7 @@ describe('useReindexKnowledgeItem', () => {
     const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
 
     await act(async () => {
-      await expect(result.current.reindexItems(['note-1', 'note-2'])).resolves.toBeUndefined()
+      await expect(result.current.reindexItems(['note-1', 'note-2'])).resolves.toEqual({ skippedMissingSourceCount: 0 })
     })
 
     expect(mockIpcRequest).toHaveBeenCalledTimes(1)
@@ -64,7 +64,7 @@ describe('useReindexKnowledgeItem', () => {
     const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
 
     await act(async () => {
-      await expect(result.current.reindexItems(itemIds)).resolves.toBeUndefined()
+      await expect(result.current.reindexItems(itemIds)).resolves.toEqual({ skippedMissingSourceCount: 0 })
     })
 
     expect(mockIpcRequest).toHaveBeenCalledTimes(2)
@@ -78,6 +78,38 @@ describe('useReindexKnowledgeItem', () => {
     })
     expect(mockInvalidateCache).toHaveBeenCalledTimes(1)
     expect(mockIpcRequest.mock.invocationCallOrder[1]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
+  })
+
+  it('sums the skipped-source counts across batches so the caller sees the whole selection', async () => {
+    const itemIds = Array.from({ length: 101 }, (_, index) => `note-${index + 1}`)
+    mockIpcRequest
+      .mockResolvedValueOnce({ skippedMissingSourceCount: 3 })
+      .mockResolvedValueOnce({ skippedMissingSourceCount: 1 })
+    const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.reindexItems(itemIds)).resolves.toEqual({ skippedMissingSourceCount: 4 })
+    })
+  })
+
+  // Admission rejects a request in which nothing can be rebuilt, and the request is one batch of
+  // the user's selection — so on a v1-migrated base a batch of nothing but unbacked folder children
+  // must not stop the batches after it, which still hold sources the user asked to refresh.
+  it('still sends the later batches when one batch is rejected outright', async () => {
+    const itemIds = Array.from({ length: 101 }, (_, index) => `note-${index + 1}`)
+    const batchError = new Error('Cannot reindex a knowledge item whose source file or folder no longer exists')
+    mockIpcRequest.mockRejectedValueOnce(batchError).mockResolvedValueOnce({ skippedMissingSourceCount: 0 })
+    const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.reindexItems(itemIds)).rejects.toBe(batchError)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(2)
+    expect(mockIpcRequest).toHaveBeenNthCalledWith(2, 'knowledge.reindex_items', {
+      baseId: 'base-1',
+      itemIds: itemIds.slice(100)
+    })
   })
 
   it('keeps reindex rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {

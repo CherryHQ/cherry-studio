@@ -25,9 +25,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').deleteItems(baseId, itemIds)
   },
-  'knowledge.reindex_items': async ({ baseId, itemIds }) => {
-    await application.get('KnowledgeService').reindexItems(baseId, itemIds)
-  },
+  'knowledge.reindex_items': async ({ baseId, itemIds }) =>
+    application.get('KnowledgeService').reindexItems(baseId, itemIds),
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
   'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),

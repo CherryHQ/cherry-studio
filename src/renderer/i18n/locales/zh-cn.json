@@ -3198,6 +3198,7 @@
         "reindex": "重新索引",
         "reindex_none_eligible": "选中的数据源都在处理中，暂时无法重新索引",
         "reindex_skipped": "已跳过 {{count}} 个处理中的数据源",
+        "reindex_skipped_missing_sources": "已跳过 {{count}} 个源文件或文件夹已丢失的数据源",
         "selected_count": "已选 {{count}} 项"
       },
       "chunks_count": "{{count}} chunks",
