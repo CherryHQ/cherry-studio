@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -670,7 +673,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — all tools will run without asking for approval."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "confirmChange": {
             "description": "Switching modes updates the automatically approved tools.",
@@ -1085,6 +1088,34 @@
         "Write": {
           "description": "Creates or overwrites files",
           "label": "Write"
+        },
+        "bash": {
+          "description": "Run shell commands",
+          "label": "Run shell commands"
+        },
+        "edit": {
+          "description": "Edit files",
+          "label": "Edit files"
+        },
+        "find": {
+          "description": "Find files",
+          "label": "Find files"
+        },
+        "grep": {
+          "description": "Search file contents",
+          "label": "Search file contents"
+        },
+        "ls": {
+          "description": "List directory contents",
+          "label": "List directory contents"
+        },
+        "read": {
+          "description": "Read files",
+          "label": "Read files"
+        },
+        "write": {
+          "description": "Write files",
+          "label": "Write files"
         }
       }
     },
@@ -1150,6 +1181,11 @@
       "startSuccess": "API Gateway started successfully",
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
+    },
+    "required": {
+      "confirm": "Enable",
+      "description": "This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "Enable the API Gateway?"
     },
     "status": {
       "running": "Running",
@@ -2494,6 +2530,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",
     "backup": {
@@ -2880,6 +2917,13 @@
       "title": "Keep Alive Time"
     },
     "title": "GPUStack"
+  },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "User guide",
+    "star": "Star us on GitHub",
+    "title": "Help",
+    "whats_new": "What's new"
   },
   "history": {
     "continue_chat": "Continue Chatting",
@@ -3444,6 +3488,18 @@
             "hint": "Task decomposition and planning",
             "label": "Plan model"
           },
+          "runtime": {
+            "immutable_hint": "Cannot be changed after creation",
+            "label": "Runtime mode",
+            "option": {
+              "claude_code": "Advanced: Claude Agent",
+              "pi": "Fast: Pi"
+            },
+            "selected": {
+              "claude_code": "Advanced",
+              "pi": "Fast"
+            }
+          },
           "small_model": {
             "hint": "Lightweight checks and formatting",
             "label": "Small model"
@@ -3851,10 +3907,17 @@
     "skill_marketplace": {
       "empty_description": "Search online registries to find installable skills.",
       "empty_title": "Search for skills",
+      "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Install from GitHub",
+      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "GitHub SKILL.md URL",
+      "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
       "no_results_title": "No skills found",
       "search_failed_description": "Search failed. Please try again later.",
+      "search_label": "Search skills",
       "search_placeholder": "Search skills...",
+      "source_label": "Skill source",
       "title": "Online skill search"
     },
     "sort": {
@@ -3881,13 +3944,6 @@
       "placeholder": "New tag name..."
     },
     "tag_sync_failed": "Failed to sync tags",
-    "time_ago": {
-      "days": "{{count}} day(s) ago",
-      "hours": "{{count}} hour(s) ago",
-      "just_now": "Just now",
-      "minutes": "{{count}} minute(s) ago",
-      "months": "{{count}} month(s) ago"
-    },
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",
@@ -5937,7 +5993,7 @@
           "title": "Diagnostic bundle"
         },
         "errors": {
-          "busy": "Another diagnostic bundle is already being exported",
+          "busy": "Another diagnostic bundle operation is already in progress",
           "copy_failed": "Could not copy the support email",
           "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
           "email_client_failed": "Could not open an email client. You can copy the support email instead.",
@@ -5986,6 +6042,48 @@
           "title": "Diagnostic bundle exported"
         },
         "unknown": "Unknown",
+        "upload": {
+          "actions": {
+            "consent_upload": "Agree and upload",
+            "open_form": "Open form",
+            "uploading": "Uploading..."
+          },
+          "dialog": {
+            "description": "Build a diagnostic bundle and send it anonymously to the Cherry Studio team.",
+            "title": "Upload diagnostic bundle"
+          },
+          "errors": {
+            "open_form_failed": "Could not open the feedback form",
+            "upload_failed": "Could not build or preserve the diagnostic bundle"
+          },
+          "manual": {
+            "description": "The ZIP was saved to Downloads and the anonymous form was opened. Select the saved file there to finish submitting it.",
+            "title": "Manual upload required"
+          },
+          "privacy": {
+            "description": "The bundle always includes app and device information. Selected logs and detailed records may contain things you entered, file locations, request and response content, and service connection information. It is sent anonymously to a private Feishu form and is limited to {{size}}. By clicking Agree and upload, you consent to building and sending this bundle.",
+            "title": "Privacy notice"
+          },
+          "reasons": {
+            "attachment_upload_failed": "The attachment could not be uploaded automatically.",
+            "form_changed": "The feedback form structure changed and could not be verified safely.",
+            "form_unavailable": "The feedback form is currently unavailable.",
+            "network_failed": "The network request could not be completed.",
+            "submission_rejected": "The feedback form rejected the submission."
+          },
+          "success": {
+            "description": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+            "title": "Diagnostic bundle uploaded"
+          },
+          "unknown": {
+            "description": "The ZIP was saved to Downloads, but the server response was interrupted. It may already have been submitted. Check before opening the form to avoid sending it twice.",
+            "title": "Submission may have succeeded"
+          },
+          "unknown_without_copy": {
+            "description": "The server response was interrupted and the diagnostic ZIP could not be saved locally. Do not retry the upload, because it may send the same feedback twice.",
+            "title": "Submission may have succeeded, but no local copy was saved"
+          }
+        },
         "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
       },
       "downloading": "Downloading...",
@@ -5994,24 +6092,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Assistant to share feedback.",
-          "title": "Use Agent"
+          "description": "Chat with the built-in Cherry Support Agent for help with Cherry Studio or to share feedback.",
+          "title": "Ask Cherry Support"
         },
-        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support. Please try again.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Review recent diagnostic information, then upload it anonymously in one step.",
+          "title": "Upload diagnostic bundle"
+        },
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
           "title": "Choose a feedback channel"
         },
         "github": {
           "description": "Create a bug report or feature request on GitHub.",
+          "error": "Unable to open GitHub Issues. Please try again.",
           "title": "GitHub Issue"
         },
         "recommended": "Recommended",
-        "survey": {
-          "description": "Share feedback through our Feishu survey.",
-          "title": "Feedback survey"
-        },
         "title": "Feedback"
       },
       "label": "About & Feedback",
@@ -7622,7 +7721,6 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
-        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -7645,7 +7743,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "App Update"
     },
     "openai": {
       "service_tier": {

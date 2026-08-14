@@ -349,10 +349,13 @@ describe('WorkspaceSelector', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('creates and selects a workspace from the footer folder picker', async () => {
+  it('creates and selects a workspace without an extra list refetch', async () => {
     selectFolderMock.mockResolvedValue('/Users/jd/new-project')
     const { onChange } = renderSelector()
     openPopover()
+
+    await waitFor(() => expect(refetchWorkspacesMock).toHaveBeenCalledOnce())
+    refetchWorkspacesMock.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
@@ -361,7 +364,7 @@ describe('WorkspaceSelector', () => {
         body: { path: '/Users/jd/new-project' }
       })
     )
-    expect(refetchWorkspacesMock).toHaveBeenCalled()
+    expect(refetchWorkspacesMock).not.toHaveBeenCalled()
     expect(onChange).toHaveBeenCalledWith('workspace-created')
   })
 

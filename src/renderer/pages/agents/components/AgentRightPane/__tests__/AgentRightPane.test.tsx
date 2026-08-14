@@ -28,6 +28,7 @@ const {
   fileTreeModelStore,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
+  tracePaneModuleLoadMock,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock,
   useDirectoryTreeMock,
@@ -57,6 +58,7 @@ const {
     root: null as TreeDirRoot | null,
     version: 0
   },
+  tracePaneModuleLoadMock: vi.fn(),
   useArtifactFileTreeModelMock: vi.fn(),
   useCommandHandlerMock: vi.fn(),
   useDirectoryTreeMock: vi.fn(),
@@ -308,9 +310,10 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: () => <div data-testid="trace-pane" />
-}))
+vi.mock('@renderer/components/chat/trace/TracePane', () => {
+  tracePaneModuleLoadMock()
+  return { TracePane: () => <div data-testid="trace-pane" /> }
+})
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
@@ -1183,7 +1186,7 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('unmounts a visited trace capability while inactive to release its retained tree', () => {
+  it('loads trace on demand and unmounts it while inactive to release its retained tree', async () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -1191,14 +1194,16 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
+    expect(tracePaneModuleLoadMock).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    const tracePane = screen.getByTestId('trace-pane')
+    const tracePane = await screen.findByTestId('trace-pane')
+    expect(tracePaneModuleLoadMock).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(screen.queryByTestId('trace-pane')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    expect(screen.getByTestId('trace-pane')).not.toBe(tracePane)
+    expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
   })
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {
