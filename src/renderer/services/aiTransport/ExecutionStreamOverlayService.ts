@@ -498,7 +498,10 @@ export class ExecutionStreamOverlayService {
    *  Executions with a live reader are left untouched: a delayed handoff for a
    *  finished turn must not freeze a newer turn already streaming on this topic. */
   reset(topicId: string): void {
-    this.retireThrough(topicId, Number.MAX_SAFE_INTEGER)
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    const settled = (attemptId: AttemptId) => entry.settlements.has(attemptId) || entry.sub.isSettled(attemptId)
+    this.#retire(entry, settled, settled)
   }
 
   /** Retire only records covered by one cycle's durable barrier. */
@@ -506,9 +509,14 @@ export class ExecutionStreamOverlayService {
     const entry = this.#entries.get(topicId)
     if (!entry) return
     const watermark = toAttemptId(throughAttemptId)
+    const covered = (attemptId: AttemptId) => attemptId <= watermark
+    this.#retire(entry, covered, covered)
+  }
+
+  #retire(entry: Entry, coversAttempt: (id: AttemptId) => boolean, coversMessage: (id: AttemptId) => boolean): void {
     let next = entry.snapshots
     for (const attemptId of new Set([...entry.snapshots.keys(), ...entry.pendingSnapshots.keys()])) {
-      if (attemptId > watermark) continue
+      if (!coversAttempt(attemptId)) continue
       const handle = entry.readers.get(attemptId)
       if (handle) {
         handle.cancel()
@@ -526,7 +534,7 @@ export class ExecutionStreamOverlayService {
       }
     }
     for (const [messageId, messageWatermark] of entry.optimisticMessageWatermarks) {
-      if (messageWatermark > watermark) continue
+      if (!coversMessage(messageWatermark)) continue
       entry.optimisticMessageWatermarks.delete(messageId)
       entry.optimisticMessages.delete(messageId)
       if (entry.activeNodeOverride?.activeNodeId === messageId) entry.activeNodeOverride = null

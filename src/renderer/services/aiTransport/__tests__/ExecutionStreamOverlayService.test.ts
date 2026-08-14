@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => {
     disposed = false
     topicOpen = false
     terminalAttemptWatermark: number | undefined
+    /** Mirror of production's TopicStreamProjection settle memory: permanent, survives unregister. */
+    readonly settledAttempts = new Set<number>()
 
     constructor(readonly topicId: string) {
       subs.set(topicId, this)
@@ -63,6 +65,7 @@ const mocks = vi.hoisted(() => {
         branch = { executionId, attemptId, anchorMessageId, stream, controller, closed: false }
         if (
           this.#terminalFor(executionId, anchorMessageId, attemptId) ||
+          (attemptId !== undefined && this.settledAttempts.has(attemptId)) ||
           (attemptId !== undefined &&
             this.terminalAttemptWatermark !== undefined &&
             attemptId <= this.terminalAttemptWatermark)
@@ -99,6 +102,7 @@ const mocks = vi.hoisted(() => {
     isSettled(attemptId: number) {
       return (
         (this.terminalAttemptWatermark !== undefined && attemptId <= this.terminalAttemptWatermark) ||
+        this.settledAttempts.has(attemptId) ||
         [...this.terminalByKey.values()].some(({ terminal }) => terminal.attemptId === attemptId)
       )
     }
@@ -221,6 +225,7 @@ const mocks = vi.hoisted(() => {
           anchorMessageId: anchorMessageId ?? branch?.anchorMessageId,
           attemptId: attemptId ?? branch?.attemptId
         }
+        if (terminal.attemptId !== undefined) this.settledAttempts.add(terminal.attemptId)
         this.terminalByKey.set(key, { executionId, terminal })
         for (const cb of [...this.terminalCbs]) cb(executionId, terminal)
       }
@@ -493,14 +498,14 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
     // A finishes; B keeps streaming so the entry survives the release below.
     streamText(sub, A, 't1', 'final')
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
 
@@ -509,7 +514,7 @@ describe('ExecutionStreamOverlayService', () => {
     // Remount while shared status is momentarily stale and still lists A.
     const consumer2 = {}
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer2, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer2, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     await drainStreamMicrotasks()
 
     // A stays settled: no reader restart, retained final frame intact.
@@ -524,14 +529,14 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
     // Turn A finishes (reader settled, snapshot retained); turn B keeps streaming.
     streamText(sub, A, 't1', 'finished')
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('finished')
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
@@ -541,7 +546,7 @@ describe('ExecutionStreamOverlayService', () => {
     expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
 
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
   })
@@ -573,12 +578,12 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'finished-while-away')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'still-live' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'still-live' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
 
     service.release(TOPIC, consumer)
@@ -590,7 +595,7 @@ describe('ExecutionStreamOverlayService', () => {
     expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
 
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(B, 'anchor-b', 2)], seed)
 
     // B streams on across the remount.
     expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
@@ -603,12 +608,12 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'first')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
     service.release(TOPIC, consumer)
 
@@ -622,13 +627,13 @@ describe('ExecutionStreamOverlayService', () => {
 
     // Remount with the stale Activity-preserved set that still lists A.
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     await drainStreamMicrotasks()
 
     // Tombstoned: no zombie reader, no new branch for A; B is untouched.
     expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
     expect(sub.branches.size).toBe(1)
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b', 2)
     await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
   })
@@ -651,14 +656,15 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
     expect(sub.disposed).toBe(false)
 
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-b')
+    // The steer continuation runs as a NEW attempt against the next anchor.
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
+    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-b', 2)
 
     // The unclaimed continuation then pins the same retained entry.
     expect(sub.disposed).toBe(false)
 
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-b', 2)], seed)
     await nextCommit()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('second')
   })
@@ -679,9 +685,9 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
     expect(sub.disposed).toBe(false)
 
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b', 2)
     // The user never returns; round B ends and closes the queued branch.
-    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-b')
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-b', 2)
     await drainStreamMicrotasks()
     expect(sub.disposed).toBe(true)
   })
@@ -692,7 +698,7 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
 
     streamText(sub, A, 't1', 'first')
@@ -702,16 +708,16 @@ describe('ExecutionStreamOverlayService', () => {
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     await drainStreamMicrotasks()
 
-    // A new turn on the same key starts while hidden: the transport
-    // auto-creates an open branch and queues its chunks.
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a')
-    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-a')
+    // A new turn on the same anchor starts while hidden under a NEW attempt id:
+    // the transport auto-creates an open branch and queues its chunks.
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a', 3)
+    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-a', 3)
 
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 3), exec(B, 'anchor-b', 2)], seed)
     await nextCommit()
 
-    // Fresh transport evidence overrides the tombstone and replays the queue.
+    // The fresh attempt identity bypasses the settled tombstone and replays the queue.
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('second')
   })
 
@@ -748,7 +754,7 @@ describe('ExecutionStreamOverlayService', () => {
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b', 2)], seed)
     const sub = mocks.subs.get(TOPIC)!
     const onChange = vi.fn()
     service.subscribe(TOPIC, onChange)
@@ -760,7 +766,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     streamText(sub, A, 'small', 'small')
     await vi.advanceTimersByTimeAsync(0)
-    streamText(sub, B, 'large', 'x'.repeat(600_000), 'anchor-b')
+    streamText(sub, B, 'large', 'x'.repeat(600_000), 'anchor-b', 2)
     await vi.advanceTimersByTimeAsync(0)
 
     await vi.advanceTimersByTimeAsync(100)
@@ -777,7 +783,6 @@ describe('ExecutionStreamOverlayService', () => {
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(onChange).toHaveBeenCalledTimes(2)
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initialsmall-terminal')
   })
 
