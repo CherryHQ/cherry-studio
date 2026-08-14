@@ -1,7 +1,36 @@
+import type {
+  AssistantMessage,
+  CallId,
+  ContentBlock,
+  MessageId,
+  StreamChunk,
+  ToolResultMessage
+} from '@deepseek-ai/dsh-llm'
+import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
+
+type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
+type DshCommandId = NonNullable<SessionEventMap['compaction/start']['sourceCommandId']>
+type DshRetryId = SessionEventMap['llm/retry']['retryId']
+
+const callId = (id: string) => id as CallId
+
+const assistantMessage = (model = 'm-1'): AssistantMessage => ({
+  id: 'msg-1' as MessageId,
+  role: 'assistant',
+  content: [],
+  source: { kind: 'model', provider: 'p', model }
+})
+
+const toolResultMessage = (id: string, content: ContentBlock[], isError?: boolean): ToolResultMessage => ({
+  id: `msg-${id}` as MessageId,
+  role: 'user',
+  content: [{ type: 'tool-result', toolCallId: callId(id), content, ...(isError !== undefined ? { isError } : {}) }],
+  source: { kind: 'tool', callId: callId(id) }
+})
 
 function makeAdapter() {
   const chunks: CherryUIMessageChunk[] = []
@@ -27,8 +56,13 @@ function makeAdapter() {
 }
 
 let seq = 0
-const envelope = (type: string, data: unknown) => ({ type, seq: ++seq, time: Date.now(), data })
-const chunkEnvelope = (turn: number, step: number, chunk: unknown) => envelope('assistant/chunk', { turn, step, chunk })
+const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T]): SessionEvent =>
+  ({ type, seq: ++seq, time: Date.now(), data }) as SessionEvent
+/** An event outside the compile-time union (merge-extended or lifecycle-only shape). */
+const rawEvent = (type: string, data: unknown): SessionEvent =>
+  ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
+const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk) =>
+  envelope('assistant/chunk', { turn, step, chunk })
 
 describe('DshStreamAdapter', () => {
   it('maps a text turn to the expected chunk sequence and settles via onTurnEnd', () => {
@@ -102,16 +136,13 @@ describe('DshStreamAdapter', () => {
   it('surfaces a tool call and its result with the dsh transport tag', () => {
     const { adapter, chunks } = makeAdapter()
     adapter.handleEvent(
-      envelope('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{"command":"ls"}' })
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{"command":"ls"}' })
     )
     adapter.handleEvent(
       envelope('tool/result', {
         turn: 1,
         step: 1,
-        message: {
-          role: 'user',
-          content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'file.txt' }] }]
-        }
+        message: toolResultMessage('c1', [{ type: 'text', text: 'file.txt' }])
       })
     )
 
@@ -131,22 +162,23 @@ describe('DshStreamAdapter', () => {
 
   it('degrades malformed tool arguments JSON to an empty input', () => {
     const { adapter, chunks } = makeAdapter()
-    adapter.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'edit', arguments: '{oops' }))
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'edit', arguments: '{oops' })
+    )
 
     expect(chunks[1]).toMatchObject({ type: 'tool-input-available', input: {} })
   })
 
   it('maps a failed tool result to tool-output-error', () => {
     const { adapter, chunks } = makeAdapter()
-    adapter.handleEvent(envelope('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{}' }))
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{}' })
+    )
     adapter.handleEvent(
       envelope('tool/result', {
         turn: 1,
         step: 1,
-        message: {
-          role: 'user',
-          content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'boom' }], isError: true }]
-        },
+        message: toolResultMessage('c1', [{ type: 'text', text: 'boom' }], true),
         error: { name: 'ShellError', code: 'EXIT_1' }
       })
     )
@@ -162,7 +194,7 @@ describe('DshStreamAdapter', () => {
       envelope('assistant/message', {
         turn: 1,
         step: 1,
-        message: { role: 'assistant', source: { kind: 'model', provider: 'p', model: 'm-1' } },
+        message: assistantMessage('m-1'),
         usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, reasoningTokens: 1 }
       })
     )
@@ -170,7 +202,7 @@ describe('DshStreamAdapter', () => {
       envelope('assistant/message', {
         turn: 1,
         step: 2,
-        message: { role: 'assistant', source: { kind: 'model', provider: 'p', model: 'm-1' } },
+        message: assistantMessage('m-1'),
         usage: { inputTokens: 20, outputTokens: 10 }
       })
     )
@@ -206,7 +238,9 @@ describe('DshStreamAdapter', () => {
       vi.advanceTimersByTime(150)
       adapter.handleEvent(chunkEnvelope(1, 1, { type: 'reasoning-delta', index: 0, text: 'hm' }))
       vi.advanceTimersByTime(250)
-      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'block-end', index: 0, block: { type: 'reasoning' } }))
+      adapter.handleEvent(
+        chunkEnvelope(1, 1, { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'hm' } })
+      )
       vi.advanceTimersByTime(100)
       adapter.handleEvent(chunkEnvelope(1, 1, { type: 'text-delta', index: 1, text: 'answer' }))
       vi.advanceTimersByTime(100)
@@ -215,7 +249,7 @@ describe('DshStreamAdapter', () => {
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
-          message: { role: 'assistant' }
+          message: assistantMessage()
         })
       )
 
@@ -249,7 +283,7 @@ describe('DshStreamAdapter', () => {
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
-          message: { role: 'assistant' }
+          message: assistantMessage()
         })
       )
 
@@ -271,22 +305,26 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } }))
     adapter.handleEvent(
       envelope('llm/retry', {
+        retryId: 'r-1' as DshRetryId,
         turn: 1,
         step: 1,
+        provider: 'deepseek',
+        mode: 'normal',
+        policyKey: 'k',
         retry: 1,
         maxRetries: 2,
         delayMs: 0,
-        failure: { code: 'RATE_LIMIT', status: 429 }
+        failure: { message: 'rate limited', code: 'RATE_LIMIT', status: 429 }
       })
     )
-    adapter.handleEvent(envelope('llm/retry-started', { turn: 1, step: 1, retry: 1 }))
+    adapter.handleEvent(envelope('llm/retry-started', { retryId: 'r-1' as DshRetryId, turn: 1, step: 1, retry: 1 }))
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } }))
     adapter.handleEvent(
       envelope('assistant/message', {
         turn: 1,
         step: 1,
         usage: { inputTokens: 20, outputTokens: 5 },
-        message: { role: 'assistant', source: { model: 'deepseek-chat' } }
+        message: assistantMessage('deepseek-chat')
       })
     )
 
@@ -308,7 +346,10 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } }))
     adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
     adapter.handleEvent(
-      envelope('turn/end', { turn: 2, reason: { kind: 'error', error: { message: 'provider failed' } } })
+      envelope('turn/end', {
+        turn: 2,
+        reason: { kind: 'error', error: { message: 'provider failed', code: 'UNKNOWN' } }
+      })
     )
 
     expect(onAssistantUsage).toHaveBeenCalledOnce()
@@ -322,7 +363,7 @@ describe('DshStreamAdapter', () => {
         turn: 1,
         step: 1,
         usage: { inputTokens: 1, outputTokens: 1 },
-        message: { role: 'assistant' }
+        message: assistantMessage()
       })
     )
     expect(onAssistantUsage).toHaveBeenCalledTimes(1)
@@ -332,11 +373,10 @@ describe('DshStreamAdapter', () => {
   it('ignores unknown and lifecycle-only events', () => {
     const { adapter, chunks, onTurnEnd } = makeAdapter()
     adapter.handleEvent(envelope('todo/write', { todos: [] }))
-    adapter.handleEvent(envelope('approval/asked', { toolName: 'bash' }))
-    adapter.handleEvent(envelope('request/header', { header: {} }))
-    adapter.handleEvent(envelope('compaction/prune', { shadowedTokenCount: 512 }))
-    adapter.handleEvent(envelope('some/future-event', { anything: true }))
-    adapter.handleEvent(null)
+    adapter.handleEvent(rawEvent('approval/asked', { toolName: 'bash' }))
+    adapter.handleEvent(rawEvent('request/header', { header: {} }))
+    adapter.handleEvent(rawEvent('compaction/prune', { shadowedTokenCount: 512 }))
+    adapter.handleEvent(rawEvent('some/future-event', { anything: true }))
 
     expect(chunks).toHaveLength(0)
     expect(onTurnEnd).not.toHaveBeenCalled()
@@ -344,18 +384,20 @@ describe('DshStreamAdapter', () => {
 
   it('maps a compaction fold to start + complete with region-scope anchor metrics', () => {
     const { adapter, chunks, onCompaction, onAssistantUsage } = makeAdapter()
-    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-1', turn: 3 }))
+    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-1' as DshCompactionId, turn: 3 }))
     adapter.handleEvent(
       envelope('compaction/summary', {
-        compactionId: 'comp-1',
+        compactionId: 'comp-1' as DshCompactionId,
         summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
+        shadowedRange: { start: 2, end: 10 },
+        shadowedSeqs: [2, 6, 10],
         shadowedTokenCount: 42_000,
         provider: 'deepseek',
         model: 'deepseek-chat',
         usage: { inputTokens: 50_000, outputTokens: 1_800 }
       })
     )
-    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-1', turn: 3 }))
+    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-1' as DshCompactionId, turn: 3 }))
 
     expect(onCompaction).toHaveBeenCalledTimes(2)
     expect(onCompaction.mock.calls[0][0]).toEqual({ type: 'compaction-start', trigger: 'auto' })
@@ -382,8 +424,20 @@ describe('DshStreamAdapter', () => {
 
   it('reads a command-sourced fold as a manual compaction', () => {
     const { adapter, onCompaction } = makeAdapter()
-    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-m', sourceCommandId: 'cmd-1', turn: null }))
-    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-m', sourceCommandId: 'cmd-1', turn: null }))
+    adapter.handleEvent(
+      envelope('compaction/start', {
+        compactionId: 'comp-m' as DshCompactionId,
+        sourceCommandId: 'cmd-1' as DshCommandId,
+        turn: null
+      })
+    )
+    adapter.handleEvent(
+      envelope('compaction/end', {
+        compactionId: 'comp-m' as DshCompactionId,
+        sourceCommandId: 'cmd-1' as DshCommandId,
+        turn: null
+      })
+    )
 
     expect(onCompaction.mock.calls[0][0]).toEqual({ type: 'compaction-start', trigger: 'manual' })
     expect(onCompaction.mock.calls[1][0].anchor).toMatchObject({ status: 'done', trigger: 'manual' })
@@ -391,8 +445,10 @@ describe('DshStreamAdapter', () => {
 
   it('maps a failed compaction to a non-terminal compaction-error', () => {
     const { adapter, onCompaction } = makeAdapter()
-    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-2', turn: 1 }))
-    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-2', turn: 1, error: 'summary failed' }))
+    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-2' as DshCompactionId, turn: 1 }))
+    adapter.handleEvent(
+      envelope('compaction/end', { compactionId: 'comp-2' as DshCompactionId, turn: 1, error: 'summary failed' })
+    )
 
     expect(onCompaction.mock.calls.map((call) => call[0].type)).toEqual(['compaction-start', 'compaction-error'])
     expect(onCompaction.mock.calls[1][0]).toEqual({ type: 'compaction-error', error: 'summary failed' })
@@ -400,8 +456,8 @@ describe('DshStreamAdapter', () => {
 
   it('settles a summary-less fold with a metric-free anchor and no usage record', () => {
     const { adapter, onCompaction, onAssistantUsage } = makeAdapter()
-    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-3', turn: 2 }))
-    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-3', turn: 2 }))
+    adapter.handleEvent(envelope('compaction/start', { compactionId: 'comp-3' as DshCompactionId, turn: 2 }))
+    adapter.handleEvent(envelope('compaction/end', { compactionId: 'comp-3' as DshCompactionId, turn: 2 }))
 
     const complete = onCompaction.mock.calls[1][0]
     expect(complete.type).toBe('compaction-complete')
@@ -415,7 +471,7 @@ describe('DshStreamAdapter', () => {
     const { adapter, onApiRetry } = makeAdapter()
     adapter.handleEvent(
       envelope('llm/retry', {
-        retryId: 'r-1',
+        retryId: 'r-1' as DshRetryId,
         turn: 1,
         step: 1,
         provider: 'deepseek',

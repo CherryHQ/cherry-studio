@@ -4,8 +4,9 @@
  *
  * Maps only the content/tool/usage surface; turn lifecycle (`turn/end` →
  * turn-complete/error, resume tokens) is owned by `DshRuntimeConnection` via
- * the sink callbacks. Event shapes are declared structurally (the dsh type
- * packages are peer deps of the client SDK, not direct Cherry deps).
+ * the sink callbacks. Events are typed as dsh's `SessionEvent` union (cast
+ * once at the connection's wire boundary); the union is open via declaration
+ * merging, so unknown types fall through the `default:` branch.
  *
  * Mapping:
  * - `assistant/chunk` block-start/deltas/block-end → text and reasoning chunks
@@ -17,6 +18,11 @@
  * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
  * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
  */
+// The dsh-compaction-basic / dsh-llm-retry imports load their SessionEventMap merges.
+import type {} from '@deepseek-ai/dsh-compaction-basic'
+import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-llm-retry'
+import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
@@ -25,19 +31,6 @@ import type { AgentRuntimeEvent } from '../types'
 
 /** dsh transport tag consumed by the renderer's tool-part routing. */
 export const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
-
-export interface DshTokenUsageLike {
-  inputTokens?: number
-  outputTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-  reasoningTokens?: number
-}
-
-export interface DshTurnEndReasonLike {
-  kind?: string
-  error?: { message?: string; code?: string }
-}
 
 export interface DshInvocationMetrics {
   timeFirstTokenMs?: number
@@ -56,11 +49,11 @@ export interface DshStreamSink {
   onAssistantUsage(info: {
     turn: number
     seq: number
-    usage: DshTokenUsageLike
+    usage: TokenUsage
     model?: string
     metrics?: DshInvocationMetrics
   }): void
-  onTurnEnd(reason: DshTurnEndReasonLike): void
+  onTurnEnd(reason: TurnEndReason): void
   /** One scheduled provider retry (`llm/retry`); the host clears the status when content resumes. */
   onApiRetry(retry: AgentSessionApiRetryInfo): void
   /** Compaction lifecycle (`compaction/start|end`) mapped to host runtime events. */
@@ -104,7 +97,7 @@ export class DshStreamAdapter {
     turn: number
     step: number
     seq: number
-    usage: DshTokenUsageLike
+    usage: TokenUsage
     metrics?: DshInvocationMetrics
   }
   /** Open compaction folds by compactionId — dsh's lock pairs every start with an end. */
@@ -146,9 +139,7 @@ export class DshStreamAdapter {
     this.autonomousTurn = true
   }
 
-  handleEvent(event: unknown): void {
-    if (!isRecord(event) || typeof event.type !== 'string') return
-    const data = isRecord(event.data) ? event.data : {}
+  handleEvent(event: SessionEvent): void {
     switch (event.type) {
       case 'turn/start':
         this.flushPendingProviderUsage()
@@ -157,23 +148,23 @@ export class DshStreamAdapter {
         this.resetStepTiming()
         return
       case 'step/start':
-        this.startProviderAttempt(data, true)
+        this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
         this.ensureTurnOpen()
-        this.handleAssistantChunk(data, numeric(event.seq))
+        this.handleAssistantChunk(event.data, event.seq)
         return
       case 'tool/call':
         this.ensureTurnOpen()
-        this.handleToolCall(data)
+        this.handleToolCall(event.data)
         return
       case 'tool/result':
         this.ensureTurnOpen()
-        this.handleToolResult(data)
+        this.handleToolResult(event.data)
         return
       case 'assistant/message':
         this.ensureTurnOpen()
-        this.handleAssistantMessage(data, numeric(event.seq))
+        this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
         this.flushPendingProviderUsage()
@@ -186,33 +177,34 @@ export class DshStreamAdapter {
           // Ownership release must precede the terminal turn-complete (host contract).
           this.sink.onAutonomousTurnState('finished')
         }
-        this.sink.onTurnEnd(isRecord(data.reason) ? (data.reason as DshTurnEndReasonLike) : {})
+        this.sink.onTurnEnd(event.data.reason)
         return
       }
       case 'llm/retry':
         this.flushPendingProviderUsage()
-        this.handleRetry(data)
+        this.handleRetry(event.data)
         return
       case 'llm/retry-started':
-        this.startProviderAttempt(data, false)
+        this.startProviderAttempt(event.data, false)
         return
       case 'step/end':
         this.flushPendingProviderUsage()
         this.resetStepTiming()
         return
       case 'compaction/start':
-        this.handleCompactionStart(data)
+        this.handleCompactionStart(event.data)
         return
       case 'compaction/summary':
-        this.handleCompactionSummary(data, numeric(event.seq))
+        this.handleCompactionSummary(event.data, event.seq)
         return
       case 'compaction/end':
-        this.handleCompactionEnd(data)
+        this.handleCompactionEnd(event.data)
         return
       default:
         // user/message, todo/write, request/*, approval/*,
-        // compaction/prune, session/end-seed, and unknown types: the unknown-event
-        // MUST-refuse rule applies to log reconstruction (the runtime's job), not here.
+        // compaction/prune, session/end-seed, and merge-extended types the union
+        // does not know: the unknown-event MUST-refuse rule applies to log
+        // reconstruction (the runtime's job), not here.
         return
     }
   }
@@ -221,47 +213,45 @@ export class DshStreamAdapter {
     return `dsh-${this.turnSeq}-${index}`
   }
 
-  private handleAssistantChunk(data: Record<string, unknown>, seq: number): void {
-    const stepKey = `${numeric(data.turn)}:${numeric(data.step)}`
+  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], seq: number): void {
+    const stepKey = `${data.turn}:${data.step}`
     if (stepKey !== this.lastStepKey) {
       // Compatibility fallback for logs produced without a visible step/start.
       this.startProviderAttempt(data, true)
     }
     const chunk = data.chunk
-    if (!isRecord(chunk) || typeof chunk.type !== 'string') return
-    const index = numeric(chunk.index)
     switch (chunk.type) {
       case 'block-start': {
-        if (chunk.blockType === 'text') this.openBlock(index, 'text')
-        else if (chunk.blockType === 'reasoning') this.openBlock(index, 'reasoning')
+        if (chunk.blockType === 'text') this.openBlock(chunk.index, 'text')
+        else if (chunk.blockType === 'reasoning') this.openBlock(chunk.index, 'reasoning')
         return
       }
       case 'text-delta': {
-        if (!this.openBlocks.has(index)) this.openBlock(index, 'text')
+        if (!this.openBlocks.has(chunk.index)) this.openBlock(chunk.index, 'text')
         this.firstTokenAt ??= Date.now()
-        this.sink.enqueue({ type: 'text-delta', id: this.blockId(index), delta: String(chunk.text ?? '') })
+        this.sink.enqueue({ type: 'text-delta', id: this.blockId(chunk.index), delta: chunk.text })
         return
       }
       case 'reasoning-delta': {
-        if (!this.openBlocks.has(index)) this.openBlock(index, 'reasoning')
+        if (!this.openBlocks.has(chunk.index)) this.openBlock(chunk.index, 'reasoning')
         this.firstTokenAt ??= Date.now()
-        this.sink.enqueue({ type: 'reasoning-delta', id: this.blockId(index), delta: String(chunk.text ?? '') })
+        this.sink.enqueue({ type: 'reasoning-delta', id: this.blockId(chunk.index), delta: chunk.text })
         return
       }
       case 'block-end': {
-        const kind = this.openBlocks.get(index)
-        this.openBlocks.delete(index)
-        if (kind === 'text') this.sink.enqueue({ type: 'text-end', id: this.blockId(index) })
+        const kind = this.openBlocks.get(chunk.index)
+        this.openBlocks.delete(chunk.index)
+        if (kind === 'text') this.sink.enqueue({ type: 'text-end', id: this.blockId(chunk.index) })
         else if (kind === 'reasoning') {
-          const openedAt = this.reasoningOpenedAt.get(index)
-          this.reasoningOpenedAt.delete(index)
+          const openedAt = this.reasoningOpenedAt.get(chunk.index)
+          this.reasoningOpenedAt.delete(chunk.index)
           if (openedAt !== undefined) this.thinkingMs += Date.now() - openedAt
-          this.sink.enqueue({ type: 'reasoning-end', id: this.blockId(index) })
+          this.sink.enqueue({ type: 'reasoning-end', id: this.blockId(chunk.index) })
         }
         return
       }
       case 'usage':
-        if (isRecord(chunk.usage)) this.captureProviderUsage(data, seq, chunk.usage as DshTokenUsageLike)
+        this.captureProviderUsage(data, seq, chunk.usage)
         return
       default:
         // tool-call-delta / finish surface through durable tool and message events.
@@ -269,10 +259,10 @@ export class DshStreamAdapter {
     }
   }
 
-  private startProviderAttempt(data: Record<string, unknown>, newStep: boolean): void {
+  private startProviderAttempt(data: { turn: number; step: number }, newStep: boolean): void {
     if (newStep) {
       this.flushPendingProviderUsage()
-      const stepKey = `${numeric(data.turn)}:${numeric(data.step)}`
+      const stepKey = `${data.turn}:${data.step}`
       if (stepKey !== this.lastStepKey) {
         this.lastStepKey = stepKey
         this.turnSeq += 1
@@ -312,9 +302,9 @@ export class DshStreamAdapter {
     return metrics
   }
 
-  private handleToolCall(data: Record<string, unknown>): void {
-    const toolCallId = String(data.callId ?? '')
-    const toolName = String(data.name ?? '')
+  private handleToolCall(data: Pick<SessionEventMap['tool/call'], 'callId' | 'name' | 'arguments'>): void {
+    const toolCallId = data.callId
+    const toolName = data.name
     if (!toolCallId || this.startedTools.has(toolCallId)) return
     this.startedTools.set(toolCallId, toolName)
     this.sink.enqueue({
@@ -336,25 +326,24 @@ export class DshStreamAdapter {
     })
   }
 
-  private handleToolResult(data: Record<string, unknown>): void {
-    const message = isRecord(data.message) ? data.message : {}
-    const block = Array.isArray(message.content) && isRecord(message.content[0]) ? message.content[0] : undefined
-    const toolCallId = String(block?.toolCallId ?? '')
+  private handleToolResult(data: SessionEventMap['tool/result']): void {
+    const block = data.message.content[0]
+    const toolCallId = block.toolCallId
     if (!toolCallId) return
     // A result with no preceding tool/call (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) {
       this.handleToolCall({ callId: toolCallId, name: 'unknown', arguments: '{}' })
     }
     const toolName = this.startedTools.get(toolCallId) ?? 'unknown'
-    const output = block?.content ?? null
-    if (data.error !== undefined || block?.isError === true) {
+    const output = block.content
+    if (data.error !== undefined || block.isError === true) {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
         errorText: stringifyToolOutput(output),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName, isRecord(data.error) ? { error: data.error } : {})
+        providerMetadata: toolProviderMetadata(toolName, data.error ? { error: data.error } : {})
       })
       return
     }
@@ -368,22 +357,18 @@ export class DshStreamAdapter {
     })
   }
 
-  private handleAssistantMessage(data: Record<string, unknown>, seq: number): void {
-    const turn = numeric(data.turn)
-    const step = numeric(data.step)
-    const messageUsage = isRecord(data.usage) ? (data.usage as DshTokenUsageLike) : undefined
+  private handleAssistantMessage(data: SessionEventMap['assistant/message'], seq: number): void {
+    const messageUsage = data.usage
     if (messageUsage) {
       // dsh token counts are DISJOINT: billed input = input + cacheRead + cacheWrite.
       const promptTokens =
-        numeric(messageUsage.inputTokens) +
-        numeric(messageUsage.cacheReadTokens) +
-        numeric(messageUsage.cacheWriteTokens)
-      const completionTokens = numeric(messageUsage.outputTokens)
+        messageUsage.inputTokens + (messageUsage.cacheReadTokens ?? 0) + (messageUsage.cacheWriteTokens ?? 0)
+      const completionTokens = messageUsage.outputTokens
       this.turnUsage.promptTokens += promptTokens
       this.turnUsage.completionTokens += completionTokens
       this.turnUsage.totalTokens += promptTokens + completionTokens
       if (messageUsage.reasoningTokens !== undefined) {
-        this.turnUsage.thoughtsTokens += numeric(messageUsage.reasoningTokens)
+        this.turnUsage.thoughtsTokens += messageUsage.reasoningTokens
         this.turnUsage.hasReasoning = true
       }
       this.sink.enqueue({
@@ -402,27 +387,25 @@ export class DshStreamAdapter {
       })
     }
 
-    const pending = this.takePendingProviderUsage(turn, step)
+    const pending = this.takePendingProviderUsage(data.turn, data.step)
     const usage = pending?.usage ?? messageUsage
     if (!usage) return
-    const message = isRecord(data.message) ? data.message : undefined
-    const source = message && isRecord(message.source) ? message.source : undefined
     const metrics = pending?.metrics ?? this.takeStepMetrics()
     this.sink.onAssistantUsage({
-      turn,
+      turn: data.turn,
       seq: pending?.seq ?? seq,
       usage,
-      ...(typeof source?.model === 'string' ? { model: source.model } : {}),
+      model: data.message.source.model,
       ...(metrics ? { metrics } : {})
     })
   }
 
-  private captureProviderUsage(data: Record<string, unknown>, seq: number, usage: DshTokenUsageLike): void {
+  private captureProviderUsage(data: { turn: number; step: number }, seq: number, usage: TokenUsage): void {
     this.flushPendingProviderUsage()
     const metrics = this.takeStepMetrics()
     this.pendingProviderUsage = {
-      turn: numeric(data.turn),
-      step: numeric(data.step),
+      turn: data.turn,
+      step: data.step,
       seq,
       usage,
       ...(metrics ? { metrics } : {})
@@ -444,51 +427,46 @@ export class DshStreamAdapter {
   }
 
   /** `maxRetries` is absent only in the retry plugin's `always` mode, which this composition never selects. */
-  private handleRetry(data: Record<string, unknown>): void {
-    const failure = isRecord(data.failure) ? data.failure : {}
+  private handleRetry(data: SessionEventMap['llm/retry']): void {
     this.sink.onApiRetry({
-      attempt: numeric(data.retry),
-      maxRetries: numeric(data.maxRetries),
-      retryDelayMs: numeric(data.delayMs),
-      errorStatus: typeof failure.status === 'number' ? failure.status : null,
-      errorCategory: typeof failure.code === 'string' ? failure.code : 'UNKNOWN'
+      attempt: data.retry,
+      maxRetries: data.mode === 'normal' ? data.maxRetries : 0,
+      retryDelayMs: data.delayMs,
+      errorStatus: data.failure.status ?? null,
+      errorCategory: data.failure.code
     })
   }
 
-  private handleCompactionStart(data: Record<string, unknown>): void {
-    const compactionId = String(data.compactionId ?? '')
-    if (!compactionId) return
+  private handleCompactionStart(data: SessionEventMap['compaction/start']): void {
     const trigger = data.sourceCommandId !== undefined ? 'manual' : 'auto'
-    this.activeCompactions.set(compactionId, {
+    this.activeCompactions.set(data.compactionId, {
       startedAt: Date.now(),
-      turn: typeof data.turn === 'number' ? data.turn : null,
+      turn: data.turn,
       trigger
     })
     this.sink.onCompaction({ type: 'compaction-start', trigger })
   }
 
-  private handleCompactionSummary(data: Record<string, unknown>, seq: number): void {
-    const state = this.activeCompactions.get(String(data.compactionId ?? ''))
+  private handleCompactionSummary(data: SessionEventMap['compaction/summary'], seq: number): void {
+    const state = this.activeCompactions.get(data.compactionId)
     if (!state) return
-    if (typeof data.shadowedTokenCount === 'number') state.shadowedTokenCount = data.shadowedTokenCount
-    if (!isRecord(data.usage)) return
-    const usage = data.usage as DshTokenUsageLike
-    if (typeof usage.outputTokens === 'number') state.summaryTokens = usage.outputTokens
+    state.shadowedTokenCount = data.shadowedTokenCount
+    if (!data.usage) return
+    state.summaryTokens = data.usage.outputTokens
     // The summarize call is real provider spend but never an `assistant/message`,
     // so record the invocation here; it stays out of the turn's message-metadata.
     this.sink.onAssistantUsage({
       turn: state.turn ?? 0,
       seq,
-      usage,
-      ...(typeof data.model === 'string' ? { model: data.model } : {})
+      usage: data.usage,
+      model: data.model
     })
   }
 
-  private handleCompactionEnd(data: Record<string, unknown>): void {
-    const compactionId = String(data.compactionId ?? '')
-    const state = this.activeCompactions.get(compactionId)
-    this.activeCompactions.delete(compactionId)
-    const error = typeof data.error === 'string' && data.error ? data.error : undefined
+  private handleCompactionEnd(data: SessionEventMap['compaction/end']): void {
+    const state = this.activeCompactions.get(data.compactionId)
+    this.activeCompactions.delete(data.compactionId)
+    const error = data.error || undefined
     if (error !== undefined) {
       this.sink.onCompaction({ type: 'compaction-error', error })
       return
@@ -535,13 +513,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function numeric(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
 /** dsh keeps tool arguments as the raw model-produced JSON string; `{}` on any parse failure. */
-function parseToolArguments(raw: unknown): Record<string, unknown> {
-  if (typeof raw !== 'string' || !raw.trim()) return {}
+function parseToolArguments(raw: string): Record<string, unknown> {
+  if (!raw.trim()) return {}
   try {
     const parsed = JSON.parse(raw)
     return isRecord(parsed) ? parsed : {}
@@ -550,15 +524,12 @@ function parseToolArguments(raw: unknown): Record<string, unknown> {
   }
 }
 
-function stringifyToolOutput(output: unknown): string {
-  if (typeof output === 'string') return output
-  if (Array.isArray(output)) {
-    const text = output
-      .filter((entry): entry is { type: 'text'; text: string } => isRecord(entry) && typeof entry.text === 'string')
-      .map((entry) => entry.text)
-      .join('\n')
-    if (text) return text
-  }
+function stringifyToolOutput(output: ContentBlock[]): string {
+  const text = output
+    .filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
+    .map((entry) => entry.text)
+    .join('\n')
+  if (text) return text
   try {
     return JSON.stringify(output)
   } catch {

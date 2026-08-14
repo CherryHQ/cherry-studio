@@ -13,6 +13,7 @@ import path from 'node:path'
 
 import {
   type BridgeContextUsage,
+  type BridgeToHostMessage,
   type BridgeToolCallResult,
   createBridgeFrameDecoder,
   encodeBridgeMessage,
@@ -219,7 +220,8 @@ export class DshBridgeServer {
           else authenticated = true
           return
         }
-        this.handleMessage(message)
+        // Post-auth frames come from Cherry's own plugin; the protocol union holds by contract.
+        this.handleMessage(message as BridgeToHostMessage)
       })
     )
   }
@@ -240,22 +242,20 @@ export class DshBridgeServer {
     return true
   }
 
-  private handleMessage(message: unknown): void {
-    if (typeof message !== 'object' || message === null) return
-    const frame = message as Record<string, unknown>
+  private handleMessage(frame: BridgeToHostMessage): void {
     switch (frame.type) {
       case 'result': {
         const pending = this.takePending(frame.id)
         if (!pending) return
         if (frame.ok) pending.resolve()
-        else pending.reject(new Error(String(frame.error ?? 'dsh bridge request failed')))
+        else pending.reject(new Error(frame.error ?? 'dsh bridge request failed'))
         return
       }
       case 'contextUsageResult': {
         const pending = this.takePending(frame.id)
         if (!pending) return
         if (frame.ok) pending.resolve(frame.usage)
-        else pending.reject(new Error(String(frame.error ?? 'dsh bridge context usage failed')))
+        else pending.reject(new Error(frame.error ?? 'dsh bridge context usage failed'))
         return
       }
       case 'commandResult': {
@@ -264,11 +264,11 @@ export class DshBridgeServer {
         if (frame.ok) {
           pending.resolve({
             handled: frame.handled === true,
-            ...(frame.kind === 'success' || frame.kind === 'error' ? { kind: frame.kind } : {}),
-            ...(typeof frame.text === 'string' ? { text: frame.text } : {})
+            ...(frame.kind !== undefined ? { kind: frame.kind } : {}),
+            ...(frame.text !== undefined ? { text: frame.text } : {})
           })
         } else {
-          pending.reject(new Error(String(frame.error ?? 'dsh bridge command failed')))
+          pending.reject(new Error(frame.error ?? 'dsh bridge command failed'))
         }
         return
       }
@@ -276,18 +276,19 @@ export class DshBridgeServer {
         void this.handleToolCall(frame)
         return
       case 'toolCallCancel':
-        if (frame.sessionId === this.options.sessionId) this.activeToolCalls.get(String(frame.id ?? ''))?.abort()
+        if (frame.sessionId === this.options.sessionId) this.activeToolCalls.get(frame.id)?.abort()
         return
       case 'approvalAsk':
         this.handleApprovalAsk(frame)
         return
       default:
+        // 'ready' after authentication and merge-unknown frames are ignored.
         return
     }
   }
 
-  private async handleToolCall(call: Record<string, unknown>): Promise<void> {
-    const id = String(call.id ?? '')
+  private async handleToolCall(call: Extract<BridgeToHostMessage, { type: 'toolCall' }>): Promise<void> {
+    const id = call.id
     if (call.sessionId !== this.options.sessionId) {
       this.answerToolCall(id, { ok: false, error: 'dsh bridge tool call used the wrong session' })
       return
@@ -299,7 +300,7 @@ export class DshBridgeServer {
     const controller = new AbortController()
     this.activeToolCalls.set(id, controller)
     try {
-      const result = await this.options.onToolCall(String(call.name ?? ''), call.args, controller.signal)
+      const result = await this.options.onToolCall(call.name, call.args, controller.signal)
       if (controller.signal.aborted) return
       this.answerToolCall(id, { ok: true, ...result })
     } catch (error) {
@@ -310,9 +311,9 @@ export class DshBridgeServer {
     }
   }
 
-  private handleApprovalAsk(ask: Record<string, unknown>): void {
-    const askId = String(ask.id ?? '')
-    const toolName = String(ask.toolName ?? '')
+  private handleApprovalAsk(ask: Extract<BridgeToHostMessage, { type: 'approvalAsk' }>): void {
+    const askId = ask.id
+    const toolName = ask.toolName
     const interactionState = this.options.getInteractionState()
     if (interactionState.userResponse === 'unavailable') {
       // Unattended turn — fail closed immediately (the wire carries no reason channel).
@@ -321,11 +322,9 @@ export class DshBridgeServer {
     }
 
     const approvalId = randomUUID()
-    const toolCallId = typeof ask.callId === 'string' && ask.callId ? ask.callId : approvalId
-    const input =
-      typeof ask.args === 'object' && ask.args !== null && !Array.isArray(ask.args)
-        ? (ask.args as Record<string, unknown>)
-        : {}
+    const toolCallId = ask.callId || approvalId
+    // `args` is protocol-`unknown` (plugin-parsed model output), so keep the shape guard.
+    const input = isRecord(ask.args) ? ask.args : {}
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
     const pending = toolApprovalRegistry.register({
       approvalId,
@@ -358,10 +357,10 @@ export class DshBridgeServer {
     })
   }
 
-  private takePending(id: unknown): PendingResult | undefined {
-    const pending = this.pendingResults.get(String(id))
+  private takePending(id: string): PendingResult | undefined {
+    const pending = this.pendingResults.get(id)
     if (!pending) return undefined
-    this.pendingResults.delete(String(id))
+    this.pendingResults.delete(id)
     if (pending.timer) clearTimeout(pending.timer)
     return pending
   }
