@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -1361,6 +1362,30 @@ describe('AgentPage', () => {
         replace: true
       })
     )
+  })
+
+  it('clears the remembered session id and converges when the bound route resolves NOT_FOUND', async () => {
+    // Regression for the white-screen crash: the URL binds to a deleted session while
+    // `ui.agent.last_used_session_id` still remembers it. Without clearing the remembered
+    // id, the bare re-entry re-reads it in `resolveAgentEntrySessionId`, 404s again, and
+    // the recovery effect loops until React aborts with a maximum-update-depth error.
+    agentPageMocks.routeSearch = { sessionId: 'session-deleted' }
+    agentPageMocks.lastUsedSessionId = 'session-deleted'
+    // The by-id query settled with NOT_FOUND: the session is gone, and loading finished.
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-deleted')
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.setLastUsedSessionId).toHaveBeenCalledWith(null))
+    // Recovery re-enters the bare route exactly once and does not loop. (Downstream
+    // first-entry auto-create may navigate again to bind a fresh session — that is a
+    // separate, bounded step, not a repeat of the NOT_FOUND recovery.)
+    const recoveryNavigations = agentPageMocks.navigate.mock.calls.filter(
+      (call) => call[0]?.search && Object.keys(call[0].search).length === 0
+    )
+    expect(recoveryNavigations).toHaveLength(1)
   })
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {

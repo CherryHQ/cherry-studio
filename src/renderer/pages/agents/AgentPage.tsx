@@ -281,10 +281,10 @@ const AgentPage = () => {
   })
   const reenterAgentRoute = useCallback(() => {
     initialEmptySessionEvaluatedRef.current = false
-    // The bound session is gone. Drop the remembered id too, otherwise the bare re-entry
-    // re-reads it in `resolveAgentEntrySessionId`, 404s, and (when latest also lands on a
-    // mid-delete row) the recovery effect fires again — a navigate loop React aborts as a
-    // maximum-update-depth render error that tears down the whole window.
+    // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
+    // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
+    // `resolveAgentEntrySessionId`, 404s, and the NOT_FOUND recovery fires again — a navigate
+    // loop React aborts as a maximum-update-depth render error that tears down the window.
     setLastUsedSessionId(null)
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
