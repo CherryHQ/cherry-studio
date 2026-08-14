@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 import type { windowRequestSchemas } from '@shared/ipc/schemas/window'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -18,7 +19,22 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  */
 export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
   'window.close': async (_input, { senderId }) => {
-    if (senderId) application.get('WindowManager').close(senderId)
+    if (!senderId) return
+    const windowManager = application.get('WindowManager')
+    // Main is a singleton without a singletonConfig — WindowManager.close() falls through
+    // to window.destroy(), which SKIPS the 'close' event. That bypasses
+    // MainWindowService's tray-aware quit logic and leaves the app process running after
+    // the user clicks the close button on the frameless Main window (Windows default).
+    // Route Main through native window.close() so the close-listener fires and the
+    // tray-on-close preference is honored. Other window types keep WindowManager.close().
+    if (windowManager.getWindowType(senderId) === WindowType.Main) {
+      const mainWindow = windowManager.getWindow(senderId)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.close()
+      }
+      return
+    }
+    windowManager.close(senderId)
   },
   'window.minimize': async (_input, { senderId }) => {
     if (senderId) application.get('WindowManager').minimize(senderId)
