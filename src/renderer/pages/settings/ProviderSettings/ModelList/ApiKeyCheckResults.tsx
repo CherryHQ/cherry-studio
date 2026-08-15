@@ -74,7 +74,7 @@ export default function ApiKeyCheckResults({
                 <Switch
                   size="sm"
                   checked={currentEntry.isEnabled}
-                  disabled={savingKeyId != null && savingKeyId !== checkedEntry.id}
+                  disabled={savingKeyId != null}
                   loading={savingKeyId === checkedEntry.id}
                   aria-label={t('settings.models.check.toggle_key', { name: label })}
                   onCheckedChange={(checked) => void onToggleKey(checkedEntry.id, checked).catch(() => undefined)}
