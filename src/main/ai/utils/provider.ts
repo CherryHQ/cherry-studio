@@ -67,10 +67,6 @@ export function defaultHeaders(provider: Provider): Record<string, string> {
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
   const trimmedHost = (apiHost || '').trim()
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const host = trimmedHost.slice(0, -1)
   const SUPPORTED_ENDPOINTS = [
     'chat/completions',
     'responses',
@@ -81,9 +77,11 @@ export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: s
     'images/edits',
     'predict'
   ]
+  // Handle both with and without trailing '#' suffix
+  const host = trimmedHost.endsWith('#') ? trimmedHost.slice(0, -1) : trimmedHost
   const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
   if (!endpointMatch) {
-    return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
+    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
   }
   const baseSegment = host.slice(0, host.length - endpointMatch.length)
   const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')

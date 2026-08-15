@@ -82,6 +82,11 @@ describe('api', () => {
     it('return false when starting with v- word', () => {
       expect(hasApiVersion('https://api.example.com/vendor')).toBe(false)
     })
+
+    it('detects known endpoint as a version-like segment', () => {
+      expect(hasApiVersion('https://api.example.com/chat/completions')).toBe(true)
+      expect(hasApiVersion('https://api.example.com/v1/chat/completions')).toBe(true)
+    })
   })
 
   describe('formatApiKeys', () => {

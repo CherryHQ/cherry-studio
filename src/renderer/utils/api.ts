@@ -74,12 +74,8 @@ export const SUPPORTED_ENDPOINT_LIST = [
  */
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
   const trimmedHost = trim(apiHost)
-  // 前面已经确保apiHost合法
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost, endpoint: '' }
-  }
-  // 去掉结尾的 #
-  const host = trimmedHost.slice(0, -1)
+  // 兼容尾部带 '#' 的旧格式
+  const host = trimmedHost.endsWith('#') ? trimmedHost.slice(0, -1) : trimmedHost
   const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((endpoint) => host.endsWith(endpoint))
   if (!endpointMatch) {
     const baseURL = withoutTrailingSlash(host)
