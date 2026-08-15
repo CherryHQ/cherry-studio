@@ -179,10 +179,12 @@ export function useHealthCheck(providerId: string) {
       isCheckingRef.current = true
       setIsChecking(true)
       let backgroundStarted = false
+      let didCommitApiKey = false
 
       try {
         preparingCredentialsRef.current = true
         await commitInputApiKeyNow()
+        didCommitApiKey = true
         if (runIdRef.current !== runId || controller.signal.aborted) return false
 
         const refetched = await refetchApiKeys()
@@ -228,10 +230,14 @@ export function useHealthCheck(providerId: string) {
         return true
       } catch (error) {
         if (runIdRef.current !== runId || controller.signal.aborted) return false
-        if (error instanceof ModelCheckCredentialsError) {
+        if (!didCommitApiKey) {
+          logger.error('Failed to save API keys before all-model check', { providerId, error })
+          toast.error({ timeout: 8000, title: i18n.t('settings.provider.api_key.save_failed') })
+        } else if (error instanceof ModelCheckCredentialsError) {
           toast.error(i18n.t('message.error.enter.api.label'))
         } else {
           logger.error('Failed to prepare all-model check', { providerId, error })
+          toast.error(i18n.t('settings.models.check.failed_to_start'))
         }
         return false
       } finally {

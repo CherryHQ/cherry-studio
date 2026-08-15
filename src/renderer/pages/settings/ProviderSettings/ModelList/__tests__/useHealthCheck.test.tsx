@@ -199,6 +199,41 @@ describe('useHealthCheck', () => {
     await waitFor(() => expect(result.current.isChecking).toBe(false))
   })
 
+  it('surfaces API key save failures without refetching or starting checks', async () => {
+    commitInputApiKeyNow.mockRejectedValueOnce(new Error('save failed'))
+    const { result } = renderHook(() => useHealthCheck('openai'))
+
+    await act(async () => {
+      await expect(
+        result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+      ).resolves.toBe(false)
+    })
+
+    expect(result.current.isChecking).toBe(false)
+    expect(refetchApiKeys).not.toHaveBeenCalled()
+    expect(checkModelsHealthMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).toHaveBeenCalledWith({
+      timeout: 8000,
+      title: 'settings.provider.api_key.save_failed'
+    })
+  })
+
+  it('surfaces API key refresh failures without starting checks', async () => {
+    refetchApiKeys.mockRejectedValueOnce(new Error('refresh failed'))
+    const { result } = renderHook(() => useHealthCheck('openai'))
+
+    await act(async () => {
+      await expect(
+        result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+      ).resolves.toBe(false)
+    })
+
+    expect(result.current.isChecking).toBe(false)
+    expect(commitInputApiKeyNow).toHaveBeenCalled()
+    expect(checkModelsHealthMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).toHaveBeenCalledWith('settings.models.check.failed_to_start')
+  })
+
   it('accepts the credential refresh caused by its own preflight save', async () => {
     let resolveRefetch!: (value: { keys: typeof apiKeys }) => void
     refetchApiKeys.mockReturnValueOnce(
