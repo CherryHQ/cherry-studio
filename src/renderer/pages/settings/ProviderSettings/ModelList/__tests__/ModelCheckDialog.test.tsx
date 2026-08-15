@@ -90,7 +90,7 @@ describe('ModelCheckDialog', () => {
     expect(screen.getByRole('radiogroup', { name: 'settings.models.check.title' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'settings.models.check.single_model' })).toBeChecked()
     expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.models.check.model' })).toHaveTextContent('Chat')
+    expect(screen.getByRole('button', { name: /^settings\.models\.check\.model Chat$/ })).toHaveTextContent('Chat')
 
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
     await waitFor(() =>
@@ -128,7 +128,9 @@ describe('ModelCheckDialog', () => {
     expect(screen.queryByRole('option', { name: 'settings.models.check.all_enabled_keys' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
-    await user.click(screen.getByRole('button', { name: 'settings.models.check.select_api_key' }))
+    await user.click(
+      screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key Primary · sk\*{4}ry$/ })
+    )
     await user.click(screen.getByRole('option', { name: /Secondary/ }))
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
 
