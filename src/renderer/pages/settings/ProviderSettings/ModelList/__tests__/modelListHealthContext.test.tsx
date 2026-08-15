@@ -38,6 +38,7 @@ vi.mock('../../hooks/providerSetting/useProviderConnectionCheck', () => ({
     return {
       models: emptyModels,
       apiKeyEntries: emptyApiKeyEntries,
+      canSelectApiKey: true,
       requiresApiKey: true,
       isSingleModelChecking,
       singleModelResult: null,
@@ -71,6 +72,7 @@ describe('ModelList health run coordination', () => {
     )
 
     act(() => latestRun.openModelCheck())
+    expect(latestRun.canSelectApiKey).toBe(true)
     expect(latestRun.modelCheckOpen).toBe(true)
     act(() => latestRun.closeModelCheck())
     expect(latestRun.modelCheckOpen).toBe(false)

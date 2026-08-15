@@ -20,6 +20,7 @@ interface ModelListHealthRunContextValue {
   providerId: string
   models: readonly Model[]
   apiKeyEntries: readonly ApiKeyEntry[]
+  canSelectApiKey: boolean
   requiresApiKey: boolean
   modelCheckOpen: boolean
   isHealthChecking: boolean
@@ -109,6 +110,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       providerId,
       models: single.models,
       apiKeyEntries: single.apiKeyEntries,
+      canSelectApiKey: single.canSelectApiKey,
       requiresApiKey: single.requiresApiKey,
       modelCheckOpen,
       isHealthChecking,
@@ -134,6 +136,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       providerId,
       savingKeyId,
       single.apiKeyEntries,
+      single.canSelectApiKey,
       isSingleModelChecking,
       single.models,
       single.requiresApiKey,
