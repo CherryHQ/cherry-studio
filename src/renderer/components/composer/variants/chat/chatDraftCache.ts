@@ -22,7 +22,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
-  const cached = cacheService.get(getChatDraftCacheKey(topicId))
+  // Shared tier: drafts must survive dragging the tab out into a sub-window
+  // (a fresh renderer process reads the other window's memory cache as empty).
+  const cached = cacheService.getShared(getChatDraftCacheKey(topicId))
   if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
 
   return {
@@ -56,7 +58,7 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
 }
 
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
-  cacheService.set(
+  cacheService.setShared(
     getChatDraftCacheKey(topicId),
     {
       text: draft.text,

@@ -283,6 +283,8 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     has: vi.fn(() => false),
     set: vi.fn(),
+    getShared: vi.fn(() => undefined),
+    setShared: vi.fn(),
     getCasual: vi.fn(() => ''),
     hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
@@ -789,6 +791,8 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.has).mockReturnValue(false)
     vi.mocked(cacheService.set).mockReset()
+    vi.mocked(cacheService.getShared).mockReset()
+    vi.mocked(cacheService.setShared).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
     vi.mocked(cacheService.hasCasual).mockReset()
@@ -2028,8 +2032,8 @@ describe('AgentComposer', () => {
         }
       ]
     ])
-    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
-    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+    vi.mocked(cacheService.getShared as any).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.setShared).mockImplementation((key: string, value: unknown) => {
       drafts.set(key, value)
     })
     mocks.getDraft.mockImplementation(() => ({
@@ -2046,7 +2050,7 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
-    vi.mocked(cacheService.set).mockClear()
+    vi.mocked(cacheService.setShared).mockClear()
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
@@ -2064,7 +2068,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(cacheService.set).not.toHaveBeenCalledWith(
+    expect(cacheService.setShared).not.toHaveBeenCalledWith(
       draftCacheKey,
       expect.objectContaining({ text: 'history entry' }),
       expect.any(Number)
@@ -3118,7 +3122,7 @@ describe('AgentComposer', () => {
   })
 
   it('restores cached skill draft tokens after composer remount', () => {
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: 'Use the pdf skill. continue',
       tokens: [
         {
@@ -3181,7 +3185,7 @@ describe('AgentComposer', () => {
       textOffset: pdfSkillToken.promptText.length + 1
     }
     const cachedText = `${pdfSkillToken.promptText} ${staleSkillPrompt} ${folderPrompt} keep this`
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: cachedText,
       tokens: [cachedPdfSkillToken, cachedStaleSkillToken, cachedFolderToken, cachedFileToken],
       files: [file],
@@ -3252,7 +3256,7 @@ describe('AgentComposer', () => {
       index: 0,
       textOffset: 0
     }
-    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+    vi.mocked(cacheService.getShared as any).mockImplementation((key: string) =>
       key === 'agent.composer_draft.session_feedback-session'
         ? { text: 'preserved ordinary draft', tokens: [] }
         : undefined
@@ -3274,7 +3278,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(cacheService.get).not.toHaveBeenCalledWith('agent.composer_draft.session_feedback-session')
+    expect(cacheService.getShared).not.toHaveBeenCalledWith('agent.composer_draft.session_feedback-session')
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
     expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
     expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
@@ -3286,7 +3290,7 @@ describe('AgentComposer', () => {
     })
     view.unmount()
 
-    expect(cacheService.set).not.toHaveBeenCalledWith(
+    expect(cacheService.setShared).not.toHaveBeenCalledWith(
       'agent.composer_draft.session_feedback-session',
       expect.anything(),
       expect.anything()
@@ -3369,7 +3373,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(onSent).toHaveBeenCalledTimes(1)
-    expect(cacheService.set).not.toHaveBeenCalledWith(
+    expect(cacheService.setShared).not.toHaveBeenCalledWith(
       'agent.composer_draft.session_feedback-session',
       expect.anything(),
       expect.anything()
@@ -3405,7 +3409,7 @@ describe('AgentComposer', () => {
     })
     view.unmount()
 
-    expect(cacheService.set).toHaveBeenCalledWith(
+    expect(cacheService.setShared).toHaveBeenCalledWith(
       'agent.composer_draft.session_feedback-session',
       expect.objectContaining({ text: 'a follow-up question' }),
       expect.anything()
@@ -3456,7 +3460,7 @@ describe('AgentComposer', () => {
 
     expect(onSent).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
-    expect(cacheService.set).not.toHaveBeenCalledWith(
+    expect(cacheService.setShared).not.toHaveBeenCalledWith(
       'agent.composer_draft.session_feedback-session',
       expect.anything(),
       expect.anything()
@@ -3467,7 +3471,7 @@ describe('AgentComposer', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
     const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: promptText,
       tokens: [
         {
@@ -3501,7 +3505,7 @@ describe('AgentComposer', () => {
 
   it('waits for knowledge bases before reconciling a cached agent knowledge token', async () => {
     mocks.knowledgeBasesLoading = true
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: 'cached knowledge draft',
       tokens: [knowledgeBaseToken(knowledgeBaseOne)],
       files: [],
@@ -3521,7 +3525,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
     expect(mocks.selectedKnowledgeBases).toEqual([])
-    expect(cacheService.set).not.toHaveBeenCalled()
+    expect(cacheService.setShared).not.toHaveBeenCalled()
 
     mocks.knowledgeBases = [knowledgeBaseOne]
     mocks.knowledgeBasesLoading = false
@@ -3537,7 +3541,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
-    expect(cacheService.set).not.toHaveBeenCalledWith(
+    expect(cacheService.setShared).not.toHaveBeenCalledWith(
       'agent.composer_draft.session_session-1',
       expect.objectContaining({ knowledgeBaseIds: [] }),
       expect.any(Number)
@@ -3559,8 +3563,8 @@ describe('AgentComposer', () => {
         }
       ]
     ])
-    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
-    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+    vi.mocked(cacheService.getShared as any).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.setShared).mockImplementation((key: string, value: unknown) => {
       drafts.set(key, value)
     })
     mocks.knowledgeBasesLoading = true
@@ -3603,7 +3607,7 @@ describe('AgentComposer', () => {
       index: 0,
       textOffset: 0
     } as ComposerSerializedToken
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: 'cached file draft',
       tokens: [cachedFileToken],
       files: [file],
@@ -3651,7 +3655,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(cacheService.set).toHaveBeenLastCalledWith(
+      expect(cacheService.setShared).toHaveBeenLastCalledWith(
         'agent.composer_draft.session_session-1',
         {
           text: `${promptText} keep this`,
@@ -3700,7 +3704,7 @@ describe('AgentComposer', () => {
         }
       ]
     ])
-    vi.mocked(cacheService.get).mockImplementation((key: string) => cachedDrafts.get(key))
+    vi.mocked(cacheService.getShared as any).mockImplementation((key: string) => cachedDrafts.get(key))
 
     const view = render(
       <AgentComposer
@@ -3734,7 +3738,7 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('session two draft'))
     expect(mocks.selectedKnowledgeBases).toEqual([])
     expect(mocks.files).toEqual([])
-    expect(cacheService.set).toHaveBeenCalledWith(
+    expect(cacheService.setShared).toHaveBeenCalledWith(
       'agent.composer_draft.session_session-1',
       {
         text: 'session one draft',
@@ -4504,7 +4508,7 @@ describe('AgentComposer', () => {
       expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' }),
       expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
     ])
-    expect(cacheService.set).toHaveBeenCalledWith(
+    expect(cacheService.setShared).toHaveBeenCalledWith(
       'agent.composer_draft.session_session-1',
       {
         text: 'queued agent draft',
@@ -4650,7 +4654,7 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
     expect(mocks.surfaceProps?.text).toBe('draft message')
     expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
-    expect(cacheService.set).toHaveBeenLastCalledWith(
+    expect(cacheService.setShared).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
       {
         text: 'draft message',
@@ -4668,7 +4672,7 @@ describe('AgentComposer', () => {
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared as any).mockReturnValue({
       text: 'Existing draft',
       tokens: [],
       files: [],
@@ -4754,7 +4758,7 @@ describe('AgentComposer', () => {
   })
 
   it('resets the agent-scoped draft and tool runtime after switching agents', async () => {
-    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+    vi.mocked(cacheService.getShared as any).mockImplementation((key: string) =>
       key === 'agent.composer_draft.session_session-1'
         ? {
             text: 'draft for agent one',
@@ -4935,7 +4939,7 @@ describe('AgentComposer', () => {
     })
     fireEvent.click(screen.getByText('select agent 2'))
 
-    expect(cacheService.set).not.toHaveBeenCalled()
+    expect(cacheService.setShared).not.toHaveBeenCalled()
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 

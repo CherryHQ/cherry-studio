@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto'
+import { access, copyFile, mkdir, readdir, realpath } from 'node:fs/promises'
+import path from 'node:path'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
@@ -16,6 +18,7 @@ import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { claudeProjectDirectoryName } from '@main/data/migration/v2'
 import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
@@ -56,6 +59,62 @@ import {
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
+
+// ── Transcript relocation across workspace moves ──────────────────────────
+// Claude Agent SDK scopes session lookup to `<claudeRoot>/projects/<cwd-encoded>/`
+// (see `claudeProjectDirectoryName`). After a backup restore on a new machine /
+// path the workspace path changes, so the backed-up transcripts sit under the
+// OLD encoding while resume looks under the NEW one — the SDK then reports
+// "no conversation found with session id" and `ClaudeCodeRuntimeDriver` degrades
+// to a fresh conversation (the agent loses all memory). Locate the transcript
+// by session id across every project directory and copy it under the current
+// workspace key so resume succeeds instead.
+export async function ensureTranscriptAvailableForWorkspace(cwd: string, sessionId: string): Promise<void> {
+  const projectsRoot = path.join(application.getPath('feature.agents.claude.root'), 'projects')
+  let resolvedCwd: string
+  try {
+    resolvedCwd = await realpath(cwd)
+  } catch {
+    resolvedCwd = path.resolve(cwd)
+  }
+  const expectedDir = claudeProjectDirectoryName(resolvedCwd)
+  const expectedFile = path.join(projectsRoot, expectedDir, `${sessionId}.jsonl`)
+  if (await fileExists(expectedFile)) return
+
+  let entries: string[]
+  try {
+    entries = await readdir(projectsRoot)
+  } catch {
+    return // no projects directory at all — nothing to relocate
+  }
+  for (const dir of entries) {
+    if (dir === expectedDir) continue
+    const candidate = path.join(projectsRoot, dir, `${sessionId}.jsonl`)
+    if (!(await fileExists(candidate))) continue
+    try {
+      await mkdir(path.join(projectsRoot, expectedDir), { recursive: true })
+      await copyFile(candidate, expectedFile)
+      logger.warn('Relocated agent session transcript after workspace move', {
+        sessionId,
+        fromDirectory: dir,
+        toDirectory: expectedDir,
+        cwd: resolvedCwd
+      })
+    } catch (error) {
+      logger.warn('Failed to relocate agent session transcript after workspace move', { sessionId, error })
+    }
+    return
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
@@ -499,6 +558,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  // Before handing the resume token to the SDK, make sure the transcript it
+  // points at is reachable under the CURRENT workspace key. A backup restore on
+  // a new machine/path leaves transcripts under the old cwd encoding; without
+  // relocation the SDK fails resume and the runtime starts a fresh conversation.
+  if (resumeSessionId && session.workspace?.path) {
+    await ensureTranscriptAvailableForWorkspace(session.workspace.path, resumeSessionId)
+  }
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,

@@ -73,6 +73,7 @@ vi.mock('@application', () => ({ application: applicationMock }))
 vi.mock('@main/services/mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
 
 vi.mock('electron', () => ({
+  app: { getPath: vi.fn(() => '') },
   BrowserWindow: { fromWebContents: vi.fn() },
   ipcMain: { on: vi.fn(), removeListener: vi.fn() },
   get nativeTheme() {

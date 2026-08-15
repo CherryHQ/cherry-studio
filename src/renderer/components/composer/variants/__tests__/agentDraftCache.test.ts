@@ -12,8 +12,8 @@ import {
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
-    get: vi.fn(),
-    set: vi.fn()
+    getShared: vi.fn(),
+    setShared: vi.fn()
   }
 }))
 
@@ -75,8 +75,8 @@ const scope = { workspaceKey: 'workspace-1\0/workspace', agentId: 'agent-1' }
 
 describe('agentDraftCache', () => {
   beforeEach(() => {
-    vi.mocked(cacheService.get).mockReset()
-    vi.mocked(cacheService.set).mockReset()
+    vi.mocked(cacheService.getShared).mockReset()
+    vi.mocked(cacheService.setShared).mockReset()
   })
 
   it('keys drafts by session', () => {
@@ -100,8 +100,8 @@ describe('agentDraftCache', () => {
     }
     writeAgentDraftCache(getAgentDraftCacheKey('session-1'), draft)
 
-    const written = vi.mocked(cacheService.set).mock.calls[0][1]
-    vi.mocked(cacheService.get).mockReturnValue(written)
+    const written = vi.mocked(cacheService.setShared).mock.calls[0][1]
+    vi.mocked(cacheService.getShared).mockReturnValue(written)
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual({
       ...draft,
       shouldValidateSkills: false
@@ -109,7 +109,7 @@ describe('agentDraftCache', () => {
   })
 
   it('does not carry a session draft across an agent change', () => {
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared).mockReturnValue({
       text: 'draft for agent one',
       tokens: [skillToken],
       files: [file],
@@ -139,7 +139,7 @@ describe('agentDraftCache', () => {
     const folderPrompt = folderToken.promptText!
     const linkPrompt = linkToken.promptText!
     const knowledgePrompt = knowledgeToken.promptText!
-    vi.mocked(cacheService.get).mockReturnValue({
+    vi.mocked(cacheService.getShared).mockReturnValue({
       text: `${skillPrompt} ${folderPrompt} ${linkPrompt} ${knowledgePrompt} keep this`,
       tokens: [
         { ...skillToken, index: 0, textOffset: 0 },
@@ -192,9 +192,9 @@ describe('agentDraftCache', () => {
       shouldValidateSkills: true
     })
 
-    const written = vi.mocked(cacheService.set).mock.calls[0][1]
+    const written = vi.mocked(cacheService.setShared).mock.calls[0][1]
     expect(written).toEqual(expect.objectContaining({ shouldValidateSkills: true }))
-    vi.mocked(cacheService.get).mockReturnValue(written)
+    vi.mocked(cacheService.getShared).mockReturnValue(written)
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope).shouldValidateSkills).toBe(true)
   })
 })
