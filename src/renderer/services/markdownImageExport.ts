@@ -256,7 +256,14 @@ export async function serializeMessagesWithImages(
 export async function writeImageAssets(dirPath: string, pendingWrites: PendingImageWrite[]): Promise<number> {
   if (pendingWrites.length === 0) return 0
   const assetsDir = `${dirPath}/assets`
-  await window.api.file.mkdir(assetsDir)
+  try {
+    await window.api.file.mkdir(assetsDir)
+  } catch (error) {
+    // The .md is already saved; count every image as failed so the caller
+    // warns instead of surfacing a whole-export error with dangling links.
+    logger.warn('Failed to create the assets directory, skipping image writes', { assetsDir, error })
+    return pendingWrites.length
+  }
   let failedCount = 0
   for (const { fileName, ref } of pendingWrites) {
     try {

@@ -1382,7 +1382,8 @@
           "embed": "Embed in file (default)",
           "folder": "Export as image folder",
           "none": "Without images",
-          "skipped": "Skipped {{count}} image(s) (over 10 MiB or unreadable)",
+          "skipped": "Skipped {{count}} image(s) (unavailable or unreadable)",
+          "skipped_embed": "Skipped {{count}} image(s) (over 10 MiB or unreadable)",
           "title": "Export images",
           "write_failed": "Failed to write {{count}} image(s)"
         },

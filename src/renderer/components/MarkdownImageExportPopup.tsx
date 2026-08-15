@@ -79,7 +79,7 @@ const MarkdownImageExportContainer: React.FC<
             {i18n.t('common.cancel')}
           </Button>
           <Button variant="default" onClick={handleConfirm}>
-            {i18n.t('chat.topics.export.obsidian_btn')}
+            {i18n.t('common.confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1382,7 +1382,8 @@
           "embed": "内嵌到文件（默认）",
           "folder": "导出为图片文件夹",
           "none": "不含图片",
-          "skipped": "已跳过 {{count}} 张图片（超过 10 MiB 或读取失败）",
+          "skipped": "已跳过 {{count}} 张图片（无法获取或读取）",
+          "skipped_embed": "已跳过 {{count}} 张图片（超过 10 MiB 或无法读取）",
           "title": "导出图片",
           "write_failed": "{{count}} 张图片写入失败"
         },
