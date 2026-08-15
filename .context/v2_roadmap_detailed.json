@@ -1,12 +1,13 @@
 {
-  "generated_at": "2026-08-14T19:00:00Z",
-  "date": "2026-08-14",
+  "generated_at": "2026-08-15T18:00:00Z",
+  "date": "2026-08-15",
   "v2_status": {
     "latest_release": "v2.0.5",
     "branch_model": "main-based; v2 branch has no open PRs — effectively retired as separate branch",
-    "open_prs_to_main": 96,
+    "open_prs_to_main": "est. 430+",
+    "open_prs_to_v2": 0,
     "open_prs_to_v1": 1,
-    "open_prs_to_other": 3,
+    "total_open_prs": 438,
     "last_v2_branch_merge": "2026-05-28"
   },
   "open_blocked_v2": [
@@ -14,36 +15,43 @@
       "number": 5442,
       "title": "[功能]: LLMOps 观察框架（如 Langfuse）支持",
       "label": "Blocked: v2",
-      "comments": 7
+      "comments": 7,
+      "note": "v2 shipped but issue still open — needs re-evaluation"
     },
     {
       "number": 12786,
-      "title": "Add context progress indicator showing token usage",
+      "title": "Add context progress indicator showing token usage in chat",
       "label": "v2",
-      "comments": 8
+      "comments": 2,
+      "note": "Partially addressed in v2.0, open for completion"
+    },
+    {
+      "number": 13417,
+      "title": "[Feature]: Message Queue for Agent & Chat",
+      "labels": ["feature", "Assistant", "UI/UX", "Blocked: v2"],
+      "comments": 1
     }
   ],
   "recent_main_highlights_closed_last_30d": [
+    "SECURITY: MCP env secrets logging in plaintext fixed (#18648, 2026-08-15 — same-day turnaround)",
     "Agent Pi runtime integration (#16483, 2026-08-13)",
     "Model context window fix for Claude Code SDK [1m] suffix (#18397, 2026-08-12)",
     "DeepSeek V4 Pro 100K context clamp fix — 57+ models (#18318, 2026-08-11)",
     "Agent outputs internal system reminder verbatim fix (#18175, 2026-08-11)",
-    "MCP-over-HTTP endpoints restored on v2 API Gateway (#17992, 2026-08-11)",
     "V1 file migration trailing-space/dot extension fix (#18187, 2026-08-13)",
-    "10+ lazy-load/performance bundle deferrals merged (DeJeune, Aug 11-14)"
+    "10+ lazy-load/performance bundle deferrals merged (DeJeune, Aug 11-14)",
+    "Backup dialog metadata IPC parallelization (#18618, 2026-08-14)"
   ],
   "active_tracks_today": [
     {
       "track": "Performance & Rendering",
       "priority": "HIGH",
-      "new_issues_today": 4,
-      "key_new": [
+      "new_issues_today_aug15": 0,
+      "open_from_yesterday": [
         "#18621 — Split tab actions from tab state invalidation",
         "#18622 — Deduplicate CodeViewer document selection listeners",
         "#18620 — Parallelize and deduplicate Shiki asset loading",
-        "#18619 — Stabilize useMultiplePreferences subscriptions"
-      ],
-      "existing_open": [
+        "#18619 — Stabilize useMultiplePreferences subscriptions",
         "#18553 — Parallelize multi-message Notion export",
         "#18465 — Streaming snapshots rerender Home composer tree",
         "#18464 — MCP settings eagerly fetch inactive capability tabs",
@@ -52,58 +60,53 @@
     },
     {
       "track": "Data & Migration",
-      "priority": "HIGH",
-      "new_issues_today": 2,
-      "key_new": [
-        "#18614 — Data migration: rename existing knowledge base material names (existing-data portion of #18272)",
-        "#18612 — RFC: versioned data migration mechanism (DB + disk simultaneously)"
-      ],
-      "existing_open_critical": [
-        "#18273 — SECURITY: Backup restore zip-slip vulnerability",
+      "priority": "CRITICAL",
+      "new_issues_today_aug15": 0,
+      "key_open": [
+        "#18273 — SECURITY: Backup restore zip-slip (6 days old, UNADDRESSED)",
+        "#18614 — Data migration: rename knowledge base material names",
+        "#18612 — RFC: versioned data migration (DB + disk simultaneously)",
         "#18373 — Data directory relocation leaves stale absolute paths",
-        "#18272 — Knowledge material filenames not sanitized on native add"
+        "#18272 — Knowledge material filenames not sanitized"
       ]
     },
     {
       "track": "Agent & Assistant",
       "priority": "HIGH",
-      "new_issues_today": 3,
+      "new_issues_today_aug15": 1,
       "key_new": [
-        "#18607 — Scheduled tasks silently skip missed runs after v2 upgrade (NEW — regression)",
-        "#18606 — Allow agents to have zero tasks",
-        "#18601 — ExitPlanMode plan content not surfaced in Agent chat"
+        "#18643 — Agent runtime + Ollama: all tool calls return 500 (NEW)"
       ],
-      "existing_open": [
+      "key_open": [
+        "#18607 — Scheduled tasks skip missed runs after v2 upgrade (regression)",
+        "#18606 — Allow agents to have zero tasks",
+        "#18601 — ExitPlanMode plan content not surfaced in Agent chat",
         "#18547 — Pi agent integration UX optimization",
-        "#18536 — Agent Feishu channel experience optimization",
-        "#18336 — Agent Feishu channel WebSocket inbound messages never arrive (P1)",
-        "#17782 — Agent Orchestration Primitives"
+        "#18336 — Agent Feishu channel WebSocket inbound messages never arrive (P1)"
       ]
     },
     {
       "track": "Connectivity & Provider",
       "priority": "HIGH",
-      "new_issues_today": 4,
-      "key_new": [
+      "new_issues_today_aug15": 0,
+      "key_open": [
+        "#18634 — Image models (Nano Banana/GPT Image) cannot be used",
         "#18633 — Third-party API proxy ERR_CONNECTION_TIMED_OUT",
-        "#18608 — Custom Provider incorrectly appends /v1/chat/completions when full URL specified",
-        "#18590 — Restore LAN Transfer in V2 desktop for mobile sync",
-        "#18587 — Pi agent runtime fails through proxy"
-      ],
-      "existing_open": [
+        "#18608 — Custom Provider incorrectly appends /v1/chat/completions",
+        "#18590 — Restore LAN Transfer in V2 for mobile sync",
+        "#18587 — Pi agent runtime fails through proxy",
         "#18571 — Custom headers in v2.0.5 don't take effect",
-        "#17971 — Not using configured API URL"
+        "#18408 — Custom API address ignored, requests routed to Anthropic"
       ]
     },
     {
-      "track": "UI/UX Regressions",
-      "priority": "MEDIUM-HIGH",
-      "new_issues_today": 4,
+      "track": "UI/UX Regressions (v2.0.5 focus)",
+      "priority": "HIGH",
+      "new_issues_today_aug15": 3,
       "key_new": [
-        "#18616 — Improve message failure retry/regeneration/edit-and-resend chain",
-        "#18589 — [Discussion]: Too much reverse optimization",
-        "#18583 — Add custom avatar upload for autonomous agents",
-        "#18588 — (Bug report without description)"
+        "#18665 — Math formula superscripts garbled/lost in v2.0.5 (REGRESSION from v1.9.3)",
+        "#18667 — Windows: F13-F24 not recognized by shortcut recorder",
+        "#18663 — Mini program lacks clear closing logic"
       ],
       "top_existing_regressions": [
         "#18243 — AI messages cannot be edited (3 comments)",
@@ -111,36 +114,57 @@
         "#18457 — Collapse thinking setting ignored",
         "#18371 — Agent reasoning rendered as plain body text (5 comments)",
         "#18099 — Restore Save-only option for editing historical messages",
-        "#18196 — Restore Regenerate Conversation button below user messages",
         "#18327 — Token/s and TTFT display missing since v2.0"
+      ]
+    },
+    {
+      "track": "MCP",
+      "priority": "MEDIUM-HIGH",
+      "new_issues_today_aug15": 0,
+      "key_open": [
+        "#18670 — fix(mcp): redact secrets from logging (PR opened today, closes #18648)",
+        "#18528 — MCP subprocess on Windows doesn't inherit latest PATH",
+        "#18437 — Deferred MCP tools reminder list causes context overflow",
+        "#18344 — Built-in @cherry/fetch denies access to private-network-resolving domains",
+        "#18131 — MCP server connected but no tools mounted (9 comments, 8 days)"
       ]
     }
   ],
   "top_open_feature_requests": [
+    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)", "comments": 0},
     {"number": 18547, "title": "Pi agent UX — flatten engine selection, smart approval default"},
-    {"number": 18616, "title": "Improve complete message failure retry/regeneration/edit chain"},
+    {"number": 18590, "title": "Restore LAN Transfer for PC ↔ Mobile sync"},
     {"number": 18442, "title": "Knowledge base: add jpg, bmp, Office format support"},
-    {"number": 17952, "title": "Adopt AI SDK async model API for long-running image/video generation"},
-    {"number": 18267, "title": "Knowledge base refresh when source files change"},
     {"number": 18268, "title": "Agent session start/end hooks for cross-session continuity"},
+    {"number": 18267, "title": "Knowledge base refresh when source files change"},
     {"number": 18476, "title": "Add Huawei Cloud MaaS as preset model provider"},
-    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)"},
-    {"number": 18590, "title": "Restore LAN Transfer for PC ↔ Mobile sync"}
+    {"number": 18409, "title": "Allow customizing tools exempt from per-call approval in bypassPermissions mode"},
+    {"number": 18432, "title": "Upgrade DashScope provider experience to QwenCloud"}
   ],
   "active_sigs": {
-    "UI_UX": {"open": 320, "trend": "growing", "delta": "+6"},
-    "Models": {"open": 163, "trend": "stable", "delta": "+4"},
-    "Assistant_Agent": {"open": 81, "trend": "growing", "delta": "+3"},
-    "Performance": {"open": 68, "trend": "growing", "delta": "+8"},
-    "MCP": {"open": 48, "trend": "stable", "delta": "+1"},
-    "Connectivity": {"open": 18, "trend": "growing", "delta": "+5"},
-    "RAG": {"open": 31, "trend": "stable", "delta": "+1"},
-    "Data": {"open": 29, "trend": "growing", "delta": "+3"}
+    "UI_UX": {"open_est": 300, "trend": "growing"},
+    "Models": {"open_est": 160, "trend": "stable"},
+    "Assistant_Agent": {"open_est": 80, "trend": "growing"},
+    "Performance": {"open_est": 65, "trend": "stable"},
+    "MCP": {"open_est": 50, "trend": "stable"},
+    "Connectivity": {"open_est": 30, "trend": "growing"},
+    "RAG": {"open_est": 30, "trend": "stable"},
+    "Data": {"open_est": 25, "trend": "growing"}
   },
-  "internal_team_items_in_flight": [
-    "#18045 — Prevent-Sleep Setting to Keep System Awake During Tasks",
-    "#18044 — Let Agent Operate Your Already-Open Browser Without Extension",
-    "#18043 — One-Click Report Error Action on Chat and Agent Failures",
-    "#17782 — Agent Orchestration Primitives (peer session read, create)"
-  ]
+  "security_watch": {
+    "open": [
+      "#18273 — zip-slip in backup restore (6 days, CRITICAL, still unaddressed)"
+    ],
+    "closed_this_week": [
+      "#18648 — MCP env secrets logged in plaintext (closed 2026-08-15, same day)"
+    ]
+  },
+  "audit_flags": {
+    "#18669": {
+      "title": "WhaleHarness audit REJECT v2.0.5",
+      "opened": "2026-08-15T14:51:36Z",
+      "author": "moby-whaleharness",
+      "action_required": "Maintainers should review audit findings and close/respond"
+    }
+  }
 }

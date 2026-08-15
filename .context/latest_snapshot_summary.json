@@ -1,166 +1,166 @@
 {
-  "generated_at": "2026-08-14T19:00:00Z",
-  "date": "2026-08-14",
+  "generated_at": "2026-08-15T18:00:00Z",
+  "date": "2026-08-15",
   "source": "github_mcp",
   "open_issues": {
-    "total": 873,
-    "delta_from_yesterday": "+14",
-    "unlabeled_count": 237,
-    "unlabeled_pct": 27.2,
-    "inactive_labeled": 163,
+    "total": 876,
+    "delta_from_yesterday": "+3",
+    "unlabeled_count": 113,
+    "unlabeled_pct": 12.9,
+    "inactive_labeled": 71,
     "label_breakdown": {
-      "UI/UX": 320,
-      "Models": 163,
-      "Assistant": 70,
-      "Performance": 68,
-      "MCP": 48,
-      "RAG": 31,
-      "Data": 29,
-      "Docs": 17,
-      "Connectivity": 18,
-      "Agent": 11
+      "UI/UX": "highest (est. 300+)",
+      "Models": "2nd (est. 160+)",
+      "Performance": "est. 65+",
+      "MCP": "est. 50+",
+      "Connectivity": "est. 30+",
+      "RAG": "est. 30+",
+      "Assistant": "est. 60+",
+      "Data": "est. 25+",
+      "Docs": "est. 15+",
+      "Agent": "est. 10+",
+      "inactive": 71,
+      "needs-repro": "est. 25+",
+      "needs-more-info": "est. 8+",
+      "Planned": "est. 5+",
+      "P1": 3
     }
   },
   "open_prs": {
-    "total": 100,
-    "targeting_main": 96,
+    "total": 438,
+    "targeting_main": "est. 430+",
+    "targeting_v2": 0,
     "targeting_v1": 1,
-    "targeting_other": 3,
-    "drafts": 0,
-    "top_contributors_open": {
-      "DeJeune": 20,
-      "kennyzheng-builds": 15,
-      "ousugo": 7,
-      "xxiaoxiong": 7,
-      "GeorgeDong32": 5,
-      "SiinXu": 4,
-      "linktao159357": 4,
-      "404-Page-Found": 4
-    },
-    "recent_prs_today": [
-      {"number": 18636, "title": "fix(chat-migrator): stop baking an English name into unnamed chats", "base": "main"},
-      {"number": 18635, "title": "fix(chat-message): restore editing for provider-annotated assistant messages", "base": "main"},
-      {"number": 18632, "title": "feat(export): carry multimodal images in markdown export", "base": "main"},
-      {"number": 18630, "title": "refactor(mcp): move builtin server knowledge out of the MCP subsystem", "base": "main"},
-      {"number": 18629, "title": "fix(markdown): stop rewriting unlinkable links and images in markdown", "base": "main"}
+    "targeting_other": "est. 5+",
+    "drafts": "est. 20+",
+    "recent_prs_today_aug15": [
+      {"number": 18673, "title": "fix(files): keep upload entry available in file type categories", "base": "main"},
+      {"number": 18671, "title": "refactor(code): retire CLI config read IO, broadcast managed-tool status", "base": "main", "draft": true},
+      {"number": 18670, "title": "fix(mcp): redact secrets from logging notification message", "base": "main"},
+      {"number": 18668, "title": "fix(button-group): preserve outline button seams", "base": "main"},
+      {"number": 18666, "title": "fix(local-embedding): verify the cache on disk before reporting model ready", "base": "main"}
     ]
   },
   "v2_branch_prs": {
     "open": 0,
     "merged_last_30d": 0,
-    "note": "v2 branch merged into main; no active PRs target v2 base (last merge 2026-05-28)"
+    "note": "v2 branch merged into main; no active PRs target v2 base. All development on main."
   },
   "closed_last_30d": {
-    "issues": 549,
-    "label_breakdown_closed": {
-      "inactive": 35,
-      "UI/UX": 30,
-      "Models": 18,
-      "Performance": 8,
-      "Assistant": 6,
-      "Data": 5,
-      "MCP": 5,
-      "RAG": 5,
-      "needs-repro": 3
-    }
+    "issues": 555,
+    "delta_from_yesterday": "+6",
+    "close_rate_per_day": 18.5,
+    "notable_closes_recent": [
+      {"number": 18648, "title": "[Security]: MCP server env secrets logged in plaintext", "closed_at": "2026-08-15", "label": "MCP"},
+      {"number": 18618, "title": "[Bug]: Parallelize backup dialog metadata IPC", "closed_at": "2026-08-14", "label": "Performance"},
+      {"number": 18569, "title": "[Bug]: Since 2.0, minimize to tray still active even when disabled", "closed_at": "2026-08-14"},
+      {"number": 18554, "title": "[Bug]: Preserve disabled-send feedback in deferred composer", "closed_at": "2026-08-14", "label": "UI/UX"},
+      {"number": 18545, "title": "[Feature]: Topic dual-column side-by-side display", "closed_at": "2026-08-14", "label": "UI/UX"}
+    ]
   },
   "p1_urgent_open": [
     {
-      "number": 18273,
-      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "labels": ["Data"],
-      "severity": "SECURITY",
-      "age_days": 5
+      "number": 18669,
+      "title": "[WhaleHarness audit] CherryHQ/cherry-studio@2.0.5: REJECT",
+      "labels": [],
+      "severity": "AUDIT",
+      "age_days": 0,
+      "note": "Security/audit bot opened today — needs triage to assess legitimacy and findings"
+    },
+    {
+      "number": 18665,
+      "title": "[Bug] Severe distortion when copying math formula: superscripts lost/garbled (v2.0.5, v1.9.3 works)",
+      "labels": ["UI/UX"],
+      "severity": "REGRESSION",
+      "age_days": 0
+    },
+    {
+      "number": 18643,
+      "title": "[Bug]: Agent runtime + local Ollama model: all tool calls return 500",
+      "labels": [],
+      "severity": "P1",
+      "age_days": 0
     },
     {
       "number": 18607,
       "title": "[Bug]: Scheduled tasks silently skip missed runs after v2 upgrade (regression — v1 caught up)",
       "labels": [],
-      "severity": "P1",
-      "age_days": 0,
+      "severity": "REGRESSION",
+      "age_days": 1,
       "comments": 1
-    },
-    {
-      "number": 18439,
-      "title": "[Bug]: Frontend UI freezes when running Agent — Agent continues in background, UI shows error page",
-      "labels": ["UI/UX", "Performance"],
-      "severity": "P1",
-      "age_days": 2
-    },
-    {
-      "number": 18445,
-      "title": "[Bug]: App doesn't fully quit when closing main window with tray disabled — 5 processes keep running",
-      "labels": [],
-      "severity": "P1",
-      "age_days": 2
     },
     {
       "number": 18336,
       "title": "[Bug] Agent Feishu channel: WebSocket connects but inbound messages never reach the session (2.0.3)",
       "labels": ["BUG", "Connectivity"],
       "severity": "P1",
-      "age_days": 3,
+      "age_days": 4,
       "comments": 1
+    },
+    {
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
+      "labels": ["Data"],
+      "severity": "SECURITY",
+      "age_days": 6,
+      "note": "Still open — critical security vulnerability"
     },
     {
       "number": 18131,
       "title": "[Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
       "labels": ["needs-more-info", "MCP"],
       "severity": "P1",
-      "age_days": 7,
+      "age_days": 8,
       "comments": 9
     },
     {
-      "number": 18373,
-      "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent system-workspace validation)",
-      "labels": ["Data"],
-      "severity": "P1",
-      "age_days": 3
-    },
-    {
-      "number": 18063,
-      "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime — macOS 27",
-      "labels": [],
-      "severity": "P1",
-      "age_days": 7,
-      "comments": 2
-    },
-    {
       "number": 17629,
-      "title": "[Bug]: Processes remain running in Task Manager after closing window with 'Minimize to tray on close' disabled",
+      "title": "[Bug]: Processes remain running in Task Manager after closing window (tray disabled)",
       "labels": [],
       "severity": "P1",
-      "age_days": 15,
+      "age_days": 16,
       "comments": 7
+    },
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "severity": "P1-label",
+      "age_days": 100
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "severity": "P1-label",
+      "age_days": 150,
+      "comments": 8
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found, default use responses API (macOS)",
+      "labels": ["P1", "Models"],
+      "severity": "P1-label",
+      "age_days": 164,
+      "comments": 1
     }
   ],
-  "new_issues_today_aug14": [
-    {"number": 18634, "title": "Image models (Nano Banana/GPT Image) cannot be used", "labels": ["Models"]},
-    {"number": 18633, "title": "Third-party API proxy ERR_CONNECTION_TIMED_OUT", "labels": ["Connectivity"]},
-    {"number": 18631, "title": "UNC workspace breaks agent folder-mention dedup and file:// references", "labels": []},
-    {"number": 18621, "title": "Split tab actions from tab state invalidation", "labels": ["Performance"]},
-    {"number": 18622, "title": "Deduplicate CodeViewer document selection listeners", "labels": ["Performance"]},
-    {"number": 18620, "title": "Parallelize and deduplicate Shiki asset loading", "labels": ["Performance"]},
-    {"number": 18619, "title": "Stabilize useMultiplePreferences subscriptions", "labels": ["Performance"]},
-    {"number": 18616, "title": "Improve message failure retry/regeneration/edit-and-resend chain", "labels": ["UI/UX"]},
-    {"number": 18614, "title": "Data migration: rename existing knowledge base material names", "labels": ["Data"]},
-    {"number": 18612, "title": "RFC: versioned data migration mechanism (DB + disk)", "labels": ["Data"]},
-    {"number": 18608, "title": "Custom Provider incorrectly appends /v1/chat/completions when full URL specified", "labels": ["Connectivity"]},
-    {"number": 18607, "title": "Scheduled tasks silently skip missed runs after v2 upgrade", "labels": []},
-    {"number": 18606, "title": "Allow agents to have zero tasks", "labels": []},
-    {"number": 18603, "title": "Local embedding model reverts from ready to incomplete on navigation", "labels": ["Models"]},
-    {"number": 18601, "title": "ExitPlanMode plan content not surfaced in Agent chat", "labels": []},
-    {"number": 18590, "title": "Restore LAN Transfer in V2 desktop for syncing with mobile app", "labels": ["Connectivity"]},
-    {"number": 18589, "title": "[Discussion]: Too much reverse optimization", "labels": ["help wanted", "discussion", "UI/UX"]},
-    {"number": 18588, "title": "[Bug]: (untitled)", "labels": ["Models"]},
-    {"number": 18587, "title": "Pi agent runtime fails through proxy while Claude Code connects fine", "labels": ["Connectivity"]},
-    {"number": 18583, "title": "Add custom avatar upload for autonomous agents", "labels": ["UI/UX"]}
+  "new_issues_today_aug15": [
+    {"number": 18669, "title": "[WhaleHarness audit] CherryHQ/cherry-studio@2.0.5: REJECT", "labels": []},
+    {"number": 18667, "title": "[Bug]: Windows: F13-F24 not recognized by shortcut recorder", "labels": []},
+    {"number": 18665, "title": "[Bug] Math formula superscripts lost/garbled in v2.0.5", "labels": ["UI/UX"]},
+    {"number": 18663, "title": "[Bug]: Mini program lacks clear closing logic", "labels": ["UI/UX"]},
+    {"number": 18662, "title": "[Feature]: Customizable response_format whitelist for image generation", "labels": ["Models"]},
+    {"number": 18658, "title": "[Feature]: Re-input should not include deleted message content", "labels": ["UI/UX"]},
+    {"number": 18646, "title": "[Bug]: Table rendering issue on chat page", "labels": ["needs-repro", "UI/UX"]},
+    {"number": 18644, "title": "Migration from 1.9.3 to 2.0.2 failed", "labels": ["needs-more-info"]},
+    {"number": 18643, "title": "[Bug]: Agent runtime + Ollama: all tool calls return 500", "labels": []}
   ],
   "notable_recently_closed": [
-    {"number": 18318, "title": "DeepSeek V4 Pro & 57 more models clamped to 100K context", "closed_at": "2026-08-11"},
+    {"number": 18648, "title": "MCP env secrets logged in plaintext — SECURITY", "closed_at": "2026-08-15"},
+    {"number": 18318, "title": "DeepSeek V4 Pro & 57+ models clamped to 100K context", "closed_at": "2026-08-11"},
     {"number": 18397, "title": "Model context window not passed to Claude Code SDK — [1m] suffix not parsed", "closed_at": "2026-08-12"},
     {"number": 18317, "title": "Agent session deadlocks — live-stream replay ring overflow", "closed_at": "2026-08-12"},
-    {"number": 18175, "title": "Agent outputs internal system reminder verbatim — leaks into replies", "closed_at": "2026-08-11"},
-    {"number": 18187, "title": "Migrated v1 files with trailing-space/dot extension are unreadable in v2", "closed_at": "2026-08-13"}
+    {"number": 18175, "title": "Agent outputs internal system reminder verbatim", "closed_at": "2026-08-11"}
   ]
 }

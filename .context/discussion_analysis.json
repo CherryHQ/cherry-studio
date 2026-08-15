@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-08-14T19:00:00Z",
-  "date": "2026-08-14",
+  "generated_at": "2026-08-15T18:00:00Z",
+  "date": "2026-08-15",
   "note": "Discussion data sourced from issues tagged discussion+help wanted; GitHub Discussions GraphQL requires separate auth",
   "discussion_labeled_open_issues": {
     "total_with_discussion_label": 41,
-    "sample_today": [
+    "sample_recent": [
       {"number": 18589, "title": "[Discussion]: Too much reverse optimization (UI/UX regression)", "created": "2026-08-14", "comments": 1},
       {"number": 18474, "title": "Code blocks are no longer rendered during streaming", "created": "2026-08-12", "comments": 1},
       {"number": 18363, "title": "AiStreamManager state-machine identity and ownership structure", "created": "2026-08-11", "comments": 1},
@@ -12,34 +12,55 @@
       {"number": 18327, "title": "Token/s generation speed and TTFT display missing since v2.0", "created": "2026-08-10"},
       {"number": 18299, "title": "Why can't v2.x modify an answer while v1.9.x can?", "created": "2026-08-10", "comments": 1},
       {"number": 18241, "title": "How to collapse thinking content without aggregating tool calls", "created": "2026-08-09"},
-      {"number": 17954, "title": "v2.0 — why was the conversation history limit option removed?", "created": "2026-08-05", "comments": 4},
-      {"number": 17907, "title": "Restore mini programs to display in sidebar like v1.x", "created": "2026-08-05", "comments": 2},
-      {"number": 18134, "title": "I was using V1 and now want to use V2 but migration keeps failing", "created": "2026-08-07"}
+      {"number": 17090, "title": "Networking Issue (RAG)", "created": "2026-07-16", "comments": 2}
     ]
   },
   "hot_topics": [
-    "v1→v2 migration failures — multiple open issues + 549 closed in 30d",
+    "v1→v2 migration failures — 555 closed in last 30d but new reports still arriving (#18644 today)",
     "v2 regression: edit/save AI messages (#18243, #18484, #18099, #18196)",
-    "Agent mode stability: freezes, process leaks, Feishu channel broken (#18439, #18336, #17629)",
-    "Context compaction/auto-compact behavior — multiple issues",
+    "Math formula rendering garbled in v2.0.5 (#18665 — NEW TODAY, critical regression)",
+    "Agent mode stability: freezes, process leaks, Feishu channel broken, Ollama 500s",
+    "Context compaction/auto-compact behavior — multiple issues with non-GPT tokenizers",
     "MCP connectivity and tool visibility (#18131, #18528, #18437)",
-    "Performance regression in v2: streaming, tab state, TTFT missing (#18327, #18589)",
-    "Scheduled task missed-run regression after v2 upgrade (#18607 — new today)"
+    "Performance regression in v2: streaming, tab state, TTFT missing",
+    "Scheduled task missed-run regression after v2 upgrade (#18607)"
   ],
   "v2_pain_points": [
     "Cannot edit AI messages (#18243 — 3 comments, #18484)",
+    "Math formula superscripts garbled in v2.0.5 (NEW #18665 — was fine in v1.9.3)",
     "Code blocks not rendered during streaming (#18474)",
-    "Context compaction thrashes low-window models (fixed in #18318 for DeepSeek)",
+    "Context compaction thrashes low-window models (partially fixed for DeepSeek via #18318)",
     "Minimize to tray / quit leaves orphan processes (#17629 — 7 comments, #18445)",
-    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context option, TTFT display",
-    "Scheduled tasks skip missed runs post-v2 upgrade — v1 caught up properly (#18607 — new today)"
+    "Agent + Ollama tool calls all fail with 500 (#18643 — NEW TODAY)",
+    "Scheduled tasks skip missed runs post-v2 upgrade (#18607)",
+    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context, TTFT display"
   ],
-  "new_discussion_today": [
+  "new_discussion_today_aug15": [
     {
-      "number": 18589,
-      "title": "[Discussion]: Too much reverse optimization",
-      "description": "User frustration with v2 UX changes perceived as regression from v1"
+      "number": 18665,
+      "title": "[Bug] Severe distortion when copying math formula: superscripts lost/garbled",
+      "type": "regression_bug",
+      "description": "v2.0.5 breaks math formula copy; v1.9.3 worked fine"
+    },
+    {
+      "number": 18644,
+      "title": "Migration from 1.9.3 to 2.0.2 failed",
+      "type": "migration_regression"
     }
   ],
-  "sentiment": "Negative-leaning: active community but significant frustration with v2 regressions vs v1.9.x; most productive contributors (DeJeune, kennyzheng-builds) remain engaged on fixes"
+  "sentiment": {
+    "overall": "Negative-leaning but stabilizing",
+    "detail": "Active community with significant frustration around v2 regressions vs v1.9.x; MCP secrets fix (#18648) closed same-day showing good security response; math formula regression (#18665) and audit flag (#18669) are new sources of concern today. Most productive contributors (DeJeune, kennyzheng-builds, EurFelux) remain engaged.",
+    "positive_signals": [
+      "High PR velocity: 438 open PRs, 555 issues closed in 30 days",
+      "Security issue #18648 resolved same-day (excellent response)",
+      "Active performance work across rendering, MCP, and data layers"
+    ],
+    "negative_signals": [
+      "Security issue #18273 (zip-slip) still open after 6 days",
+      "New math formula regression in v2.0.5 (#18665) opened today",
+      "WhaleHarness audit REJECT of v2.0.5 (#18669) needs investigation",
+      "231 zombie issues (>90 days old) suggest backlog management gaps"
+    ]
+  }
 }
