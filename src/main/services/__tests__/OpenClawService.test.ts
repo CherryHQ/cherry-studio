@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
+const broadcastMock = vi.hoisted(() => vi.fn())
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -101,6 +102,7 @@ vi.mock('@application', () => ({
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -985,6 +987,92 @@ describe('OpenClawService gateway status state machine', () => {
       expect((service as any).gatewayStatus).toBe('error')
       expect(checkPortOpenSpy).toHaveBeenCalledTimes(3)
       expect(checkHealthSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── status broadcasts + periodic probe ─────────────────────
+
+  describe('gateway status broadcasts', () => {
+    const statusPayloads = () =>
+      broadcastMock.mock.calls.filter((call) => call[0] === 'openclaw.status_changed').map((call) => call[1])
+
+    it('broadcasts starting then running with {status, port} on a successful start', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+      expect(statusPayloads()).toEqual([
+        { status: 'starting', port: 18790 },
+        { status: 'running', port: 18790 }
+      ])
+    })
+
+    it('broadcasts error when the start fails', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
+
+      await expect(service.startGateway()).resolves.toMatchObject({ success: false })
+
+      expect(statusPayloads().at(-1)).toEqual({ status: 'error', port: 18790 })
+    })
+
+    it('announces stopped when a stop completes', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkPortOpenSpy.mockResolvedValue(false)
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      expect(statusPayloads().at(-1)).toEqual({ status: 'stopped', port: 18790 })
+    })
+  })
+
+  describe('probeGatewayTick (external gateway detection)', () => {
+    it('discovers an externally-started gateway and broadcasts running', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+
+      await (service as any).probeGatewayTick()
+
+      expect((service as any).gatewayStatus).toBe('running')
+      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'running', port: 18790 })
+    })
+
+    it('marks a dead gateway stopped when the probe goes unhealthy', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
+
+      await (service as any).probeGatewayTick()
+
+      expect((service as any).gatewayStatus).toBe('stopped')
+      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped', port: 18790 })
+    })
+
+    it('skips probing while the gateway is starting', async () => {
+      ;(service as any).gatewayStatus = 'starting'
+
+      await (service as any).probeGatewayTick()
+
+      expect(checkHealthSpy).not.toHaveBeenCalled()
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
+
+    it('broadcasts nothing when the probe result matches the recorded status', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
+
+      await (service as any).probeGatewayTick()
+
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
+
+    it('swallows a probe failure instead of throwing', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      checkHealthSpy.mockRejectedValue(new Error('ECONNREFUSED'))
+
+      await expect((service as any).probeGatewayTick()).resolves.toBeUndefined()
     })
   })
 
