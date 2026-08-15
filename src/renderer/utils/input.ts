@@ -67,12 +67,56 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
   }
 }
 
-// The inject shortcut has no stored default (schema default is null): its effective
-// default is platform-dependent because Command+Enter maps to Win/Super+Enter on
-// Windows/Linux (reserved by the OS), so those platforms fall back to Ctrl+Enter.
-export const resolveInjectMessageShortcut = (value: SendMessageShortcut | null | undefined): SendMessageShortcut => {
-  if (value) return value
-  return isMac ? 'Command+Enter' : 'Ctrl+Enter'
+export const COMPOSER_SHORTCUTS: readonly SendMessageShortcut[] = [
+  'Enter',
+  'Shift+Enter',
+  'Ctrl+Enter',
+  'Command+Enter',
+  'Alt+Enter'
+]
+
+// Send / newline / steer must stay distinct: a stored value that another role already took
+// falls back to the first free combination.
+const resolveComposerShortcut = (
+  stored: SendMessageShortcut | null | undefined,
+  taken: readonly SendMessageShortcut[],
+  preferred: SendMessageShortcut
+): SendMessageShortcut => {
+  if (stored && !taken.includes(stored)) return stored
+  if (!taken.includes(preferred)) return preferred
+  return COMPOSER_SHORTCUTS.find((shortcut) => !taken.includes(shortcut)) ?? preferred
+}
+
+export const resolveNewlineShortcut = (
+  stored: SendMessageShortcut | null | undefined,
+  send: SendMessageShortcut
+): SendMessageShortcut => resolveComposerShortcut(stored, [send], 'Shift+Enter')
+
+// Command+Enter maps to Win/Super+Enter on Windows/Linux (reserved by the OS), so the
+// preferred default there is Ctrl+Enter.
+export const resolveSteerShortcut = (
+  stored: SendMessageShortcut | null | undefined,
+  send: SendMessageShortcut,
+  newline: SendMessageShortcut
+): SendMessageShortcut => resolveComposerShortcut(stored, [send, newline], isMac ? 'Command+Enter' : 'Ctrl+Enter')
+
+/** Whether the pressed modifiers match `shortcut`. Callers check the Enter key and IME state. */
+export const matchesShortcutModifiers = (
+  event: Pick<KeyboardEvent, 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey'>,
+  shortcut: SendMessageShortcut
+): boolean => {
+  switch (shortcut) {
+    case 'Enter':
+      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+    case 'Ctrl+Enter':
+      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
+    case 'Command+Enter':
+      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
+    case 'Alt+Enter':
+      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
+    case 'Shift+Enter':
+      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
 }
 
 // convert send message shortcut to human readable label

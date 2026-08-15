@@ -232,14 +232,20 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
   })
 
-  it('routes the inject shortcut to onSendDraft with { inject: true } in the deferred textarea', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.input.inject_message_shortcut', 'Command+Enter')
-    render(<Harness />)
+  it('routes the steer shortcut to onSendDraft with { steer: true } in the deferred textarea', () => {
+    render(<Harness steerShortcut="Command+Enter" />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
-    expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { inject: true })
+    expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
+  })
+
+  it('ignores the steer shortcut in the deferred textarea when the caller does not pass one', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', metaKey: true })
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
   })
 
   it('navigates input history on the first arrow key', () => {

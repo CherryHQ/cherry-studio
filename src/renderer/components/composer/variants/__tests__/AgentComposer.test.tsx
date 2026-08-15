@@ -1211,7 +1211,7 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
-  it('sends directly via the inject option while streaming, bypassing the queue', async () => {
+  it('sends directly via the steer option while streaming, bypassing the queue', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1223,14 +1223,14 @@ describe('AgentComposer', () => {
     )
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { inject: true })
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
     })
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
   })
 
-  it('treats the inject option as a plain send when idle', async () => {
+  it('treats the steer option as a plain send when idle', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1242,14 +1242,14 @@ describe('AgentComposer', () => {
     )
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { inject: true })
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
     })
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
   })
 
-  it('restores the draft and leaves the queue empty when an inject send fails while streaming', async () => {
+  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     render(
       <AgentComposer
@@ -1262,13 +1262,13 @@ describe('AgentComposer', () => {
     )
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { inject: true })
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
     })
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
-    // The failed inject must not wipe the draft: the composer keeps the pre-send text
+    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
     // and the persisted draft cache is rewritten with the pre-send content.
     expect(mocks.surfaceProps?.text).toBe('hello')
     expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(

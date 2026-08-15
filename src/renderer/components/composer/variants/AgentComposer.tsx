@@ -54,7 +54,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getSendMessageShortcutLabel, resolveInjectMessageShortcut } from '@renderer/utils/input'
+import { getSendMessageShortcutLabel, resolveNewlineShortcut, resolveSteerShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -752,7 +752,8 @@ const AgentComposerInner = ({
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx } = useChatLayoutMode()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [injectMessageShortcut] = usePreference('chat.input.inject_message_shortcut')
+  const [steerShortcut] = usePreference('chat.input.steer_shortcut')
+  const [newlineShortcut] = usePreference('chat.input.newline_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const {
     pinnedIds: pinnedToolIds,
@@ -1345,15 +1346,18 @@ const AgentComposerInner = ({
     [availableSkills, reconcileTokens]
   )
 
+  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
+  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+
   const placeholderText = useMemo(
     () =>
       isStreaming
         ? t('agent.input.placeholder_streaming', {
             sendKey: getSendMessageShortcutLabel(sendMessageShortcut),
-            injectKey: getSendMessageShortcutLabel(resolveInjectMessageShortcut(injectMessageShortcut))
+            steerKey: getSendMessageShortcutLabel(resolvedSteerShortcut)
           })
         : t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
-    [injectMessageShortcut, isStreaming, sendMessageShortcut, t]
+    [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
   )
 
   const buildQueuedPayload = useCallback(
@@ -1482,7 +1486,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    async (draft: ComposerSerializedDraft, options?: { inject?: boolean }) => {
+    async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1496,43 +1500,9 @@ const AgentComposerInner = ({
       if (!payload) return
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
-      // the dock lets the user steer/edit/remove items.
-      if (isStreaming) {
-        // The inject shortcut bypasses the queue and sends directly into the running turn,
-        // mirroring the dock's "insert" action. Like the idle path, snapshot the draft so a
-        // failed send can restore it instead of losing the text/attachments/skills/tokens.
-        if (options?.inject) {
-          const previousText = draft.text
-          const previousFiles = files
-          const previousSkills = selectedSkills
-          const previousDraftTokens = draftTokensRef.current
-          const previousShouldValidateSkills = shouldValidateSkills
-
-          clearCurrentDraft()
-          const sent = await sendQueuedPayload(payload)
-          if (!sent) {
-            clearTimeoutTimer('agentComposerSendMessage')
-            setText(previousText)
-            setFiles(previousFiles)
-            setSelectedSkills(previousSkills)
-            setShouldValidateSkills(previousShouldValidateSkills)
-            setDraftTokens(previousDraftTokens)
-            draftTokensRef.current = previousDraftTokens
-            if (draftPersistenceEnabled) {
-              writeAgentDraftCache(draftCacheKey, {
-                text: previousText,
-                tokens: previousDraftTokens,
-                files: previousFiles,
-                knowledgeBaseIds: knowledgeBaseIdsRef.current,
-                workspaceKey,
-                agentId,
-                shouldValidateSkills: previousShouldValidateSkills
-              })
-            }
-            toast.error(t('chat.input.send_failed'))
-          }
-          return
-        }
+      // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
+      // falls through to the direct send below, mirroring the dock's "insert" action.
+      if (isStreaming && !options?.steer) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1738,6 +1708,7 @@ const AgentComposerInner = ({
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
           sendMessageShortcut={sendMessageShortcut}
+          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
