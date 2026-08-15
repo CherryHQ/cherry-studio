@@ -41,6 +41,7 @@ const openclawConfigPath = (): AbsoluteFilePath =>
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
+const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
@@ -397,8 +398,50 @@ export class OpenClawService extends BaseService {
     // IPC handlers migrated to IpcApi (openclaw.*)
   }
 
+  protected async onReady(): Promise<void> {
+    // Detect externally-started gateways without renderer polling; registerInterval is lifecycle-cleaned.
+    this.registerInterval(() => this.probeGatewayTick(), GATEWAY_PROBE_INTERVAL_MS)
+  }
+
   protected async onStop(): Promise<void> {
     await this.stopGateway()
+  }
+
+  /** Single gateway-status-transition point: assign, then broadcast the getStatus()-shaped payload. */
+  private setGatewayStatus(status: GatewayStatus): void {
+    this.gatewayStatus = status
+    try {
+      application.get('IpcApiService').broadcast('openclaw.status_changed', {
+        status: this.gatewayStatus,
+        port: this.gatewayPort
+      })
+    } catch (err) {
+      // The renderer re-syncs via get_status; a failed broadcast must not abort the transition.
+      logger.warn('Failed to broadcast OpenClaw gateway status change', err as Error)
+    }
+  }
+
+  /**
+   * One periodic probe tick: reconcile the recorded status with the gateway's
+   * actual health so externally-started gateways are discovered (and dead ones
+   * reported) without the renderer polling. `starting` is skipped to match
+   * getStatus()'s guard.
+   */
+  private async probeGatewayTick(): Promise<void> {
+    if (this.gatewayStatus === 'starting') return
+    try {
+      const { status } = await this.checkGatewayHealth()
+      if (status === 'healthy' && this.gatewayStatus !== 'running') {
+        logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
+        this.setGatewayStatus('running')
+      } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
+        logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
+        this.setGatewayStatus('stopped')
+      }
+    } catch (error) {
+      // Connection refused is the steady state while no gateway runs — probe noise, not an error.
+      logger.warn('OpenClaw gateway health probe failed', error as Error)
+    }
   }
 
   /** Resolve the same live executable path the management UI reports. */
@@ -700,14 +743,14 @@ export class OpenClawService extends BaseService {
         }
       }
 
-      this.gatewayStatus = 'starting'
+      this.setGatewayStatus('starting')
 
       await this.startAndWaitForGateway(runtime.path, runtime.env)
-      this.gatewayStatus = 'running'
+      this.setGatewayStatus('running')
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }
     } catch (error) {
-      this.gatewayStatus = 'error'
+      this.setGatewayStatus('error')
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to start gateway:', error as Error)
       return { success: false, message: errorMessage }
@@ -817,17 +860,17 @@ export class OpenClawService extends BaseService {
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
-        this.gatewayStatus = 'error'
+        this.setGatewayStatus('error')
         return { success: false, message: 'Failed to stop gateway' }
       }
 
-      this.gatewayStatus = 'stopped'
+      this.setGatewayStatus('stopped')
       logger.info('Gateway stopped')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to stop gateway:', error as Error)
-      this.gatewayStatus = 'error'
+      this.setGatewayStatus('error')
       return { success: false, message: errorMessage }
     }
   }
@@ -894,10 +937,10 @@ export class OpenClawService extends BaseService {
     const { status } = await this.checkGatewayHealth()
     if (status === 'healthy' && this.gatewayStatus !== 'running') {
       logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
-      this.gatewayStatus = 'running'
+      this.setGatewayStatus('running')
     } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
       logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
-      this.gatewayStatus = 'stopped'
+      this.setGatewayStatus('stopped')
     }
 
     return {

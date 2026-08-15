@@ -21,7 +21,7 @@ import { miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
-import { openclawRequestSchemas } from './openclaw'
+import { type OpenClawEventSchemas, openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
@@ -106,6 +106,7 @@ export type IpcEventSchemas = AiEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
   OAuthEventSchemas &
+  OpenClawEventSchemas &
   QuickAssistantEventSchemas &
   ScreenshotEventSchemas &
   SelectionEventSchemas &
