@@ -397,6 +397,36 @@ describe('ExtensionRegistry', () => {
         }
       })
     })
+
+    it('should bypass the cache for request-specific fetch wrappers', async () => {
+      const createSpy = vi.fn(createMockProviderV3)
+      registry.register(
+        new ProviderExtension({
+          name: 'test-provider',
+          create: createSpy
+        })
+      )
+
+      const firstFetch = vi.fn()
+      const secondFetch = vi.fn()
+      const settings = { apiKey: 'same-key' }
+
+      const firstProvider = await registry.createProvider(
+        'test-provider',
+        { ...settings, fetch: firstFetch },
+        { cache: false }
+      )
+      const secondProvider = await registry.createProvider(
+        'test-provider',
+        { ...settings, fetch: secondFetch },
+        { cache: false }
+      )
+
+      expect(firstProvider).not.toBe(secondProvider)
+      expect(createSpy).toHaveBeenCalledTimes(2)
+      expect(createSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ fetch: firstFetch }))
+      expect(createSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ fetch: secondFetch }))
+    })
   })
 
   describe('ProviderCreationError', () => {

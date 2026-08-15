@@ -256,7 +256,8 @@ export async function fetchChatCompletion({
     modelId,
     capabilities,
     webSearchPluginConfig,
-    idleTimeout
+    idleTimeout,
+    customProviderParams
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -301,7 +302,8 @@ export async function fetchChatCompletion({
     assistant,
     topicId,
     callType: 'chat',
-    uiMessages
+    uiMessages,
+    customProviderParams
   })
 }
 

@@ -31,6 +31,7 @@ export { formatPrivateKey, ProviderCreationError } from './core/utils'
 
 // Extension 核心类和类型
 export {
+  type ProviderCreationOptions,
   type ProviderCreatorFunction,
   ProviderExtension,
   type ProviderExtensionConfig,
