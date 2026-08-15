@@ -434,8 +434,8 @@
     }
   ],
   "providers": {
-    "version": "7dd1ae83c85245f9",
-    "count": 62,
+    "version": "3b0db0dbf782023d",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -664,6 +664,10 @@
       {
         "id": "huggingface",
         "name": "Hugging Face"
+      },
+      {
+        "id": "huawei-maas",
+        "name": "Huawei Cloud MaaS"
       },
       {
         "id": "gateway",

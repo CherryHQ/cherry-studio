@@ -38,12 +38,19 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini", "openai"]
+          "vendors": [
+            "anthropic",
+            "gemini",
+            "openai"
+          ]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini"]
+          "vendors": [
+            "anthropic",
+            "gemini"
+          ]
         }
       ]
     },
@@ -129,12 +136,19 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini", "openai"]
+          "vendors": [
+            "anthropic",
+            "gemini",
+            "openai"
+          ]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini"]
+          "vendors": [
+            "anthropic",
+            "gemini"
+          ]
         }
       ]
     },
@@ -242,7 +256,9 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["zhipu"]
+          "vendors": [
+            "zhipu"
+          ]
         }
       ]
     },
@@ -319,7 +335,9 @@
       "name": "deepseek",
       "serverTools": [
         {
-          "endpointTypes": ["openai-responses"],
+          "endpointTypes": [
+            "openai-responses"
+          ],
           "id": "web-search",
           "modelScope": "model-dependent"
         }
@@ -686,12 +704,19 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini", "openai"]
+          "vendors": [
+            "anthropic",
+            "gemini",
+            "openai"
+          ]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini"]
+          "vendors": [
+            "anthropic",
+            "gemini"
+          ]
         }
       ]
     },
@@ -752,7 +777,9 @@
       ]
     },
     {
-      "authMethods": ["external-cli"],
+      "authMethods": [
+        "external-cli"
+      ],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Claude Code - AI model provider",
       "endpointConfigs": {
@@ -784,7 +811,9 @@
       "apiFeatures": {
         "serviceTier": true
       },
-      "authMethods": ["oauth"],
+      "authMethods": [
+        "oauth"
+      ],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
       "endpointConfigs": {
@@ -807,7 +836,9 @@
       "name": "OpenAI Codex"
     },
     {
-      "authMethods": ["oauth"],
+      "authMethods": [
+        "oauth"
+      ],
       "defaultChatEndpoint": "openai-responses",
       "description": "Grok CLI - AI model provider",
       "endpointConfigs": {
@@ -986,7 +1017,9 @@
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": ["gemini"]
+          "vendors": [
+            "gemini"
+          ]
         }
       ]
     },
@@ -1092,7 +1125,9 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["kimi"]
+          "vendors": [
+            "kimi"
+          ]
         }
       ]
     },
@@ -1255,7 +1290,9 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": ["doubao"]
+          "vendors": [
+            "doubao"
+          ]
         }
       ]
     },
@@ -1931,6 +1968,30 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Huawei Cloud MaaS - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.modelarts-maas.com/anthropic/v1"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.modelarts-maas.com/openai/v1"
+        }
+      },
+      "id": "huawei-maas",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.huaweicloud.com/modelarts/#/model-studio/homepage",
+          "docs": "https://support.huaweicloud.com/api-maas/api-maas-0002.html",
+          "models": "https://support.huaweicloud.com/model-call-maas/model-call-021.html",
+          "official": "https://www.huaweicloud.com/product/modelarts/studio.html"
+        }
+      },
+      "name": "Huawei Cloud MaaS"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Vercel AI Gateway - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2073,5 +2134,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7dd1ae83c85245f9"
+  "version": "3b0db0dbf782023d"
 }
