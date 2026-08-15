@@ -2393,6 +2393,34 @@ describe('AgentComposer', () => {
     }
   })
 
+  // Regression: #17979. Keep this behavior assertion separate from the search-options assertions so
+  // lowering maxDepth cannot make the implementation and its tests agree while hiding deep files again.
+  it('finds a workspace file beneath three nested directories through @ search', async () => {
+    vi.useFakeTimers()
+    try {
+      const targetPath =
+        '/workspace/考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md'
+      mocks.listDirectoryEntries.mockImplementation(async (_dirPath: string, options?: { maxDepth?: number }) =>
+        (options?.maxDepth ?? 0) >= 4 ? [{ path: targetPath, isDirectory: false }] : []
+      )
+      const { result } = renderAgentResourceMentionSource()
+      const source = requireFirstResourceMentionSource(result.current)
+
+      const itemsPromise = source.items({ query: '微分方程', editor: buildComposerEditorMock().editor })
+      await vi.advanceTimersByTimeAsync(200)
+
+      await expect(itemsPromise).resolves.toEqual([
+        expect.objectContaining({
+          label: '考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md',
+          description: targetPath,
+          disabled: false
+        })
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('lists an empty folder through one bounded combined root query and inserts a folder token', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([{ path: '/workspace/empty', isDirectory: true }])
     const { result } = renderAgentResourceMentionSource()
