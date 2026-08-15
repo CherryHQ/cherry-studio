@@ -267,6 +267,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }}
           onFocus={() => {
             props.onFocus?.()
+            // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+            // would otherwise commit before the keystroke's input event, dropping the character.
+            requestRuntime()
           }}
           onSelect={updateSelection}
           onPaste={(event) => {

@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
+  editorViewConnected: true,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
+  setTextSelection: vi.fn(),
   chainRun: vi.fn(),
   docContentSize: 0,
   docDescendants: vi.fn(),
@@ -193,6 +195,10 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             mocks.setNodeSelection(...args)
             return { run: mocks.chainRun }
           },
+          setTextSelection: (...args: unknown[]) => {
+            mocks.setTextSelection(...args)
+            return { run: mocks.chainRun }
+          },
           deleteSelection: () => {
             mocks.deleteSelection()
             return { run: mocks.chainRun }
@@ -227,7 +233,15 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         get composing() {
           return mocks.editorViewComposing
         },
-        dispatch: mocks.dispatch
+        dispatch: mocks.dispatch,
+        get dom() {
+          const element = document.createElement('div')
+          Object.defineProperty(element, 'isConnected', {
+            configurable: true,
+            get: () => mocks.editorViewConnected
+          })
+          return element
+        }
       },
       state: {
         get selection() {
@@ -439,6 +453,7 @@ describe('ComposerSurface', () => {
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
+    mocks.editorViewConnected = true
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -447,6 +462,7 @@ describe('ComposerSurface', () => {
     mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
+    mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docContentSize = 0
     mocks.docDescendants.mockReset()
@@ -509,6 +525,48 @@ describe('ComposerSurface', () => {
     render(<ComposerSurface {...baseProps} />)
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+  })
+
+  it('keeps a focused standby textarea while the editor view is detached and folds it away once the view attaches', () => {
+    mocks.editorViewConnected = false
+    const onTextChange = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} onTextChange={onTextChange} />)
+
+    // While the editor view is not yet in the DOM the surface functions as a plain textarea,
+    // keeping a live input target (and its focus) through the swap.
+    const standby = screen.getByTestId('composer-standby-input')
+    expect(standby).toBeInTheDocument()
+    expect(standby).toHaveFocus()
+    fireEvent.change(standby, { target: { value: 'h' } })
+    expect(onTextChange).toHaveBeenCalledWith('h')
+
+    // Once the view connects, the standby gives way to the editor and hands focus to it.
+    mocks.editorViewConnected = true
+    rerender(<ComposerSurface {...baseProps} onTextChange={onTextChange} />)
+
+    expect(screen.queryByTestId('composer-standby-input')).not.toBeInTheDocument()
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
+  it('carries the standby caret into the editor when the view attaches after a selection', () => {
+    mocks.editorViewConnected = false
+    mocks.docContentSize = 10
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => 'x'.repeat(Math.max(0, to)))
+    const onTextChange = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} text="draft" onTextChange={onTextChange} />)
+
+    const standby = screen.getByTestId<HTMLTextAreaElement>('composer-standby-input')
+    expect(standby).toHaveValue('draft')
+    standby.setSelectionRange(3, 3)
+    fireEvent.select(standby)
+
+    mocks.editorViewConnected = true
+    rerender(<ComposerSurface {...baseProps} text="draft" onTextChange={onTextChange} />)
+
+    // The caret the user left in the standby textarea is mapped into the editor through
+    // setTextSelection instead of being collapsed to the end.
+    expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
+    expect(mocks.focus).not.toHaveBeenCalled()
   })
 
   it('uses the card color with a subtle shadow', () => {

@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -136,19 +136,26 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
+    render(<Harness text="" />)
+
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('')
+    expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
     expect(input).toHaveValue('draft')
-    expect(mocks.runtimeLoads).toBe(0)
 
+    // Focus starts the runtime load; a composition begun before the swap commits keeps the
+    // textarea mounted, so the committed characters survive into the runtime.
     fireEvent.focus(input)
-    expect(mocks.runtimeLoads).toBe(0)
-
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'draft text', selectionStart: 10, selectionEnd: 10 } })
-    await waitFor(() => expect(mocks.runtimeLoads).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('draft text')
 
     fireEvent.compositionEnd(input, { currentTarget: { selectionStart: 10, selectionEnd: 10 } })
