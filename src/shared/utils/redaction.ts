@@ -61,7 +61,7 @@ export function redactDeep(value: unknown): unknown {
 export function redactServerKey(serverKey: string): string {
   const redactAllValues = (value: unknown): unknown =>
     typeof value === 'object' && value !== null
-      ? Object.fromEntries(Object.keys(value as object).map((key) => [key, REDACTED]))
+      ? Object.fromEntries(Object.keys(value).map((key) => [key, REDACTED]))
       : value
   try {
     const parsed = JSON.parse(serverKey) as Record<string, unknown>
