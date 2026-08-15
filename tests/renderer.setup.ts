@@ -191,11 +191,11 @@ vi.mock('@cherrystudio/ui', () => {
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
     BlurCancelPointerSensor: class BlurCancelPointerSensor {},
-    ReorderableList: ({ items, renderItem, getId }) =>
+    ReorderableList: ({ items, visibleItems = items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
         null,
-        items.map((item, index) =>
+        visibleItems.map((item, index) =>
           React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
         )
       ),
