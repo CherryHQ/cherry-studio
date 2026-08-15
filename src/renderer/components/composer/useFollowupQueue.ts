@@ -36,16 +36,21 @@ function loadState(scopeKey: string): FollowupQueueState {
   }
 }
 
-/** Write one conversation's queue; entries drained to empty are dropped to keep storage bounded. */
+/**
+ * Write one conversation's queue; entries drained to empty are dropped to keep storage bounded.
+ * Uses the functional updater so concurrent writes from other windows (same persist tier) merge
+ * against the latest stored value instead of clobbering each other's entries.
+ */
 function persistState(scopeKey: string, items: FollowupQueueItem[], paused: boolean): void {
-  const queues = cacheService.getPersist(QUEUE_STORAGE_KEY)
-  const next = { ...queues }
-  if (items.length === 0 && !paused) {
-    delete next[scopeKey]
-  } else {
-    next[scopeKey] = { items, paused }
-  }
-  cacheService.setPersist(QUEUE_STORAGE_KEY, next)
+  cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
+    const next = { ...prev }
+    if (items.length === 0 && !paused) {
+      delete next[scopeKey]
+    } else {
+      next[scopeKey] = { items, paused }
+    }
+    return next
+  })
 }
 
 interface UseFollowupQueueParams {
@@ -93,6 +98,12 @@ export function useFollowupQueue({
   const [state, setState] = useState<FollowupQueueState>(() => loadState(scopeKey))
   const [failedItemId, setFailedItemId] = useState<string | null>(null)
 
+  // Serialize drains: only one send may be in flight per queue at a time.
+  const drainingIdRef = useRef<string | null>(null)
+  // Bumped whenever queue mutations invalidate an in-flight drain's resolution (clear / removing
+  // the drained item / scope switch), so a settled drain cannot resurrect state for a dropped item.
+  const drainEpochRef = useRef(0)
+
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
   const stateRef = useRef(state)
@@ -110,6 +121,8 @@ export function useFollowupQueue({
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
+    // A drain in flight for the previous scope must not settle into the new scope's queue.
+    drainEpochRef.current += 1
     setState(loadState(scopeKey))
     setFailedItemId(null)
   }, [scopeKey])
@@ -138,6 +151,8 @@ export function useFollowupQueue({
 
   const removeId = useCallback(
     (id: string) => {
+      // Removing the item an in-flight drain is sending invalidates its resolution.
+      if (drainingIdRef.current === id) drainEpochRef.current += 1
       setState((prev) => {
         const next = { ...prev, items: prev.items.filter((item) => item.id !== id) }
         // Removing the failed head resolves the failure; the queue resumes like a skip.
@@ -162,6 +177,8 @@ export function useFollowupQueue({
   )
 
   const clear = useCallback(() => {
+    // An in-flight drain's resolution targets an item we just dropped — invalidate it.
+    drainEpochRef.current += 1
     const next = { items: [], paused: false }
     persist(next)
     setState(next)
@@ -183,14 +200,23 @@ export function useFollowupQueue({
 
   const drainHead = useCallback(
     (head: FollowupQueueItem | undefined) => {
-      if (!head) return
+      if (!head || drainingIdRef.current !== null) return
+      drainingIdRef.current = head.id
+      const epoch = drainEpochRef.current
       void onDrainRef.current(head.payload).then(
         (sent) => {
-          // removeId resolves the failure state too when the retried head succeeds.
+          drainingIdRef.current = null
+          // The queue moved on while the send was in flight (cleared/removed/scope switch) —
+          // drop the resolution instead of resurrecting failure state for a gone item.
+          if (drainEpochRef.current !== epoch) return
           if (sent) removeId(head.id)
           else failHead(head.id)
         },
-        () => failHead(head.id)
+        () => {
+          drainingIdRef.current = null
+          if (drainEpochRef.current !== epoch) return
+          failHead(head.id)
+        }
       )
     },
     [failHead, removeId]
@@ -200,7 +226,9 @@ export function useFollowupQueue({
   // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
   // While a failure is unresolved the user must Skip/Retry/Abort — no automatic re-drain.
   useEffect(() => {
-    if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current) return
+    if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) {
+      return
+    }
     const head = stateRef.current.items[0]
     if (!head) return
     markSeen()
@@ -209,13 +237,15 @@ export function useFollowupQueue({
 
   const retryFailed = useCallback(() => {
     const failed = failedItemIdRef.current
-    if (!failed) return
+    // A retry is already in flight — never start a second concurrent send.
+    if (!failed || drainingIdRef.current !== null) return
     drainHead(stateRef.current.items.find((item) => item.id === failed))
   }, [drainHead])
 
   const skipFailed = useCallback(() => {
     const failed = failedItemIdRef.current
-    if (!failed) return
+    // A retry is already re-sending the failed head; let it settle instead of racing it.
+    if (!failed || drainingIdRef.current !== null) return
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)
     const next = { items: remaining, paused: false }
