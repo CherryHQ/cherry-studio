@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
+            "description_pi": "Funcționează independent. Întreabă atunci când recunoaște o acțiune riscantă.",
             "title": "Aprobă în locul meu",
-            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe.",
+            "warning_pi": "Recunoașterea se face pe principiul efortului maxim; o comandă neobișnuită poate totuși să treacă."
           },
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
+            "warning_pi": "Periculos — nu se întreabă niciodată pentru nimic, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
           },
           "confirmChange": {
             "description": "Schimbarea modurilor actualizează instrumentele aprobate automat.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "CLI Gemini",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Mod agent implicit",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combină lucrul în mai mulți pași cu instrumente prin SDK-ul PTC Code Mode pentru sarcini complexe de codare.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Păstrează presetarea implicită existentă în setările partajate ~/.dsh.",
+          "label": "Implicit Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Folosește doar un shell persistent și un editor de text pentru suprafața cea mai mică a instrumentelor.",
+          "label": "Minimal"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agent complet de codare cu fișiere, shell, căutare, abilități (Skills), planificare și subagenți.",
+          "label": "Standard"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Accesul complet permite agentului să ajungă la fișiere din afara spațiului de lucru și să omită aprobarea operațiunilor. Folosește-l doar pentru sarcini în care ai încredere.",
+      "permission_mode": "Permisiune implicită",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Permite acces nelimitat fără aprobare pentru operațiuni.",
+          "label": "Acces complet"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Restricționează scrierea fișierelor și întreabă înaintea operațiunilor riscante.",
+          "label": "Doar citire"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Permite scrierea în spațiul de lucru DSH curent și întreabă înaintea operațiunilor riscante.",
+          "label": "Scriere spațiu de lucru"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Nu există instrumente disponibile",
     "not_installed": "Neinstalat",
     "open_provider_settings": "Deschide setările furnizorului",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Deschide interfața Web",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Furnizori de căutare…",
     "select_folder": "Selectează directorul",
     "select_provider_before_launch": "Selectează un furnizor înainte de a porni {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Te rugăm să selectezi mai întâi un provider și un model",
     "select_tool_to_start": "Selectează un instrument CLI din stânga pentru a începe configurarea",
     "set_custom_path": "Setează calea personalizată a terminalului",
-    "stop": "[to be translated]:Stop",
+    "stop": "Stop",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
@@ -2642,7 +2645,6 @@
       "503": "Serviciu indisponibil. Te rugăm să încerci din nou mai târziu",
       "504": "Expirare gateway. Te rugăm să încerci din nou mai târziu"
     },
-    "image_unreadable_for_non_vision_model": "Modelul selectat nu suportă imagini, iar Cherry Studio nu a putut extrage text lizibil din atașament. Alegeți un model care suportă imagini sau eliminați imaginea și încercați din nou.",
     "lastError": "Ultima eroare",
     "maxEmbeddingsPerCall": "Max Embeddings per apel",
     "message": "Mesaj de eroare",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Șterge sursele de date selectate?",
         "loaded_only_hint": "Se aplică doar elementelor încărcate ({{total}} în total)",
         "reindex": "Reindexare",
+        "reindex_none_eligible": "Toate sursele de date selectate sunt încă în procesare și nu pot fi reindexate încă",
+        "reindex_skipped": "S-au omis {{count}} sursă/surse de date încă în procesare",
         "selected_count": "{{count}} selectate"
       },
       "chunks_count": "{{count}} fragmente",
@@ -3528,9 +3532,9 @@
               "claude_code": "Avansat: Claude Agent",
               "pi": "Rapid: Pi"
             },
-            "selected": {
-              "claude_code": "Avansat",
-              "pi": "Rapid"
+            "option_description": {
+              "claude_code": "Mai capabil — modul plan și modelele per-tier",
+              "pi": "Răspunsuri mai rapide, overhead mai mic"
             }
           },
           "small_model": {
