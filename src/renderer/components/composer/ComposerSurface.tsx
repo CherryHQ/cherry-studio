@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
-import { matchesShortcutModifiers, resolveNewlineShortcut } from '@renderer/utils/input'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -60,7 +60,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
   const intentRef = useRef<ComposerDeferredIntent>({})
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const sendMessageShortcut = props.sendMessageShortcut ?? preferredSendMessageShortcut
+  const sendMessageShortcut = props.sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
@@ -288,8 +288,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
             event.preventDefault()
 
-            const isSteerPressed = !!props.steerShortcut && matchesShortcutModifiers(event, props.steerShortcut)
-            if (isSteerPressed || matchesShortcutModifiers(event, sendMessageShortcut)) {
+            const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
+            if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
               // Holding the key must not send twice; holding the newline key still repeats.
               if (event.repeat) return
               if (props.sendDisabled) {
@@ -302,7 +302,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               return
             }
 
-            if (matchesShortcutModifiers(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
+            if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
           }}
         />
       </div>

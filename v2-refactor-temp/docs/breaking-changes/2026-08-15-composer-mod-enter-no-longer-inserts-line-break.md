@@ -14,6 +14,8 @@ The chat, agent, and painting message inputs used to insert a line break on `Ent
 
 Users who insert line breaks with `Cmd/Ctrl+Enter` will find the key no longer does so — in an agent session it now steers the running turn. Enter combinations that are not bound to send, line break, or steer do nothing at all instead of inserting a break.
 
+The three shortcuts also moved to the app's shared key vocabulary, so their labels now match Settings > Shortcuts (`⌘Enter` rather than `⌘ + Enter`). On Windows and Linux the send shortcut loses its `Win/Super+Enter` option, which was reserved by the OS and could never fire; anyone who had selected it now sends with `Ctrl+Enter`.
+
 ## What the user should do
 
 Nothing — automatic. `Shift+Enter` keeps working as the line break. To restore `Cmd/Ctrl+Enter`, set it as the line break shortcut in Settings > Chat > Input.

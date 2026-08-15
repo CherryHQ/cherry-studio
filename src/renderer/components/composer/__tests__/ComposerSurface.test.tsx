@@ -4601,11 +4601,11 @@ describe('ComposerSurface', () => {
     const onSendDraft = vi.fn()
     mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
 
-    render(<ComposerSurface {...baseProps} steerShortcut="Command+Enter" onSendDraft={onSendDraft} />)
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true })
+    const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(event.defaultPrevented).toBe(true)
     expect(onSendDraft).toHaveBeenCalledTimes(1)
@@ -4616,7 +4616,7 @@ describe('ComposerSurface', () => {
     const onSendDraft = vi.fn()
     mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
 
-    render(<ComposerSurface {...baseProps} steerShortcut="Command+Enter" onSendDraft={onSendDraft} />)
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -4628,13 +4628,13 @@ describe('ComposerSurface', () => {
 
   it('steers rather than sends when the steer shortcut equals the send shortcut', async () => {
     const onSendDraft = vi.fn()
-    mocks.preferences['chat.input.send_message_shortcut'] = 'Command+Enter'
+    mocks.preferences['chat.input.send_message_shortcut'] = ['CommandOrControl', 'Enter']
 
-    render(<ComposerSurface {...baseProps} steerShortcut="Command+Enter" onSendDraft={onSendDraft} />)
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true })
+    const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(onSendDraft).toHaveBeenCalledTimes(1)
     expect(onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
@@ -4648,7 +4648,7 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    const event = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true })
+    const event = new KeyboardEvent('keydown', { key: 'Enter', altKey: true, cancelable: true })
     // Swallowed rather than forwarded: the base keymap would otherwise split the single block.
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(onSendDraft).not.toHaveBeenCalled()

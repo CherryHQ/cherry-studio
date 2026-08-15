@@ -8,12 +8,14 @@ import { ipcApi } from '@renderer/ipc'
 import type { CodeStyleVarious } from '@renderer/types/app'
 import {
   COMPOSER_SHORTCUTS,
-  getSendMessageShortcutLabel,
+  composerShortcutId,
+  getComposerShortcutLabel,
   resolveNewlineShortcut,
+  resolveSendShortcut,
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -54,12 +56,13 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
 const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassName }) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
-  const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [steerShortcut, setInjectMessageShortcut] = usePreference('chat.input.steer_shortcut')
+  const [storedSendShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [steerShortcut, setSteerShortcut] = usePreference('chat.input.steer_shortcut')
   const [newlineShortcut, setNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   // Newline and steer are stored as null until the user overrides them; show the effective default.
-  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
-  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+  const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
+  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, resolvedSendShortcut)
+  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, resolvedSendShortcut, resolvedNewlineShortcut)
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -135,12 +138,19 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   )
 
   // Send / newline / steer are mutually exclusive: each select hides the two keys already in use.
-  const shortcutItemsExcluding = useCallback(
-    (...taken: SendMessageShortcut[]): SelectOption<SendMessageShortcut>[] =>
-      COMPOSER_SHORTCUTS.filter((shortcut) => !taken.includes(shortcut)).map((shortcut) => ({
-        value: shortcut,
-        label: getSendMessageShortcutLabel(shortcut)
-      })),
+  // Bindings are arrays, so the select trades in their ids and maps back on change.
+  const shortcutItemsExcluding = useCallback((...taken: ComposerShortcut[]): SelectOption<string>[] => {
+    const takenIds = taken.map(composerShortcutId)
+    return COMPOSER_SHORTCUTS.filter((shortcut) => !takenIds.includes(composerShortcutId(shortcut))).map(
+      (shortcut) => ({ value: composerShortcutId(shortcut), label: getComposerShortcutLabel(shortcut) })
+    )
+  }, [])
+
+  const setShortcutById = useCallback(
+    (setter: (value: ComposerShortcut) => unknown) => (id: string) => {
+      const shortcut = COMPOSER_SHORTCUTS.find((candidate) => composerShortcutId(candidate) === id)
+      if (shortcut) void setter(shortcut)
+    },
     []
   )
 
@@ -185,7 +195,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
         <>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-            <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
+            <Select
+              value={composerShortcutId(resolvedSendShortcut)}
+              onValueChange={setShortcutById(setSendMessageShortcut)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -202,13 +214,13 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.newline_shortcuts')}</SettingRowTitleSmall>
             <Select
-              value={resolvedNewlineShortcut}
-              onValueChange={(value) => void setNewlineShortcut(value as SendMessageShortcut)}>
+              value={composerShortcutId(resolvedNewlineShortcut)}
+              onValueChange={setShortcutById(setNewlineShortcut)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-sm">
-                {shortcutItemsExcluding(sendMessageShortcut, resolvedSteerShortcut).map((item) => (
+                {shortcutItemsExcluding(resolvedSendShortcut, resolvedSteerShortcut).map((item) => (
                   <SelectItem className="text-sm" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
@@ -221,14 +233,12 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             <SettingRowTitleSmall hint={t('settings.messages.input.steer_shortcuts_hint')}>
               {t('settings.messages.input.steer_shortcuts')}
             </SettingRowTitleSmall>
-            <Select
-              value={resolvedSteerShortcut}
-              onValueChange={(value) => void setInjectMessageShortcut(value as SendMessageShortcut)}>
+            <Select value={composerShortcutId(resolvedSteerShortcut)} onValueChange={setShortcutById(setSteerShortcut)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-sm">
-                {shortcutItemsExcluding(sendMessageShortcut, resolvedNewlineShortcut).map((item) => (
+                {shortcutItemsExcluding(resolvedSendShortcut, resolvedNewlineShortcut).map((item) => (
                   <SelectItem className="text-sm" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>

@@ -81,7 +81,7 @@ function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
     managedTokenKinds: [],
     onTokensChange: vi.fn(),
     placeholder: 'Message',
-    sendMessageShortcut: 'Enter',
+    sendMessageShortcut: ['Enter'],
     sendDisabled: false,
     isLoading: false,
     onSendDraft: mocks.onSendDraft,
@@ -233,10 +233,10 @@ describe('deferred ComposerSurface', () => {
   })
 
   it('routes the steer shortcut to onSendDraft with { steer: true } in the deferred textarea', () => {
-    render(<Harness steerShortcut="Command+Enter" />)
+    render(<Harness steerShortcut={['CommandOrControl', 'Enter']} />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
-    fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
     expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
   })
@@ -244,7 +244,7 @@ describe('deferred ComposerSurface', () => {
   it('ignores the steer shortcut in the deferred textarea when the caller does not pass one', () => {
     render(<Harness />)
 
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', ctrlKey: true })
     expect(mocks.onSendDraft).not.toHaveBeenCalled()
   })
 

@@ -16,7 +16,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import { matchesShortcutModifiers, resolveNewlineShortcut } from '@renderer/utils/input'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -24,7 +24,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
@@ -145,9 +145,9 @@ export interface ComposerSurfaceProps {
   managedTokenKinds: readonly ComposerDraftToken['kind'][]
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
-  sendMessageShortcut?: SendMessageShortcut
+  sendMessageShortcut?: ComposerShortcut
   /** Only set by the agent composer while streaming: sends the draft into the running turn. */
-  steerShortcut?: SendMessageShortcut
+  steerShortcut?: ComposerShortcut
   sendDisabled: boolean
   sendBlockedReason?: string
   isLoading: boolean
@@ -570,7 +570,7 @@ export default function ComposerSurfaceRuntime({
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const sendMessageShortcut = _sendMessageShortcut ?? preferredSendMessageShortcut
+  const sendMessageShortcut = _sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const { t } = useTranslation()
@@ -1468,7 +1468,7 @@ export default function ComposerSurfaceRuntime({
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
-        const isNewlinePressed = isEnterPressed && matchesShortcutModifiers(event, newlineShortcutRef.current)
+        const isNewlinePressed = isEnterPressed && matchesComposerShortcut(event, newlineShortcutRef.current)
         const qp = quickPanelRef.current
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
@@ -1533,8 +1533,8 @@ export default function ComposerSurfaceRuntime({
           // Steer wins over send: only the agent composer passes a steer shortcut, and only while
           // streaming, so binding both to the same key means "steer the turn, don't queue".
           const steerShortcut = steerShortcutRef.current
-          const isSteerPressed = !!steerShortcut && matchesShortcutModifiers(event, steerShortcut)
-          if (isSteerPressed || matchesShortcutModifiers(event, sendMessageShortcutRef.current)) {
+          const isSteerPressed = !!steerShortcut && matchesComposerShortcut(event, steerShortcut)
+          if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcutRef.current)) {
             // Holding the key must not send twice; holding the newline key still repeats.
             if (!event.repeat) submitDraft(isSteerPressed)
             return true
