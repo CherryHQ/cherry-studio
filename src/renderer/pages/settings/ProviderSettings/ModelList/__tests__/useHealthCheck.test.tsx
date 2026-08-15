@@ -199,8 +199,11 @@ describe('useHealthCheck', () => {
     await waitFor(() => expect(result.current.isChecking).toBe(false))
   })
 
-  it('surfaces API key save failures without refetching or starting checks', async () => {
-    commitInputApiKeyNow.mockRejectedValueOnce(new Error('save failed'))
+  it('does not duplicate API key save failure feedback before stopping', async () => {
+    commitInputApiKeyNow.mockImplementationOnce(async () => {
+      toastErrorMock('settings.provider.api_key.save_failed')
+      throw new Error('save failed')
+    })
     const { result } = renderHook(() => useHealthCheck('openai'))
 
     await act(async () => {
@@ -212,10 +215,9 @@ describe('useHealthCheck', () => {
     expect(result.current.isChecking).toBe(false)
     expect(refetchApiKeys).not.toHaveBeenCalled()
     expect(checkModelsHealthMock).not.toHaveBeenCalled()
-    expect(toastErrorMock).toHaveBeenCalledWith({
-      timeout: 8000,
-      title: 'settings.provider.api_key.save_failed'
-    })
+    expect(toastErrorMock).toHaveBeenCalledTimes(1)
+    expect(toastErrorMock).toHaveBeenCalledWith('settings.provider.api_key.save_failed')
+    expect(toastErrorMock).not.toHaveBeenCalledWith('settings.models.check.failed_to_start')
   })
 
   it('surfaces API key refresh failures without starting checks', async () => {
@@ -330,6 +332,28 @@ describe('useHealthCheck', () => {
     expect(checkModelsHealthMock).toHaveBeenCalledWith(
       expect.objectContaining({
         credentials: [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
+      }),
+      expect.any(Function)
+    )
+  })
+
+  it('uses explicit API keys for auth-optional providers when enabled keys exist', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'ollama', name: 'Ollama', authOptional: true, authMethods: ['api-key'] }
+    })
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    const { result } = renderHook(() => useHealthCheck('ollama'))
+
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    expect(checkModelsHealthMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: [
+          { kind: 'api-key', entry: primaryKey },
+          { kind: 'api-key', entry: backupKey }
+        ]
       }),
       expect.any(Function)
     )

@@ -232,7 +232,6 @@ export function useHealthCheck(providerId: string) {
         if (runIdRef.current !== runId || controller.signal.aborted) return false
         if (!didCommitApiKey) {
           logger.error('Failed to save API keys before all-model check', { providerId, error })
-          toast.error({ timeout: 8000, title: i18n.t('settings.provider.api_key.save_failed') })
         } else if (error instanceof ModelCheckCredentialsError) {
           toast.error(i18n.t('message.error.enter.api.label'))
         } else {
