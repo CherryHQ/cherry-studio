@@ -8,7 +8,7 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
-import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { type DeepSeekHarnessEventSchemas, deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
@@ -99,6 +99,7 @@ export type IpcEventSchemas = AiEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  DeepSeekHarnessEventSchemas &
   FileEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
