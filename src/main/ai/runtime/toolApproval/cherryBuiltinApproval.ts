@@ -84,8 +84,8 @@ export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
 
 /**
  * Assistant MCP tools that must retain per-call approval even when the Agent uses acceptEdits or
- * bypassPermissions. `diagnose` reads local device state; the other tools mutate app settings or
- * create persistent business data.
+ * auto. `diagnose` reads local device state; the other tools mutate app settings or create
+ * persistent business data. (pi's `bypassPermissions` is an explicit opt-out and lifts even this.)
  */
 export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
   'mcp__assistant__diagnose',

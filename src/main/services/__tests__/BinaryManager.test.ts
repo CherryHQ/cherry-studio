@@ -1578,6 +1578,28 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('includes fresh prereleases when querying the latest DeepSeek Harness version', async () => {
+      const service = makeService()
+      mockBackend({ 'npm:@deepseek-ai/dsh': '0.1.0-rc.3' })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
+        if (args[0] === 'latest') return { stdout: '0.1.0-rc.6\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.getLatestVersions(true)).resolves.toMatchObject({ dsh: '0.1.0-rc.6' })
+
+      const latestCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'latest')
+      expect(latestCall?.[1]).toEqual(['latest', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh'])
+      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
+    })
+
     it('includes an applied custom tool under its manifest name', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
@@ -2093,6 +2115,43 @@ describe('BinaryManager', () => {
 
       expect(miseArgs()).toContainEqual(['use', '-g', 'node@22', 'npm:mytool@latest'])
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
+    })
+
+    it('installs the current DeepSeek Harness prerelease without mise release-age filtering', async () => {
+      const service = makeService()
+      let installed = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) {
+          return {
+            stdout: JSON.stringify(
+              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] } : {}
+            ),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'dsh' })
+
+      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
+      expect(useCall?.[1]).toEqual([
+        'use',
+        '-g',
+        '--minimum-release-age',
+        '0s',
+        'node@22',
+        'npm:@deepseek-ai/dsh@latest'
+      ])
+      expect(useCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
     })
   })
 

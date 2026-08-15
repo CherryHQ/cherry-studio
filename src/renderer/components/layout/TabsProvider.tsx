@@ -55,6 +55,10 @@ function routePathOfTab(tab: Tab): string | null {
   }
 }
 
+function isTransientMiniAppTab(tab: Tab): boolean {
+  return tab.metadata?.transientMiniApp === true
+}
+
 /**
  * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
  * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
@@ -66,6 +70,10 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
   const tabs: Tab[] = []
   let changed = false
   for (const tab of pinnedTabs) {
+    if (isTransientMiniAppTab(tab)) {
+      changed = true
+      continue
+    }
     const path = routePathOfTab(tab)
     if (path === LEGACY_LIBRARY_ROUTE_PATH) {
       changed = true
@@ -133,6 +141,7 @@ function computeInitialSession(params: {
   persistedActiveTabId: string
 }): InitialSession {
   const { includePinnedTabs, initialDefaultTab, pinnedTabs, persistedNormalTabs, persistedActiveTabId } = params
+  const restorableNormalTabs = persistedNormalTabs.filter((tab) => !isTransientMiniAppTab(tab))
 
   const freshSession: InitialSession = {
     normalTabs: initialDefaultTab ? [initialDefaultTab] : [],
@@ -148,7 +157,7 @@ function computeInitialSession(params: {
   // Empty persisted session (incl. first-ever launch) → fresh default. If the last active tab was a
   // pinned one (no unpinned tabs were open), honor that selection — the default tab stays as a
   // dormant fallback so the user lands back on the pinned tab they left.
-  if (persistedNormalTabs.length === 0) {
+  if (restorableNormalTabs.length === 0) {
     const activeTabId = pinnedHasActive ? persistedActiveTabId : (initialDefaultTab?.id ?? pinnedTabs[0]?.id ?? '')
     return {
       normalTabs: restoreTabs(freshSession.normalTabs, activeTabId),
@@ -162,14 +171,14 @@ function computeInitialSession(params: {
   // stale persisted id leaves every tab dormant, AppShell mounts zero TabRouters, and the content
   // area is blank until the user clicks a tab.
   const activeInSession =
-    pinnedHasActive || (!!persistedActiveTabId && persistedNormalTabs.some((t) => t.id === persistedActiveTabId))
+    pinnedHasActive || (!!persistedActiveTabId && restorableNormalTabs.some((t) => t.id === persistedActiveTabId))
   const activeTabId = activeInSession
     ? persistedActiveTabId
-    : (persistedNormalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
+    : (restorableNormalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
 
   // Only the active tab stays awake; everything else restores dormant.
   return {
-    normalTabs: restoreTabs(persistedNormalTabs, activeTabId),
+    normalTabs: restoreTabs(restorableNormalTabs, activeTabId),
     pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
     activeTabId
   }
@@ -263,7 +272,7 @@ export function TabsProvider({
   // coalesces redundant writes.
   useEffect(() => {
     if (!includePinnedTabs) return
-    setPersistedNormalTabs(normalTabs)
+    setPersistedNormalTabs(normalTabs.filter((tab) => !isTransientMiniAppTab(tab)))
   }, [includePinnedTabs, normalTabs, setPersistedNormalTabs])
 
   useEffect(() => {

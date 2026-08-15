@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "无需逐次批准，安全检查会拦截风险操作。",
+            "description_pi": "自主执行，识别到风险操作时才询问。",
             "title": "智能批准",
-            "warning": "需要模型支持；部分模型可能忽略此模式或仍逐次询问。"
+            "warning": "需要模型支持；部分模型可能忽略此模式或仍逐次询问。",
+            "warning_pi": "识别是尽力而为，少见的命令仍可能被放行。"
           },
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
             "title": "完全访问",
-            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。"
+            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。",
+            "warning_pi": "危险：除被禁用的工具外，一切操作都不再询问，包括删除文件和访问网络。"
           },
           "confirmChange": {
             "description": "切换模式会更新自动预先授权的工具。",
@@ -2203,6 +2206,7 @@
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2225,6 +2229,43 @@
     "custom_path_error": "设置自定义终端路径失败",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
+    "deepseek_harness": {
+      "agent_preset": "默认 Agent 模式",
+      "agent_presets": {
+        "code": {
+          "description": "通过 PTC Code Mode SDK 组合多步工具操作，适合复杂编码任务。",
+          "label": "PTC 代码"
+        },
+        "inherit": {
+          "description": "保留共享 ~/.dsh 中现有的默认 preset。",
+          "label": "Harness 默认"
+        },
+        "minimal": {
+          "description": "仅使用持久 Shell 和文本编辑器，工具面最精简。",
+          "label": "极简"
+        },
+        "standard": {
+          "description": "完整编码 Agent，包含文件、Shell、检索、Skills、计划和子代理。",
+          "label": "标准"
+        }
+      },
+      "danger_warning": "完全访问模式允许 Agent 访问工作区之外的文件并跳过操作确认。仅在你信任当前任务时使用。",
+      "permission_mode": "默认权限",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "允许完全访问，并且不请求操作确认。",
+          "label": "完全访问"
+        },
+        "read-only": {
+          "description": "限制文件写入，需确认有风险的操作。",
+          "label": "只读"
+        },
+        "workspace-write": {
+          "description": "允许写入当前 DSH 工作区，需确认有风险的操作。",
+          "label": "工作区写入"
+        }
+      }
+    },
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
     "disable": "停用",
     "edit_config": "编辑配置",
@@ -2275,6 +2316,7 @@
     "no_tools": "暂无工具",
     "not_installed": "未安装",
     "open_provider_settings": "打开服务商设置",
+    "open_web_ui": "打开 Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2284,8 +2326,10 @@
     "search_provider_placeholder": "搜索服务商…",
     "select_folder": "选择文件夹",
     "select_provider_before_launch": "请选择一个服务商后启动 {{toolName}}",
+    "select_provider_model": "请先选择服务商和模型",
     "select_tool_to_start": "从左侧选择一个 CLI 工具开始配置",
     "set_custom_path": "设置自定义终端路径",
+    "stop": "停止",
     "supported_providers": "支持的服务商",
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
@@ -2601,7 +2645,6 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
-    "image_unreadable_for_non_vision_model": "当前模型不支持图片，且 Cherry Studio 未能从附件中识别出有效文字。请选择支持图片的模型，或移除图片后重试。",
     "lastError": "最后错误",
     "maxEmbeddingsPerCall": "每次调用的最大嵌入",
     "message": "错误信息",
@@ -3381,6 +3424,7 @@
   },
   "launchpad": {
     "apps": "应用",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理侧边栏",
     "minapps": "小程序",
     "miniApps": "小程序",
@@ -3488,9 +3532,9 @@
               "claude_code": "增强：Claude Agent",
               "pi": "快速：Pi"
             },
-            "selected": {
-              "claude_code": "增强",
-              "pi": "快速"
+            "option_description": {
+              "claude_code": "能力更强，支持 Plan 模式与分层模型",
+              "pi": "响应更快，开销更低"
             }
           },
           "small_model": {

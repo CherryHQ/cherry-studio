@@ -7,6 +7,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
+import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
@@ -25,7 +26,6 @@ import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
-import { sanitizeEnvForLogging } from './envRedaction'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -359,6 +359,11 @@ export class CodeCliService extends BaseService {
     logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
+      const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
       logger.error(message)
       return { success: false, message }
     }
