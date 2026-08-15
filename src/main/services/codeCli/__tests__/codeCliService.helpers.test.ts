@@ -1,7 +1,7 @@
+import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import { describe, expect, it } from 'vitest'
 
 import { escapeBatchText } from '../CodeCliService'
-import { sanitizeEnvForLogging } from '../envRedaction'
 
 describe('escapeBatchText', () => {
   it('preserves normal text without special characters', () => {
