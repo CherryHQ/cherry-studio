@@ -16,6 +16,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import { resolveInjectMessageShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -148,7 +149,7 @@ export interface ComposerSurfaceProps {
   sendDisabled: boolean
   sendBlockedReason?: string
   isLoading: boolean
-  onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
+  onSendDraft: (draft: ComposerSerializedDraft, options?: { inject?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
@@ -582,6 +583,8 @@ export default function ComposerSurfaceRuntime({
   const quickPanelReady = !deferQuickPanel || editorReady
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = _sendMessageShortcut ?? preferredSendMessageShortcut
+  const [preferredInjectMessageShortcut] = usePreference('chat.input.inject_message_shortcut')
+  const injectMessageShortcut = resolveInjectMessageShortcut(preferredInjectMessageShortcut)
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const composerOverridden = useActiveComposerOverride() !== null
@@ -602,6 +605,7 @@ export default function ComposerSurfaceRuntime({
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const injectMessageShortcutRef = useRef(injectMessageShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
@@ -623,12 +627,14 @@ export default function ComposerSurfaceRuntime({
     sendDisabledRef.current = sendDisabled
     sendBlockedReasonRef.current = sendBlockedReason
     sendMessageShortcutRef.current = sendMessageShortcut
+    injectMessageShortcutRef.current = injectMessageShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
+    injectMessageShortcut,
     isExpanded,
     isInputHistoryActive,
     onInputHistoryNavigate,
@@ -1522,6 +1528,24 @@ export default function ComposerSurfaceRuntime({
             const draft = serializeComposerDocument(editorRef.current)
             const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
             void Promise.resolve(onSendDraftRef.current(draft)).finally(() => {
+              if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+            })
+          } else {
+            showBlockedSendReason()
+          }
+          return true
+        }
+
+        // Inject shortcut: in Agent mode while streaming, the parent sends the draft
+        // directly into the current turn instead of queueing it (same as the dock "insert").
+        if (isEnterPressed && isComposerSendKeyPressed(event, injectMessageShortcutRef.current)) {
+          event.preventDefault()
+          if (event.repeat) return true
+
+          if (!sendDisabledRef.current && editorRef.current) {
+            const draft = serializeComposerDocument(editorRef.current)
+            const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+            void Promise.resolve(onSendDraftRef.current(draft, { inject: true })).finally(() => {
               if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
             })
           } else {

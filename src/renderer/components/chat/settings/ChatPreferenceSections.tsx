@@ -6,7 +6,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import type { CodeStyleVarious } from '@renderer/types/app'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { getSendMessageShortcutLabel, resolveInjectMessageShortcut } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -50,6 +50,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [injectMessageShortcut, setInjectMessageShortcut] = usePreference('chat.input.inject_message_shortcut')
+  // The stored value is null until the user overrides it; show the platform default instead.
+  const resolvedInjectMessageShortcut = resolveInjectMessageShortcut(injectMessageShortcut)
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -177,6 +180,31 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
             <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {sendMessageShortcutItems.map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall
+              hint={
+                resolvedInjectMessageShortcut === sendMessageShortcut
+                  ? t('settings.messages.input.inject_shortcuts_conflict')
+                  : undefined
+              }>
+              {t('settings.messages.input.inject_shortcuts')}
+            </SettingRowTitleSmall>
+            <Select
+              value={resolvedInjectMessageShortcut}
+              onValueChange={(value) => void setInjectMessageShortcut(value as SendMessageShortcut)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>

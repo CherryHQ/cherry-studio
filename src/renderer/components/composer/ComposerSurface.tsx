@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
+import { resolveInjectMessageShortcut } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { CirclePause } from 'lucide-react'
 import {
@@ -79,6 +80,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const intentRef = useRef<ComposerDeferredIntent>({})
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = props.sendMessageShortcut ?? preferredSendMessageShortcut
+  const [preferredInjectMessageShortcut] = usePreference('chat.input.inject_message_shortcut')
+  const injectMessageShortcut = resolveInjectMessageShortcut(preferredInjectMessageShortcut)
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
@@ -290,13 +293,26 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               event.preventDefault()
               return
             }
-            if (!isSendShortcut(event, sendMessageShortcut)) return
-            event.preventDefault()
-            if (event.repeat) return
-            if (props.sendDisabled) {
-              showBlockedSendReason()
-            } else {
-              void props.onSendDraft(getFallbackDraft())
+            if (isSendShortcut(event, sendMessageShortcut)) {
+              event.preventDefault()
+              if (event.repeat) return
+              if (props.sendDisabled) {
+                showBlockedSendReason()
+              } else {
+                void props.onSendDraft(getFallbackDraft())
+              }
+              return
+            }
+            // Inject shortcut: in Agent mode while streaming, the parent sends the draft
+            // directly into the current turn instead of queueing it.
+            if (isSendShortcut(event, injectMessageShortcut)) {
+              event.preventDefault()
+              if (event.repeat) return
+              if (props.sendDisabled) {
+                showBlockedSendReason()
+              } else {
+                void props.onSendDraft(getFallbackDraft(), { inject: true })
+              }
             }
           }}
         />

@@ -209,7 +209,8 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions.",
+      "placeholder_streaming": "Agent is working — {{sendKey}} queues a follow-up, {{injectKey}} sends it now."
     },
     "list": {
       "error": {
@@ -7416,6 +7417,8 @@
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / to open the input quick panel",
+        "inject_shortcuts": "Inject shortcut (Agent running)",
+        "inject_shortcuts_conflict": "Same as the send shortcut — send takes precedence, so the inject shortcut won't fire. Choose a different combination.",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"

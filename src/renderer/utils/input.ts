@@ -67,6 +67,14 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
   }
 }
 
+// The inject shortcut has no stored default (schema default is null): its effective
+// default is platform-dependent because Command+Enter maps to Win/Super+Enter on
+// Windows/Linux (reserved by the OS), so those platforms fall back to Ctrl+Enter.
+export const resolveInjectMessageShortcut = (value: SendMessageShortcut | null | undefined): SendMessageShortcut => {
+  if (value) return value
+  return isMac ? 'Command+Enter' : 'Ctrl+Enter'
+}
+
 // convert send message shortcut to human readable label
 export const getSendMessageShortcutLabel = (shortcut: SendMessageShortcut) => {
   switch (shortcut) {

@@ -684,6 +684,13 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.inject_message_shortcut",
+      "type": "PreferenceTypes.SendMessageShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, directly injects the draft into the current conversation instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time."
     }
   ]
 }
