@@ -231,6 +231,13 @@ describe('catalog invariants (data/*.json)', () => {
     expect(bad.map((m) => m.id)).toEqual([])
   })
 
+  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])('keeps the official DeepSeek V4 token limits for %s', (id) => {
+    expect(models.find((model) => model.id === id)).toMatchObject({
+      contextWindow: 1048576,
+      maxOutputTokens: 393216
+    })
+  })
+
   it('models.json conforms to ModelListSchema', () => {
     const r = ModelListSchema.safeParse(modelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])

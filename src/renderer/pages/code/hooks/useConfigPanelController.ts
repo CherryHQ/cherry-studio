@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -162,6 +162,11 @@ export function useConfigPanelController({
         providerConfigPersisted = true
       }
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
+      if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
+        if (shouldEnableAfterSave) await setCurrentProvider(editingProvider.id)
+        setCurrentCliConfigConnection(null)
+        return
+      }
       if (!cliConfigModelId || !shouldApplyCliConfig) return
 
       try {
@@ -251,9 +256,11 @@ export function useConfigPanelController({
         }
         if (!isEnabling) {
           try {
-            await clearCliConfig({ cliTool: selectedCliTool })
-            // Only clear the active selection after the scrub succeeded; otherwise the UI would show the
-            // provider disabled while the CLI config/credential files still retain its managed credentials.
+            if (selectedCliTool !== CodeCli.DEEPSEEK_HARNESS) {
+              await clearCliConfig({ cliTool: selectedCliTool })
+            }
+            // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
+            // a file-configured provider disabled while its CLI files still retain managed credentials.
             await setCurrentProvider(null)
             setCurrentCliConfigConnection(null)
           } catch (err) {
@@ -282,6 +289,17 @@ export function useConfigPanelController({
         if (!cliConfigContext) {
           pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
+          return
+        }
+
+        if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
+          try {
+            await setCurrentProvider(provider.id)
+            setCurrentCliConfigConnection(null)
+          } catch (err) {
+            logger.error('Failed to select DeepSeek Harness provider:', err as Error)
+            toast.error(t('code.apply_failed'))
+          }
           return
         }
 

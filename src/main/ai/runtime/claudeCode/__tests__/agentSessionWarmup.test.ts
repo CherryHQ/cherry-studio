@@ -351,24 +351,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       model: 'provider-1::model-1',
       disabledTools: [],
       mcps: [],
-      configuration: { max_turns: 1 }
+      configuration: { env_vars: { FOO: '1' } }
     }
     const editedAgent = {
       ...materializedAgent,
-      configuration: { max_turns: 2 }
+      configuration: { env_vars: { FOO: '2' } }
     }
     mocks.getAgent.mockReturnValue(materializedAgent)
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, _options, agentSnapshot) => {
       expect(agentSnapshot).toBe(materializedAgent)
       // Simulate an agent edit while the async settings builder is still materializing the request.
       mocks.getAgent.mockReturnValue(editedAgent)
-      return { maxTurns: agentSnapshot.configuration.max_turns, skills: [] }
+      return { env: agentSnapshot.configuration.env_vars, skills: [] }
     })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
 
-    expect(request?.settings.maxTurns).toBe(1)
+    expect(request?.settings.env?.FOO).toBe('1')
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
@@ -1415,16 +1415,6 @@ describe('deriveConnectionConfig', () => {
     })
     const planModelChanged = await deriveSignature()
     expect(planModelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
-
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      disabledTools: [],
-      mcps: [],
-      configuration: { max_turns: 5 }
-    })
-    const maxTurnsChanged = await deriveSignature()
-    expect(maxTurnsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

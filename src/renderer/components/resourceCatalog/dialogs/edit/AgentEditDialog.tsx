@@ -11,6 +11,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
@@ -563,6 +564,7 @@ function AgentBasicFields({
         placeholder={t('library.config.agent.field.description.placeholder')}
         layout="row"
       />
+      <RuntimeField agentType={agentType} />
       <CompactModelField
         form={form}
         name="modelId"
@@ -621,6 +623,22 @@ function AgentBasicFields({
           onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
         />
       ) : null}
+    </div>
+  )
+}
+
+/** Runtime is fixed at creation, so the editor states which one the agent runs on and leaves it at
+ *  that — a summary card, with no control to mistake for a live one. */
+function RuntimeField({ agentType }: { agentType: AgentType }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className={editDialogFormRowClassName}>
+      <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.runtime.label')}</span>
+      <AgentRuntimeSummary value={agentType} t={t} />
+      <span className="col-start-2 text-muted-foreground text-xs">
+        {t('library.config.agent.field.runtime.immutable_hint')}
+      </span>
     </div>
   )
 }

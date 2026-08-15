@@ -554,11 +554,6 @@
           "helper": "カスタム環境変数を入力（1行に1つ、形式: KEY=value）",
           "label": "環境変数"
         },
-        "maxTurns": {
-          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
-          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
-          "label": "会話ラウンド数の上限"
-        },
         "permissionMode": {
           "description": "制御エージェントが認可を必要とする場合の処理方法。",
           "label": "権限モード",
@@ -2208,6 +2203,7 @@
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2226,43 @@
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
     "disable": "無効にする",
     "edit_config": "設定を編集",
@@ -2280,6 +2313,7 @@
     "no_tools": "ツールは利用できません",
     "not_installed": "インストールされていません",
     "open_provider_settings": "プロバイダー設定を開く",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 公式"
     },
@@ -2289,8 +2323,10 @@
     "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダーを選択",
     "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
@@ -2918,6 +2954,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "フィードバック",
+    "guide": "ユーザーガイド",
+    "star": "GitHubでスター",
+    "title": "ヘルプ",
+    "whats_new": "新機能"
+  },
   "history": {
     "continue_chat": "チャットを続ける",
     "error": {
@@ -3377,6 +3420,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "サイドバーを管理",
     "minapps": "ミニアプリ",
     "miniApps": "アプリ",
@@ -3448,10 +3492,6 @@
           },
           "heartbeat_interval": {
             "label": "ハートビート間隔（分）"
-          },
-          "max_turns": {
-            "help": "0 はデフォルトを使用することを意味します",
-            "label": "最大会話ターン数"
           },
           "mcps": {
             "add": "MCPサーバーを追加",
@@ -5986,7 +6026,7 @@
           "title": "診断バンドル"
         },
         "errors": {
-          "busy": "別の診断バンドルをエクスポートしています",
+          "busy": "別の診断バンドル処理がすでに進行中です",
           "copy_failed": "サポート用メールアドレスをコピーできませんでした",
           "destination_conflict": "選択した保存場所が診断データと競合しています。別のフォルダーを選択してください。",
           "email_client_failed": "メールクライアントを開けませんでした。代わりにサポート用メールアドレスをコピーできます。",
@@ -6035,6 +6075,48 @@
           "title": "診断バンドルをエクスポートしました"
         },
         "unknown": "不明",
+        "upload": {
+          "actions": {
+            "consent_upload": "同意してアップロード",
+            "open_form": "フォームを開く",
+            "uploading": "アップロード中..."
+          },
+          "dialog": {
+            "description": "診断バンドルを作成し、Cherry Studio チームに匿名で送信します。",
+            "title": "診断バンドルをアップロード"
+          },
+          "errors": {
+            "open_form_failed": "フィードバックフォームを開けませんでした",
+            "upload_failed": "診断バンドルを作成または保存できませんでした"
+          },
+          "manual": {
+            "description": "ZIP ファイルは「ダウンロード」に保存され、匿名フォームが開かれました。フォームで保存済みのファイルを選択し、送信を完了してください。",
+            "title": "手動アップロードが必要です"
+          },
+          "privacy": {
+            "description": "バンドルには常にアプリとデバイスの情報が含まれます。選択したログや詳細記録には、入力内容、ファイルの場所、リクエストとレスポンスの内容、サービス接続情報が含まれる場合があります。バンドルは非公開の Feishu フォームに匿名で送信され、サイズは {{size}} に制限されます。「同意してアップロード」をクリックすると、このバンドルの作成と送信に同意したものとみなされます。",
+            "title": "プライバシーに関するお知らせ"
+          },
+          "reasons": {
+            "attachment_upload_failed": "添付ファイルを自動でアップロードできませんでした。",
+            "form_changed": "フィードバックフォームの構造が変更され、安全に検証できませんでした。",
+            "form_unavailable": "フィードバックフォームは現在利用できません。",
+            "network_failed": "ネットワークリクエストを完了できませんでした。",
+            "submission_rejected": "フィードバックフォームで送信が拒否されました。"
+          },
+          "success": {
+            "description": "ファイルサイズ {{size}} · 収集済み {{included}} ファイル · 未収集 {{omitted}} ファイル",
+            "title": "診断バンドルをアップロードしました"
+          },
+          "unknown": {
+            "description": "ZIP ファイルは「ダウンロード」に保存されましたが、サーバーからの応答が途切れました。すでに送信済みの可能性があります。重複送信を避けるため、フォームを開く前に確認してください。",
+            "title": "送信済みの可能性があります"
+          },
+          "unknown_without_copy": {
+            "description": "サーバーからの応答が中断され、診断 ZIP をローカルに保存できませんでした。同じフィードバックが重複して送信される可能性があるため、アップロードをやり直さないでください。",
+            "title": "送信が成功している可能性がありますが、ローカルコピーは保存されていません"
+          }
+        },
         "warning": "一部の診断情報を取得できなかったため、エクスポートされたバンドルが不完全な可能性があります。"
       },
       "downloading": "ダウンロード中...",
@@ -6043,24 +6125,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Cherry Support とチャットして、ヘルプを受けたりフィードバックを共有したりできます。",
-          "title": "エージェントを使用する"
+          "description": "組み込みの Cherry Support Agent に、Cherry Studio の使い方や問題について相談したり、フィードバックを送信したりできます。",
+          "title": "Cherry Support に相談"
         },
-        "agent_error": "フィードバック用の Cherry Support を開けません。もう一度お試しください。",
+        "agent_error": "Cherry Support を開けません。もう一度お試しください。",
         "button": "フィードバック",
+        "diagnostics": {
+          "description": "最近の診断情報を確認し、ワンクリックで匿名アップロードします。",
+          "title": "診断バンドルをアップロード"
+        },
         "dialog": {
           "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",
           "title": "フィードバックチャンネルを選択してください"
         },
         "github": {
           "description": "GitHubでバグ報告や機能要望を作成する。",
+          "error": "GitHub Issue を開けませんでした。もう一度お試しください。",
           "title": "GitHub Issue"
         },
         "recommended": "おすすめ",
-        "survey": {
-          "description": "Feishuアンケートを通じてフィードバックをお寄せください。",
-          "title": "フィードバック調査"
-        },
         "title": "フィードバック"
       },
       "label": "について",

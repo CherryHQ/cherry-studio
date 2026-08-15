@@ -497,7 +497,6 @@ class AssistantServer {
         model: parsedModel.data,
         configuration: {
           permission_mode: 'default',
-          max_turns: 100,
           env_vars: {}
         }
       })

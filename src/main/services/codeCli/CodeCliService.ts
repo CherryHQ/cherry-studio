@@ -362,6 +362,11 @@ export class CodeCliService extends BaseService {
       logger.error(message)
       return { success: false, message }
     }
+    if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
+      const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
 
     const normal = input.mode === 'normal' ? input : null
     const isLoginFlow = input.mode === 'login-flow'
