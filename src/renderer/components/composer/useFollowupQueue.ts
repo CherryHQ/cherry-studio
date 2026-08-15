@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ComposerSerializedDraft } from './tokens'
 
+export const QUEUE_LIMIT = 20
+
 export interface FollowupQueueItem {
   id: string
   /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
@@ -12,19 +14,38 @@ export interface FollowupQueueItem {
   payload: ComposerQueuedMessagePayload
 }
 
-/** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
-const QUEUE_TTL = 24 * 60 * 60 * 1000
-const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
-const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
+/**
+ * Per-conversation queue state persisted under one schema key (localStorage tier), so pending
+ * follow-ups survive app restarts and stay in sync across windows.
+ */
+const QUEUE_STORAGE_KEY = 'ui.composer.followup_queue'
 
-/** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
-function loadQueue(scopeKey: string): FollowupQueueItem[] {
-  const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : []
+interface FollowupQueueState {
+  items: FollowupQueueItem[]
+  paused: boolean
 }
 
-function loadPaused(scopeKey: string): boolean {
-  return cacheService.getCasual<boolean>(pausedKeyFor(scopeKey)) === true
+/** Load + validate a persisted queue (persist cache holds arbitrary JSON; guard non-array entries). */
+function loadState(scopeKey: string): FollowupQueueState {
+  const queues = cacheService.getPersist(QUEUE_STORAGE_KEY)
+  const entry = queues[scopeKey]
+  if (!entry) return { items: [], paused: false }
+  return {
+    items: Array.isArray(entry.items) ? (entry.items as unknown as FollowupQueueItem[]) : [],
+    paused: entry.paused === true
+  }
+}
+
+/** Write one conversation's queue; entries drained to empty are dropped to keep storage bounded. */
+function persistState(scopeKey: string, items: FollowupQueueItem[], paused: boolean): void {
+  const queues = cacheService.getPersist(QUEUE_STORAGE_KEY)
+  const next = { ...queues }
+  if (items.length === 0 && !paused) {
+    delete next[scopeKey]
+  } else {
+    next[scopeKey] = { items, paused }
+  }
+  cacheService.setPersist(QUEUE_STORAGE_KEY, next)
 }
 
 interface UseFollowupQueueParams {
@@ -36,76 +57,103 @@ interface UseFollowupQueueParams {
   markSeen: () => void
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  /** Called when auto-drain fails and leaves the queued item in place. */
-  onDrainFailed?: () => void
 }
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
-  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+  /** Queue a follow-up; returns false when the per-conversation limit is reached. */
+  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => boolean
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
+  /** Drop every pending message (and any failure state) and resume auto-drain. */
+  clear: () => void
   paused: boolean
   setPaused: (paused: boolean) => void
+  /** Head item whose send failed; the queue auto-pauses until the user resolves it. */
+  failedItemId: string | null
+  /** Re-send the failed head. */
+  retryFailed: () => void
+  /** Drop the failed head and continue with the next queued message. */
+  skipFailed: () => void
 }
 
 /**
  * Per-conversation FIFO queue of follow-up drafts. While a turn streams the composer enqueues here
  * instead of sending; on the live→idle edge the head auto-drains (one per completion), and the dock
- * lets the user steer/edit/remove individual items or pause auto-drain. Persistence mirrors the
- * draft cache (per-window memory + TTL); this queue remains on the casual cache API.
+ * lets the user steer/edit/remove individual items, pause auto-drain, or clear the queue. A failed
+ * drain auto-pauses and marks the head as failed for the user to Skip / Retry / Abort. Persisted in
+ * the renderer persist cache (localStorage) so pending follow-ups survive app restarts.
  */
 export function useFollowupQueue({
   scopeKey,
   isFulfilled,
   markSeen,
-  onDrain,
-  onDrainFailed
+  onDrain
 }: UseFollowupQueueParams): FollowupQueueController {
-  const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
-  const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
+  const [state, setState] = useState<FollowupQueueState>(() => loadState(scopeKey))
+  const [failedItemId, setFailedItemId] = useState<string | null>(null)
 
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
-  const itemsRef = useRef(items)
-  itemsRef.current = items
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const failedItemIdRef = useRef(failedItemId)
+  failedItemIdRef.current = failedItemId
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
-  const onDrainFailedRef = useRef(onDrainFailed)
-  onDrainFailedRef.current = onDrainFailed
 
-  const persist = useCallback((next: FollowupQueueItem[]) => {
-    cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
+  const persist = useCallback((next: FollowupQueueState) => {
+    persistState(scopeKeyRef.current, next.items, next.paused)
   }, [])
 
-  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
+  // Reload when switching conversations; the previous queue stays in its own scoped entry.
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
-    setItems(loadQueue(scopeKey))
-    setPausedState(loadPaused(scopeKey))
+    setState(loadState(scopeKey))
+    setFailedItemId(null)
   }, [scopeKey])
 
-  const setPaused = useCallback((nextPaused: boolean) => {
-    cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
-    setPausedState(nextPaused)
-  }, [])
+  const setPaused = useCallback(
+    (nextPaused: boolean) => {
+      const next = { ...stateRef.current, paused: nextPaused }
+      persist(next)
+      setState(next)
+    },
+    [persist]
+  )
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      setItems((prev) => {
-        const next = [...prev, { id: crypto.randomUUID(), draft, payload }]
+      if (stateRef.current.items.length >= QUEUE_LIMIT) return false
+      setState((prev) => {
+        const next = { ...prev, items: [...prev.items, { id: crypto.randomUUID(), draft, payload }] }
         persist(next)
         return next
       })
+      return true
     },
     [persist]
   )
 
   const removeId = useCallback(
     (id: string) => {
-      setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id)
+      setState((prev) => {
+        const next = { ...prev, items: prev.items.filter((item) => item.id !== id) }
+        // Removing the failed head resolves the failure; the queue resumes like a skip.
+        if (failedItemIdRef.current === id) next.paused = false
+        persist(next)
+        return next
+      })
+      if (failedItemIdRef.current === id) setFailedItemId(null)
+    },
+    [persist]
+  )
+
+  const reorder = useCallback(
+    (nextItems: FollowupQueueItem[]) => {
+      setState((prev) => {
+        const next = { ...prev, items: nextItems }
         persist(next)
         return next
       })
@@ -113,27 +161,80 @@ export function useFollowupQueue({
     [persist]
   )
 
-  const reorder = useCallback(
-    (nextItems: FollowupQueueItem[]) => {
-      setItems(nextItems)
-      persist(nextItems)
+  const clear = useCallback(() => {
+    const next = { items: [], paused: false }
+    persist(next)
+    setState(next)
+    setFailedItemId(null)
+  }, [persist])
+
+  // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
+  const failHead = useCallback(
+    (id: string) => {
+      setFailedItemId(id)
+      setState((prev) => {
+        const next = { ...prev, paused: true }
+        persist(next)
+        return next
+      })
     },
     [persist]
   )
 
+  const drainHead = useCallback(
+    (head: FollowupQueueItem | undefined) => {
+      if (!head) return
+      void onDrainRef.current(head.payload).then(
+        (sent) => {
+          // removeId resolves the failure state too when the retried head succeeds.
+          if (sent) removeId(head.id)
+          else failHead(head.id)
+        },
+        () => failHead(head.id)
+      )
+    },
+    [failHead, removeId]
+  )
+
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
   // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
+  // While a failure is unresolved the user must Skip/Retry/Abort — no automatic re-drain.
   useEffect(() => {
-    if (!isFulfilled || paused) return
-    const head = itemsRef.current[0]
+    if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current) return
+    const head = stateRef.current.items[0]
     if (!head) return
     markSeen()
-    const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void onDrainRef.current(head.payload).then((sent) => {
-      if (sent) removeId(head.id)
-      else reportDrainFailure()
-    }, reportDrainFailure)
-  }, [isFulfilled, paused, markSeen, removeId])
+    drainHead(head)
+  }, [isFulfilled, markSeen, drainHead])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused }
+  const retryFailed = useCallback(() => {
+    const failed = failedItemIdRef.current
+    if (!failed) return
+    drainHead(stateRef.current.items.find((item) => item.id === failed))
+  }, [drainHead])
+
+  const skipFailed = useCallback(() => {
+    const failed = failedItemIdRef.current
+    if (!failed) return
+    const remaining = stateRef.current.items.filter((item) => item.id !== failed)
+    setFailedItemId(null)
+    const next = { items: remaining, paused: false }
+    persist(next)
+    setState(next)
+    // Idle now (the failed turn already completed) — keep the queue moving by sending the next head.
+    drainHead(remaining[0])
+  }, [drainHead, persist])
+
+  return {
+    items: state.items,
+    enqueue,
+    removeId,
+    reorder,
+    clear,
+    paused: state.paused,
+    setPaused,
+    failedItemId,
+    retryFailed,
+    skipFailed
+  }
 }

@@ -8,6 +8,7 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { ComposerQueuedMessagePayload } from '../../ai/transport'
 import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
@@ -212,3 +213,43 @@ export type WindowBoundsState = {
    *  longer fits), instead of resetting to the primary display. */
   displayBounds: { x: number; y: number; width: number; height: number }
 }
+
+/**
+ * Follow-up message queue for one conversation (composer queue mode).
+ *
+ * While a turn streams, the composer enqueues follow-up drafts here and
+ * auto-sends the head when the topic goes idle. The queue is serialized into
+ * the renderer persist cache so pending follow-ups survive app restarts; the
+ * renderer re-validates entries on load (the cache holds arbitrary JSON).
+ */
+export type FollowupQueueToken = {
+  id: string
+  kind: string
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+  index: number
+  textOffset: number
+}
+
+export type FollowupQueueDraft = {
+  text: string
+  tokens: FollowupQueueToken[]
+}
+
+export type FollowupQueueItem = {
+  id: string
+  draft: FollowupQueueDraft
+  /** Send-ready payload captured at enqueue time (text + parts + files/models). */
+  payload: ComposerQueuedMessagePayload
+}
+
+export type FollowupQueueState = {
+  items: FollowupQueueItem[]
+  paused: boolean
+}
+
+/** Per-conversation follow-up queues, keyed by the composer's conversation scope key. */
+export type FollowupQueues = Record<string, FollowupQueueState>

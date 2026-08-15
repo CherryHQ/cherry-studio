@@ -3,11 +3,15 @@ import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/component
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { cn } from '@renderer/utils/style'
-import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
+import { AlertTriangle, ArrowUp, GripVertical, Pause, Pencil, Play, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { excludeComposerDraftTokens } from './composerDraft'
 import type { FollowupQueueItem } from './useFollowupQueue'
+
+/** Max rows shown before the dock collapses behind an "Expand N more…" toggle. */
+export const QUEUE_VISIBLE_LIMIT = 3
 
 interface QueuedFollowupsDockProps {
   items: FollowupQueueItem[]
@@ -17,6 +21,13 @@ interface QueuedFollowupsDockProps {
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
+  /** Drop every pending message at once. */
+  onClearAll: () => void
+  /** Head item whose auto-send failed (queue auto-paused) — shows the Skip/Retry/Abort banner. */
+  failedItemId?: string | null
+  onRetryFailed?: () => void
+  onSkipFailed?: () => void
+  onAbortQueue?: () => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }
@@ -46,6 +57,12 @@ function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: 
   )
 }
 
+function getFollowupPreviewText(item: FollowupQueueItem): string {
+  return item.draft
+    ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
+    : item.payload.text
+}
+
 function QueuedFollowupRow({
   item,
   dragging,
@@ -64,9 +81,7 @@ function QueuedFollowupRow({
   steerDisabledReason?: string
 }) {
   const { t } = useTranslation()
-  const previewText = item.draft
-    ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
-    : item.payload.text
+  const previewText = getFollowupPreviewText(item)
   const steerDisabled = isSteerDisabled?.(item) ?? false
 
   return (
@@ -130,7 +145,9 @@ function QueuedFollowupRow({
 /**
  * Dock above the input listing queued follow-up drafts (queue mode). Items are drag-reorderable;
  * each can be steered into the running turn, edited back into the composer, or removed; auto-drain
- * can be paused. Renders via `ComposerSurface.queueContent`.
+ * can be paused or the whole queue cleared. A failed auto-send surfaces a Skip/Retry/Abort banner.
+ * Beyond `QUEUE_VISIBLE_LIMIT` rows the list collapses behind an "Expand N more…" toggle. Renders
+ * via `ComposerSurface.queueContent`.
  */
 export function QueuedFollowupsDock({
   items,
@@ -140,11 +157,21 @@ export function QueuedFollowupsDock({
   onEdit,
   onRemove,
   onReorder,
+  onClearAll,
+  failedItemId,
+  onRetryFailed,
+  onSkipFailed,
+  onAbortQueue,
   isSteerDisabled,
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
   const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
   if (items.length === 0) return null
+
+  const failed = failedItemId != null ? items.find((item) => item.id === failedItemId) : undefined
+  const visibleItems = expanded || items.length <= QUEUE_VISIBLE_LIMIT ? items : items.slice(0, QUEUE_VISIBLE_LIMIT)
+  const hiddenCount = items.length - visibleItems.length
 
   return (
     <div
@@ -154,23 +181,62 @@ export function QueuedFollowupsDock({
         <span className="text-muted-foreground text-xs">
           {t('chat.input.followup_queue.title', { count: items.length })}
         </span>
-        <Tooltip
-          placement="top"
-          content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-6 shadow-none"
-            aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
-            onClick={onTogglePause}>
-            {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-          </Button>
-        </Tooltip>
+        <div className="flex items-center gap-0.5">
+          <Tooltip placement="top" content={t('chat.input.followup_queue.clear_all')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shadow-none"
+              aria-label={t('chat.input.followup_queue.clear_all')}
+              onClick={onClearAll}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </Tooltip>
+          <Tooltip
+            placement="top"
+            content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shadow-none"
+              aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
+              onClick={onTogglePause}>
+              {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+            </Button>
+          </Tooltip>
+        </div>
       </div>
+      {failed ? (
+        <div className="mb-1.5 flex items-center gap-1.5 rounded-[12px] border-[0.5px] border-destructive/30 bg-destructive/10 px-2 py-1.5">
+          <AlertTriangle className="size-4 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-destructive text-xs">{t('chat.input.followup_queue.failure_title')}</p>
+            <p className="line-clamp-1 text-muted-foreground text-xs">{getFollowupPreviewText(failed)}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button type="button" variant="outline" size="sm" onClick={onSkipFailed}>
+              {t('chat.input.followup_queue.skip')}
+            </Button>
+            <Button type="button" size="sm" onClick={onRetryFailed}>
+              {t('chat.input.followup_queue.retry')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={onAbortQueue}>
+              {t('chat.input.followup_queue.abort')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="max-h-40 overflow-y-auto">
         <ReorderableList
           items={items}
+          visibleItems={visibleItems}
           getId={(item) => item.id}
           onReorder={onReorder}
           direction="vertical"
@@ -188,6 +254,20 @@ export function QueuedFollowupsDock({
           )}
         />
       </div>
+      {items.length > QUEUE_VISIBLE_LIMIT ? (
+        <div className="mt-1 flex justify-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 text-muted-foreground"
+            onClick={() => setExpanded((value) => !value)}>
+            {expanded
+              ? t('chat.input.followup_queue.collapse')
+              : t('chat.input.followup_queue.expand_more', { count: hiddenCount })}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

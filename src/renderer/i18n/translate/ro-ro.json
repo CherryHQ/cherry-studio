@@ -1541,10 +1541,18 @@
       "file_not_supported": "Modelul nu acceptă acest tip de fișier",
       "file_not_supported_count": "{{count}} fișiere nu sunt acceptate",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Editează",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Pauză trimitere automată",
         "remove": "Elimină",
         "resume": "Reluare trimitere automată",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "Trimite în tura curentă",
         "title": "În coadă ({{count}})"
       },

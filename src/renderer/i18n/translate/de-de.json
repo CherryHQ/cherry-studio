@@ -1541,10 +1541,18 @@
       "file_not_supported": "Modell unterstützt diesen Dateityp nicht",
       "file_not_supported_count": "{{count}} Dateien werden nicht unterstützt",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Bearbeiten",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Automatisches Senden pausieren",
         "remove": "Entfernen",
         "resume": "Auto-Send fortsetzen",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "In aktuelle Runde senden",
         "title": "In Warteschlange ({{count}})"
       },
