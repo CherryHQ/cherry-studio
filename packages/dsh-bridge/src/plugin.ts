@@ -6,17 +6,20 @@
  * would be unwrapped by the loader and drop `inject` (dsh postmortem 0001).
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-plan-mode'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
+import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
+import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 
 import { type BridgeLink, connectBridgeLink } from './link'
-import { decideToolCall, detectGlobalInstall } from './policy'
+import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from './policy'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -24,11 +27,12 @@ import {
   type BridgeContextUsage,
   type BridgeHostParams,
   type BridgePolicy,
+  type BridgeSubagentChild,
   type BridgeToolDescriptor
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter']
+export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -93,6 +97,34 @@ export function apply(ctx: Context): void {
         const { sessionId, policy } = params as BridgeHostParams<'policy/update'>
         policies.set(sessionId, policy)
         return {}
+      }
+      case 'plan/set': {
+        const { sessionId, active } = params as BridgeHostParams<'plan/set'>
+        return { outcome: ctx.planMode.set(requireAgent(sessionId), active) }
+      }
+      case 'subagent/interrupt': {
+        const { sessionId, childSessionId } = params as BridgeHostParams<'subagent/interrupt'>
+        ctx.subagents.interrupt(SessionId(childSessionId), {
+          kind: 'user',
+          parentSessionId: SessionId(sessionId)
+        })
+        return {}
+      }
+      case 'subagent/list': {
+        const { sessionId } = params as BridgeHostParams<'subagent/list'>
+        const entries = await ctx.subagents.listChildren(SessionId(sessionId))
+        const children: BridgeSubagentChild[] = []
+        for (const entry of entries) {
+          // One-shot children cannot be continued and diagnostics are not tasks.
+          if (entry.kind !== 'child' || entry.mode !== 'continuable') continue
+          const live = ctx.agents.get(entry.id)
+          children.push({
+            id: entry.id,
+            label: entry.label,
+            status: live === undefined ? 'ready' : live.status === 'running' ? 'running' : 'idle'
+          })
+        }
+        return { children }
       }
       case 'context/usage': {
         const { sessionId } = params as BridgeHostParams<'context/usage'>
@@ -257,11 +289,91 @@ export function apply(ctx: Context): void {
     }
   }
 
+  // Relay `ctx.userQuestions` asks (plan review) to the host UI; abort is the
+  // caller's teardown/dismissal and must surface as the seam's own error code.
+  ctx.effect(
+    () =>
+      ctx.userQuestions.registerProvider({
+        async ask(request) {
+          try {
+            return await link.request(
+              'question/ask',
+              { sessionId: request.agent?.id ?? '', questions: request.questions },
+              request.signal
+            )
+          } catch (error) {
+            if (request.signal?.aborted) {
+              throw new UserQuestionError('the ask was aborted before the user answered', 'ASK_ABORTED', {
+                cause: error instanceof Error ? error : undefined
+              })
+            }
+            throw error
+          }
+        }
+      }),
+    'cherry-bridge.userQuestions'
+  )
+
+  // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
+  // read at start while the child agent is live and cached for the end edge.
+  const subagentRunParents = new Map<string, string>()
+  ctx.on('subagent/start', (info) => {
+    const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession
+    if (parentSessionId === undefined) return
+    subagentRunParents.set(info.runId, parentSessionId)
+    link.notify('subagent/lifecycle', {
+      phase: 'start',
+      runId: info.runId,
+      childSessionId: info.id,
+      parentSessionId,
+      provider: info.provider
+    })
+  })
+  ctx.on('subagent/end', (info) => {
+    const parentSessionId = subagentRunParents.get(info.runId)
+    subagentRunParents.delete(info.runId)
+    if (parentSessionId === undefined) return
+    link.notify('subagent/lifecycle', {
+      phase: 'end',
+      runId: info.runId,
+      childSessionId: info.id,
+      parentSessionId,
+      provider: info.provider,
+      stopReason: info.stopReason
+    })
+  })
+
+  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  function rootSessionOf(agent: Agent): string {
+    let current = agent
+    while (true) {
+      const parentId = current.session.header.parentSession
+      if (parentId === undefined) return current.id
+      const parent = ctx.agents.get(parentId)
+      // A dead intermediate cannot be walked past; its id still names the policy when it was the root.
+      if (parent === undefined) return parentId
+      current = parent
+    }
+  }
+
   ctx.on('tools/pre-execute', async (exec, next) => {
-    const policy = exec.agent === undefined ? undefined : policies.get(exec.agent.id)
-    // Not a bridge-opened session: delegate to dsh's own chain (which fail-closes on ask).
-    if (policy === undefined) return next()
-    return decideToolCall(policy, exec.name, exec.arguments)
+    const agent = exec.agent
+    // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
+    if (agent === undefined) return next()
+    const delegated = agent.session.header.parentSession !== undefined
+    const policy = policies.get(rootSessionOf(agent))
+    if (policy === undefined) {
+      // Non-bridge root sessions keep dsh's chain; a delegated agent whose root
+      // policy is unreachable fails closed (every root here is bridge-opened).
+      if (!delegated) return next()
+      return {
+        kind: 'deny' as const,
+        reason: `no bridge policy is reachable for delegated agent "${agent.id}"`
+      }
+    }
+    return delegated
+      ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
+      : decideToolCall(policy, exec.name, exec.arguments)
   })
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.

@@ -385,6 +385,26 @@ describe('toolResponse adapter', () => {
     expect(response?.parentToolUseId).toBe('parent-call')
   })
 
+  it('extracts parent tool id from the runtime-neutral cherry metadata (dsh subagents)', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'read',
+      toolCallId: 'child-call',
+      state: 'output-available',
+      input: { file_path: '/tmp/a.ts' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: {
+          transport: 'dsh-agent',
+          parentToolCallId: 'parent-call'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.parentToolUseId).toBe('parent-call')
+  })
+
   it('does not synthesize a tool response without an AI SDK toolCallId', () => {
     const part = {
       type: 'dynamic-tool',

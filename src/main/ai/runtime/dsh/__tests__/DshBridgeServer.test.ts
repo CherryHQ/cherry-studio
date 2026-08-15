@@ -1,5 +1,6 @@
 import net from 'node:net'
 
+import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +23,7 @@ interface Harness {
   socket: net.Socket
   transport: JsonRpcLineTransport
   events: AgentRuntimeEvent[]
+  lifecycleEdges: Array<BridgeNotificationMap['subagent/lifecycle']>
   nextRequest: () => Promise<HostRequest>
 }
 
@@ -32,16 +34,19 @@ function makeServer(
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number
-): { server: DshBridgeServer; events: AgentRuntimeEvent[] } {
+): { server: DshBridgeServer; events: AgentRuntimeEvent[]; lifecycleEdges: Harness['lifecycleEdges'] } {
   const events: AgentRuntimeEvent[] = []
+  const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
     emit: (event) => events.push(event),
     getInteractionState: () => ({ userResponse }),
     onToolCall,
+    onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
+    getPlanReviewAnchor: () => 'exit-plan-call-1',
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
-  return { server, events }
+  return { server, events, lifecycleEdges }
 }
 
 /** Connect a JSON-RPC peer that records host requests; authenticates unless a token is given. */
@@ -91,11 +96,11 @@ async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>
 ): Promise<Harness> {
-  const { server, events } = makeServer(userResponse, onToolCall)
+  const { server, events, lifecycleEdges } = makeServer(userResponse, onToolCall)
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
-  const harness: Harness = { server, events, ...plugin }
+  const harness: Harness = { server, events, lifecycleEdges, ...plugin }
   harnesses.push(harness)
   return harness
 }
@@ -226,7 +231,8 @@ describe('DshBridgeServer', () => {
         readTools: ['read'],
         editTools: ['edit', 'write'],
         autoApprovedTools: [],
-        approvalRequiredTools: []
+        approvalRequiredTools: [],
+        planSafeTools: []
       },
       tools: []
     })
@@ -357,6 +363,110 @@ describe('DshBridgeServer', () => {
       harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
     ).resolves.toEqual({ outcome: 'rejected' })
     expect(harness.events).toHaveLength(0)
+  })
+
+  it('answers a plan review with the byte-strict approve shape (label only, no custom)', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('question/ask', {
+      sessionId: SESSION_ID,
+      questions: [
+        {
+          id: 'plan-review',
+          header: 'Plan review',
+          question: 'Approve this plan and leave plan mode?',
+          detail: '# Ship it\n\n1. do the thing',
+          options: [{ label: 'Approve' }, { label: 'Keep planning' }],
+          intent: { kind: 'plan-review', approve: 'Approve' }
+        }
+      ]
+    })
+
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+    // Anchored to the streamed exit_plan_mode call so the card lands on its tool row.
+    expect(event.request).toMatchObject({
+      toolCallId: 'exit-plan-call-1',
+      toolName: 'exit_plan_mode',
+      input: { plan: '# Ship it\n\n1. do the thing' }
+    })
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: true })
+    // dsh treats ANY custom text (even empty) as keep-planning, so approve must omit it.
+    await expect(ask).resolves.toEqual({ answers: [{ id: 'plan-review', selected: ['Approve'] }] })
+  })
+
+  it('answers a denied plan review as keep-planning, carrying the reason as feedback', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('question/ask', {
+      sessionId: SESSION_ID,
+      questions: [
+        {
+          id: 'plan-review',
+          question: 'Approve this plan and leave plan mode?',
+          detail: '# Nope',
+          options: [{ label: 'Approve' }, { label: 'Keep planning' }],
+          intent: { kind: 'plan-review', approve: 'Approve' }
+        }
+      ]
+    })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false, reason: 'missing tests' })
+    await expect(ask).resolves.toEqual({
+      answers: [{ id: 'plan-review', selected: [], custom: 'missing tests' }]
+    })
+  })
+
+  it('rejects non-plan-review questions and asks without a responder', async () => {
+    const harness = await makeHarness()
+    await expect(
+      harness.transport.request('question/ask', {
+        sessionId: SESSION_ID,
+        questions: [{ id: 'q1', question: 'Pick one', options: [{ label: 'A' }] }]
+      })
+    ).rejects.toThrow('plan-review')
+
+    const unattended = await makeHarness('unavailable')
+    await expect(
+      unattended.transport.request('question/ask', {
+        sessionId: SESSION_ID,
+        questions: [
+          {
+            id: 'plan-review',
+            question: 'Approve?',
+            detail: '# P',
+            options: [{ label: 'Approve' }],
+            intent: { kind: 'plan-review', approve: 'Approve' }
+          }
+        ]
+      })
+    ).rejects.toThrow('no user is available')
+    expect(unattended.events).toHaveLength(0)
+  })
+
+  it('relays subagent lifecycle notifications to the host callback', async () => {
+    const harness = await makeHarness()
+    harness.transport.notify('subagent/lifecycle', {
+      phase: 'start',
+      runId: 'run-1',
+      childSessionId: 'child-1',
+      parentSessionId: SESSION_ID,
+      provider: 'spawn'
+    })
+    harness.transport.notify('subagent/lifecycle', {
+      phase: 'end',
+      runId: 'run-1',
+      childSessionId: 'child-1',
+      parentSessionId: SESSION_ID,
+      provider: 'spawn',
+      stopReason: 'completed'
+    })
+    await vi.waitFor(() => expect(harness.lifecycleEdges).toHaveLength(2))
+    expect(harness.lifecycleEdges[0]).toMatchObject({ phase: 'start', childSessionId: 'child-1' })
+    expect(harness.lifecycleEdges[1]).toMatchObject({ phase: 'end', stopReason: 'completed' })
   })
 
   it('rejects pending requests when the plugin disconnects', async () => {

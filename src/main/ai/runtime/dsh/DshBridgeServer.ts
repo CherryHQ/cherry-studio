@@ -41,6 +41,10 @@ export interface DshBridgeServerOptions {
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
+  /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
+  onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
+  /** The streamed `exit_plan_mode` call id, so the plan-review card anchors to its tool row. */
+  getPlanReviewAnchor?: () => string | undefined
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
 }
@@ -206,9 +210,15 @@ export class DshBridgeServer {
       return this.handleRequest(method, params)
     })
     transport.onNotification((method, params) => {
-      if (!authenticated || method !== 'tool/cancel') return
-      const cancel = params as BridgeNotificationMap['tool/cancel']
-      if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+      if (!authenticated) return
+      if (method === 'tool/cancel') {
+        const cancel = params as BridgeNotificationMap['tool/cancel']
+        if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+        return
+      }
+      if (method === 'subagent/lifecycle') {
+        this.options.onSubagentLifecycle?.(params as BridgeNotificationMap['subagent/lifecycle'])
+      }
     })
     transport.start()
   }
@@ -236,6 +246,8 @@ export class DshBridgeServer {
         return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
       case 'approval/ask':
         return this.handleApprovalAsk(params as BridgePluginRequestMap['approval/ask']['params'])
+      case 'question/ask':
+        return this.handleQuestionAsk(params as BridgePluginRequestMap['question/ask']['params'])
       default:
         return Promise.reject(new Error(`unknown dsh bridge method "${method}"`))
     }
@@ -296,6 +308,65 @@ export class DshBridgeServer {
           input: { ...input },
           presentation,
           providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
+        }
+      })
+    })
+  }
+
+  /**
+   * One `ctx.userQuestions` ask. Only the plan-review intent is bridged: it lands
+   * on the existing approval surface as an `exit_plan_mode` card. dsh's approve
+   * check is byte-strict — exactly the intent's approve label and NO custom text;
+   * any other answer (empty selection, optional feedback) means keep planning.
+   */
+  private handleQuestionAsk(
+    ask: BridgePluginRequestMap['question/ask']['params']
+  ): Promise<BridgePluginRequestMap['question/ask']['result']> {
+    if (ask.sessionId !== this.options.sessionId) {
+      return Promise.reject(new Error('dsh bridge question used the wrong session'))
+    }
+    const review = ask.questions.length === 1 ? ask.questions[0] : undefined
+    const intent = review?.intent
+    if (!review || intent?.kind !== 'plan-review' || typeof review.detail !== 'string') {
+      return Promise.reject(new Error('only plan-review questions are bridged to the host'))
+    }
+    const interactionState = this.options.getInteractionState()
+    if (interactionState.userResponse === 'unavailable') {
+      return Promise.reject(new Error('no user is available to review the plan'))
+    }
+    const approvalId = randomUUID()
+    const toolCallId = this.options.getPlanReviewAnchor?.() ?? approvalId
+    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const input = { plan: review.detail }
+    return new Promise((resolve) => {
+      const pending = toolApprovalRegistry.register({
+        approvalId,
+        sessionId: this.options.sessionId,
+        toolCallId,
+        toolName: 'exit_plan_mode',
+        originalInput: { ...input },
+        presentation,
+        resolve: (decision) => {
+          if (decision.approved && !decision.updatedInput) {
+            resolve({ answers: [{ id: review.id, selected: [intent.approve] }] })
+            return
+          }
+          const feedback = decision.reason?.trim()
+          resolve({ answers: [{ id: review.id, selected: [], ...(feedback ? { custom: feedback } : {}) }] })
+        }
+      })
+      if (!pending) return
+      this.options.emit({
+        type: 'tool-approval-request',
+        request: {
+          approvalId,
+          toolCallId,
+          toolName: 'exit_plan_mode',
+          input: { ...input },
+          presentation,
+          providerMetadata: {
+            cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
+          }
         }
       })
     })

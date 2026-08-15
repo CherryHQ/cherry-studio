@@ -14,12 +14,29 @@ export type ToolDecision = { kind: 'allow' } | { kind: 'deny'; reason: string } 
 
 /**
  * Decide one tool call under the host-pushed policy.
- * Pipeline: disabled → deny; approval-required → ask; first-party auto-approved
- * → allow; bypass → allow; contained read/edit fast-paths; everything else asks.
+ * Pipeline: disabled → deny; plan mode → closed allow-list (dsh plan mode enforces
+ * nothing itself, so this branch IS the read-only guarantee); approval-required →
+ * ask; first-party auto-approved → allow; bypass → allow; contained read/edit
+ * fast-paths; everything else asks.
  */
 export async function decideToolCall(policy: BridgePolicy, toolName: string, args: unknown): Promise<ToolDecision> {
   if (policy.disabledTools.includes(toolName)) {
     return { kind: 'deny', reason: `Tool "${toolName}" is disabled for this agent.` }
+  }
+  if (policy.permissionMode === 'plan') {
+    if (policy.planSafeTools.includes(toolName)) return { kind: 'allow' }
+    if (policy.readTools.includes(toolName)) {
+      return (await isToolPathInsideAllowedRoots(args, policy.allowedRoots, false))
+        ? { kind: 'allow' }
+        : {
+            kind: 'deny',
+            reason: `Plan mode allows reads only inside the workspace; "${toolName}" targeted a path outside it.`
+          }
+    }
+    return {
+      kind: 'deny',
+      reason: `Plan mode is read-only: "${toolName}" is unavailable until the plan is approved.`
+    }
   }
   if (policy.approvalRequiredTools.includes(toolName)) return { kind: 'ask' }
   if (policy.autoApprovedTools.includes(toolName)) return { kind: 'allow' }
@@ -31,6 +48,27 @@ export async function decideToolCall(policy: BridgePolicy, toolName: string, arg
     return (await isToolPathInsideAllowedRoots(args, policy.allowedRoots, true)) ? { kind: 'allow' } : { kind: 'ask' }
   }
   return { kind: 'ask' }
+}
+
+/**
+ * Decide one tool call made by a delegated subagent. Same policy as the root, but
+ * `ask` degrades to an explicit deny: dsh pins delegated approval policy to
+ * `never`, so an interactive ask can never reach a human and silently failing
+ * there would leave the model retrying a dead end.
+ */
+export async function decideDelegatedToolCall(
+  policy: BridgePolicy,
+  toolName: string,
+  args: unknown
+): Promise<ToolDecision> {
+  const decision = await decideToolCall(policy, toolName, args)
+  if (decision.kind !== 'ask') return decision
+  return {
+    kind: 'deny',
+    reason:
+      `Tool "${toolName}" needs interactive approval, which a delegated subagent cannot request. ` +
+      'Report this back so the coordinating agent (or the user) can run it instead.'
+  }
 }
 
 /** Unicode spaces folded to a plain space before resolving (matches pi's `normalizePath`). */

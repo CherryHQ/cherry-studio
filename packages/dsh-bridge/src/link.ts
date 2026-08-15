@@ -2,7 +2,7 @@ import net from 'node:net'
 
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 
-import type { BridgePluginRequestMap, BridgeToolCallResult } from './protocol'
+import type { BridgeNotificationMap, BridgePluginRequestMap, BridgeToolCallResult } from './protocol'
 
 export interface BridgeLink {
   /** False after 'error'/'close'; there is no reconnect — the host owns this process. */
@@ -12,6 +12,8 @@ export interface BridgeLink {
     params: BridgePluginRequestMap[M]['params'],
     signal?: AbortSignal
   ): Promise<BridgePluginRequestMap[M]['result']>
+  /** Fire-and-forget; silently dropped once disconnected (the host is gone either way). */
+  notify<M extends keyof BridgeNotificationMap>(method: M, params: BridgeNotificationMap[M]): void
   callTool(
     request: { sessionId: string; name: string; args: unknown },
     signal?: AbortSignal
@@ -51,6 +53,9 @@ export function connectBridgeLink(options: {
       return connected
     },
     request,
+    notify(method, params) {
+      if (connected) transport.notify(method, params)
+    },
     callTool(toolRequest, signal) {
       if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
       const callId = `tool-${++toolCallSeq}`

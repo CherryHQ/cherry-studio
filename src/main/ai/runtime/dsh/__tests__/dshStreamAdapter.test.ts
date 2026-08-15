@@ -41,6 +41,7 @@ function makeAdapter() {
   const onCompaction = vi.fn()
   const onApiRetry = vi.fn()
   const onAutonomousTurnState = vi.fn((state: 'started' | 'finished') => order.push(`autonomous:${state}`))
+  const onPlanMode = vi.fn()
   const adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
       chunks.push(chunk)
@@ -50,9 +51,20 @@ function makeAdapter() {
     onTurnEnd,
     onCompaction,
     onApiRetry,
-    onAutonomousTurnState
+    onAutonomousTurnState,
+    onPlanMode
   })
-  return { adapter, chunks, order, onAssistantUsage, onTurnEnd, onCompaction, onApiRetry, onAutonomousTurnState }
+  return {
+    adapter,
+    chunks,
+    order,
+    onAssistantUsage,
+    onTurnEnd,
+    onCompaction,
+    onApiRetry,
+    onAutonomousTurnState,
+    onPlanMode
+  }
 }
 
 let seq = 0
@@ -65,6 +77,13 @@ const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk) =>
   envelope('assistant/chunk', { turn, step, chunk })
 
 describe('DshStreamAdapter', () => {
+  it('relays committed plan/mode folds to the sink', () => {
+    const { adapter, onPlanMode } = makeAdapter()
+    adapter.handleEvent(rawEvent('plan/mode', { active: true }))
+    adapter.handleEvent(rawEvent('plan/mode', { active: false }))
+    expect(onPlanMode.mock.calls).toEqual([[true], [false]])
+  })
+
   it('maps a text turn to the expected chunk sequence and settles via onTurnEnd', () => {
     const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
     adapter.beginTurn()

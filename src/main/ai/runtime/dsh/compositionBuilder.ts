@@ -69,6 +69,16 @@ interface DshCompositionEntry {
   config?: Record<string, unknown>
 }
 
+// dsh base bundle's plan:policy section, minus its ask_user_question guidance (the
+// tool is not mounted here; plan review flows only through exit_plan_mode).
+const DSH_PLAN_MODE_SECTION = [
+  "You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.",
+  'Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.',
+  'The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed only to keep the request shape stable. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.',
+  'Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.',
+  'When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" in prose. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.'
+].join('\n\n')
+
 function buildProviderRoute(input: DshCompositionInput): Record<string, unknown> {
   return {
     apiKeyEnv: 'CHERRY_DSH_API_KEY',
@@ -153,7 +163,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     entry('fs', '@deepseek-ai/dsh-fs-local', { cwd: input.workspacePath }),
     entry('attachments', '@deepseek-ai/dsh-attachment-local', { dshHome: input.dshRoot }),
     entry('tool-fs', '@deepseek-ai/dsh-tool-fs'),
-    // Single-active discipline: the composition mounts no background bash/jobs/subagents.
+    // No background bash and no jobs plane; background work is continuable subagents only.
     entry('tool-todo', '@deepseek-ai/dsh-tool-todo', { allowParallelInProgress: false }),
     // token-meter rejects any config key; session-projection carries its contextBreakdown unit.
     entry('token-meter', '@deepseek-ai/dsh-token-meter'),
@@ -172,6 +182,32 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     entry('tool-goal', '@deepseek-ai/dsh-tool-goal'),
     entry('goal-round-driver', '@deepseek-ai/dsh-goal-round-driver'),
     entry('command-goal', '@deepseek-ai/dsh-command-goal'),
+    entry('subagent', '@deepseek-ai/dsh-subagent'),
+    entry('subagent-spawn', '@deepseek-ai/dsh-subagent-spawn-in-process', { providerName: 'spawn' }),
+    entry('subagent-fork', '@deepseek-ai/dsh-subagent-fork-in-process', { providerName: 'fork' }),
+    // send_message + interrupt_agent, plus the durable child catalog behind list_agents.
+    entry('tool-subagent-control', '@deepseek-ai/dsh-tool-subagent-control'),
+    entry('tool-subagent-list-agents', '@deepseek-ai/dsh-tool-subagent-control/list-agents'),
+    // dsh-factory split: spawn children are continuable background-first; fork children
+    // stay one-shot foreground (no jobs plane, so run_in_background must stay hidden).
+    entry('tool-subagent', '@deepseek-ai/dsh-tool-subagent', {
+      provider: 'spawn',
+      toolName: 'subagent',
+      backgroundMode: 'continuable',
+      toolFilter: { deny: ['exit_plan_mode'] }
+    }),
+    entry('tool-subagent-fork', '@deepseek-ai/dsh-tool-subagent', {
+      provider: 'fork',
+      toolName: 'subagent_fork',
+      backgroundMode: 'one-shot',
+      enableRunInBackground: false,
+      toolFilter: { deny: ['exit_plan_mode'] }
+    }),
+    entry('tool-subagent-report', '@deepseek-ai/dsh-tool-subagent-report'),
+    // Plan review reaches the host through the bridge's userQuestions provider; plan
+    // enforcement itself lives in the bridge policy (dsh plan-mode is guidance-only).
+    entry('user-questions', '@deepseek-ai/dsh-user-questions'),
+    entry('plan-mode', '@deepseek-ai/dsh-plan-mode', { section: DSH_PLAN_MODE_SECTION }),
     entry('sessions', '@deepseek-ai/dsh-session-persistence-jsonl', { root: input.sessionsRoot }),
     entry('cherry-bridge', '@cherrystudio/dsh-bridge/plugin')
   ]

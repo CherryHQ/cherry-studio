@@ -11,10 +11,20 @@
  * command / tool / approval have to live here.
  */
 
+// Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
+// the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
+import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
+
+export type {
+  AskUserQuestionAnswer,
+  AskUserQuestionAnswerItem,
+  AskUserQuestionItem
+} from '@deepseek-ai/dsh-user-questions/types'
+
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
 export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
 
-export type BridgePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
+export type BridgePermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
 
 /** Wire-owned on purpose — NOT dsh's TextBlock: the socket schema must not drift with an rc dep,
  *  and dsh's wider ContentBlock (image attachment refs are subprocess-local) cannot cross this wire. */
@@ -48,6 +58,20 @@ export interface BridgePolicy {
   autoApprovedTools: string[]
   /** Sensitive bridged tools that still require approval in bypass mode. */
   approvalRequiredTools: string[]
+  /**
+   * The only tools executable while plan mode is active, beyond contained reads.
+   * Host-computed closed list (dsh plan mode enforces nothing itself) — notably it
+   * must exclude the subagent tools, which would delegate around read-only.
+   */
+  planSafeTools: string[]
+}
+
+/** One continuable child in the durable catalog (`subagent/list`). */
+export interface BridgeSubagentChild {
+  id: string
+  label: string
+  /** `ready` = exists only in storage; resumable, not terminal. */
+  status: 'running' | 'idle' | 'ready'
 }
 
 /** `ctx.tokenMeter.measure()` pressure plus the optional heuristic breakdown projection. */
@@ -90,6 +114,15 @@ export interface BridgeHostRequestMap {
   'context/usage': { params: { sessionId: string }; result: BridgeContextUsage }
   /** One slash-command line dispatched through the runtime's `ctx.commands` registry. */
   'command/execute': { params: { sessionId: string; line: string }; result: BridgeCommandResult }
+  /** Select plan mode; `outcome` relays `ctx.planMode.set` (`queued` while a turn is open). */
+  'plan/set': {
+    params: { sessionId: string; active: boolean }
+    result: { outcome: 'committed' | 'queued' | 'cancelled' | 'noop' }
+  }
+  /** Stop one child's current turn on the user's behalf; an absent child is an accepted no-op. */
+  'subagent/interrupt': { params: { sessionId: string; childSessionId: string }; result: Record<string, never> }
+  /** Durable continuable-child catalog of one session, for task-list rebuild on reconnect. */
+  'subagent/list': { params: { sessionId: string }; result: { children: BridgeSubagentChild[] } }
 }
 
 /** Plugin→host request methods. `ready` is the authentication handshake and MUST be first. */
@@ -103,12 +136,32 @@ export interface BridgePluginRequestMap {
     params: { sessionId: string; callId: string; name: string; args: unknown }
     result: BridgeToolCallResult
   }
+  /** One `ctx.userQuestions` ask (today only plan review reaches it) relayed to the host UI. */
+  'question/ask': {
+    params: { sessionId: string; questions: AskUserQuestionItem[] }
+    result: AskUserQuestionAnswer
+  }
 }
 
 /** Plugin→host notifications. JSON-RPC has no cancel, so `tool/cancel` carries the
  *  bridge's own `callId` (independent of the transport's request id). */
 export interface BridgeNotificationMap {
   'tool/cancel': { sessionId: string; callId: string }
+  /**
+   * One subagent residency epoch's start or terminal edge (`ctx.on('subagent/start'|'end')`).
+   * Fires per epoch — a continuable child cold-resumed by `send_message` starts a new epoch —
+   * which is why the host keys its lineage admission on this rather than the SDK wire's
+   * `subagent.started` (whose pairs are not 1:1).
+   */
+  'subagent/lifecycle': {
+    phase: 'start' | 'end'
+    runId: string
+    childSessionId: string
+    parentSessionId: string
+    provider: string
+    /** Present on `end`: `completed` | `aborted` | `error` | `max-tokens` | `refusal` | future variants. */
+    stopReason?: string
+  }
 }
 
 export type BridgeHostParams<M extends keyof BridgeHostRequestMap> = BridgeHostRequestMap[M]['params']

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { decideToolCall, detectGlobalInstall } from '../src/policy'
+import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from '../src/policy'
 import type { BridgePolicy } from '../src/protocol'
 
 // Module-scope setup: it.each tables are built at collection time, before any beforeAll.
@@ -26,8 +26,18 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   editTools: ['edit', 'write'],
   autoApprovedTools: [],
   approvalRequiredTools: [],
+  planSafeTools: [],
   ...overrides
 })
+
+/** Plan mode as the host pushes it: safe builtins + Cherry auto-approved bridged tools. */
+const planPolicy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy =>
+  policy({
+    permissionMode: 'plan',
+    autoApprovedTools: ['subagent', 'mcp__cherry-tools__web_search'],
+    planSafeTools: ['todo_write', 'exit_plan_mode', 'list_agents', 'mcp__cherry-tools__web_search'],
+    ...overrides
+  })
 
 describe('decideToolCall', () => {
   it.each([
@@ -169,6 +179,57 @@ describe('decideToolCall', () => {
   it('denies a disabled tool with an explanatory reason', async () => {
     const decision = await decideToolCall(policy({ disabledTools: ['bash'] }), 'bash', { command: 'ls' })
     expect(decision).toEqual({ kind: 'deny', reason: 'Tool "bash" is disabled for this agent.' })
+  })
+
+  // Plan mode IS the read-only guarantee — dsh's own plan mode enforces nothing.
+  describe('plan mode', () => {
+    it.each([
+      ['contained read allows', 'read', { file_path: 'inside.txt' }, 'allow'],
+      ['read outside the roots denies (never asks)', 'read', { file_path: path.join(outside, 'secret.txt') }, 'deny'],
+      ['plan-safe builtin allows', 'todo_write', { todos: [] }, 'allow'],
+      ['exit_plan_mode allows', 'exit_plan_mode', { plan: '# P' }, 'allow'],
+      ['auto-approved bridged tool listed plan-safe allows', 'mcp__cherry-tools__web_search', {}, 'allow'],
+      ['edit denies', 'edit', { file_path: 'inside.txt' }, 'deny'],
+      ['write denies', 'write', { file_path: 'sub/new.txt' }, 'deny'],
+      ['bash denies', 'bash', { command: 'ls' }, 'deny'],
+      // The load-bearing exclusion: auto-approved does NOT imply plan-safe, or the
+      // model could delegate the mutation to a child and bypass read-only.
+      ['subagent denies even though auto-approved', 'subagent', { description: 'x', prompt: 'y' }, 'deny'],
+      ['unknown mcp tool denies', 'mcp__server__tool', {}, 'deny']
+    ])('%s', async (_label, toolName, args, expected) => {
+      const decision = await decideToolCall(planPolicy(), toolName, args)
+      expect(decision.kind).toBe(expected)
+    })
+
+    it('disabled still wins over plan-safe', async () => {
+      const decision = await decideToolCall(planPolicy({ disabledTools: ['todo_write'] }), 'todo_write', {})
+      expect(decision.kind).toBe('deny')
+    })
+  })
+})
+
+describe('decideDelegatedToolCall', () => {
+  it('degrades ask to an explicit deny (dsh pins delegated approval to never)', async () => {
+    const decision = await decideDelegatedToolCall(policy(), 'bash', { command: 'ls' })
+    expect(decision.kind).toBe('deny')
+    expect((decision as { reason: string }).reason).toMatch(/approval/i)
+  })
+
+  it.each([
+    ['contained read still allows', policy(), 'read', { file_path: 'inside.txt' }, 'allow'],
+    ['bypass still allows bash', policy({ permissionMode: 'bypassPermissions' }), 'bash', { command: 'ls' }, 'allow'],
+    [
+      'acceptEdits contained edit still allows',
+      policy({ permissionMode: 'acceptEdits' }),
+      'edit',
+      { file_path: 'inside.txt' },
+      'allow'
+    ],
+    ['disabled still denies', policy({ disabledTools: ['read'] }), 'read', { file_path: 'inside.txt' }, 'deny'],
+    ['plan child denies mutation', planPolicy(), 'edit', { file_path: 'inside.txt' }, 'deny']
+  ])('%s', async (_label, testPolicy, toolName, args, expected) => {
+    const decision = await decideDelegatedToolCall(testPolicy, toolName, args)
+    expect(decision.kind).toBe(expected)
   })
 })
 

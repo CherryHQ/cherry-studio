@@ -149,8 +149,9 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   dsh: {
     labelKey: 'library.config.agent.field.runtime.option.dsh',
     labelFallback: 'DeepSeek Harness',
-    // dsh has neither a plan mode nor a model-side auto-approval classifier.
-    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan' && mode !== 'auto'),
+    // Plan mode is enforced by the bridge policy (dsh's own plan mode is guidance-only);
+    // `auto` stays out — dsh has no model-side auto-approval classifier.
+    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'auto'),
     modelTiers: false,
     heartbeat: false,
     knowledgeBases: true,

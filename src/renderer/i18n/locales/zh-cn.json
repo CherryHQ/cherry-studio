@@ -1099,6 +1099,10 @@
           "description": "编辑文件",
           "label": "编辑文件"
         },
+        "exit_plan_mode": {
+          "description": "提交计划供审阅,批准后退出计划模式",
+          "label": "退出计划模式"
+        },
         "find": {
           "description": "查找文件",
           "label": "查找文件"
@@ -1110,6 +1114,14 @@
         "grep": {
           "description": "搜索文件内容",
           "label": "搜索文件内容"
+        },
+        "interrupt_agent": {
+          "description": "停止后台子代理当前正在进行的回合",
+          "label": "中断子代理"
+        },
+        "list_agents": {
+          "description": "列出后台子代理及其状态",
+          "label": "列出子代理"
         },
         "ls": {
           "description": "列出目录内容",
@@ -1123,9 +1135,21 @@
           "description": "使用支持视觉的模型读取 PNG、JPEG、WebP 或 GIF 图片",
           "label": "读取图片"
         },
+        "send_message": {
+          "description": "向后台子代理发送后续消息",
+          "label": "发消息给子代理"
+        },
         "skill": {
           "description": "加载启用技能的完整指令",
           "label": "加载技能指令"
+        },
+        "subagent": {
+          "description": "把任务委派给可后续对话的后台子代理",
+          "label": "委派子代理"
+        },
+        "subagent_fork": {
+          "description": "把后续任务委派给继承本会话上下文的子代理",
+          "label": "分叉子代理"
         },
         "todo_write": {
           "description": "管理任务列表",

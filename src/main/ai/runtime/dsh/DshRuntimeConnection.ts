@@ -29,6 +29,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -53,6 +54,7 @@ import {
   type DshCherryToolBridge,
   warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
+import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
 import { captureDshConnectionSnapshot, DshInvalidConnectionSnapshotError } from './dshConnectionSignature'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
@@ -69,6 +71,9 @@ const DSH_EDIT_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClas
 const DSH_AUTO_APPROVED_BUILTIN_TOOLS = DSH_TOOL_DESCRIPTORS.filter(
   (tool) => tool.approval === 'auto' && tool.permissionClass === undefined
 ).map((tool) => tool.name)
+// Builtins that stay executable in plan mode (descriptor opt-in) — the subagent
+// family is auto-approved yet NOT plan-safe: delegation would bypass read-only.
+const DSH_PLAN_SAFE_BUILTIN_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.planSafe).map((tool) => tool.name)
 const DSH_BUILTIN_TOOL_ALIASES = new Map(DSH_TOOL_DESCRIPTORS.map((tool) => [tool.name.toLowerCase(), tool.name]))
 const DSH_SHELL_TOOL_NAME = DSH_TOOL_DESCRIPTORS.find((tool) => tool.category === 'shell')?.name
 if (DSH_SHELL_TOOL_NAME) {
@@ -81,17 +86,22 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new DshStreamAdapter({
-    enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
+    enqueue: (chunk) => {
+      this.observeMainChunk(chunk)
+      this.eventQueue.push({ type: 'chunk', chunk })
+    },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
     onAutonomousTurnState: (state) => {
       // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
-      if (state === 'started') this.turnActive = true
+      if (state === 'started') this.markTurnActive()
       this.eventQueue.push({ type: 'autonomous-turn-state', state })
-    }
+    },
+    onPlanMode: (active) => this.handlePlanModeFold(active)
   })
+  private readonly subagents: DshSubagentCoordinator
   private bridge?: DshBridgeServer
   private toolBridge?: DshCherryToolBridge
   private traceRecorder?: DshTraceRecorder
@@ -102,6 +112,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private closed = false
   private turnActive = false
+  /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
+  private turnEpoch = 0
   private modelId = ''
   private contextWindow = 0
   private reasoningEffort: ReasoningEffortOption = 'default'
@@ -109,6 +121,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private agentDataPath = ''
   /** Live tool policy pushed to the bridge plugin at open and on reconcile. */
   private permissionMode: BridgePermissionMode = 'default'
+  /**
+   * The runtime's committed `plan/mode` fold. dsh self-exits plan on an approved
+   * review WITHOUT Cherry rewriting the stored mode (claude parity), so the
+   * effective policy derives from stored mode + this overlay, and reconcile
+   * comparisons keep using the stored mode alone.
+   */
+  private runtimePlanActive?: boolean
+  /** Latest streamed `exit_plan_mode` call — anchors the plan-review approval card. */
+  private planReviewAnchor?: string
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
@@ -125,6 +146,68 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
+    // Constructor-body creation: parameter properties are not yet assigned while
+    // field initializers run, so `input.sessionId` is unavailable up there.
+    this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
+  }
+
+  /** Main-stream taps: subagent binding anchors and the plan-review card anchor. */
+  private observeMainChunk(chunk: CherryUIMessageChunk): void {
+    this.subagents.noteMainChunk(chunk)
+    if (chunk.type === 'tool-input-start' && chunk.toolName === 'exit_plan_mode') {
+      this.planReviewAnchor = chunk.toolCallId
+    }
+  }
+
+  /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
+  private markTurnActive(): void {
+    if (!this.turnActive) this.turnEpoch += 1
+    this.turnActive = true
+  }
+
+  private buildSubagentSink(): DshSubagentSink {
+    return {
+      currentTurnToken: () => (this.turnActive ? this.turnEpoch : null),
+      emitFlowChunk: (rootToolCallId, chunk, turnToken) => {
+        if (this.closed) return
+        // Mid-turn nested content rides the live stream (the host hides parented
+        // parts from the main transcript) — but ONLY chunks whose item opened in
+        // THIS turn. A stale pin falls back to the background-flow patch, whose
+        // accumulator tolerates orphans; the turn stream's does not (it dies
+        // silently and the whole turn persists empty).
+        if (turnToken !== null && turnToken === this.turnEpoch && this.turnActive) {
+          this.eventQueue.push({ type: 'chunk', chunk })
+        } else {
+          this.eventQueue.push({ type: 'background-flow-chunk', rootToolCallId, chunk })
+        }
+      },
+      emitTaskEvent: (data, edgeId) => {
+        if (this.closed) return
+        this.eventQueue.push({ type: 'background-task-event', data })
+        if (this.turnActive) {
+          this.eventQueue.push({
+            type: 'chunk',
+            chunk: { type: 'data-agent-task-event', id: `task-${data.taskId}-${edgeId}`, data }
+          })
+        }
+      },
+      emitTasks: (tasks) => {
+        if (!this.closed) this.eventQueue.push({ type: 'background-tasks', tasks })
+      },
+      emitWorkState: (active) => {
+        if (!this.closed) this.eventQueue.push({ type: 'background-work-state', active })
+      },
+      recordChildUsage: (info) =>
+        this.recordProviderInvocation(
+          {
+            turn: info.turn,
+            seq: info.seq,
+            usage: info.usage,
+            ...(info.model !== undefined ? { model: info.model } : {})
+          },
+          info.childSessionId
+        )
+    }
   }
 
   async start(): Promise<this> {
@@ -259,7 +342,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         emit: (event) => this.eventQueue.push(event),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
-        onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal)
+        onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
+        getPlanReviewAnchor: () => this.planReviewAnchor
       })
       await this.bridge.listen()
 
@@ -294,6 +379,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })
+      if (this.permissionMode === 'plan') {
+        // Activate dsh's plan surface (prompt section + exit tool); a resumed log
+        // that already folds to plan makes this a no-op.
+        this.runtimePlanActive = true
+        await this.bridge.request('plan/set', { sessionId: this.input.sessionId, active: true })
+      }
       this.maybeEmitResumeToken()
 
       const subscription = client.subscribe()
@@ -320,7 +411,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       if (handled) return
     }
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
-    this.turnActive = true
+    this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
     try {
@@ -385,8 +476,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       : nextDisabledTools
     const policyChanged =
       applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
+    const planBoundaryChanged = (applicablePermissionMode === 'plan') !== (this.permissionMode === 'plan')
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
+    // Optimistic: the pushed policy must already enforce the new plan stance; the
+    // committed `plan/mode` fold confirms (or corrects) it.
+    if (planBoundaryChanged) this.runtimePlanActive = applicablePermissionMode === 'plan'
 
     if (policyChanged) {
       try {
@@ -397,6 +492,18 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       } catch (error) {
         // Fail closed: the plugin may still be enforcing the OLD policy.
         logger.error('dsh policy update failed', error as Error)
+        return 'failed'
+      }
+    }
+    if (planBoundaryChanged) {
+      try {
+        await this.bridge?.request('plan/set', {
+          sessionId: this.input.sessionId,
+          active: applicablePermissionMode === 'plan'
+        })
+      } catch (error) {
+        // Fail closed: prompt guidance and enforcement would disagree.
+        logger.error('dsh plan mode switch failed', error as Error)
         return 'failed'
       }
     }
@@ -447,9 +554,27 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Interrupt one continuable child's current turn (user authority); absent child = accepted no-op. */
+  async stopTask(taskId: string): Promise<boolean> {
+    const bridge = this.bridge
+    if (!bridge || this.closed) return false
+    try {
+      await bridge.request(
+        'subagent/interrupt',
+        { sessionId: this.input.sessionId, childSessionId: taskId },
+        { timeoutMs: 5_000 }
+      )
+      return true
+    } catch (error) {
+      logger.warn('dsh subagent interrupt failed', { error })
+      return false
+    }
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
+    this.subagents.close()
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown.
     toolApprovalRegistry.abort(this.input.sessionId, 'dsh-session-closed')
@@ -485,16 +610,43 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Stored mode overlaid with the runtime's committed plan fold (see `runtimePlanActive`). */
+  private effectivePermissionMode(): BridgePermissionMode {
+    if (this.runtimePlanActive === true) return 'plan'
+    if (this.runtimePlanActive === false && this.permissionMode === 'plan') return 'default'
+    return this.permissionMode
+  }
+
+  /**
+   * The runtime committed a `plan/mode` flip this connection did not push — an
+   * approved exit_plan_mode review or a `/plan` command line. Mirror it into the
+   * live policy; Cherry's stored mode is deliberately not rewritten.
+   */
+  private handlePlanModeFold(active: boolean): void {
+    if (this.runtimePlanActive === active) return
+    this.runtimePlanActive = active
+    const bridge = this.bridge
+    if (!bridge || this.closed) return
+    // A failed refresh leaves the previous (plan-restricted or stored) policy in
+    // force — over-restriction at worst, never an enforcement gap.
+    void bridge
+      .request('policy/update', { sessionId: this.input.sessionId, policy: this.buildPolicy() })
+      .catch((error) => logger.warn('dsh plan-mode policy refresh failed', { error }))
+  }
+
   private buildPolicy(): BridgePolicy {
     return {
-      permissionMode: this.permissionMode,
+      permissionMode: this.effectivePermissionMode(),
       disabledTools: [...this.disabledTools],
       // WORKSPACE FIRST: the plugin resolves relative tool paths against allowedRoots[0].
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
       autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
-      approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS]
+      approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
+      // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
+      // bridged tools; the subagent tools stay out (delegation bypasses read-only).
+      planSafeTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS]
     }
   }
 
@@ -502,12 +654,27 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     try {
       for await (const notification of subscription) {
         if (this.closed) return
+        // Fresh-create admission on the same pipe as session.event (ordered before the
+        // child's first event); cold resumes never emit this — the bridge lifecycle does.
+        if (notification.method === 'subagent.started') {
+          const params = notification.params as { parentSessionId?: unknown; childSessionId?: unknown }
+          if (typeof params?.parentSessionId === 'string' && typeof params?.childSessionId === 'string') {
+            this.subagents.handleSdkSubagentStarted(params.parentSessionId, params.childSessionId)
+          }
+          continue
+        }
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
-        if (params?.sessionId !== this.input.sessionId) continue
+        if (typeof params?.sessionId !== 'string') continue
         // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
         // single wire-boundary cast sound. Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
+        if (params.sessionId !== this.input.sessionId) {
+          // Every other session in this process is a descendant (or one racing its
+          // started/lifecycle signal); the coordinator buffers until a binding lands.
+          this.subagents.handleChildEvent(params.sessionId, event)
+          continue
+        }
         this.traceRecorder?.handleEvent(event)
         this.adapter.handleEvent(event)
       }
@@ -528,7 +695,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * admission miss so the caller falls back to a normal prompt.
    */
   private async runSlashCommand(bridge: DshBridgeServer, line: string): Promise<boolean> {
-    this.turnActive = true
+    this.markTurnActive()
     let outcome
     try {
       outcome = await bridge.requestCommand(this.input.sessionId, line)
@@ -581,17 +748,20 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private recordProviderInvocation(info: {
-    turn: number
-    seq: number
-    usage: TokenUsage
-    model?: string
-    metrics?: DshInvocationMetrics
-  }): void {
+  private recordProviderInvocation(
+    info: {
+      turn: number
+      seq: number
+      usage: TokenUsage
+      model?: string
+      metrics?: DshInvocationMetrics
+    },
+    sessionId: string = this.input.sessionId
+  ): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
 
-    const requestId = `dsh-agent:${this.input.sessionId}:${info.turn}:${info.seq}`
+    const requestId = `dsh-agent:${sessionId}:${info.turn}:${info.seq}`
     if (this.committedInvocationIds.has(requestId)) return
     this.committedInvocationIds.add(requestId)
 
@@ -632,8 +802,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 }
 
 function toBridgePermissionMode(mode: AgentPermissionMode | undefined): BridgePermissionMode {
-  // `plan`/`auto` are unsupported for dsh (descriptor excludes them); they fall through to gate-all.
-  return mode === 'acceptEdits' || mode === 'bypassPermissions' ? mode : 'default'
+  // `auto` stays unsupported for dsh (no model-side approval classifier); it falls through to gate-all.
+  return mode === 'acceptEdits' || mode === 'bypassPermissions' || mode === 'plan' ? mode : 'default'
 }
 
 function isBypassMode(mode: BridgePermissionMode): boolean {

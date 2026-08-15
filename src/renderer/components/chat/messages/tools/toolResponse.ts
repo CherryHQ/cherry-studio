@@ -26,8 +26,11 @@ const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['bash', AgentToolsType.Bash],
   ['pwsh', AgentToolsType.Bash],
   ['edit', AgentToolsType.Edit],
+  ['exit_plan_mode', AgentToolsType.ExitPlanMode],
   ['read', AgentToolsType.Read],
   ['skill', AgentToolsType.Skill],
+  ['subagent', AgentToolsType.Task],
+  ['subagent_fork', AgentToolsType.Task],
   ['todo_write', AgentToolsType.TodoWrite],
   ['write', AgentToolsType.Write]
 ])
@@ -117,19 +120,20 @@ function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undef
   )
 }
 
-function extractClaudeParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
+function extractParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
   if (!isRecord(metadata)) return undefined
-  const claudeCode = isRecord(metadata['claude-code']) ? metadata['claude-code'] : undefined
-  const parentToolCallId = claudeCode?.parentToolCallId ?? claudeCode?.parentToolUseId
-  return typeof parentToolCallId === 'string' && parentToolCallId ? parentToolCallId : undefined
+  // claude's own namespace first, then the runtime-neutral one (dsh et al.).
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = isRecord(metadata[namespace]) ? metadata[namespace] : undefined
+    const parentToolCallId = entry?.parentToolCallId ?? entry?.parentToolUseId
+    if (typeof parentToolCallId === 'string' && parentToolCallId) return parentToolCallId
+  }
+  return undefined
 }
 
 function extractParentToolUseId(part: ToolResponsePart): string | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
-  return (
-    extractClaudeParentToolCallIdFrom(part.callProviderMetadata) ??
-    extractClaudeParentToolCallIdFrom(resultProviderMetadata)
-  )
+  return extractParentToolCallIdFrom(part.callProviderMetadata) ?? extractParentToolCallIdFrom(resultProviderMetadata)
 }
 
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {

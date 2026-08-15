@@ -202,6 +202,46 @@ describe('buildDshCompositionYaml', () => {
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('/tmp/dsh-workspace')
   })
 
+  it('mounts the dsh-factory subagent split: continuable spawn, one-shot foreground fork', () => {
+    const yml = buildDshCompositionYaml(makeInput())
+    const ids = parseEntries(yml).map((entry) => entry.id)
+    for (const id of [
+      'subagent',
+      'subagent-spawn',
+      'subagent-fork',
+      'tool-subagent-control',
+      'tool-subagent-list-agents',
+      'tool-subagent-report'
+    ]) {
+      expect(ids).toContain(id)
+    }
+
+    expect(entryById(yml, 'subagent-spawn').config).toEqual({ providerName: 'spawn' })
+    expect(entryById(yml, 'subagent-fork').config).toEqual({ providerName: 'fork' })
+    expect(entryById(yml, 'tool-subagent').config).toMatchObject({
+      provider: 'spawn',
+      toolName: 'subagent',
+      backgroundMode: 'continuable'
+    })
+    const fork = entryById(yml, 'tool-subagent-fork').config
+    expect(fork).toMatchObject({ provider: 'fork', toolName: 'subagent_fork', backgroundMode: 'one-shot' })
+    // No jobs plane is mounted, so background one-shot MUST stay unreachable.
+    expect(fork?.enableRunInBackground).toBe(false)
+    // Children must never see the plan-exit tool (their asks cannot reach a human).
+    expect(entryById(yml, 'tool-subagent').config?.toolFilter).toEqual({ deny: ['exit_plan_mode'] })
+    expect(fork?.toolFilter).toEqual({ deny: ['exit_plan_mode'] })
+  })
+
+  it('mounts user-questions and plan-mode with a non-empty guidance section', () => {
+    const yml = buildDshCompositionYaml(makeInput())
+    expect(entryById(yml, 'user-questions')).not.toHaveProperty('config')
+    const section = entryById(yml, 'plan-mode').config?.section
+    expect(typeof section).toBe('string')
+    // The section is the only plan guidance the model gets; it must name the exit tool.
+    expect(section).toContain('exit_plan_mode')
+    expect(section).not.toContain('ask_user_question')
+  })
+
   it('mounts durable image attachments before tool-fs', () => {
     const yml = buildDshCompositionYaml(makeInput())
     const ids = parseEntries(yml).map((entry) => entry.id)

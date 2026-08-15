@@ -45,7 +45,8 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     // pi implements `auto` itself in the approval extension, so it offers it and starts there.
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('plan')
+    // dsh plan mode is enforced by the bridge policy (its own plan mode is guidance-only).
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('default')
   })

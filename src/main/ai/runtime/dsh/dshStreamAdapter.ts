@@ -18,10 +18,11 @@
  * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
  * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
  */
-// The dsh-compaction-basic / dsh-llm-retry imports load their SessionEventMap merges.
+// The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap merges.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
 import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
+import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -61,6 +62,9 @@ export interface DshStreamSink {
   /** A runtime-started turn (goal round): `started` fires before the turn's first chunk,
    *  `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
   onAutonomousTurnState(state: 'started' | 'finished'): void
+  /** Committed `plan/mode` fold (last one wins). `false` after an approved exit —
+   *  the connection re-opens its policy since Cherry's stored mode is not rewritten. */
+  onPlanMode(active: boolean): void
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
@@ -199,6 +203,9 @@ export class DshStreamAdapter {
         return
       case 'compaction/end':
         this.handleCompactionEnd(event.data)
+        return
+      case 'plan/mode':
+        this.sink.onPlanMode(event.data.active)
         return
       default:
         // user/message, todo/write, request/*, approval/*,
