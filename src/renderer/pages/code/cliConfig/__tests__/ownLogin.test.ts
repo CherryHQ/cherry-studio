@@ -1,4 +1,6 @@
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readOwnLoginCliConfigDraft } from '../index'
@@ -8,6 +10,12 @@ import {
   buildKimiOwnLoginConfig,
   buildQwenOwnLoginConfig
 } from '../ownLogin'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 describe('ownLogin builders', () => {
   describe('buildCodexOwnLoginConfig', () => {
@@ -118,13 +126,14 @@ describe('ownLogin builders', () => {
 
 describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-      }
-    })
+    // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+      files: input.targets.map((target) => ({
+        target,
+        path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+        content: ''
+      }))
+    }))
   })
 
   // The raw builder tests above don't exercise the adapter glue: which target file each own-login
