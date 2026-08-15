@@ -1,7 +1,7 @@
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { parseDotenv } from './dotenv'
-import { type CliConfigReadFiles, parseJsonOrThrow, parseTomlOrThrow } from './file'
+import { type CliConfigReadFiles, parseJsonOrThrow, parseTomlOrThrow, requireReadFile } from './file'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -13,10 +13,8 @@ export function getDraftFile(
 
 /** Draft entry for freshly-rendered content; the path is the main-resolved one from the batch read. */
 export function makeDraftFile(target: CliConfigTarget, content: string, read: CliConfigReadFiles): CliConfigFileDraft {
-  const file = read.get(target)
-  if (!file) throw new Error(`No read result for config target: ${target}`)
   const spec = CLI_CONFIG_FILE_SPECS[target]
-  return { target, label: spec.label, path: file.path, language: spec.language, content }
+  return { target, label: spec.label, path: requireReadFile(target, read).path, language: spec.language, content }
 }
 
 /** Current text of `target`: an in-progress draft overrides the on-disk file ('' when missing on disk). */
@@ -27,7 +25,7 @@ export function readDraftFileText(
 ): string {
   const draft = getDraftFile(files, target)
   if (draft) return draft.content
-  return read.get(target)?.content ?? ''
+  return requireReadFile(target, read).content ?? ''
 }
 
 /** Parse a draft/on-disk config file, wrapping a parse failure with the file's label and path. */
@@ -43,7 +41,7 @@ export function readAndParseDraftFile<T>(
   } catch (err) {
     // parseFn (parseJsonOrThrow/parseTomlOrThrow) already redacts its own message at the source.
     const spec = CLI_CONFIG_FILE_SPECS[target]
-    const path = getDraftFile(files, target)?.path ?? read.get(target)?.path ?? spec.path
+    const path = getDraftFile(files, target)?.path ?? requireReadFile(target, read).path
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to parse ${spec.label} at ${path}: ${rawMessage}`)
   }

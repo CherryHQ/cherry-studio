@@ -23,7 +23,8 @@ export async function readConfigFiles(targets: readonly CliConfigTarget[]): Prom
   return new Map(files.map((file) => [file.target, file]))
 }
 
-function requireReadFile(target: CliConfigTarget, files: CliConfigReadFiles): CliConfigReadFile {
+/** The read entry for `target`; a missing entry is a caller bug (readConfigFiles returns every requested target). */
+export function requireReadFile(target: CliConfigTarget, files: CliConfigReadFiles): CliConfigReadFile {
   const file = files.get(target)
   if (!file) throw new Error(`No read result for config target: ${target}`)
   return file
