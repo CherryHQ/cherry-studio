@@ -10,7 +10,7 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
-import { sanitizeEnvForLogging, SENSITIVE_ENV_KEYS } from '@main/utils/envRedaction'
+import { SENSITIVE_ENV_KEYS } from '@main/utils/envRedaction'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -261,19 +261,28 @@ export function redactSensitive(input: any): any {
 
 // Strip secrets from a serialized serverKey (see getServerKey) before logging; a serverKey
 // that fails to parse yields a placeholder rather than the raw string.
+// env/headers fail CLOSED: every value is redacted — secrecy cannot be inferred from key
+// names (e.g. DATABASE_URL carries credentials in the value, matching no sensitive name).
 export function redactServerKey(serverKey: string): string {
+  const redactAllValues = (value: unknown): unknown =>
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.keys(value as object).map((key) => [key, '<redacted>']))
+      : value
   try {
     const parsed = JSON.parse(serverKey) as Record<string, unknown>
-    if (parsed.env && typeof parsed.env === 'object') {
-      parsed.env = sanitizeEnvForLogging(parsed.env as Record<string, string>)
-    }
-    if (parsed.headers && typeof parsed.headers === 'object') {
-      parsed.headers = sanitizeEnvForLogging(parsed.headers as Record<string, string>)
-    }
+    parsed.env = redactAllValues(parsed.env)
+    parsed.headers = redactAllValues(parsed.headers)
     return JSON.stringify(parsed)
   } catch {
     return '<unparseable-serverKey>'
   }
+}
+
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1 ? redactServerKey(cacheKey) : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
 
 // Create a context-aware logger for a server
@@ -306,7 +315,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -316,7 +325,7 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, { cacheKey: redactCacheKey(cacheKey), ttlMs: ttl, durationMs: Date.now() - start })
     return result
   }
 }

@@ -738,6 +738,23 @@ describe('redactServerKey (issue #18648)', () => {
     expect(JSON.parse(out).env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
   })
 
+  it('fails closed: redacts credential-bearing values whose names match no sensitive pattern', () => {
+    // Review regression: DATABASE_URL carries credentials in the VALUE — key-name
+    // heuristics must not decide secrecy at this boundary.
+    const key = JSON.stringify({
+      command: 'npx',
+      env: { DATABASE_URL: 'postgresql://user:password@host/db', DEBUG: '1' },
+      headers: { 'X-Custom-Trace': 'secret-trace-value' }
+    })
+    const out = redactServerKey(key)
+    expect(out).not.toContain('password')
+    expect(out).not.toContain('secret-trace-value')
+    const parsed = JSON.parse(out)
+    expect(parsed.env.DATABASE_URL).toBe('<redacted>')
+    expect(parsed.env.DEBUG).toBe('<redacted>')
+    expect(parsed.headers['X-Custom-Trace']).toBe('<redacted>')
+  })
+
   it('returns a placeholder for an unparseable server key', () => {
     expect(redactServerKey('not-json')).toBe('<unparseable-serverKey>')
   })
