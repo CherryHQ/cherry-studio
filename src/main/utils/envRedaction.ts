@@ -1,17 +1,9 @@
 // Sensitive environment variable keys to redact in logs (substring, case-insensitive).
-// 'API-KEY' covers HTTP header names like 'X-Api-Key' alongside env-style 'X_API_KEY'.
-// Bare 'KEY' catches credential names outside the API_KEY pattern (e.g. DIFY_KEY); it
-// also over-redacts benign KEY-containing names, which only costs log readability.
-export const SENSITIVE_ENV_KEYS = [
-  'API_KEY',
-  'API-KEY',
-  'APIKEY',
-  'KEY',
-  'AUTHORIZATION',
-  'TOKEN',
-  'SECRET',
-  'PASSWORD'
-]
+// Entries are minimal stems: 'KEY' subsumes API_KEY/APIKEY/DIFY_KEY and header-style
+// 'X-Api-Key'; 'AUTH' subsumes AUTHORIZATION/BASIC_AUTH; 'PASS' subsumes
+// PASSWORD/PASSPHRASE/SSHPASS. Substring matching over-redacts benign names
+// (AUTHOR_NAME, XDG_SESSION_TYPE, COMPASS_DIR) — log readability is the only cost.
+export const SENSITIVE_ENV_KEYS = ['KEY', 'TOKEN', 'SECRET', 'AUTH', 'CREDENTIAL', 'PASS', 'COOKIE', 'SESSION']
 
 /**
  * Sanitize environment variables for safe logging

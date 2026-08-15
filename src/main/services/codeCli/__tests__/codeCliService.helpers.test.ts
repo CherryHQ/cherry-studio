@@ -249,4 +249,36 @@ describe('sanitizeEnvForLogging - Sensitive Data Redaction', () => {
     expect(result.DIFY_KEY).toBe('<redacted>')
     expect(result.MEMORY_FILE_PATH).toBe('/tmp/memory')
   })
+
+  it('should redact auth/credential/pass/session/cookie stems', () => {
+    const env = {
+      BASIC_AUTH: 'dXNlcjpwYXNz',
+      ANTHROPIC_AUTH_TOKEN: 'sk-ant-x',
+      GOOGLE_APPLICATION_CREDENTIALS: '/svc.json',
+      SSHPASS: 'pw',
+      SSH_PASSPHRASE: 'pw',
+      SESSION_COOKIE: 'sid',
+      NEXTAUTH_SESSION: 'sid',
+      MODEL: 'gpt-4'
+    }
+    const result = sanitizeEnvForLogging(env)
+    for (const key of [
+      'BASIC_AUTH',
+      'ANTHROPIC_AUTH_TOKEN',
+      'GOOGLE_APPLICATION_CREDENTIALS',
+      'SSHPASS',
+      'SSH_PASSPHRASE',
+      'SESSION_COOKIE',
+      'NEXTAUTH_SESSION'
+    ]) {
+      expect(result[key]).toBe('<redacted>')
+    }
+    expect(result.MODEL).toBe('gpt-4')
+  })
+
+  it('over-redacts benign names containing a stem (accepted log-readability tradeoff)', () => {
+    const result = sanitizeEnvForLogging({ GIT_AUTHOR_NAME: 'lee', XDG_SESSION_TYPE: 'x11' })
+    expect(result.GIT_AUTHOR_NAME).toBe('<redacted>')
+    expect(result.XDG_SESSION_TYPE).toBe('<redacted>')
+  })
 })
