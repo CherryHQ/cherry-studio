@@ -234,10 +234,40 @@ describe('deferred ComposerSurface', () => {
 
   it('navigates input history on the first arrow key', () => {
     const onInputHistoryNavigate = vi.fn(() => true)
-    render(<Harness text="" isInputHistoryActive onInputHistoryNavigate={onInputHistoryNavigate} />)
+    render(<Harness text="" onInputHistoryNavigate={onInputHistoryNavigate} />)
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
     expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+  })
+
+  it('hands the end selection to the runtime for history recalled before it loads', async () => {
+    const historyText = 'previous chat prompt'
+    let actions: ComposerSurfaceActions | undefined
+
+    function InputHistoryHarness() {
+      const [text, setText] = useState('')
+      return (
+        <Harness
+          text={text}
+          onTextChange={setText}
+          onActionsChange={(nextActions) => {
+            actions = nextActions
+          }}
+          onInputHistoryNavigate={() => {
+            actions?.replaceDraft({ text: historyText, tokens: [] })
+            return true
+          }}
+        />
+      )
+    }
+
+    render(<InputHistoryHarness />)
+    await waitFor(() => expect(actions).toBeDefined())
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveAttribute('data-selection', `${historyText.length}:${historyText.length}`)
   })
 
   it('replays a programmatic first token insertion through the runtime', async () => {

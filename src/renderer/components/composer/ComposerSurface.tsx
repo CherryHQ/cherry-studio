@@ -147,6 +147,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       },
       onTextChange: updateText,
       replaceDraft: (draft) => {
+        selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
       },
@@ -187,7 +188,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }
 
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (!props.isInputHistoryActive || !props.onInputHistoryNavigate) return false
+    if (!props.onInputHistoryNavigate) return false
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
 
