@@ -467,6 +467,7 @@ export function TabsProvider({
       const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
       const wake = (tab: Tab) =>
         tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+      projectedTabsRef.current = fallbackTab ? [fallbackTab] : remainingTabs.map(wake)
 
       if (pinnedIds.size > 0 || wakeInPinned) {
         setPinnedTabs((prev) => {
