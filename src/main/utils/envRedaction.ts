@@ -1,5 +1,6 @@
-// Sensitive environment variable keys to redact in logs
-export const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
+// Sensitive environment variable keys to redact in logs (substring, case-insensitive).
+// 'API-KEY' covers HTTP header names like 'X-Api-Key' alongside env-style 'X_API_KEY'.
+export const SENSITIVE_ENV_KEYS = ['API_KEY', 'API-KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
 
 /**
  * Sanitize environment variables for safe logging

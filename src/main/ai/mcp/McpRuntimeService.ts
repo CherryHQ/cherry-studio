@@ -10,6 +10,7 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
+import { sanitizeEnvForLogging, SENSITIVE_ENV_KEYS } from '@main/utils/envRedaction'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -226,7 +227,6 @@ function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
   const MAX_STRING = 300
 
   // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
@@ -245,7 +245,7 @@ export function redactSensitive(input: any): any {
     if (typeof val === 'object') {
       const out: Record<string, any> = {}
       for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
+        if (SENSITIVE_ENV_KEYS.some((sk) => k.toUpperCase().includes(sk))) {
           out[k] = '<redacted>'
         } else {
           out[k] = redact(v, seen)
@@ -257,6 +257,23 @@ export function redactSensitive(input: any): any {
   }
 
   return redact(input, new WeakSet())
+}
+
+// Strip secrets from a serialized serverKey (see getServerKey) before logging; a serverKey
+// that fails to parse yields a placeholder rather than the raw string.
+export function redactServerKey(serverKey: string): string {
+  try {
+    const parsed = JSON.parse(serverKey) as Record<string, unknown>
+    if (parsed.env && typeof parsed.env === 'object') {
+      parsed.env = sanitizeEnvForLogging(parsed.env as Record<string, string>)
+    }
+    if (parsed.headers && typeof parsed.headers === 'object') {
+      parsed.headers = sanitizeEnvForLogging(parsed.headers as Record<string, string>)
+    }
+    return JSON.stringify(parsed)
+  } catch {
+    return '<unparseable-serverKey>'
+  }
 }
 
 // Create a context-aware logger for a server
@@ -1012,7 +1029,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -1067,13 +1084,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 

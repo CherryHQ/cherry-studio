@@ -135,9 +135,8 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, redactSensitive, redactServerKey, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -707,6 +706,45 @@ describe('redactSensitive (mcp-services-3)', () => {
     a.b = b // a -> b -> a cycle
     expect(() => redactSensitive(a)).not.toThrow()
     expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
+  })
+
+  it('redacts sensitive substrings in key names, case-insensitively', () => {
+    const out = redactSensitive({
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_x', MEMORY_FILE_PATH: '/tmp/mem' },
+      headers: { 'X-Api-Key': 'k', Accept: 'application/json' }
+    })
+    expect(out.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
+    expect(out.env.MEMORY_FILE_PATH).toBe('/tmp/mem')
+    expect(out.headers['X-Api-Key']).toBe('<redacted>')
+    expect(out.headers.Accept).toBe('application/json')
+  })
+})
+
+describe('redactServerKey (issue #18648)', () => {
+  it('redacts env and headers values from a serialized server key', () => {
+    const key = JSON.stringify({
+      baseUrl: '',
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-github'],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret' },
+      headers: { Authorization: 'Bearer secret' }
+    })
+    const out = redactServerKey(key)
+    expect(out).not.toContain('github_pat_secret')
+    expect(out).not.toContain('Bearer secret')
+    expect(out).toContain('<redacted>')
+    // non-sensitive fields stay visible for debugging
+    expect(out).toContain('@modelcontextprotocol/server-github')
+    expect(JSON.parse(out).env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
+  })
+
+  it('returns a placeholder for an unparseable server key', () => {
+    expect(redactServerKey('not-json')).toBe('<unparseable-serverKey>')
+  })
+
+  it('leaves a key without env or headers untouched', () => {
+    const key = JSON.stringify({ baseUrl: 'https://example.com', id: 'a1' })
+    expect(redactServerKey(key)).toBe(key)
   })
 })
 
