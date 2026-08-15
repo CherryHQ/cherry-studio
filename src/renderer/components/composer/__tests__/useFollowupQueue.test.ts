@@ -337,4 +337,193 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(false)
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
   })
+
+  it('clear during an in-flight drain drops the resolution instead of resurrecting failure state', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.clear()
+    })
+    expect(result.current.items).toEqual([])
+
+    // The in-flight send settles with failure after the queue was cleared — must not stick the
+    // queue in the hidden-banner state (failedItemId set, banner gone, drains blocked forever).
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+    expect(queues()['s1']).toBeUndefined()
+  })
+
+  it('abort during an in-flight retry leaves the queue clean when the retry fails', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false) // auto-drain fails
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(result.current.failedItemId).toBe('h1')
+
+    await act(async () => {
+      result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      result.current.clear() // the dock's Abort action
+    })
+    expect(result.current.items).toEqual([])
+    expect(result.current.failedItemId).toBeNull()
+
+    await act(async () => {
+      resolveRetry(false)
+    })
+
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('removing the item an in-flight drain is sending drops the pending resolution', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.removeId('h1')
+    })
+
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('switching conversations while a drain is in flight drops the stale resolution', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: false })
+    })
+
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    // The stale failure must not poison the new conversation's queue (banner hidden, drains blocked).
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('skip and retry are no-ops while a retry is already in flight (no concurrent sends)', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false) // auto-drain fails
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(result.current.failedItemId).toBe('h1')
+
+    await act(async () => {
+      result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    // Double-click Retry + Skip while the retry send is pending — no second send may start.
+    act(() => {
+      result.current.retryFailed()
+    })
+    act(() => {
+      result.current.skipFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['first', 'second'])
+
+    // The retried head succeeds → dequeued; the failure resolves like a normal success.
+    await act(async () => {
+      resolveRetry(true)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+  })
+
+  it('persisting one conversation does not clobber another conversation\u2019s entry', () => {
+    const first = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+    const second = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's2', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+
+    act(() => {
+      first.result.current.enqueue(draft('a'), payload('a'))
+    })
+    act(() => {
+      second.result.current.enqueue(draft('b'), payload('b'))
+    })
+
+    expect(persistedTexts('s1')).toEqual(['a'])
+    expect(persistedTexts('s2')).toEqual(['b'])
+  })
 })
