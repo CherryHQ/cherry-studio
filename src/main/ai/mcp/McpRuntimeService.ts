@@ -266,7 +266,7 @@ export function redactSensitive(input: any): any {
 export function redactServerKey(serverKey: string): string {
   const redactAllValues = (value: unknown): unknown =>
     typeof value === 'object' && value !== null
-      ? Object.fromEntries(Object.keys(value as object).map((key) => [key, '<redacted>']))
+      ? Object.fromEntries(Object.keys(value).map((key) => [key, '<redacted>']))
       : value
   try {
     const parsed = JSON.parse(serverKey) as Record<string, unknown>
