@@ -10,6 +10,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
@@ -133,6 +134,9 @@ const createSerializedFolderToken = (folderPath: string): ComposerSerializedToke
   textOffset: 0
 })
 
+/** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
+const ps = (...values: string[]) => values as AbsoluteFilePath[]
+
 const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
   renderHook(
     ({ paths }) =>
@@ -142,7 +146,7 @@ const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = [
         setFiles: mocks.setFiles,
         enabled: true
       }),
-    { initialProps: { paths: accessiblePaths } }
+    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[] } }
   )
 
 const requireFirstResourceMentionSource = (
@@ -2277,6 +2281,26 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('ignores a workspace path that is not an absolute filesystem path', async () => {
+    mocks.sessionWorkspacePath = 'relative/workspace'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: 'notes', editor: {} as any })
+
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+    expect(items).toEqual([expect.objectContaining({ id: 'agent-resource:no-paths' })])
+  })
+
   it('provides workspace file resources through the @ mention suggestion source', async () => {
     vi.useFakeTimers()
     try {
@@ -2470,7 +2494,7 @@ describe('AgentComposer', () => {
     const staleSource = requireFirstResourceMentionSource(hook.result.current)
     const staleItemsPromise = staleSource.items({ query: '', editor: buildComposerEditorMock().editor })
 
-    hook.rerender({ paths: ['/workspace-2'] })
+    hook.rerender({ paths: ps('/workspace-2') })
     const currentSource = requireFirstResourceMentionSource(hook.result.current)
     await expect(currentSource.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
       expect.objectContaining({ label: 'current', description: '/workspace-2/current' })
