@@ -25,6 +25,12 @@ function realTomlParseErrorMessage(malformedToml: string): string {
 }
 
 describe('isSensitiveKey', () => {
+  it('keeps every documented stem active (this list is the whole project key knowledge)', () => {
+    for (const stem of ['key', 'token', 'secret', 'auth', 'credential', 'pass', 'cookie', 'session']) {
+      expect(isSensitiveKey(`X_${stem.toUpperCase()}_VALUE`), `stem "${stem}"`).toBe(true)
+    }
+  })
+
   it('matches stems case-insensitively as substrings', () => {
     expect(isSensitiveKey('GITHUB_PERSONAL_ACCESS_TOKEN')).toBe(true)
     expect(isSensitiveKey('X-Api-Key')).toBe(true)

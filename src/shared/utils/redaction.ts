@@ -150,10 +150,12 @@ const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi
  * alternation for scope-limited names like OAuth's `code`.
  */
 export function redactSecretText(text: string, extraKeys: readonly string[] = []): string {
+  // Escape each extra key — raw insertion of regex metacharacters would silently break the alternation.
+  const escaped = extraKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const withExtras =
-    extraKeys.length === 0
+    escaped.length === 0
       ? SECRET_KEY_VALUE_PATTERN
-      : new RegExp(SECRET_KEY_VALUE_PATTERN.source.replace('|apikey', `|apikey|${extraKeys.join('|')}`), 'gi')
+      : new RegExp(SECRET_KEY_VALUE_PATTERN.source.replace('|apikey', `|apikey|${escaped.join('|')}`), 'gi')
   return text.replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`).replace(withExtras, `$1"${REDACTED}"`)
 }
 
