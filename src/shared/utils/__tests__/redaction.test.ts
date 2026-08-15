@@ -201,6 +201,17 @@ describe('redactUrlParams', () => {
   })
 })
 
+// Regex design notes (kept here so the source stays under its inline-comment cap):
+// - Triple-quoted alternatives must come before the bare-value fallback — otherwise a
+//   multiline TOML secret is only redacted up to the first embedded newline.
+// - The bare-value fallback intentionally consumes the rest of the line (not just one
+//   token): a malformed source line can put the real secret past a broken/empty quoted
+//   value (e.g. `api_key = "" sk-real-secret`), or inside a double-quoted value
+//   containing an apostrophe — matching only a single quoted pair or token would leave
+//   those trailing fragments unredacted.
+// - Bearer/Basic is redacted before the key=value pass, which would otherwise consume
+//   the literal word "Bearer" as the "value" for a preceding "Authorization:" key and
+//   leave the real token intact.
 describe('redactSecretText', () => {
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
@@ -253,6 +264,13 @@ describe('redactSecretText', () => {
     const message = 'redirect: code=OAUTH_SECRET&x=1'
     expect(redactSecretText(message)).toContain('OAUTH_SECRET')
     expect(redactSecretText(message, ['code'])).not.toContain('OAUTH_SECRET')
+  })
+
+  it('escapes regex metacharacters in extraKeys instead of breaking the alternation', () => {
+    const message = 'api_key = "sk-1"\nxtoken(v2) = "sk-2"'
+    const result = redactSecretText(message, ['xtoken(v2)'])
+    expect(result).toContain('api_key = "<redacted>"')
+    expect(result).toContain('xtoken(v2) = "<redacted>"')
   })
 
   it('redacts a secret stranded after a broken/empty quoted value on a real smol-toml error', () => {

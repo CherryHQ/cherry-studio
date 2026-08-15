@@ -3,9 +3,8 @@
 
 export const REDACTED = '<redacted>'
 
-// Substring stems matched against key NAMES, case-insensitive. Stems subsume the
-// historic API_KEY/APIKEY/PASSWORD variants; over-matching benign names only
-// costs log readability.
+// Substring stems matched against key names, case-insensitively; they subsume the
+// historic API_KEY/APIKEY/PASSWORD variants (over-matching only costs log readability).
 export const SENSITIVE_KEY_STEMS = ['KEY', 'TOKEN', 'SECRET', 'AUTH', 'CREDENTIAL', 'PASS', 'COOKIE', 'SESSION']
 
 // Exact names (lowercase) that no stem covers; dropping them would regress
@@ -128,22 +127,12 @@ export function redactUrlParams(rawUrl: string, extraKeys: readonly string[] = [
   }
 }
 
-// Curated key alternation for free text — NOT the bare stems, which would
-// over-match English words (monkey, PASSED). Covers key=value, "key": value,
-// and OAuth-style token= fragments in arbitrary diagnostic strings.
-// Triple-quoted alternatives must come before the bare-value fallback —
-// otherwise a multiline TOML secret is only redacted up to the first embedded
-// newline. The bare-value fallback intentionally consumes the rest of the line
-// (not just one token): a malformed source line can put the real secret past a
-// broken/empty quoted value (e.g. `api_key = "" sk-real-secret`), or inside a
-// double-quoted value containing an apostrophe — matching only a single quoted
-// pair or token would leave those trailing fragments unredacted.
+// Curated alternation (not the bare stems — those over-match English words); ordering
+// and value-alternative rationale lives with the edge-case tests in redaction.test.ts.
 const SECRET_KEY_VALUE_PATTERN =
   /(["']?(?:api[_-]?key|apikey|token|secret|password|passphrase|auth|credential|cookie|session)\w*["']?\s*[:=]\s*)("""[\s\S]*?"""|'''[\s\S]*?'''|[^\r\n]*)/gi
 
-// Bearer/Basic must be redacted before the key=value pass, which would
-// otherwise consume the literal word "Bearer" as the "value" for a preceding
-// "Authorization:" key and leave the real token intact.
+// Bearer/Basic must run before the key=value pass — see the tests for why.
 const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi
 
 /**
