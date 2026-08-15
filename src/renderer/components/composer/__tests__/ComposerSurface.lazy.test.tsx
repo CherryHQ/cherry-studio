@@ -73,7 +73,7 @@ class FakeDataTransfer {
 }
 
 function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
-  const [text, setText] = useState('draft')
+  const [text, setText] = useState('')
   const props: ComposerSurfaceProps = {
     text,
     onTextChange: setText,
@@ -140,7 +140,7 @@ describe('deferred ComposerSurface', () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
-    expect(input).toHaveValue('draft')
+    expect(input).toHaveValue('')
     expect(mocks.runtimeLoads).toBe(0)
 
     fireEvent.focus(input)
@@ -220,6 +220,19 @@ describe('deferred ComposerSurface', () => {
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
   })
 
+  it('loads the runtime for a restored multi-line draft the fixed-height fallback cannot hold', async () => {
+    render(<Harness text={'line one\nline two\nline three'} />)
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('line one line two line three')
+  })
+
+  it('loads the runtime for any non-empty draft, even one line a narrow input may soft-wrap', async () => {
+    render(<Harness text="one long single line" />)
+
+    expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('one long single line')
+  })
+
   it('follows the send-shortcut preference when the caller does not pass one', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.input.send_message_shortcut', 'Ctrl+Enter')
     render(<Harness sendMessageShortcut={undefined} />)
@@ -246,6 +259,7 @@ describe('deferred ComposerSurface', () => {
     const onTokensChange = vi.fn()
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}
@@ -268,6 +282,7 @@ describe('deferred ComposerSurface', () => {
     const quote = { id: 'q2', kind: 'quote', promptText: 'Quoted line' } as ComposerDraftToken
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}
