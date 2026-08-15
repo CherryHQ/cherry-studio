@@ -10,6 +10,7 @@ interface ConversationComposerStageProps {
   composer: ReactNode
   overlay?: ReactNode
   composerElevated?: boolean
+  composerVisible?: boolean
   mainVisible?: boolean
 }
 
@@ -19,6 +20,7 @@ export default function ConversationComposerStage({
   composer,
   overlay,
   composerElevated,
+  composerVisible,
   mainVisible
 }: ConversationComposerStageProps) {
   const isDocked = placement === 'docked'
@@ -32,6 +34,7 @@ export default function ConversationComposerStage({
       mainVisible={resolvedMainVisible}
       overlay={overlay}
       composerElevated={composerElevated}
+      composerVisible={composerVisible}
     />
   )
 }

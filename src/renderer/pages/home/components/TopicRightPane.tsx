@@ -168,7 +168,8 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
-      canMaximize: true
+      canMaximize: true,
+      keepsComposerWhenMaximized: false
     })
   },
   TOPIC_TRACE_PANE_CAPABILITY
