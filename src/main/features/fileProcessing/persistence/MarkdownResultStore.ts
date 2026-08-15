@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile } from '@main/utils/file'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { redactUrlToOrigin } from '@shared/utils/redaction'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { net } from 'electron'
 
@@ -99,20 +100,11 @@ function getMarkdownPersistenceLogContext(options: {
   }
 
   if (options.result.kind === 'remote-zip-url') {
-    context.downloadUrl = redactUrlQuery(options.result.downloadUrl)
+    context.downloadUrl = redactUrlToOrigin(options.result.downloadUrl)
     context.configuredApiHost = options.result.configuredApiHost
   }
 
   return context
-}
-
-function redactUrlQuery(url: string): string {
-  try {
-    const parsedUrl = new URL(url)
-    return `${parsedUrl.origin}${parsedUrl.pathname}`
-  } catch {
-    return '[invalid-url]'
-  }
 }
 
 function getSafeMarkdownPersistenceErrorForLog(error: unknown): Error {
