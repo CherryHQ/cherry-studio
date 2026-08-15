@@ -154,17 +154,23 @@ export function mergeDeltaPayload(
   return undefined
 }
 
+export interface CompactReplayEntry {
+  payload: StreamChunkPayload
+  /** Structural repair created by replay; it shares the following source chunk's sequence. */
+  synthetic: boolean
+}
+
 /**
- * Compact an execution's buffered chunks for replay. Contiguous delta runs
+ * Build the canonical replay plan for one execution. Contiguous delta runs
  * are merged, and a missing `text-start` / `reasoning-start` is synthesized
  * when ring eviction leaves a surviving delta run. A bare end with no
  * surviving content is dropped instead of creating an empty part.
  */
-export function buildCompactReplay(
+export function buildCompactReplayPlan(
   buffer: readonly StreamChunkPayload[],
   maxDeltaBytes?: number
-): StreamChunkPayload[] {
-  const compact: StreamChunkPayload[] = []
+): CompactReplayEntry[] {
+  const compact: CompactReplayEntry[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
 
@@ -175,7 +181,7 @@ export function buildCompactReplay(
 
   const flushPending = () => {
     if (!pending) return
-    compact.push(pending)
+    compact.push({ payload: pending, synthetic: false })
     pending = undefined
   }
 
@@ -194,7 +200,7 @@ export function buildCompactReplay(
       case 'reasoning-start': {
         flushPending()
         openParts.add(openPartKey(payload, chunk.type === 'text-start' ? 'text' : 'reasoning', chunk.id))
-        compact.push(payload)
+        compact.push({ payload, synthetic: false })
         break
       }
 
@@ -205,7 +211,10 @@ export function buildCompactReplay(
         const key = openPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) {
           openParts.add(key)
-          compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
+          compact.push({
+            payload: { ...payload, chunk: { type: `${kind}-start`, id: chunk.id } },
+            synthetic: true
+          })
         }
         pending = payload
         break
@@ -215,7 +224,7 @@ export function buildCompactReplay(
       case 'reasoning-end': {
         flushPending()
         if (!openParts.has(openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id))) break
-        compact.push(payload)
+        compact.push({ payload, synthetic: false })
         break
       }
 
@@ -226,11 +235,19 @@ export function buildCompactReplay(
 
       default:
         flushPending()
-        compact.push(payload)
+        compact.push({ payload, synthetic: false })
         break
     }
   }
 
   flushPending()
   return compact
+}
+
+/** Payload-only compatibility projection for legacy attach consumers. */
+export function buildCompactReplay(
+  buffer: readonly StreamChunkPayload[],
+  maxDeltaBytes?: number
+): StreamChunkPayload[] {
+  return buildCompactReplayPlan(buffer, maxDeltaBytes).map((entry) => entry.payload)
 }

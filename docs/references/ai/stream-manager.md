@@ -250,8 +250,11 @@ both the terminal write and its fallback error marker fail, the attempt enters
 the persistence failure lives separately in `persistError`). Main retains the
 failed port ownership and every five seconds replays the ORIGINAL terminal
 write — a reply that completed cleanly before a transient database outage
-settles as `success` once storage recovers, and a steer queued behind it chains
-normally; only the durable-error-marker fallback demotes the outcome. No
+settles as `success` once storage recovers. Every terminal path and recovery
+passes through the same durable-settlement continuation planner: chat steers
+require success, while independent Agent queued/deferred work may retain the
+topic after an error but never after Stop. Only the
+durable-error-marker fallback demotes the outcome. No
 attempt terminal, topic barrier, or cleanup is published until one retry
 succeeds. Write-quiesce pauses these retries, and releasing the last hold
 re-kicks them immediately.
@@ -728,6 +731,26 @@ A live follow-up is steered into the running turn via `connection.redirect()`
 enqueued on the session's `pendingTurns` for the next turn. `send()` only upserts
 the new subscriber. See
 [Agent Session Runtime → Live follow-up](./agent-session-runtime.md#live-follow-up).
+The manager registers the topic continuation only after all attempts are durable;
+the Agent runtime owns launching it. Stop crosses both boundaries: it terminates
+the aggregate continuation and asks the runtime to abort the live controller or
+invalidate a queued launch, so the inter-turn gap cannot escape cancellation.
+Pending assistant rows not yet handed to a stream persistence port remain
+runtime-owned. Stop snapshots any transition buffer, transfers the row to a
+detached terminal-recovery queue, and invalidates the session entry immediately.
+The queue writes `paused` with the buffered partial output and latest runtime resume
+token, then retries every five seconds after transient storage failures; a late trace
+refresh, suspend, or handoff completion therefore cannot reopen work after Stop.
+Ownership changes to the
+stream manager only after `startRuntimeTurn()` returns successfully, so a
+synchronous handoff failure follows the same durable recovery path as `error`.
+The runtime write is a pending-only conditional update: it cannot resurrect a deleted
+message or overwrite a terminal one. Stop holds aggregate quiescence through the
+first terminal attempt; if that attempt fails, the UI barrier is explicitly abandoned
+with the recovery's original outcome while the detached recovery stays queued for
+storage recovery and boot reconciliation. A delayed handoff failure is bound to the
+stream identity and continuation captured when it is registered, so an old recovery
+cannot terminate a newer cycle reusing the same topic id.
 
 ## End-to-end flows
 
@@ -740,8 +763,8 @@ duplicated; the rest are stream-manager-specific.
 | Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
 | Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
-| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
-| Abort — user stop | `Ai_Stream_Abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
+| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` or register listener + one canonical replay plan shared by legacy/v2 | available tail is compacted and repaired consistently; attach never changes runtime state |
+| Abort — user stop | `Ai_Stream_Abort` | abort running executions; terminate aggregate continuations; for Agent topics also cancel runtime-owned live/queued work | partial persisted as **`paused`**; no continuation can launch through an inter-turn gap |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `Ai_Stream_Attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |

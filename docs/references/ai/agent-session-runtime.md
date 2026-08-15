@@ -150,6 +150,23 @@ When a completed runtime turn still has queued follow-ups (or a
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;
    - seed messages containing the user row and empty assistant row.
 
+The new row remains runtime-owned through placeholder creation, optional trace
+refresh, and argument construction. Ownership changes to `AiStreamManager` only
+after `startRuntimeTurn()` returns successfully. A synchronous handoff failure is
+therefore terminalized by the runtime instead of leaving an ownerless `pending` row.
+
+Stop invalidates the session entry immediately, including scheduled launches and
+trace/suspend continuations. Any runtime-owned pending row moves to a detached
+terminal-recovery queue, which preserves buffered partial output, writes `paused`,
+snapshots the latest runtime resume token, and retries transient storage failures every
+five seconds. The write is conditional:
+only the same pending assistant row can settle, so a deleted row is not recreated and
+an already-terminal row is not overwritten. Stop holds the topic barrier through the
+first write attempt; if storage is still unavailable, it explicitly releases the UI
+barrier with the recovery's original `paused` / `error` outcome while the detached
+recovery remains visible to write-quiesce drains and keeps retrying. Boot reconciliation
+is the final fallback if the process exits while storage remains unavailable.
+
 The runtime connection may stay on the entry. What that means is driver
 specific: Claude Code keeps its SDK query/input queue, while another
 driver could keep a websocket or reconnect per turn.
@@ -448,10 +465,12 @@ are gated at entry, BEFORE consuming `pendingTurns` / `rollSteerInputs` — a su
 start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueueing) and
 the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
-`inFlightTurnStarts` — launches admitted before the pause, through their placeholder
-write and `startRuntimeTurn` handoff; the resulting stream writes belong to
-`AiStreamManager`'s drain. This is distinct from the BaseService lifecycle pause and
-never touches service state.
+`inFlightTurnStarts` plus active detached terminal recoveries — launches admitted
+before the pause, through their placeholder write and `startRuntimeTurn` handoff,
+and Stop terminal writes already in flight. The resulting stream writes belong to
+`AiStreamManager`'s drain. This is distinct from the BaseService lifecycle pause
+and never touches service state. A recovery blocked by the write hold is reported as
+a straggler, and releasing the last hold immediately re-kicks it.
 
 ## Removed old path
 

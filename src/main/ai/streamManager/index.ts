@@ -9,7 +9,11 @@ export { WebContentsListener } from './listeners/WebContentsListener'
 export type { MessageRuntimeTimingSink } from './MessageRuntimeTimingCollector'
 export { TranslationBackend } from './persistence/backends/TranslationBackend'
 export type { PersistAssistantInput, PersistenceBackend } from './persistence/PersistenceBackend'
-export { finalizeInterruptedParts } from './persistence/PersistenceBackend'
+export {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
+  stripTransientStatusParts
+} from './persistence/PersistenceBackend'
 export type {
   ActiveStream,
   AiStreamAttachRequest,

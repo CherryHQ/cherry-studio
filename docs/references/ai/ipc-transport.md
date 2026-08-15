@@ -81,6 +81,11 @@ chunk from a current cycle can move the subscription back to open. A closed
 snapshot therefore synthesizes the same quiescence handoff as a live
 `topic-quiesced` barrier after replay finishes.
 
+Legacy and v2 attach payloads are projections of one Main-side compact replay
+plan. If ring eviction removed a text/reasoning start, Main emits a synthetic
+start before the surviving delta. That repair event does not advance v2's
+source-sequence cursor; the delta sharing its sequence must still be applied.
+
 See [Execution Overlay](./execution-overlay.md) for the merge-function
 symmetry, seed rule, cancellation layering, and lifecycle.
 

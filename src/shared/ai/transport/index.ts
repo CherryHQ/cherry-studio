@@ -44,6 +44,7 @@ export type {
   StreamProtocolAttemptSettledEvent,
   StreamProtocolChunkEvent,
   StreamProtocolEvent,
+  StreamProtocolReplayChunkEvent,
   StreamProtocolTopicQuiescedEvent,
   TopicStatusSnapshotEntry,
   TopicStreamStatus

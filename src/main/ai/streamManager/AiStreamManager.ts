@@ -18,7 +18,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamDetachRequest,
   AiStreamOpenResponse,
-  StreamProtocolChunkEvent
+  StreamProtocolReplayChunkEvent
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -46,7 +46,7 @@ import {
   isAttemptRunning,
   isAttemptSettled
 } from './attemptMachine'
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import { buildCompactReplayPlan, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -1623,12 +1623,19 @@ export class AiStreamManager extends BaseService {
     // Stop is the explicit escape from a blocked terminal write: one immediate retry, then abandon.
     // Fire-and-forget like the rest of abort — the terminal lands asynchronously.
     void this.abandonBlockedPersistence(topicId, reason)
+    // Runtime cancellation runs before stream classification because it also owns the inter-turn gap.
+    const runtimeAbort = isAgentSessionTopic(topicId)
+      ? application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+      : undefined
     const stream = this.activeStreams.get(topicId)
+    const runtimeTerminalLeaseId =
+      stream && runtimeAbort?.terminalReady
+        ? this.holdTopicForRuntimeTerminal(stream, runtimeAbort.terminalReady, runtimeAbort.terminalOutcome)
+        : undefined
     if (!stream || !isStreamExecuting(stream)) {
-      if (isAgentSessionTopic(topicId)) {
-        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
-      } else if (stream?.aggregate.hasBlockingContinuation()) {
-        this.dropPendingSteers(topicId, 'aborted')
+      if (stream?.aggregate.hasBlockingContinuation()) {
+        if (runtimeTerminalLeaseId) return
+        if (!isAgentSessionTopic(topicId)) this.dropPendingSteers(topicId, 'aborted')
         const continuationId = stream.aggregate.dispatchingContinuationId()
         if (continuationId) stream.aggregate.terminateContinuation(continuationId, 'aborted')
         stream.status = stream.aggregate.status()
@@ -1638,7 +1645,8 @@ export class AiStreamManager extends BaseService {
     }
     const runningExecutions = [...stream.executions.values()].filter((exec) => isAttemptRunning(exec.attempt.state))
     if (runningExecutions.length === 0 && stream.aggregate.hasBlockingContinuation()) {
-      this.dropPendingSteers(topicId, 'aborted')
+      if (runtimeTerminalLeaseId) return
+      if (!isAgentSessionTopic(topicId)) this.dropPendingSteers(topicId, 'aborted')
       const continuationId = stream.aggregate.dispatchingContinuationId()
       if (continuationId) stream.aggregate.terminateContinuation(continuationId, 'aborted')
       stream.status = stream.aggregate.status()
@@ -1654,6 +1662,37 @@ export class AiStreamManager extends BaseService {
     // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
     // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
     stream.status = this.computeTopicStatus(stream)
+  }
+
+  private holdTopicForRuntimeTerminal(
+    stream: ActiveStream,
+    terminalReady: Promise<void>,
+    terminalOutcome: { outcome: 'aborted' } | { outcome: 'error'; error?: SerializedError } = { outcome: 'aborted' }
+  ): string {
+    const existingContinuationId = stream.aggregate.dispatchingContinuationId()
+    const continuationId = existingContinuationId ?? `runtime-terminal:${crypto.randomUUID()}`
+    if (!existingContinuationId) {
+      stream.aggregate.queueContinuation(continuationId)
+      stream.aggregate.makeContinuationEligible(continuationId)
+      stream.aggregate.startContinuation(continuationId)
+    }
+    void terminalReady
+      .then(() => {
+        if (this.activeStreams.get(stream.topicId) !== stream) return
+        if (!stream.aggregate.terminateContinuation(continuationId, terminalOutcome.outcome)) return
+        stream.status = stream.aggregate.status()
+        if (stream.aggregate.isQuiescent()) {
+          this.publishTopicQuiescence(
+            stream,
+            terminalOutcome.outcome,
+            terminalOutcome.outcome === 'error' ? terminalOutcome.error : undefined
+          )
+        }
+      })
+      .catch((error) => {
+        logger.error('Runtime terminal barrier lease failed', { topicId: stream.topicId, error })
+      })
+    return continuationId
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -1818,23 +1857,7 @@ export class AiStreamManager extends BaseService {
     if (attemptsDurablySettled && (settledOutcomeStatus === 'error' || settledOutcomeStatus === 'aborted')) {
       this.dropPendingSteers(topicId, settledOutcomeStatus)
     }
-    // Continuations are admitted only after the whole topic is durably settled. A finalizing
-    // sibling still blocks this decision, so no execution can publish another attempt's barrier.
-    const chatChaining =
-      !persistenceFailure && attemptsDurablySettled && settledOutcomeStatus === 'done' && this.hasPendingSteer(topicId)
-    const agentChaining =
-      !persistenceFailure &&
-      attemptsDurablySettled &&
-      !chatChaining &&
-      settledOutcomeStatus === 'done' &&
-      isAgentSessionTopic(topicId) &&
-      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
-    if (agentChaining) {
-      const continuationId = `agent:${exec.attemptId}`
-      stream.aggregate.queueContinuation(continuationId)
-      stream.aggregate.makeContinuationEligible(continuationId)
-      stream.aggregate.startContinuation(continuationId)
-    }
+    const continuation = this.planDurablySettledContinuation(stream, exec)
     const topicQuiescent = stream.aggregate.isQuiescent()
     stream.status = this.computeTopicStatus(stream)
     if (!topicQuiescent && stream.status === 'awaiting-approval') {
@@ -1849,14 +1872,14 @@ export class AiStreamManager extends BaseService {
       await this.broadcastExecutionDone(stream, exec, topicQuiescent, 'settled')
     }
 
-    if (chatChaining) this.scheduleNextChatTurn(topicId)
+    if (continuation === 'chat') this.scheduleNextChatTurn(topicId)
     else if (topicQuiescent) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
       this.runTerminalLifecycle(stream)
       // A steer enqueued during the persistence await saw the still-live status and queued without
-      // launching; `chatChainingCandidate` predates it, so drain it here like a settled-enqueue would.
+      // launching; the continuation plan predates it, so drain it here like a settled-enqueue would.
       if (stream.status === 'done' && this.hasPendingSteer(topicId)) this.scheduleNextChatTurn(topicId)
     }
   }
@@ -1901,12 +1924,12 @@ export class AiStreamManager extends BaseService {
           }
         : { type: 'persisted' }
     )
-    stream.status = this.computeTopicStatus(stream)
     if (stream.aggregate.areAttemptsDurablySettled()) {
       this.dropPendingSteers(topicId, persistenceFailure ? 'error' : 'aborted')
-      stream.status = this.computeTopicStatus(stream)
     }
+    this.planDurablySettledContinuation(stream, exec)
     const topicQuiescent = stream.aggregate.isQuiescent()
+    stream.status = this.computeTopicStatus(stream)
 
     if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
     if (persistenceFailure) {
@@ -1965,12 +1988,12 @@ export class AiStreamManager extends BaseService {
           }
         : { type: 'persisted' }
     )
-    stream.status = this.computeTopicStatus(stream)
     if (stream.aggregate.areAttemptsDurablySettled()) {
       this.dropPendingSteers(topicId, 'error')
-      stream.status = this.computeTopicStatus(stream)
     }
+    this.planDurablySettledContinuation(stream, exec)
     const topicQuiescent = stream.aggregate.isQuiescent()
+    stream.status = this.computeTopicStatus(stream)
     if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
     if (persistenceFailure) exec.error = persistenceFailure.error
     await this.broadcastExecutionError(stream, exec, persistenceFailure?.error ?? error, topicQuiescent, 'settled')
@@ -2059,8 +2082,8 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Publish the settled terminal after an attempt leaves `persistence-blocked` (recovery
-   * or explicit abandon). Mirrors the settled tails of onExecutionDone/Paused/Error; a
-   * recovered clean turn chains a queued steer exactly like an unblocked one would have.
+   * or explicit abandon). Mirrors the settled tails of onExecutionDone/Paused/Error; recovered
+   * clean turns use the same chat/Agent continuation planner as unblocked completions.
    */
   private async settleUnblockedExecution(stream: ActiveStream, exec: StreamExecution): Promise<void> {
     const state = exec.attempt.state
@@ -2068,15 +2091,14 @@ export class AiStreamManager extends BaseService {
     const outcome = state.outcome
     if (outcome.kind === 'error') exec.error = outcome.error
 
-    stream.status = this.computeTopicStatus(stream)
     const runtimeOutcome = stream.aggregate.runtimeOutcome()
     const attemptsDurablySettled = stream.aggregate.areAttemptsDurablySettled()
     if (attemptsDurablySettled && (runtimeOutcome === 'error' || runtimeOutcome === 'aborted')) {
       this.dropPendingSteers(stream.topicId, runtimeOutcome)
-      stream.status = this.computeTopicStatus(stream)
     }
-    const chatChaining = attemptsDurablySettled && runtimeOutcome === 'done' && this.hasPendingSteer(stream.topicId)
+    const continuation = this.planDurablySettledContinuation(stream, exec)
     const topicQuiescent = stream.aggregate.isQuiescent()
+    stream.status = this.computeTopicStatus(stream)
 
     if (outcome.kind === 'done') {
       await this.broadcastExecutionDone(stream, exec, topicQuiescent, 'settled')
@@ -2086,8 +2108,29 @@ export class AiStreamManager extends BaseService {
       await this.broadcastExecutionError(stream, exec, outcome.error, topicQuiescent, 'settled')
     }
 
-    if (chatChaining) this.scheduleNextChatTurn(stream.topicId)
+    if (continuation === 'chat') this.scheduleNextChatTurn(stream.topicId)
     else if (topicQuiescent) this.runTerminalLifecycle(stream)
+  }
+
+  /** Decide successor work only after every attempt has a durable terminal. Chat steers win because
+   *  they are manager-owned; Agent continuations are registered here and launched by the runtime. */
+  private planDurablySettledContinuation(stream: ActiveStream, exec: StreamExecution): 'chat' | 'agent' | undefined {
+    if (!stream.aggregate.areAttemptsDurablySettled()) return undefined
+    const outcome = stream.aggregate.runtimeOutcome()
+    if (outcome === 'done' && this.hasPendingSteer(stream.topicId)) return 'chat'
+    if (!isAgentSessionTopic(stream.topicId) || (outcome !== 'done' && outcome !== 'error')) return undefined
+    const runtime = application.get('AgentSessionRuntimeService')
+    const runtimeWillContinue =
+      outcome === 'error'
+        ? runtime.willContinueTopic(stream.topicId, 'error')
+        : runtime.willContinueTopic(stream.topicId)
+    if (!runtimeWillContinue) return undefined
+
+    const continuationId = `agent:${exec.attemptId}`
+    stream.aggregate.queueContinuation(continuationId)
+    stream.aggregate.makeContinuationEligible(continuationId)
+    stream.aggregate.startContinuation(continuationId)
+    return 'agent'
   }
 
   /** Drop a topic's queued steers on a non-clean terminal, surfacing the discard. Their persisted
@@ -2118,7 +2161,32 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const continuationId = stream.aggregate.dispatchingContinuationId()
-    if (!continuationId || !stream.aggregate.finishContinuation(continuationId, 'failed')) return
+    if (!continuationId) return
+    this.failCapturedTopicContinuation(stream, continuationId, error)
+  }
+
+  /** Bind a delayed failure to the continuation that is current now, never a later topic cycle. */
+  failTopicContinuationWhenReady(
+    topicId: string,
+    _modelId: UniqueModelId | undefined,
+    error: SerializedError,
+    ready: Promise<unknown>
+  ): void {
+    const stream = this.activeStreams.get(topicId)
+    const continuationId = stream?.aggregate.dispatchingContinuationId()
+    if (!stream || !continuationId) return
+    void ready
+      .then(() => {
+        if (this.activeStreams.get(topicId) !== stream) return
+        this.failCapturedTopicContinuation(stream, continuationId, error)
+      })
+      .catch((readyError) => {
+        logger.error('Deferred topic continuation failure barrier rejected', { topicId, readyError })
+      })
+  }
+
+  private failCapturedTopicContinuation(stream: ActiveStream, continuationId: string, error: SerializedError): void {
+    if (!stream.aggregate.finishContinuation(continuationId, 'failed')) return
     stream.status = stream.aggregate.status()
     if (stream.aggregate.isQuiescent()) this.publishTopicQuiescence(stream, 'error', error)
   }
@@ -2337,10 +2405,9 @@ export class AiStreamManager extends BaseService {
     const bufferedChunks: StreamChunkPayload[] = []
     const attempts: NonNullable<Extract<AiStreamAttachResponse, { status: 'attached' }>['snapshot']>['attempts'] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(
-        ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
-      )
-      const replayChunks = exec.buffer.flatMap((payload): StreamProtocolChunkEvent[] => {
+      const replayPlan = buildCompactReplayPlan(exec.buffer, this.config.maxDeltaBytes)
+      bufferedChunks.push(...replayPlan.map(({ payload }) => projectStreamChunkPayloadForRenderer(payload)))
+      const replayChunks = replayPlan.flatMap(({ payload, synthetic }): StreamProtocolReplayChunkEvent[] => {
         if (
           payload.executionId === undefined ||
           payload.attemptId === undefined ||
@@ -2360,7 +2427,8 @@ export class AiStreamManager extends BaseService {
             cycleId: payload.cycleId,
             chunkSeq: payload.chunkSeq,
             throughChunkSeq: payload.throughChunkSeq ?? payload.chunkSeq,
-            chunk: projected.chunk
+            chunk: projected.chunk,
+            ...(synthetic ? { synthetic: true as const } : {})
           }
         ]
       })

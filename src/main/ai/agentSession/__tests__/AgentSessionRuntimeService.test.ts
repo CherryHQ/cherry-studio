@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
+  settlePendingAssistantMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
   applyToolApprovalDecision: vi.fn(),
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   resolveToolApproval: vi.fn(),
   failTopicContinuation: vi.fn(),
+  failTopicContinuationWhenReady: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    settlePendingAssistantMessage: mocks.settlePendingAssistantMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
@@ -230,6 +233,7 @@ describe('AgentSessionRuntimeService', () => {
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
+    mocks.settlePendingAssistantMessage.mockReturnValue(true)
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
@@ -263,7 +267,8 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           reconcileCrashRecovery: (_count: number, persist: () => void) => persist(),
           resolveToolApproval: mocks.resolveToolApproval,
-          failTopicContinuation: mocks.failTopicContinuation
+          failTopicContinuation: mocks.failTopicContinuation,
+          failTopicContinuationWhenReady: mocks.failTopicContinuationWhenReady
         }
       }
       if (name === 'CacheService')
@@ -356,6 +361,36 @@ describe('AgentSessionRuntimeService', () => {
     await (service as unknown as { onStop(): Promise<void> }).onStop()
 
     expect(mocks.abortStream).toHaveBeenCalledWith('agent-session:session-1', 'agent-session-runtime-stop')
+  })
+
+  it('settles and waits for a runtime-owned placeholder during clean shutdown', async () => {
+    const traceRefresh = createDeferred<void>()
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = {
+      events: [],
+      close: vi.fn(),
+      refreshTraceContext: vi.fn(() => traceRefresh.promise)
+    }
+    setSteerTransition(entry, [{ message: userMessage('user-2'), systemReminder: true }])
+    const launch = (service as any).startContinuationTurn(entry)
+    await vi.waitFor(() => expect(entry.runtimeState.execution.continuationTurn).toBeDefined())
+    const continuationTurn = entry.runtimeState.execution.continuationTurn
+
+    await (service as unknown as { onStop(): Promise<void> }).onStop()
+
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      messageId: continuationTurn.assistantMessageId,
+      status: 'paused',
+      data: { parts: [] }
+    })
+    expect(service.inspect('session-1')).toBeUndefined()
+
+    traceRefresh.resolve()
+    await launch
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
   })
 
   describe('isSessionBusy — inter-turn drain window (issue ①)', () => {
@@ -1136,16 +1171,274 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
 
-    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
     expect(handle.abortController.signal.aborted).toBe(true)
     expect(handle.abortController.signal.reason).toBe('user-requested')
+  })
+
+  it('cancels a queued continuation before its scheduled launch can create a turn', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+    terminalListener(handle).onDone()
+
+    expect(getEntry(service).runtimeState.launch).toEqual({ kind: 'scheduled', target: 'queued-turn' })
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    expect(service.inspect('session-1')).toBeUndefined()
+
+    await Promise.resolve()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
+
+  it('drops queued follow-ups when aborting a live turn', () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    expect(handle.abortController.signal.aborted).toBe(true)
+    expect(service.inspect('session-1')?.pendingMessageCount).toBe(0)
+  })
+
+  it('settles and invalidates an A2 placeholder stopped during trace refresh', async () => {
+    const traceRefresh = createDeferred<void>()
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const connection = {
+      events: [],
+      close: vi.fn(),
+      refreshTraceContext: vi.fn(() => traceRefresh.promise)
+    }
+    entry.connection = connection
+    setSteerTransition(entry, [{ message: userMessage('user-2'), systemReminder: true }])
+
+    const launch = (service as any).startContinuationTurn(entry)
+    await vi.waitFor(() => expect(entry.runtimeState.execution.continuationTurn).toBeDefined())
+    const continuationTurn = entry.runtimeState.execution.continuationTurn
+
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    expect(continuationTurn.abortController.signal.aborted).toBe(true)
+    expect(handle.abortController.signal.aborted).toBe(true)
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenLastCalledWith({
+      sessionId: 'session-1',
+      messageId: continuationTurn.assistantMessageId,
+      status: 'paused',
+      data: { parts: [] }
+    })
+
+    traceRefresh.resolve()
+    await launch
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
+
+  it('settles a detached deferred placeholder before Stop invalidates its launch', async () => {
+    const suspended = createDeferred<void>()
+    mocks.suspendUnadmittedRuntimeTurn.mockImplementationOnce(() => suspended.promise)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const deferredTurn = entry.currentTurn
+    ;(service as any).applyRuntimeStateEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    })
+    ;(service as any).deferUnadmittedTurnForReceiveOnly(entry, deferredTurn)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenLastCalledWith({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      status: 'paused',
+      data: { parts: [] }
+    })
+
+    suspended.resolve()
+    await suspended.promise
+    await Promise.resolve()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
+
+  it('invalidates a deferred launch and retries its paused write after storage recovers', async () => {
+    const suspended = createDeferred<void>()
+    mocks.suspendUnadmittedRuntimeTurn.mockImplementationOnce(() => suspended.promise)
+    mocks.settlePendingAssistantMessage
+      .mockImplementationOnce(() => {
+        throw new Error('database unavailable')
+      })
+      .mockReturnValue(true)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const deferredTurn = entry.currentTurn
+    ;(service as any).applyRuntimeStateEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    })
+    ;(service as any).deferUnadmittedTurnForReceiveOnly(entry, deferredTurn)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(service.hasBusySessions()).toBe(true)
+
+    suspended.resolve()
+    await suspended.promise
+    await Promise.resolve()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+
+    await service.retryBlockedRuntimeTerminalPersistence()
+    expect(service.hasBusySessions()).toBe(false)
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenLastCalledWith({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      status: 'paused',
+      data: { parts: [] }
+    })
+  })
+
+  it('reports a quiesced terminal recovery as a straggler and retries on release', async () => {
+    const suspended = createDeferred<void>()
+    mocks.suspendUnadmittedRuntimeTurn.mockImplementationOnce(() => suspended.promise)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const deferredTurn = entry.currentTurn
+    ;(service as any).applyRuntimeStateEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    })
+    ;(service as any).deferUnadmittedTurnForReceiveOnly(entry, deferredTurn)
+    const hold = service.pause('backup')
+
+    service.abortPendingTurn('session-1', 'user-requested')
+    expect(mocks.settlePendingAssistantMessage).not.toHaveBeenCalled()
+    await expect(service.drainInFlight({ timeoutMs: 10 })).resolves.toEqual({
+      stragglerIds: ['runtime-terminal:session-1:assistant-1']
+    })
+
+    hold.dispose()
+    await vi.waitFor(() => expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledOnce())
+    expect(service.hasBusySessions()).toBe(false)
+    suspended.resolve()
+  })
+
+  it('keeps buffered continuation output when Stop owns the pending A2 row', async () => {
+    const traceRefresh = createDeferred<void>()
+    const service = new AgentSessionRuntimeService()
+    const source = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = {
+      events: [],
+      close: vi.fn(),
+      refreshTraceContext: vi.fn(() => traceRefresh.promise)
+    }
+    setSteerTransition(
+      entry,
+      [{ message: userMessage('user-2'), systemReminder: true }],
+      [
+        { type: 'text-start', id: 'text-1' },
+        { type: 'text-delta', id: 'text-1', delta: 'partial continuation' }
+      ]
+    )
+
+    const launch = (service as any).startContinuationTurn(entry)
+    await vi.waitFor(() => expect(entry.runtimeState.execution.continuationTurn).toBeDefined())
+    const continuationTurn = entry.runtimeState.execution.continuationTurn
+    entry.lastResumeToken = 'runtime-resume-token'
+    source.abortController.signal.addEventListener('abort', () => void service.closeSession('session-1'), {
+      once: true
+    })
+
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
+    await vi.waitFor(() =>
+      expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        messageId: continuationTurn.assistantMessageId,
+        runtimeResumeToken: 'runtime-resume-token',
+        status: 'paused',
+        data: {
+          parts: expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'partial continuation' })])
+        }
+      })
+    )
+
+    traceRefresh.resolve()
+    await launch
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
+
+  it('retains runtime ownership when startRuntimeTurn throws synchronously', async () => {
+    mocks.startRuntimeTurn.mockImplementationOnce(() => {
+      throw new Error('handoff failed')
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    terminalListener(handle).onDone()
+
+    await vi.waitFor(() =>
+      expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        messageId: 'generated-message-id',
+        status: 'error',
+        data: { parts: [] }
+      })
+    )
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.failTopicContinuationWhenReady).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      baseTurnInput.modelId,
+      expect.objectContaining({ message: 'handoff failed' }),
+      expect.any(Promise)
+    )
+  })
+
+  it('preserves an error outcome when Stop releases a blocked handoff recovery', async () => {
+    const failure = new Error('handoff failed')
+    mocks.startRuntimeTurn.mockImplementationOnce(() => {
+      throw failure
+    })
+    mocks.settlePendingAssistantMessage
+      .mockImplementationOnce(() => {
+        throw new Error('database unavailable')
+      })
+      .mockReturnValue(true)
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    terminalListener(handle).onDone()
+    await vi.waitFor(() => expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledOnce())
+
+    const stopped = service.abortPendingTurn('session-1', 'user-requested')
+    expect(stopped).toMatchObject({
+      handled: true,
+      terminalOutcome: { outcome: 'error', error: expect.objectContaining({ message: failure.message }) }
+    })
+    await stopped.terminalReady
+    await Promise.resolve()
+    await service.retryBlockedRuntimeTerminalPersistence()
+
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledTimes(2)
+    expect(mocks.failTopicContinuationWhenReady).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      baseTurnInput.modelId,
+      expect.objectContaining({ message: failure.message }),
+      expect.any(Promise)
+    )
   })
 
   it('does not reuse an aborted controller for a later turn', () => {
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)
 
-    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    expect(service.abortPendingTurn('session-1', 'user-requested').handled).toBe(true)
     void terminalListener(first).onPaused({ status: 'paused', isTopicDone: true })
 
     const second = service.beginTurn({
@@ -2048,6 +2341,26 @@ describe('AgentSessionRuntimeService', () => {
       status: 'active',
       lastTerminalStatus: undefined
     })
+  })
+
+  it('advances an errored turn when the topic stays open for queued Agent work', () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    terminalListener(handle).onError({
+      status: 'error',
+      isTopicDone: false,
+      error: { name: 'Error', message: 'model failed', stack: null }
+    })
+
+    expect(service.inspect('session-1')).toMatchObject({
+      status: 'active',
+      pendingMessageCount: 1,
+      lastTerminalStatus: 'error'
+    })
+    expect(getEntry(service).runtimeState.launch).toEqual({ kind: 'scheduled', target: 'queued-turn' })
+    service.abortPendingTurn('session-1', 'test-cleanup')
   })
 
   // Background work outlives its turn, so drivers report a normalized session-scoped snapshot.

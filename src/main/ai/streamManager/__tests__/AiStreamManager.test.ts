@@ -101,7 +101,16 @@ class FakePersistencePort implements StreamPersistencePort {
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
-const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
+const mockAbortPendingTurn = vi.fn<
+  (
+    sessionId: string,
+    reason: string
+  ) => {
+    handled: boolean
+    terminalReady?: Promise<void>
+    terminalOutcome?: { outcome: 'aborted' } | { outcome: 'error'; error?: SerializedError }
+  }
+>(() => ({ handled: false }))
 const mockGetMessageById = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/data/services/MessageService', () => ({
@@ -167,7 +176,7 @@ const fakeCacheService = {
   })
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
-const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
+const mockWillContinueTopic = vi.fn<(topicId: string, outcome?: 'done' | 'error') => boolean>(() => false)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -285,7 +294,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
-    mockAbortPendingTurn.mockReturnValue(false)
+    mockAbortPendingTurn.mockReturnValue({ handled: false })
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
@@ -442,7 +451,7 @@ describe('AiStreamManager', () => {
       const turnAbortController = new AbortController()
       mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
         turnAbortController.abort(reason)
-        return true
+        return { handled: true }
       })
       const listener = new FakeListener('l:agent')
 
@@ -467,7 +476,7 @@ describe('AiStreamManager', () => {
       const newTurnAbortController = new AbortController()
       mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
         oldTurnAbortController.abort(reason)
-        return true
+        return { handled: true }
       })
 
       mgr.abort('agent-session:session-1', 'user-requested')
@@ -1733,6 +1742,34 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
+    it('keeps an agent-session continuation alive after blocked persistence recovers', async () => {
+      const topicId = 'agent-session:session-1'
+      const persistence = new FakePersistencePort('persistence:agent')
+      const renderer = new FakeListener(`wc:${topicId}`)
+      let remainingFailures = 1
+      persistence.onDoneImpl = () => {
+        if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      mockWillContinueTopic.mockReturnValue(true)
+
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [renderer],
+        persistencePorts: [persistence]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      expect(renderer.doneResults).toEqual([])
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(mockWillContinueTopic).toHaveBeenCalledWith(topicId)
+      expect(renderer.doneResults).toEqual([expect.objectContaining({ isTopicDone: false })])
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
+    })
+
     it('Stop while persistence stays blocked abandons the write and frees the topic', async () => {
       const sender = { id: 73, isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents
       const persistence = new FakePersistencePort('persistence:a')
@@ -2170,6 +2207,19 @@ describe('AiStreamManager', () => {
         'text-start',
         'text-delta'
       ])
+      expect(response.snapshot?.attempts[0].replayChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-start',
+        'text-delta',
+        'text-start',
+        'text-delta',
+        'text-start',
+        'text-delta'
+      ])
+      expect(
+        response.snapshot?.attempts[0].replayChunks
+          .filter(({ chunk }) => chunk.type === 'text-start')
+          .every((event) => event.synthetic === true)
+      ).toBe(true)
     })
 
     it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
@@ -2962,6 +3012,108 @@ describe('AiStreamManager', () => {
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
     })
 
+    it('Stop delegates to the agent runtime while the topic is parked on a continuation', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [listener]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      mockAbortPendingTurn.mockClear()
+      let releaseTerminal!: () => void
+      const terminalReady = new Promise<void>((resolve) => {
+        releaseTerminal = resolve
+      })
+      mockAbortPendingTurn.mockReturnValueOnce({ handled: true, terminalReady })
+
+      mgr.abort(topicId, 'user-requested')
+
+      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
+      expect(listener.pausedResults).toHaveLength(0)
+
+      releaseTerminal()
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'aborted')
+      expect(mgr.inspect(topicId)?.status).toBe('aborted')
+      expect(listener.pausedResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+    })
+
+    it('preserves a runtime-owned error when Stop releases its terminal barrier', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1-error-recovery'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [listener]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const terminalReady = Promise.resolve()
+      mockAbortPendingTurn.mockReturnValueOnce({
+        handled: true,
+        terminalReady,
+        terminalOutcome: { outcome: 'error', error: error('handoff failed') }
+      })
+
+      mgr.abort(topicId, 'user-requested')
+      await terminalReady
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'error')
+
+      expect(listener.pausedResults).toEqual([])
+      expect(listener.errorResults).toEqual([
+        expect.objectContaining({
+          isTopicDone: true,
+          error: expect.objectContaining({ message: 'handoff failed' })
+        })
+      ])
+    })
+
+    it('does not apply a delayed continuation failure to a newer topic cycle', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1-stale-recovery'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener(`l:old:${topicId}`)]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      let releaseOldRecovery!: () => void
+      const oldRecovery = new Promise<void>((resolve) => {
+        releaseOldRecovery = resolve
+      })
+      mgr.failTopicContinuationWhenReady(topicId, 'provider-a::model-a', error('old handoff failed'), oldRecovery)
+      mockAbortPendingTurn.mockReturnValueOnce({
+        handled: true,
+        terminalReady: Promise.resolve(),
+        terminalOutcome: { outcome: 'error', error: error('old handoff failed') }
+      })
+      mgr.abort(topicId, 'user-requested')
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'error')
+
+      const nextListener = new FakeListener(`l:new:${topicId}`)
+      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+      mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
+        listeners: [nextListener],
+        receipt: reservation.receipt
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
+
+      releaseOldRecovery()
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
+      expect(nextListener.errorResults).toEqual([])
+    })
+
     it('tears down an agent-session stream when the runtime will not continue', async () => {
       mockWillContinueTopic.mockReturnValue(false)
       const topicId = 'agent-session:s2'
@@ -2972,6 +3124,19 @@ describe('AiStreamManager', () => {
 
       expect(listener.doneResults[0].isTopicDone).toBe(true)
       expect(mgr.hasLiveStream(topicId)).toBe(false)
+    })
+
+    it('keeps an agent-session error open when the runtime has independent queued work', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s2-error'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      await mgr.onExecutionError(topicId, 'provider-a::model-a', error('model failed'))
+
+      expect(mockWillContinueTopic).toHaveBeenCalledWith(topicId, 'error')
+      expect(listener.errorResults).toEqual([expect.objectContaining({ isTopicDone: false })])
+      expect(mgr.inspect(topicId)?.status).toBe('streaming')
     })
 
     // The runtime's queued continuation could not launch (e.g. its drain re-check found the agent model

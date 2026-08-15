@@ -68,6 +68,56 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
+  it('settles only an existing pending assistant without recreating or overwriting messages', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        runtimeResumeToken: 'runtime-resume-token',
+        status: 'paused',
+        data: { parts: [{ type: 'text', text: 'partial' }] }
+      })
+    ).toBe(true)
+    expect(
+      dbh.db
+        .select({
+          status: agentSessionMessageTable.status,
+          data: agentSessionMessageTable.data,
+          runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken
+        })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+        .get()
+    ).toEqual({
+      status: 'paused',
+      data: { parts: [{ type: 'text', text: 'partial' }] },
+      runtimeResumeToken: 'runtime-resume-token'
+    })
+
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        status: 'error',
+        data: { parts: [] }
+      })
+    ).toBe(false)
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099',
+        status: 'paused',
+        data: { parts: [] }
+      })
+    ).toBe(false)
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toHaveLength(1)
+  })
+
   describe('findCrashOrphanedAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error with the given data', async () => {
       const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)

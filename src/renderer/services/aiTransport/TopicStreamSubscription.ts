@@ -1,7 +1,12 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { type AttemptId, toAttemptId } from '@shared/ai/attempt'
-import type { StreamAttachSnapshot, StreamChunkPayload, StreamProtocolEvent } from '@shared/ai/transport'
+import type {
+  StreamAttachSnapshot,
+  StreamChunkPayload,
+  StreamProtocolEvent,
+  StreamProtocolReplayChunkEvent
+} from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -470,7 +475,10 @@ export class TopicStreamSubscription {
     this.#applyProtocolEvent(event)
   }
 
-  #applyProtocolEvent(event: StreamProtocolEvent, source: 'live' | 'snapshot-replay' = 'live'): void {
+  #applyProtocolEvent(
+    event: StreamProtocolEvent | StreamProtocolReplayChunkEvent,
+    source: 'live' | 'snapshot-replay' = 'live'
+  ): void {
     if (this.#cycleId !== undefined && event.cycleId < this.#cycleId) return
     if (this.#cycleId === undefined || event.cycleId > this.#cycleId) {
       this.#cycleId = event.cycleId
@@ -479,6 +487,10 @@ export class TopicStreamSubscription {
       this.#lastQuiesced = undefined
     }
     if (event.type === 'chunk') {
+      if (source === 'snapshot-replay' && 'synthetic' in event && event.synthetic) {
+        this.#routeChunk(event)
+        return
+      }
       const attemptId = toAttemptId(event.attemptId)
       const lastChunkSeq = this.#lastChunkSeq.get(attemptId) ?? 0
       if (event.throughChunkSeq <= lastChunkSeq) return
@@ -540,7 +552,11 @@ export class TopicStreamSubscription {
     this.#lastQuiesced = undefined
 
     for (const attempt of snapshot.attempts) {
-      for (const event of [...attempt.replayChunks].sort((left, right) => left.chunkSeq - right.chunkSeq)) {
+      for (const event of [...attempt.replayChunks].sort((left, right) => {
+        const sequenceOrder = left.chunkSeq - right.chunkSeq
+        if (sequenceOrder !== 0) return sequenceOrder
+        return Number(right.synthetic === true) - Number(left.synthetic === true)
+      })) {
         this.#applyProtocolEvent(event, 'snapshot-replay')
       }
       const attemptId = toAttemptId(attempt.attemptId)

@@ -36,6 +36,7 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { SerializedError } from '@shared/types/error'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -53,13 +54,14 @@ import type {
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
+  dropEmptyContentParts,
   finalizeInterruptedParts,
   PersistenceListener,
   type StreamCleanupPort,
-  type StreamErrorResult,
   type StreamListener,
   type StreamPausedResult,
   type StreamPersistencePort,
+  stripTransientStatusParts,
   TraceFlushListener
 } from '../streamManager'
 import type { InProcessUsageContext } from '../types'
@@ -100,6 +102,7 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+const RUNTIME_TERMINAL_RETRY_INTERVAL_MS = 5_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -159,6 +162,13 @@ export interface AgentSessionInteractionState {
   userResponse: 'unavailable' | 'stream' | 'message'
 }
 
+export interface AbortAgentSessionTurnResult {
+  handled: boolean
+  /** Stop may publish the topic barrier after this attempt persisted or was explicitly abandoned. */
+  terminalReady?: Promise<void>
+  terminalOutcome?: { outcome: 'aborted' } | { outcome: 'error'; error?: SerializedError }
+}
+
 type AgentSessionTurn = {
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -173,10 +183,27 @@ type AgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
+  /** The component currently responsible for driving this pending row to a durable terminal. */
+  persistenceOwner: 'stream-manager' | 'runtime'
   abortController: AbortController
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   headless?: boolean
+}
+
+type RuntimeTerminalRecovery = {
+  sessionId: string
+  turnId: string
+  assistantMessageId: string
+  runtimeResumeToken?: string
+  status: 'paused' | 'error'
+  error?: SerializedError
+  chunks: UIMessageChunk[]
+  parts?: CherryMessagePart[]
+  firstAttempt: Promise<boolean>
+  markFirstAttempt: (persisted: boolean) => void
+  durable: Promise<void>
+  markDurable: () => void
 }
 
 type PendingAgentSessionTurn = {
@@ -279,8 +306,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
     this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
   }
 
-  onError(result: StreamErrorResult): void {
-    if (result.isTopicDone === false) return
+  onError(): void {
     this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
   }
 
@@ -302,6 +328,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly pauseHolds = new Set<symbol>()
   /** In-flight launches registered synchronously by the state-machine schedule effect. */
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  /** Pending rows whose stream-manager handoff never completed. These retries outlive the entry
+   *  they came from so Stop can invalidate every launch immediately without orphaning the row. */
+  private readonly blockedRuntimeTerminalRecoveries = new Map<string, RuntimeTerminalRecovery>()
+  private readonly activeRuntimeTerminalRecoveryKeys = new Set<string>()
+  private readonly inFlightRuntimeTerminalRecoveries = new Map<Promise<boolean>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -333,6 +364,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
+    this.registerInterval(() => this.retryBlockedRuntimeTerminalPersistence(), RUNTIME_TERMINAL_RETRY_INTERVAL_MS)
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -451,6 +483,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
+      persistenceOwner: 'stream-manager',
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless: input.headless === true
@@ -1021,6 +1054,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.blockedRuntimeTerminalRecoveries.size > 0) return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
     }
@@ -1028,13 +1062,11 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Whether the agent runtime will open another turn for this topic once the current one ends — a
-   * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`
-   * uses this to KEEP the topic's stream alive across the inter-turn gap (broadcasting `isTopicDone=false`,
-   * skipping the terminal lifecycle) so the follow-up turn can carry the renderer listeners — without it
-   * the stream is evicted and the follow-up's response reaches no one.
+   * Whether the agent runtime will open another turn for this topic once the current one ends.
+   * Error terminals retain only independent queued/deferred work; a failed steer transition itself
+   * cannot continue. The stream manager uses this lease to keep renderer listeners across the gap.
    */
-  willContinueTopic(topicId: string): boolean {
+  willContinueTopic(topicId: string, outcome: 'done' | 'error' = 'done'): boolean {
     if (!isAgentSessionTopic(topicId)) return false
     const entry = this.entries.get(extractAgentSessionId(topicId))
     if (!entry) return false
@@ -1042,6 +1074,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // stream alive so A2 carries the renderer listeners.
     // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
     // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
+    if (outcome === 'error') {
+      const execution = entry.runtimeState.execution
+      const hasDeferredTurn = execution.kind === 'autonomous-turn' && execution.deferredTurn !== undefined
+      const launchCanRecover =
+        entry.runtimeState.launch.kind !== 'idle' &&
+        (entry.runtimeState.launch.target === 'queued-turn' || entry.runtimeState.launch.target === 'deferred-turn')
+      return entry.runtimeState.queue.length > 0 || hasDeferredTurn || launchCanRecover
+    }
     return willAgentSessionRuntimeContinue(entry.runtimeState)
   }
 
@@ -1102,9 +1142,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
-   * bounded by timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream
-   * writes are AiStreamManager's drain — this only covers the window this service writes in.
+   * Await in-flight turn-start launches and detached runtime-terminal recoveries, bounded by
+   * timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream writes are
+   * AiStreamManager's drain — this only covers the windows this service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
    * before the pause gate suppresses it), so the drain is a fixed point over promise
    * identities rather than one snapshot.
@@ -1127,6 +1167,13 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(launch)
         launch.then(remove, remove)
       }
+      for (const [recovery, id] of this.inFlightRuntimeTerminalRecoveries) {
+        if (seen.has(recovery)) continue
+        seen.add(recovery)
+        pending.set(recovery, id)
+        const remove = () => pending.delete(recovery)
+        recovery.then(remove, remove)
+      }
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -1136,7 +1183,12 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for (;;) {
         collect()
-        if (pending.size === 0) return { stragglerIds: [] }
+        if (pending.size === 0) {
+          const blockedRecoveryIds = [...this.blockedRuntimeTerminalRecoveries.values()].map(
+            (recovery) => `runtime-terminal:${recovery.sessionId}:${recovery.assistantMessageId}`
+          )
+          return { stragglerIds: blockedRecoveryIds }
+        }
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
           timeout
@@ -1163,6 +1215,12 @@ export class AgentSessionRuntimeService extends BaseService {
         summary: `turn=${turn} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${isAgentSessionRuntimeCompacting(entry.runtimeState)} launch=${entry.runtimeState.launch.kind}`
       })
     }
+    for (const recovery of this.blockedRuntimeTerminalRecoveries.values()) {
+      work.push({
+        id: `runtime-terminal:${recovery.sessionId}:${recovery.assistantMessageId}`,
+        summary: `terminal=${recovery.status} turn=${recovery.turnId}`
+      })
+    }
     return work
   }
 
@@ -1174,6 +1232,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.runtimeState.launch.kind !== 'suppressed') continue
       this.applyRuntimeStateEvent(entry, { type: 'launch-resumed' })
     }
+    void this.retryBlockedRuntimeTerminalPersistence()
   }
 
   /**
@@ -1248,21 +1307,252 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  abortPendingTurn(sessionId: string, reason: string): boolean {
+  abortPendingTurn(sessionId: string, reason: string): AbortAgentSessionTurnResult {
     const entry = this.entries.get(sessionId)
-    const turn = entry ? this.liveTurn(entry) : undefined
-    if (!turn || turn.abortController.signal.aborted) return false
-    turn.abortController.abort(reason)
-    return true
+    if (!entry) {
+      const recoveries = [...this.blockedRuntimeTerminalRecoveries.values()].filter(
+        (recovery) => recovery.sessionId === sessionId
+      )
+      return recoveries.length > 0
+        ? {
+            handled: true,
+            terminalReady: this.runtimeTerminalReadyForStop(sessionId, recoveries),
+            terminalOutcome: this.runtimeTerminalOutcome(recoveries)
+          }
+        : { handled: false }
+    }
+
+    const hadQueuedTurns = entry.runtimeState.queue.length > 0
+    this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
+    const execution = entry.runtimeState.execution
+    // Before A2 exists, the settled A1 turn still owns the SDK query that is crossing the steer
+    // boundary. It is not renderer-live, but its controller remains the correct cancellation token.
+    const turn =
+      this.liveTurn(entry) ??
+      (execution.kind === 'steer-transition' ? (execution.continuationTurn ?? execution.sourceTurn) : undefined)
+    const runtimeOwnedTurns = this.runtimeOwnedTurns(entry)
+    const runtimeOwnedSnapshots = runtimeOwnedTurns.map((runtimeOwnedTurn) => ({
+      turn: runtimeOwnedTurn,
+      chunks: this.bufferedChunksForRuntimeOwnedTurn(entry, runtimeOwnedTurn)
+    }))
+
+    let aborted = false
+    const turnsToAbort = new Set([turn, ...runtimeOwnedTurns])
+    if (execution.kind === 'steer-transition') turnsToAbort.add(execution.sourceTurn)
+    for (const candidate of turnsToAbort) {
+      if (candidate && !candidate.abortController.signal.aborted) {
+        candidate.abortController.abort(reason)
+        aborted = true
+      }
+    }
+
+    const terminalAttempts = runtimeOwnedSnapshots.map(({ turn: runtimeOwnedTurn, chunks }) =>
+      this.enqueueRuntimeTerminalRecovery(entry, runtimeOwnedTurn, 'paused', chunks)
+    )
+    if (runtimeOwnedTurns.length > 0) {
+      // The detached recovery now owns every pending row, so invalidate the entry immediately.
+      // Late trace/suspend completions can no longer schedule work after Stop.
+      void this.closeSession(sessionId)
+      const terminalReady = this.runtimeTerminalReadyForStop(sessionId, terminalAttempts)
+      return { handled: true, terminalReady, terminalOutcome: { outcome: 'aborted' } }
+    }
+
+    // A queued/suppressed continuation can have no turn controller yet. Closing the entry invalidates
+    // its scheduled launch by identity and closes the warm runtime that could otherwise keep producing.
+    if (
+      runtimeOwnedTurns.length === 0 &&
+      !this.liveTurn(entry) &&
+      willAgentSessionRuntimeContinue(entry.runtimeState)
+    ) {
+      void this.closeSession(sessionId)
+      return { handled: true }
+    }
+    return { handled: aborted || hadQueuedTurns }
+  }
+
+  private runtimeTerminalReadyForStop(
+    sessionId: string,
+    recoveries: Array<{ firstAttempt: Promise<boolean> }>
+  ): Promise<void> {
+    return Promise.all(recoveries.map(({ firstAttempt }) => firstAttempt)).then((results) => {
+      if (results.some((persisted) => !persisted)) {
+        logger.warn('Stop explicitly abandoned blocked runtime terminal persistence; retry remains queued', {
+          sessionId
+        })
+      }
+    })
+  }
+
+  private runtimeTerminalOutcome(
+    recoveries: Array<Pick<RuntimeTerminalRecovery, 'status' | 'error'>>
+  ): NonNullable<AbortAgentSessionTurnResult['terminalOutcome']> {
+    const failed = recoveries.find((recovery) => recovery.status === 'error')
+    return failed ? { outcome: 'error', ...(failed.error ? { error: failed.error } : {}) } : { outcome: 'aborted' }
+  }
+
+  /** Retry runtime-owned terminal writes independently of the invalidated session entry. */
+  async retryBlockedRuntimeTerminalPersistence(): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const retries = [...this.blockedRuntimeTerminalRecoveries].flatMap(([key, recovery]) => {
+      const retry = this.startRuntimeTerminalRecovery(key, recovery)
+      return retry ? [retry] : []
+    })
+    await Promise.allSettled(retries)
+  }
+
+  private runtimeOwnedTurns(entry: AgentSessionRuntimeEntry): AgentSessionTurn[] {
+    const execution = entry.runtimeState.execution
+    if (execution.kind === 'turn') {
+      return execution.turn.persistenceOwner === 'runtime' ? [execution.turn] : []
+    }
+    if (execution.kind === 'steer-transition') {
+      return execution.continuationTurn?.persistenceOwner === 'runtime' ? [execution.continuationTurn] : []
+    }
+    if (execution.kind !== 'autonomous-turn') return []
+
+    return [execution.turn, execution.deferredTurn].filter(
+      (turn): turn is AgentSessionTurn => turn?.persistenceOwner === 'runtime'
+    )
+  }
+
+  private bufferedChunksForRuntimeOwnedTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): UIMessageChunk[] {
+    const execution = entry.runtimeState.execution
+    if (execution.kind === 'steer-transition' && execution.continuationTurn === turn) return [...execution.buffer]
+    if (execution.kind === 'autonomous-turn' && execution.turn === turn) return [...execution.buffer]
+    return []
+  }
+
+  private enqueueRuntimeTerminalRecovery(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    status: RuntimeTerminalRecovery['status'],
+    chunks: UIMessageChunk[],
+    error?: SerializedError
+  ): { firstAttempt: Promise<boolean>; durable: Promise<void> } {
+    const key = `${entry.sessionId}:${turn.assistantMessageId}`
+    let markDurable!: () => void
+    const durable = new Promise<void>((resolve) => {
+      markDurable = resolve
+    })
+    let markFirstAttempt!: (persisted: boolean) => void
+    const firstAttempt = new Promise<boolean>((resolve) => {
+      markFirstAttempt = resolve
+    })
+    const recovery: RuntimeTerminalRecovery = {
+      sessionId: entry.sessionId,
+      turnId: turn.turnId,
+      assistantMessageId: turn.assistantMessageId,
+      ...(entry.lastResumeToken ? { runtimeResumeToken: entry.lastResumeToken } : {}),
+      status,
+      ...(error ? { error } : {}),
+      chunks,
+      firstAttempt,
+      markFirstAttempt,
+      durable,
+      markDurable
+    }
+    this.blockedRuntimeTerminalRecoveries.set(key, recovery)
+    void this.startRuntimeTerminalRecovery(key, recovery)
+    return { firstAttempt, durable }
+  }
+
+  private startRuntimeTerminalRecovery(
+    key: string,
+    recovery: RuntimeTerminalRecovery,
+    force = false
+  ): Promise<boolean> | undefined {
+    if (
+      (!force && (this.isShuttingDown || this.isWriteQuiesced)) ||
+      this.activeRuntimeTerminalRecoveryKeys.has(key) ||
+      this.blockedRuntimeTerminalRecoveries.get(key) !== recovery
+    ) {
+      return undefined
+    }
+    this.activeRuntimeTerminalRecoveryKeys.add(key)
+
+    const run = (async () => {
+      try {
+        const parts =
+          recovery.parts ??
+          (recovery.chunks.length > 0 ? await this.replayRuntimeTerminalParts(recovery) : ([] as CherryMessagePart[]))
+        recovery.parts = parts
+        agentSessionMessageService.settlePendingAssistantMessage({
+          sessionId: recovery.sessionId,
+          messageId: recovery.assistantMessageId,
+          ...(recovery.runtimeResumeToken ? { runtimeResumeToken: recovery.runtimeResumeToken } : {}),
+          status: recovery.status,
+          data: { parts }
+        })
+        if (this.blockedRuntimeTerminalRecoveries.get(key) === recovery) {
+          this.blockedRuntimeTerminalRecoveries.delete(key)
+        }
+        recovery.markDurable()
+        return true
+      } catch (error) {
+        logger.warn('Runtime-owned terminal persistence remains blocked', {
+          sessionId: recovery.sessionId,
+          turnId: recovery.turnId,
+          status: recovery.status,
+          error
+        })
+        return false
+      }
+    })()
+    this.inFlightRuntimeTerminalRecoveries.set(run, `runtime-terminal:${recovery.sessionId}`)
+    void run.then(recovery.markFirstAttempt)
+    void run.finally(() => {
+      this.activeRuntimeTerminalRecoveryKeys.delete(key)
+      this.inFlightRuntimeTerminalRecoveries.delete(run)
+    })
+    return run
+  }
+
+  private async replayRuntimeTerminalParts(recovery: RuntimeTerminalRecovery): Promise<CherryMessagePart[]> {
+    const chunks = recovery.chunks
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        if (chunks[0]?.type !== 'start') controller.enqueue({ type: 'start' })
+        for (const chunk of chunks) controller.enqueue(chunk)
+        controller.close()
+      }
+    })
+    let finalMessage: CherryUIMessage = { id: recovery.assistantMessageId, role: 'assistant', parts: [] }
+    try {
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream, message: finalMessage })) {
+        finalMessage = snapshot
+      }
+    } catch (error) {
+      logger.warn('Failed to replay buffered runtime chunks during terminal persistence', {
+        sessionId: recovery.sessionId,
+        turnId: recovery.turnId,
+        error
+      })
+    }
+    return finalizeInterruptedParts(
+      dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
+      recovery.status
+    )
   }
 
   protected async onStop(): Promise<void> {
-    this.isShuttingDown = true
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
-    for (const entry of this.entries.values()) {
-      if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
+    const terminalReadiness: Promise<void>[] = []
+    for (const entry of [...this.entries.values()]) {
+      const result = this.abortPendingTurn(entry.sessionId, 'agent-session-runtime-stop')
+      if (result.terminalReady) terminalReadiness.push(result.terminalReady)
+      streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
     }
+    const forcedRecoveries = [...this.blockedRuntimeTerminalRecoveries].flatMap(([key, recovery]) => {
+      const run = this.startRuntimeTerminalRecovery(key, recovery, true)
+      return run ? [run] : []
+    })
+    this.isShuttingDown = true
+    await Promise.allSettled([
+      ...terminalReadiness,
+      ...this.inFlightRuntimeTerminalRecoveries.keys(),
+      ...forcedRecoveries
+    ])
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
@@ -2349,20 +2639,25 @@ export class AgentSessionRuntimeService extends BaseService {
           return
         }
         this.applyRuntimeStateEvent(entry, { type: 'launch-started', target })
-        const run = (() => {
-          switch (target) {
-            case 'queued-turn':
-              return this.startNextTurn(entry)
-            case 'steer-continuation':
-              return this.startContinuationTurn(entry)
-            case 'receive-only':
-              return this.startReceiveOnlyTurn(entry)
-            case 'deferred-turn': {
-              const turn = this.currentTurn(entry)
-              return turn ? Promise.resolve(this.startDeferredTurn(entry, turn)) : Promise.resolve()
+        let run: Promise<void>
+        try {
+          run = (() => {
+            switch (target) {
+              case 'queued-turn':
+                return this.startNextTurn(entry)
+              case 'steer-continuation':
+                return this.startContinuationTurn(entry)
+              case 'receive-only':
+                return this.startReceiveOnlyTurn(entry)
+              case 'deferred-turn': {
+                const turn = this.currentTurn(entry)
+                return turn ? Promise.resolve(this.startDeferredTurn(entry, turn)) : Promise.resolve()
+              }
             }
-          }
-        })()
+          })()
+        } catch (error) {
+          run = Promise.reject(error)
+        }
         void run
           .catch((error) => {
             logger.error('Failed to start agent runtime launch', {
@@ -2370,13 +2665,7 @@ export class AgentSessionRuntimeService extends BaseService {
               target,
               error
             })
-            if (target === 'deferred-turn') {
-              const turn = this.currentTurn(entry)
-              if (turn) {
-                this.errorTurn(turn, error)
-                this.markTurnTerminal(entry.sessionId, 'error')
-              }
-            }
+            this.handleRuntimeLaunchFailure(entry, target, error)
           })
           .finally(() => {
             if (this.inFlightTurnStarts.get(entry.sessionId) === launch) {
@@ -2404,6 +2693,43 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     })
     this.inFlightTurnStarts.set(entry.sessionId, launch)
+  }
+
+  private handleRuntimeLaunchFailure(
+    entry: AgentSessionRuntimeEntry,
+    target: AgentSessionRuntimeLaunchTarget,
+    error: unknown
+  ): void {
+    if (!this.isCurrentEntry(entry)) return
+    const runtimeOwnedTurns = this.runtimeOwnedTurns(entry)
+    if (runtimeOwnedTurns.length > 0) {
+      const serializedError = serializeError(error)
+      const runtimeOwnedSnapshots = runtimeOwnedTurns.map((turn) => ({
+        turn,
+        chunks: this.bufferedChunksForRuntimeOwnedTurn(entry, turn)
+      }))
+      const terminalRecoveries: Array<{ durable: Promise<void> }> = []
+      for (const { turn, chunks } of runtimeOwnedSnapshots) {
+        if (!turn.abortController.signal.aborted) turn.abortController.abort('runtime-handoff-failed')
+        terminalRecoveries.push(this.enqueueRuntimeTerminalRecovery(entry, turn, 'error', chunks, serializedError))
+      }
+      const topicId = entry.topicId
+      const modelId = entry.modelId
+      const terminalDurability = Promise.all(terminalRecoveries.map(({ durable }) => durable)).then(() => undefined)
+      application
+        .get('AiStreamManager')
+        .failTopicContinuationWhenReady(topicId, modelId, serializedError, terminalDurability)
+      void this.closeSession(entry.sessionId)
+      return
+    }
+
+    if (target === 'deferred-turn') {
+      const turn = this.currentTurn(entry)
+      if (turn) {
+        this.errorTurn(turn, error)
+        this.markTurnTerminal(entry.sessionId, 'error')
+      }
+    }
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
@@ -2486,6 +2812,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       knowledgeBaseIds,
       fastMode,
+      persistenceOwner: 'runtime',
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless
@@ -2520,6 +2847,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, nextMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
+    nextTurn.persistenceOwner = 'stream-manager'
   }
 
   /**
@@ -2536,6 +2864,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
+    turn.persistenceOwner = 'runtime'
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()
@@ -2594,6 +2923,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, turn.userMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
+    turn.persistenceOwner = 'stream-manager'
   }
 
   /**
@@ -2646,6 +2976,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: 'default',
       knowledgeBaseIds,
       fastMode,
+      persistenceOwner: 'runtime',
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -2688,6 +3019,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, syntheticMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
+    receiveOnlyTurn.persistenceOwner = 'stream-manager'
   }
 
   /**
@@ -2754,6 +3086,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       knowledgeBaseIds,
       fastMode,
+      persistenceOwner: 'runtime',
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -2798,6 +3131,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, steerMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
+    continuationTurn.persistenceOwner = 'stream-manager'
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

@@ -623,6 +623,54 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
+  /** Settle a runtime-owned placeholder without upserting or overwriting a newer terminal row. */
+  settlePendingAssistantMessage(params: {
+    sessionId: string
+    messageId: string
+    runtimeResumeToken?: string
+    status: 'paused' | 'error'
+    data: AgentSessionMessageEntity['data']
+  }): boolean {
+    const settled = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, params.sessionId, params.messageId)
+      if (!existing || existing.role !== 'assistant' || existing.status !== 'pending') return false
+
+      const updatedAt = Date.now()
+      const result = tx
+        .update(sessionMessagesTable)
+        .set({
+          status: params.status,
+          data: params.data,
+          ...(params.runtimeResumeToken ? { runtimeResumeToken: params.runtimeResumeToken } : {}),
+          updatedAt
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, params.sessionId),
+            eq(sessionMessagesTable.id, params.messageId),
+            eq(sessionMessagesTable.role, 'assistant'),
+            eq(sessionMessagesTable.status, 'pending')
+          )
+        )
+        .run()
+      if (result.changes === 0) return false
+
+      replaceAgentSessionMessageFileRefsTx(tx, params.messageId, params.data)
+      agentSessionService.touchUpdatedAtTx(tx, params.sessionId, updatedAt)
+      agentSessionService.advanceLastActivityAtTx(tx, params.sessionId, updatedAt)
+      agentSessionService.addReadModelEffects(tx.effects, [params.sessionId], 'projection')
+      tx.effects.add({
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId: params.sessionId },
+        entityIds: [params.messageId]
+      })
+      return true
+    })
+    if (settled) aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: params.messageId })
+    return settled
+  }
+
   saveMessages(params: CreateAgentSessionMessagesDto, expectedAgentId?: string): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 

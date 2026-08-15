@@ -63,6 +63,11 @@ export interface StreamProtocolChunkEvent extends Omit<StreamChunkPayload, 'atte
   throughChunkSeq: number
 }
 
+export interface StreamProtocolReplayChunkEvent extends StreamProtocolChunkEvent {
+  /** Replay-only structural repair; route it without advancing the source sequence cursor. */
+  synthetic?: true
+}
+
 export interface StreamProtocolAttemptSettledEvent {
   type: 'attempt-durably-settled'
   topicId: string
@@ -97,7 +102,7 @@ export interface StreamAttachAttemptSnapshot {
   phase: 'reserved' | 'running' | 'finalizing' | 'persistence-blocked' | 'settled'
   outcome?: 'success' | 'paused' | 'error'
   error?: SerializedError
-  replayChunks: StreamProtocolChunkEvent[]
+  replayChunks: StreamProtocolReplayChunkEvent[]
   throughChunkSeq: number
 }
 

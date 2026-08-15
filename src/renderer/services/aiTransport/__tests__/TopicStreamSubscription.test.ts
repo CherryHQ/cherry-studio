@@ -1,4 +1,9 @@
-import type { StreamAttachSnapshot, StreamChunkPayload, StreamProtocolEvent } from '@shared/ai/transport'
+import type {
+  StreamAttachSnapshot,
+  StreamChunkPayload,
+  StreamProtocolEvent,
+  StreamProtocolReplayChunkEvent
+} from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -466,6 +471,46 @@ describe('TopicStreamSubscription', () => {
     })
 
     expect(await readAll(stream)).toEqual([textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
+  it('routes a synthetic replay start without consuming the following delta sequence', async () => {
+    const replay = (chunk: UIMessageChunk, synthetic = false): StreamProtocolReplayChunkEvent => ({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 7,
+      executionId: A,
+      attemptId: 1,
+      chunkSeq: 2,
+      throughChunkSeq: 2,
+      chunk,
+      ...(synthetic ? { synthetic: true } : {})
+    })
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 2,
+        topicOpen: false,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            phase: 'settled',
+            outcome: 'success',
+            replayChunks: [replay(textChunk('survived')), replay({ type: 'text-start', id: 't' }, true)],
+            throughChunkSeq: 2
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const stream = sub.register(A, undefined, 1)
+
+    await tick()
+
+    expect(await readAll(stream)).toEqual([{ type: 'text-start', id: 't' }, textChunk('survived')])
     sub.dispose()
   })
 
