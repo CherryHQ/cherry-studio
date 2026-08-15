@@ -53,18 +53,20 @@ export function redactDeep(value: unknown): unknown {
 
 /**
  * Redact secrets from a serialized serverKey (JSON of an MCP server config);
- * env and headers values are replaced wholesale, a parse failure yields a
- * placeholder instead of the raw string.
+ * a parse failure yields a placeholder instead of the raw string.
+ * env/headers fail CLOSED: every value is redacted — secrecy cannot be
+ * inferred from key names (e.g. DATABASE_URL carries credentials in the
+ * value while matching no sensitive name).
  */
 export function redactServerKey(serverKey: string): string {
+  const redactAllValues = (value: unknown): unknown =>
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.keys(value as object).map((key) => [key, REDACTED]))
+      : value
   try {
     const parsed = JSON.parse(serverKey) as Record<string, unknown>
-    if (parsed.env && typeof parsed.env === 'object') {
-      parsed.env = redactRecord(parsed.env as Record<string, string>)
-    }
-    if (parsed.headers && typeof parsed.headers === 'object') {
-      parsed.headers = redactRecord(parsed.headers as Record<string, string>)
-    }
+    parsed.env = redactAllValues(parsed.env)
+    parsed.headers = redactAllValues(parsed.headers)
     return JSON.stringify(parsed)
   } catch {
     return '<unparseable-serverKey>'
