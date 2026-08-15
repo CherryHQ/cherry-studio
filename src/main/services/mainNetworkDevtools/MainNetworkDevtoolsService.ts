@@ -67,7 +67,8 @@ interface RequestDescription {
   requestContentType?: string
 }
 
-// OAuth's `code` is sensitive in query params/bodies but must not redact JSON keys globally.
+// OAuth `code` is redacted across this request view (query/body/form) but stays out of the
+// global stem list — app-wide it would mask source code in unrelated JSON payloads.
 const OAUTH_QUERY_EXTRAS = ['code']
 
 export function redactUrl(rawUrl: string): string {
