@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
+import { toast } from '@renderer/services/toast'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { CirclePause } from 'lucide-react'
 import {
@@ -81,6 +82,17 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
+  const sendBlockedReasonRef = useRef(props.sendBlockedReason)
+
+  useEffect(() => {
+    sendBlockedReasonRef.current = props.sendBlockedReason
+  }, [props.sendBlockedReason])
+
+  const showBlockedSendReason = useCallback(() => {
+    if (sendBlockedReasonRef.current) {
+      toast.error(sendBlockedReasonRef.current)
+    }
+  }, [])
 
   const requestRuntime = useCallback(() => {
     void loadRuntime()
@@ -213,7 +225,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         <CirclePause size={20} />
       </button>
     ) : (
-      <SendMessageButton disabled={props.sendDisabled} sendMessage={() => void props.onSendDraft(getFallbackDraft())} />
+      <SendMessageButton
+        disabled={props.sendDisabled}
+        sendMessage={() => void props.onSendDraft(getFallbackDraft())}
+        onDisabledClick={showBlockedSendReason}
+      />
     )
   const inputbarElement = (
     <div
@@ -276,7 +292,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             }
             if (!isSendShortcut(event, sendMessageShortcut)) return
             event.preventDefault()
-            if (!event.repeat && !props.sendDisabled) void props.onSendDraft(getFallbackDraft())
+            if (event.repeat) return
+            if (props.sendDisabled) {
+              showBlockedSendReason()
+            } else {
+              void props.onSendDraft(getFallbackDraft())
+            }
           }}
         />
       </div>
