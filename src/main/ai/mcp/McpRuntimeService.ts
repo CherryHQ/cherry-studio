@@ -282,7 +282,9 @@ export function redactServerKey(serverKey: string): string {
 // redacted instead of raw (same class of leak as #18648, at debug level).
 function redactCacheKey(cacheKey: string): string {
   const separator = cacheKey.indexOf(':')
-  return separator === -1 ? redactServerKey(cacheKey) : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
 
 // Create a context-aware logger for a server
@@ -325,7 +327,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey: redactCacheKey(cacheKey), ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
