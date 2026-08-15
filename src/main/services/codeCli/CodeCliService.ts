@@ -10,7 +10,6 @@ import { getBundledGitDir } from '@main/utils/bundledGit'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
@@ -22,6 +21,7 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 

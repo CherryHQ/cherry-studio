@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { redactRecord } from '@shared/utils/redaction'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { redactRecord } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpFactory')
 
