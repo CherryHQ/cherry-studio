@@ -242,4 +242,11 @@ describe('sanitizeEnvForLogging - Sensitive Data Redaction', () => {
     expect(result.API_KEY_PATH).toBe('<redacted>')
     expect(result.MODEL_PATH).toBe('/path/to/model')
   })
+
+  it('should redact credential keys outside the API_KEY pattern (e.g. DIFY_KEY)', () => {
+    const env = { DIFY_KEY: 'app-secret', MEMORY_FILE_PATH: '/tmp/memory' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.DIFY_KEY).toBe('<redacted>')
+    expect(result.MEMORY_FILE_PATH).toBe('/tmp/memory')
+  })
 })
