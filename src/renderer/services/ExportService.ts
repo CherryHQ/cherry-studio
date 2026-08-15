@@ -5,7 +5,6 @@ import type { Client } from '@notionhq/client'
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
 // accessor below the hooks tier is deferred as out of scope here.
-import MarkdownImageExportPopup from '@renderer/components/MarkdownImageExportPopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
@@ -39,6 +38,7 @@ import { visit } from 'unist-util-visit'
 
 import {
   collectExportableImages,
+  type ImageExportMode,
   type PendingImageWrite,
   serializeMessagesWithImages,
   writeImageAssets
@@ -471,14 +471,21 @@ const dirOf = (filePath: string): string => {
 }
 
 /**
+ * UI decision injected by the hook entry points (services must not import
+ * components or render UI — renderer-architecture §2). Returning null aborts.
+ */
+export type ImageModeChooser = (imageCount: number) => Promise<ImageExportMode | null>
+
+/**
  * Image-mode gate for Markdown file exports: collect images, ask the user how to
- * carry them (popup only appears when images exist), then serialize when a
- * carrying mode is chosen. Returns null when the user cancels the popup — the
- * caller aborts without any file write.
+ * carry them via the injected chooser (only consulted when images exist), then
+ * serialize when a carrying mode is chosen. Returns null when the user cancels —
+ * the caller aborts without any file write.
  */
 const buildMarkdownWithImages = async (
   messages: ExportableMessage[],
-  build: (rawContentOverrides?: Map<string, string>) => Promise<string>
+  build: (rawContentOverrides?: Map<string, string>) => Promise<string>,
+  chooseImageMode?: ImageModeChooser
 ): Promise<{ markdown: string; pendingWrites: PendingImageWrite[] } | null> => {
   const { refs, unresolvedCount } = await collectExportableImages(messages)
   if (refs.length === 0) {
@@ -487,14 +494,18 @@ const buildMarkdownWithImages = async (
     }
     return { markdown: await build(), pendingWrites: [] }
   }
-  const mode = await MarkdownImageExportPopup.show({ imageCount: refs.length })
+  const mode = (await chooseImageMode?.(refs.length)) ?? null
   if (mode === null || mode === 'none') {
     return mode === null ? null : { markdown: await build(), pendingWrites: [] }
   }
   const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages(messages, mode, refs)
   const totalSkipped = skippedCount + unresolvedCount
   if (totalSkipped > 0) {
-    toast.warning(i18n.t('chat.topics.export.image_mode.skipped', { count: totalSkipped }))
+    // Embed mode skips oversized OR unreadable images; folder mode has no size
+    // cap, so its skips (and collection failures) are purely availability.
+    const key =
+      mode === 'embed' ? 'chat.topics.export.image_mode.skipped_embed' : 'chat.topics.export.image_mode.skipped'
+    toast.warning(i18n.t(key, { count: totalSkipped }))
   }
   return { markdown: await build(overrides), pendingWrites }
 }
@@ -510,7 +521,8 @@ const exportImageAssets = async (dirPath: string, pendingWrites: PendingImageWri
 export const exportTopicAsMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -524,8 +536,10 @@ export const exportTopicAsMarkdown = async (
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
       const messages = await getTopicMessages(topic.id)
-      const built = await buildMarkdownWithImages(messages ?? [], (overrides) =>
-        topicToMarkdown(topic, exportReasoning, excludeCitations, overrides)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        chooseImageMode
       )
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
@@ -544,8 +558,10 @@ export const exportTopicAsMarkdown = async (
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
       const messages = await getTopicMessages(topic.id)
-      const built = await buildMarkdownWithImages(messages ?? [], (overrides) =>
-        topicToMarkdown(topic, exportReasoning, excludeCitations, overrides)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        chooseImageMode
       )
       if (!built) return
       await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
@@ -563,7 +579,8 @@ export const exportTopicAsMarkdown = async (
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -584,7 +601,7 @@ export const exportMessageAsMarkdown = async (
     try {
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const built = await buildMarkdownWithImages([message], buildWithOverrides)
+      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
@@ -602,7 +619,7 @@ export const exportMessageAsMarkdown = async (
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const built = await buildMarkdownWithImages([message], buildWithOverrides)
+      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
       if (!built) return
       await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
       await exportImageAssets(markdownExportPath, built.pendingWrites)

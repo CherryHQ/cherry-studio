@@ -1,5 +1,4 @@
 import { preferenceService } from '@data/PreferenceService'
-import MarkdownImageExportPopup from '@renderer/components/MarkdownImageExportPopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -32,10 +31,9 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()
 }))
 
-// The popup is an interactive boundary: pipeline tests inject the user's choice here.
-vi.mock('@renderer/components/MarkdownImageExportPopup', () => ({
-  default: { show: vi.fn() }
-}))
+// The mode choice is an interactive boundary: pipeline tests inject the user's
+// decision through the same `chooseImageMode` hook the UI layer passes in.
+const chooseImageMode = vi.fn<(imageCount: number) => Promise<'embed' | 'folder' | 'none' | null>>()
 
 // --- Test data helpers ---
 
@@ -349,6 +347,20 @@ describe('writeImageAssets', () => {
     expect(failedCount).toBe(0)
     expect(fileApi.mkdir).not.toHaveBeenCalled()
   })
+
+  it('reports every image as failed when mkdir fails, without throwing', async () => {
+    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
+    const ref = { key: 'k', source: 'file-part', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+
+    const failedCount = await writeImageAssets('/tmp/exports', [
+      { fileName: 'img-a.png', ref },
+      { fileName: 'img-b.png', ref }
+    ])
+
+    // the .md is already saved by then: count-and-warn, never a thrown error
+    expect(failedCount).toBe(2)
+    expect(fileApi.write).not.toHaveBeenCalled()
+  })
 })
 
 // --- rawContentOverride semantics ---
@@ -386,13 +398,13 @@ describe('messageToMarkdown rawContentOverride', () => {
 describe('exportMessageAsMarkdown image pipeline', () => {
   const imageMessage = () => view([{ type: 'text', text: 'with picture' }, imageFilePart(PNG_1PX, 'entry-a')])
 
-  it('skips the popup entirely for messages without images', async () => {
+  it('never consults the mode chooser for messages without images', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     const message = view([{ type: 'text', text: 'text only' }])
 
-    await exportMessageAsMarkdown(message)
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
 
-    expect(MarkdownImageExportPopup.show).not.toHaveBeenCalled()
+    expect(chooseImageMode).not.toHaveBeenCalled()
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
   })
@@ -405,20 +417,20 @@ describe('exportMessageAsMarkdown image pipeline', () => {
       generateImagePart([{ id: 'gone', name: 'painting.png' }])
     ])
 
-    await exportMessageAsMarkdown(message)
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
 
-    // nothing left to carry: no popup, plain text export, skipped-count toast
-    expect(MarkdownImageExportPopup.show).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或读取失败）')
+    // nothing left to carry: chooser untouched, plain text export, skipped-count toast
+    expect(chooseImageMode).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（无法获取或读取）')
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('here is a painting')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
   })
 
-  it('aborts with zero file writes when the popup is cancelled', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue(null)
+  it('aborts with zero file writes when the user cancels the mode choice', async () => {
+    chooseImageMode.mockResolvedValue(null)
 
-    await exportMessageAsMarkdown(imageMessage())
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save).not.toHaveBeenCalled()
     expect(fileApi.write).not.toHaveBeenCalled()
@@ -426,15 +438,15 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     // export mutex must be released: a second call proceeds to the save dialog
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    await exportMessageAsMarkdown(view([{ type: 'text', text: 'text only' }]))
+    await exportMessageAsMarkdown(view([{ type: 'text', text: 'text only' }]), false, undefined, chooseImageMode)
     expect(fileApi.save).toHaveBeenCalledTimes(1)
   })
 
   it('exports plain text when the user picks "no images"', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('none')
+    chooseImageMode.mockResolvedValue('none')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
 
-    await exportMessageAsMarkdown(imageMessage())
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save.mock.calls[0][1]).toContain('with picture')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
@@ -442,20 +454,20 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   })
 
   it('embeds data URIs when the user picks "embed" (save dialog branch)', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('embed')
+    chooseImageMode.mockResolvedValue('embed')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
 
-    await exportMessageAsMarkdown(imageMessage())
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save.mock.calls[0][1]).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
     expect(fileApi.mkdir).not.toHaveBeenCalled()
   })
 
   it('writes an assets folder next to the saved file (folder, save dialog branch)', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('folder')
+    chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/exports/my chat.md')
 
-    await exportMessageAsMarkdown(imageMessage())
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/exports/assets')
     // the .md went through the save dialog; only the image is a direct write
@@ -468,26 +480,39 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   })
 
   it('falls back to warning when an asset write fails but keeps the .md (folder)', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('folder')
+    chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     fileApi.write.mockRejectedValueOnce(new Error('disk full'))
 
-    await exportMessageAsMarkdown(imageMessage())
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     // real i18n: the interpolated zh-cn message proves the key exists and renders
     expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
   })
 
+  it('warns but keeps the export when creating the assets folder fails (folder)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
+
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+
+    // the .md stays; the mkdir failure degrades to the write-failed warning
+    expect(fileApi.save).toHaveBeenCalledTimes(1)
+    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+  })
+
   it('toasts the skipped-image count and still completes the export (embed, oversize)', async () => {
     const oversized = `data:image/png;base64,${'A'.repeat(Math.ceil((10 * 1024 * 1024 + 1) / 3) * 4)}`
     const message = view([{ type: 'text', text: 'huge picture' }, imageFilePart(oversized, 'entry-big')])
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('embed')
+    chooseImageMode.mockResolvedValue('embed')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
 
-    await exportMessageAsMarkdown(message)
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
 
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或读取失败）')
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或无法读取）')
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('huge picture')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image/png')
@@ -496,10 +521,10 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('writes .md and assets into the preconfigured directory (folder, preconf branch)', async () => {
     await preferenceService.set('data.export.markdown.path', '/tmp/preconf')
     try {
-      vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('folder')
+      chooseImageMode.mockResolvedValue('folder')
       ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1]), mime: 'image/png' } })
 
-      await exportMessageAsMarkdown(imageMessage())
+      await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
       expect(fileApi.save).not.toHaveBeenCalled()
       expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/preconf/assets')
@@ -526,21 +551,21 @@ describe('exportTopicAsMarkdown image pipeline', () => {
   })
 
   it('embeds images from the topic messages when the user picks embed', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue('embed')
+    chooseImageMode.mockResolvedValue('embed')
     fileApi.save.mockResolvedValue('/tmp/x/t.md')
 
-    await exportTopicAsMarkdown(topic)
+    await exportTopicAsMarkdown(topic, false, undefined, chooseImageMode)
 
-    expect(MarkdownImageExportPopup.show).toHaveBeenCalledWith({ imageCount: 1 })
+    expect(chooseImageMode).toHaveBeenCalledWith(1)
     const markdown = fileApi.save.mock.calls[0][1] as string
     expect(markdown).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
     expect(markdown).toContain('assistant answers')
   })
 
-  it('aborts the topic export when the popup is cancelled', async () => {
-    vi.mocked(MarkdownImageExportPopup.show).mockResolvedValue(null)
+  it('aborts the topic export when the mode choice is cancelled', async () => {
+    chooseImageMode.mockResolvedValue(null)
 
-    await exportTopicAsMarkdown(topic)
+    await exportTopicAsMarkdown(topic, false, undefined, chooseImageMode)
 
     expect(fileApi.save).not.toHaveBeenCalled()
     expect(fileApi.write).not.toHaveBeenCalled()
