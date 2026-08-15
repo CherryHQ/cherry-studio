@@ -1,4 +1,5 @@
 import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -47,9 +48,15 @@ vi.mock('../useProviderMeta', () => ({
   useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth', () => ({
-  checkModelWithMultipleKeys: (...args: any[]) => checkModelWithMultipleKeysMock(...args)
-}))
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', async () => {
+  const actual = await vi.importActual<typeof HealthCheckUtils>(
+    '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+  )
+  return {
+    ...actual,
+    checkModelWithMultipleKeys: (...args: any[]) => checkModelWithMultipleKeysMock(...args)
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -255,10 +262,44 @@ describe('useProviderConnectionCheck', () => {
       await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
     })
 
+    expect(result.current.canSelectApiKey).toBe(true)
     expect(result.current.requiresApiKey).toBe(false)
     expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
       model,
       [{ kind: 'provider-auth', id: 'provider-auth', key: '' }],
+      15000,
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('checks explicit API keys when provider authentication is optional', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'optional-provider',
+        name: 'Optional Provider',
+        isEnabled: false,
+        authMethods: ['api-key'],
+        authOptional: true
+      },
+      enableProvider: enableProviderMock
+    })
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => successfulResult(credential))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('optional-provider'))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    expect(result.current.canSelectApiKey).toBe(true)
+    expect(result.current.requiresApiKey).toBe(false)
+    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
+      model,
+      [
+        { kind: 'api-key', entry: apiKeyEntries[0] },
+        { kind: 'api-key', entry: apiKeyEntries[1] }
+      ],
       15000,
       expect.any(AbortSignal)
     )

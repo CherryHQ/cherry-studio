@@ -10,6 +10,11 @@ export enum HealthStatus {
 
 export type ModelCheckKeySelection = { mode: 'all' } | { mode: 'single'; keyId: string }
 
+export interface ModelCheckCredentialPolicy {
+  canSelectApiKey: boolean
+  requiresApiKey: boolean
+}
+
 export type ModelCheckCredential =
   | { kind: 'api-key'; entry: ApiKeyEntry }
   | { kind: 'provider-auth'; id: 'provider-auth'; key: '' }

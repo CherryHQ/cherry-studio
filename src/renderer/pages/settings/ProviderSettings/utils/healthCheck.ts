@@ -1,9 +1,9 @@
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
-import { providerErrorText } from '@renderer/utils/error'
+import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import {
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -11,11 +11,14 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel
 } from '@shared/utils/model'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import type {
   ApiKeyWithStatus,
   ModelCheckCredential,
+  ModelCheckCredentialPolicy,
   ModelCheckKeySelection,
+  ModelCheckOptions,
   ModelHealthCheckGenerationOutput,
   ModelHealthCheckSkipReason,
   ModelWithStatus
@@ -34,16 +37,34 @@ export class ModelCheckCredentialsError extends Error {
   }
 }
 
+export function getModelCheckCredentialPolicy(
+  provider: Pick<Provider, 'authMethods' | 'authOptional'> | undefined,
+  isApiKeyFieldVisible: boolean
+): ModelCheckCredentialPolicy {
+  if (provider === undefined || !isApiKeyFieldVisible || isLoginBasedProvider(provider)) {
+    return { canSelectApiKey: false, requiresApiKey: false }
+  }
+
+  return { canSelectApiKey: true, requiresApiKey: provider.authOptional !== true }
+}
+
 export function resolveModelCheckCredentials(
   apiKeyEntries: readonly ApiKeyEntry[],
   selection: ModelCheckKeySelection,
-  requiresApiKey: boolean
+  policy: ModelCheckCredentialPolicy
 ): ModelCheckCredential[] {
-  if (!requiresApiKey) {
+  if (!policy.canSelectApiKey) {
     return [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
   }
 
   const enabledEntries = apiKeyEntries.filter((entry) => entry.isEnabled)
+
+  if (enabledEntries.length === 0) {
+    if (policy.requiresApiKey) {
+      throw new ModelCheckCredentialsError('api_key_required')
+    }
+    return [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
+  }
 
   if (selection.mode === 'single') {
     const selectedEntry = enabledEntries.find((entry) => entry.id === selection.keyId)
@@ -51,10 +72,6 @@ export function resolveModelCheckCredentials(
       throw new ModelCheckCredentialsError('api_key_unavailable')
     }
     return [{ kind: 'api-key', entry: selectedEntry }]
-  }
-
-  if (enabledEntries.length === 0) {
-    throw new ModelCheckCredentialsError('api_key_required')
   }
 
   return enabledEntries.map((entry) => ({ kind: 'api-key', entry }))
@@ -78,6 +95,40 @@ export function healthCheckErrorToDisplayString(error: SerializedError | string 
     return name
   }
   return ''
+}
+
+export async function checkModelWithMultipleKeys(
+  model: ModelCheckOptions['models'][number],
+  credentials: ModelCheckCredential[],
+  timeout?: number,
+  signal?: AbortSignal
+): Promise<ApiKeyWithStatus[]> {
+  if (credentials.length === 0) return []
+
+  return Promise.all(
+    credentials.map(async (credential) => {
+      signal?.throwIfAborted()
+      try {
+        const apiKey = credential.kind === 'api-key' ? credential.entry.key : credential.key
+        const { latency } = await checkApi(model.id, { apiKey, timeout, signal })
+        return {
+          kind: 'ok',
+          credential,
+          status: HealthStatus.SUCCESS,
+          checking: false,
+          latency
+        } satisfies ApiKeyWithStatus
+      } catch (error) {
+        return {
+          kind: 'failed',
+          credential,
+          status: HealthStatus.FAILED,
+          checking: false,
+          error: serializeHealthCheckError(error)
+        } satisfies ApiKeyWithStatus
+      }
+    })
+  )
 }
 
 export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {

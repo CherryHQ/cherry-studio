@@ -281,6 +281,25 @@ describe('useHealthCheck', () => {
     expect(toastErrorMock).toHaveBeenCalled()
   })
 
+  it('uses provider authentication for login-based providers even when API keys exist', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'oauth-provider', name: 'OAuth Provider', authMethods: ['oauth'] }
+    })
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    const { result } = renderHook(() => useHealthCheck('oauth-provider'))
+
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    expect(checkModelsHealthMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
+      }),
+      expect.any(Function)
+    )
+  })
+
   it('aborts and clears on provider or credential content changes but not key enablement changes', async () => {
     let signal: AbortSignal | undefined
     checkModelsHealthMock.mockImplementation(

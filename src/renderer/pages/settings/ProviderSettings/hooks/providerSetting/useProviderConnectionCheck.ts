@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
-import { checkModelWithMultipleKeys } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import type {
   ModelCheckKeySelection,
   ModelWithStatus
@@ -9,6 +8,8 @@ import type {
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import {
   aggregateApiKeyResults,
+  checkModelWithMultipleKeys,
+  getModelCheckCredentialPolicy,
   ModelCheckCredentialsError,
   resolveModelCheckCredentials
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
@@ -49,7 +50,7 @@ export function useProviderConnectionCheck(providerId: string) {
   const { isApiKeyFieldVisible } = useProviderMeta(providerId)
   const { i18n } = useTranslation()
   const apiKeyEntries = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
-  const requiresApiKey = isApiKeyFieldVisible && !provider?.authOptional
+  const { canSelectApiKey, requiresApiKey } = getModelCheckCredentialPolicy(provider, isApiKeyFieldVisible)
   const credentialFingerprint = useMemo(() => createCredentialFingerprint(apiKeyEntries), [apiKeyEntries])
   const [isSingleModelChecking, setIsSingleModelChecking] = useState(false)
   const [singleModelResult, setSingleModelResult] = useState<ModelWithStatus | null>(null)
@@ -97,7 +98,10 @@ export function useProviderConnectionCheck(providerId: string) {
         const latestEntries = getRefetchedApiKeyEntries(refetched, apiKeyEntries)
         acceptedCredentialFingerprintRef.current = createCredentialFingerprint(latestEntries)
         preparingCredentialsRef.current = false
-        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, requiresApiKey)
+        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, {
+          canSelectApiKey,
+          requiresApiKey
+        })
         const keyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
@@ -174,6 +178,7 @@ export function useProviderConnectionCheck(providerId: string) {
     [
       abortInFlightCheck,
       apiKeyEntries,
+      canSelectApiKey,
       commitInputApiKeyNow,
       enableProvider,
       i18n,
@@ -213,6 +218,7 @@ export function useProviderConnectionCheck(providerId: string) {
   return {
     models,
     apiKeyEntries,
+    canSelectApiKey,
     requiresApiKey,
     isSingleModelChecking,
     singleModelResult,

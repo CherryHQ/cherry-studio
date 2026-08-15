@@ -13,6 +13,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import {
+  getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
   ModelCheckCredentialsError,
   resolveModelCheckCredentials,
@@ -71,7 +72,7 @@ export function useHealthCheck(providerId: string) {
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { isApiKeyFieldVisible } = useProviderMeta(providerId)
   const apiKeyEntries = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
-  const requiresApiKey = isApiKeyFieldVisible && !provider?.authOptional
+  const { canSelectApiKey, requiresApiKey } = getModelCheckCredentialPolicy(provider, isApiKeyFieldVisible)
   const credentialFingerprint = useMemo(() => createCredentialFingerprint(apiKeyEntries), [apiKeyEntries])
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
@@ -190,7 +191,10 @@ export function useHealthCheck(providerId: string) {
         const latestEntries = getRefetchedApiKeyEntries(refetched, apiKeyEntries)
         acceptedCredentialFingerprintRef.current = createCredentialFingerprint(latestEntries)
         preparingCredentialsRef.current = false
-        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, requiresApiKey)
+        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, {
+          canSelectApiKey,
+          requiresApiKey
+        })
 
         if (models.length === 0) {
           toast.error({ timeout: 5000, title: i18n.t('settings.provider.no_models_for_check') })
@@ -242,6 +246,7 @@ export function useHealthCheck(providerId: string) {
     [
       abortInFlightCheck,
       apiKeyEntries,
+      canSelectApiKey,
       commitInputApiKeyNow,
       models,
       provider,
