@@ -27,6 +27,8 @@ import type {
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
+import { installCacheApiMock } from './testUtils'
+
 // Undo the global mocks from renderer.setup.ts — the functional-updater tests
 // need the real wiring so the hook setter and our assertions read/write the same
 // single store. (The type-only suites below don't touch these modules at runtime.)
@@ -205,16 +207,7 @@ describe('functional updater (runtime)', () => {
   beforeEach(() => {
     // CacheService best-effort broadcasts cross-window sync through window.api.cache;
     // stub it so the in-process Map operations we assert on run without warnings.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        cache: {
-          broadcastSync: vi.fn(),
-          onSync: vi.fn(),
-          getAllShared: vi.fn(async () => ({}))
-        }
-      }
-    })
+    installCacheApiMock()
 
     // Reset the singleton keys these suites touch (state persists across tests).
     cacheService.set('chat.selected_message_ids', [])
@@ -309,6 +302,52 @@ describe('functional updater (runtime)', () => {
         result.current[1](['🔥'])
       })
       expect(cacheService.getPersist('ui.emoji.recently_used')).toEqual(['🔥'])
+    })
+  })
+
+  // The pair below is what lets a write-only call site drop the hook: the updater
+  // reads the latest persisted value at WRITE time, so nothing about the write needs
+  // a subscription — and the subscription is exactly what rerenders consumers that
+  // never read the value.
+  describe('persist tier (imperative setPersist)', () => {
+    it('resolves the updater against the latest persisted value', () => {
+      cacheService.setPersist('ui.emoji.recently_used', ['😀'])
+
+      // A concurrent write lands between the caller's last read and its own write.
+      cacheService.setPersist('ui.emoji.recently_used', ['😀', '🎉'])
+      cacheService.setPersist('ui.emoji.recently_used', (prev) => ['🔥', ...prev])
+
+      expect(cacheService.getPersist('ui.emoji.recently_used')).toEqual(['🔥', '😀', '🎉'])
+    })
+
+    it('does not rerender a consumer that only holds the setter', () => {
+      let viaHookRenders = 0
+      let imperativeRenders = 0
+
+      // The shape write-only call sites must avoid: a hook taken purely for its
+      // setter still registers useSyncExternalStore, so any write rerenders it.
+      renderHook(() => {
+        viaHookRenders++
+        return usePersistCache('ui.emoji.recently_used')[1]
+      })
+      // The shape it was replaced with: the setter lives on cacheService, so the
+      // consumer holds no subscription at all.
+      renderHook(() => {
+        imperativeRenders++
+        return (next: string[]) => cacheService.setPersist('ui.emoji.recently_used', next)
+      })
+
+      const viaHookBaseline = viaHookRenders
+      const imperativeBaseline = imperativeRenders
+
+      act(() => {
+        cacheService.setPersist('ui.emoji.recently_used', ['🎉'])
+      })
+
+      expect(imperativeRenders).toBe(imperativeBaseline)
+      // Control group: without it the assertion above would hold vacuously — this
+      // proves the write really was observable to a subscriber.
+      expect(viaHookRenders).toBe(viaHookBaseline + 1)
     })
   })
 })

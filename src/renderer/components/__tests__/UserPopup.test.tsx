@@ -86,8 +86,20 @@ vi.mock('@cherrystudio/ui', () => {
       open?: boolean
       onOpenChange?: (open: boolean) => void
     }) => <PopoverContext value={{ open, onOpenChange }}>{children}</PopoverContext>,
-    PopoverContent: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => {
+    PopoverContent: ({
+      children,
+      align,
+      sideOffset,
+      ...props
+    }: {
+      children?: ReactNode
+      align?: string
+      sideOffset?: number
+      [key: string]: unknown
+    }) => {
       const context = React.use(PopoverContext)
+      void align
+      void sideOffset
 
       return context.open ? (
         <div data-testid="popover-content" {...props}>
@@ -184,7 +196,24 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
+  it('only customizes avatar picker popover width and padding', async () => {
+    showUserPopup()
+
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+
+    const popoverContent = screen.getByTestId('popover-content')
+
+    expect(popoverContent).toHaveClass('w-auto', 'p-2')
+    expect(popoverContent).not.toHaveClass(
+      'border',
+      'border-border',
+      'bg-popover',
+      'text-popover-foreground',
+      'shadow-lg'
+    )
+  })
+
+  it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {
     showUserPopup()
 
     // Open the avatar popover to reveal the upload control + hidden file input.
@@ -192,10 +221,11 @@ describe('UserPopup', () => {
     fireEvent.click(trigger)
 
     // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
-    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+    const file = Object.assign(new File(['webp'], 'a.webp', { type: 'image/webp' }), {
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
     })
     const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    expect(input.accept.split(/,\s*/)).toContain('image/webp')
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => {

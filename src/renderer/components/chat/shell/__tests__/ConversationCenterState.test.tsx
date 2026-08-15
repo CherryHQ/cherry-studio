@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ConversationCenterState from '../ConversationCenterState'
@@ -7,16 +8,20 @@ vi.mock('../../messages/layout/MessageListLoading', () => ({
   MessageListInitialLoading: () => <div data-testid="center-loading" />
 }))
 
+vi.mock('../ConversationStageCenter', () => ({
+  default: ({ main, composer }: { main: ReactNode; composer: ReactNode }) => (
+    <div>
+      {main}
+      {composer}
+    </div>
+  )
+}))
+
 describe('ConversationCenterState', () => {
-  it('renders loading content for loading state', () => {
+  it('renders only the message loading structure for loading state', () => {
     render(<ConversationCenterState state="loading" />)
 
     expect(screen.getByTestId('center-loading')).toBeInTheDocument()
-  })
-
-  it('renders a neutral full-height placeholder for empty state', () => {
-    const { container } = render(<ConversationCenterState state="empty" />)
-
-    expect(container.firstElementChild).toHaveClass('h-full')
+    expect(document.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 })

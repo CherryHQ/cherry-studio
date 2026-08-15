@@ -3,6 +3,7 @@ export { parseConfiguredModelId, resolveCliConfigApplyContext } from './applyCon
 export {
   CLAUDE_DETAILED_MODEL_ENV_KEYS,
   CLAUDE_DETAILED_MODEL_ROLES,
+  CLAUDE_MODEL_ROLES,
   getClaudeContextModelId,
   hasClaudeDetailedModels,
   stripClaudeDetailedModels,

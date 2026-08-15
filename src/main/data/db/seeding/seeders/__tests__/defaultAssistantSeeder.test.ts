@@ -71,7 +71,6 @@ describe('DefaultAssistantSeeder', () => {
     expect(topic).toMatchObject({
       name: '',
       assistantId: assistant.id,
-      groupId: null,
       activeNodeId: null
     })
 

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
 
 describe('CreateTopicSchema', () => {
-  it('rejects sourceNodeId reference-fork input', () => {
-    expect(() => CreateTopicSchema.parse({ sourceNodeId: 'n1' })).toThrow()
+  it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
+    expect(() => CreateTopicSchema.parse({ [key]: 'value' })).toThrow(/unrecognized/i)
   })
 })
 
@@ -14,7 +14,7 @@ describe('UpdateTopicSchema', () => {
   // Schema is strict (inherited from TopicSchema.strictObject), so disallowed
   // keys throw a ZodError; pinning that behavior so a refactor to non-strict
   // (z.object / .passthrough()) is caught.
-  it.each(['sortOrder', 'isPinned', 'pinnedOrder', 'orderKey'])('throws on disallowed key %s', (key) => {
+  it.each(['sortOrder', 'isPinned', 'pinnedOrder', 'orderKey', 'groupId'])('throws on disallowed key %s', (key) => {
     expect(() => UpdateTopicSchema.parse({ name: 'x', [key]: 99 })).toThrow(/unrecognized/i)
   })
 
@@ -22,10 +22,9 @@ describe('UpdateTopicSchema', () => {
     const parsed = UpdateTopicSchema.parse({
       name: 'n',
       isNameManuallyEdited: true,
-      assistantId: 'a1',
-      groupId: 'g1'
+      assistantId: 'a1'
     })
-    expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId: 'a1', groupId: 'g1' })
+    expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId: 'a1' })
   })
 
   it('accepts null assistantId to clear default-assistant ownership', () => {

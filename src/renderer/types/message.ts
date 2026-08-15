@@ -11,11 +11,9 @@ import type { WebSearchProviderResponse } from './webSearchProvider'
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
-  no_cache_tokens?: number
+  // Cache token breakdown (AI SDK v6 `inputTokenDetails`)
   cache_read_tokens?: number
   cache_write_tokens?: number
-  // OpenRouter specific fields
-  cost?: number
 }
 
 export type Metrics = {

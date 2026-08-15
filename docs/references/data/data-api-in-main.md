@@ -12,6 +12,8 @@ Handlers → Services → Database
 - **Services**: Business logic, validation, transaction coordination, data access via Drizzle ORM
 - **Database**: Drizzle ORM + SQLite
 
+After a write commits, a service may additionally publish a cross-window data change notification via `notifyDataApiDataChange(effects)` — a strictly fenced exception to the no-side-effects rule. See [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification) and [Fenced Exception: Data Change Notification](./api-design-guidelines.md#fenced-exception-data-change-notification).
+
 ## Transport Adapters
 
 ApiServer is transport-agnostic. Adapters in `api/core/adapters/` bridge specific transports (IPC, HTTP) to ApiServer. Each adapter implements `Disposable` for automatic lifecycle cleanup. See `IpcAdapter.ts` JSDoc for design rationale and extension guide.

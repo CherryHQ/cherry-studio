@@ -1,13 +1,18 @@
 import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
-import { apiGatewayRequestSchemas } from './apiGateway'
+import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
+import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
+import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
-import { fileRequestSchemas } from './file'
+import { externalAppRequestSchemas } from './externalApp'
+import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
@@ -42,11 +47,16 @@ export const ipcRequestSchemas = {
   ...aiRequestSchemas,
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
+  ...backupRequestSchemas,
   ...binaryRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...deepSeekHarnessRequestSchemas,
+  ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
+  ...externalAppRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
@@ -82,9 +92,12 @@ export type IpcRoute = keyof IpcRequestSchemas
  * its own `*EventSchemas` type here.
  */
 export type IpcEventSchemas = AiEventSchemas &
+  ApiGatewayEventSchemas &
   AppEventSchemas &
+  BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  FileEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
   NavigationEventSchemas &

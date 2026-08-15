@@ -36,7 +36,8 @@ vi.mock('@cherrystudio/ui', () => {
     DialogContent: ({ children }: any) => React.createElement('div', null, children),
     DialogFooter: ({ children }: any) => React.createElement('div', null, children),
     DialogHeader: ({ children }: any) => React.createElement('div', null, children),
-    DialogTitle: ({ children }: any) => React.createElement('h2', null, children)
+    DialogTitle: ({ children }: any) => React.createElement('h2', null, children),
+    Label: ({ children, ...props }: any) => React.createElement('label', props, children)
   }
 })
 

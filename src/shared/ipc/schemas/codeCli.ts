@@ -30,7 +30,13 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
   runBaseSchema.extend({
     mode: z.literal('normal'),
     providerId: z.string().min(1),
-    model: z.string().min(1)
+    model: z.string().min(1),
+    // Gateway launch: the CLI runs against the local API gateway, which addresses
+    // models as `providerId:modelId`. Only gemini-cli consumes this flag — it passes the
+    // gateway address on the command line, where `--model` outranks settings.model.name and
+    // rides past gemini-cli's flash-name normalization; the other tools carry gateway
+    // addressing in their own config and ignore it.
+    gateway: z.boolean().optional()
   }),
   // Claude-only `/login` flow (ClaudeCodeSettings).
   runBaseSchema.extend({
@@ -60,10 +66,16 @@ export const codeCliRequestSchemas = {
       cliTool: z.enum(FILE_CONFIGURED_CLI_TOOL_IDS),
       files: z
         .array(
-          z.object({
-            target: z.enum(CLI_CONFIG_TARGET_IDS),
-            content: z.string().max(1024 * 1024)
-          })
+          z.union([
+            z.object({
+              target: z.enum(CLI_CONFIG_TARGET_IDS),
+              content: z.string().max(1024 * 1024)
+            }),
+            z.object({
+              target: z.literal('codex-auth'),
+              delete: z.literal(true)
+            })
+          ])
         )
         .min(1)
     }),

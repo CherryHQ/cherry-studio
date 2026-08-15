@@ -1,9 +1,14 @@
-import type { ExecutionTerminal } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+interface ExecutionTerminal {
+  anchorMessageId?: string
+  isAbort: boolean
+  isError: boolean
+}
 
 // ── Controllable fake TopicStreamSubscription ───────────────────────────
 const { fake } = vi.hoisted(() => {
@@ -12,6 +17,7 @@ const { fake } = vi.hoisted(() => {
     anchorMessageId?: string
     stream: ReadableStream<unknown>
     controller: ReadableStreamDefaultController<unknown>
+    closed: boolean
   }
   const branches = new Map<string, Branch>()
   const terminalCbs = new Set<(id: string, t: ExecutionTerminal) => void>()
@@ -31,10 +37,23 @@ const { fake } = vi.hoisted(() => {
       if (!b) {
         let controller!: ReadableStreamDefaultController<unknown>
         const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
-        b = { executionId, anchorMessageId, stream, controller }
+        b = { executionId, anchorMessageId, stream, controller, closed: false }
         branches.set(key, b)
       }
       return b.stream
+    },
+    hasOpenBranch(executionId: string, anchorMessageId?: string) {
+      const b = branches.get(keyOf(executionId, anchorMessageId))
+      return !!b && !b.closed
+    },
+    hasAnyOpenBranch() {
+      for (const b of branches.values()) {
+        if (!b.closed) return true
+      }
+      return false
+    },
+    isTopicOpen() {
+      return false
     },
     unregister(executionId: string, anchorMessageId?: string) {
       const key = keyOf(executionId, anchorMessageId)
@@ -46,17 +65,34 @@ const { fake } = vi.hoisted(() => {
       }
       branches.delete(key)
     },
+    cancelBranch(executionId: string, anchorMessageId?: string) {
+      const b = branches.get(keyOf(executionId, anchorMessageId))
+      if (b) b.closed = true
+      try {
+        b?.controller.error()
+      } catch {
+        /* already closed */
+      }
+    },
     onExecutionTerminal(cb: (id: string, t: ExecutionTerminal) => void) {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)
+    },
+    onBranchesRetired() {
+      return () => {}
+    },
+    onTopicStateChange() {
+      return () => {}
     },
     // test helpers
     emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string) {
       findBranch(executionId, anchorMessageId)?.controller.enqueue(chunk)
     },
     close(executionId: string, anchorMessageId?: string) {
+      const b = findBranch(executionId, anchorMessageId)
+      if (b) b.closed = true
       try {
-        findBranch(executionId, anchorMessageId)?.controller.close()
+        b?.controller.close()
       } catch {
         /* noop */
       }
@@ -65,6 +101,8 @@ const { fake } = vi.hoisted(() => {
       for (const cb of terminalCbs) cb(executionId, { ...t, anchorMessageId })
       api.close(executionId, anchorMessageId)
     },
+    listen() {},
+    dispose() {},
     reset() {
       branches.clear()
       terminalCbs.clear()
@@ -73,18 +111,27 @@ const { fake } = vi.hoisted(() => {
   return { fake: api }
 })
 
-vi.mock('../useTopicStreamSubscription', () => ({
-  useTopicStreamSubscription: () => fake
+// The service constructs its own TopicStreamSubscription per topic; hand every
+// instance the shared controllable fake. Isolation across tests comes from the
+// unique per-test topicId (the service singleton retains entries by design).
+vi.mock('@renderer/services/aiTransport/TopicStreamSubscription', () => ({
+  TopicStreamSubscription: class {
+    constructor() {
+      return fake
+    }
+  }
 }))
 
 import { useExecutionOverlay } from '../useExecutionOverlay'
 
-const TOPIC = 'topic-1'
+let topicSeq = 0
+let TOPIC = 'topic-0'
 const A = 'openai::gpt-4o' as UniqueModelId
 const B = 'anthropic::claude' as UniqueModelId
 
 const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecution => ({
   executionId,
+  attemptId: 1,
   anchorMessageId
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
@@ -112,9 +159,44 @@ function textOf(parts: CherryUIMessage['parts'] | undefined): string {
     .join('')
 }
 
-beforeEach(() => fake.reset())
+function installControlledCommitTimers() {
+  let nextId = 1
+  const callbacks = new Map<number, () => void>()
+  const request = vi.spyOn(window, 'setTimeout').mockImplementation(((handler: () => void) => {
+    const id = nextId++
+    callbacks.set(id, handler)
+    return id
+  }) as unknown as typeof window.setTimeout)
+  const cancel = vi.spyOn(window, 'clearTimeout').mockImplementation(((id?: number) => {
+    if (id !== undefined) callbacks.delete(id)
+  }) as unknown as typeof window.clearTimeout)
+
+  return {
+    callbacks,
+    request,
+    cancel,
+    runNext() {
+      const entry = callbacks.entries().next().value
+      if (!entry) return
+      callbacks.delete(entry[0])
+      entry[1]()
+    }
+  }
+}
+
+async function drainStreamMicrotasks(): Promise<void> {
+  for (let index = 0; index < 24; index++) {
+    await Promise.resolve()
+  }
+}
+
+beforeEach(() => {
+  TOPIC = `topic-${++topicSeq}`
+  fake.reset()
+})
 afterEach(() => {
   fake.reset()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -253,17 +335,111 @@ describe('useExecutionOverlay', () => {
     expect(result.current.overlay['anchor-a'][1]).toBe(settledTool)
   })
 
+  it('coalesces burst snapshots from every execution into one render per commit flush', async () => {
+    const frames = installControlledCommitTimers()
+    const ui = [asst('anchor-a'), asst('anchor-b')]
+    let renderCount = 0
+    const { result } = renderHook(() => {
+      renderCount += 1
+      return useExecutionOverlay(TOPIC, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], ui)
+    })
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 'ta' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'a' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'b' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-start', id: 'tb' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'x' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'y' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+
+    expect(frames.request).toHaveBeenCalledTimes(1)
+    expect(result.current.overlay).toEqual({})
+    const beforeFrameRenderCount = renderCount
+
+    act(() => frames.runNext())
+
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('ab')
+    expect(textOf(result.current.overlay['anchor-b'])).toBe('xy')
+    expect(renderCount).toBe(beforeFrameRenderCount + 1)
+  })
+
+  it('flushes a terminal snapshot immediately instead of waiting for the next commit', async () => {
+    const frames = installControlledCommitTimers()
+    const onFinish = vi.fn()
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { onFinish }))
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'final' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-end', id: 't' } as CherryUIMessageChunk)
+      fake.terminal(A, { isAbort: false, isError: false })
+      await drainStreamMicrotasks()
+    })
+
+    // The terminal flush is synchronous in the reader's finally — no timer needed
+    // (waitFor would rely on the timers this test holds captive).
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('final')
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(frames.callbacks.size).toBe(0)
+    expect(frames.cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('React round-trip: unmount keeps assembling, remount renders pre- and post-unmount content', async () => {
+    const ui = [asst('anchor-a')]
+    const executions = [exec(A, 'anchor-a')]
+    const first = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
+    fake.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'before' } as CherryUIMessageChunk)
+    await waitFor(() => expect(textOf(first.result.current.overlay['anchor-a'])).toBe('before'))
+
+    first.unmount()
+
+    // Stream continues while no consumer is mounted.
+    await act(async () => {
+      fake.emit(A, { type: 'text-delta', id: 't1', delta: ' after' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+
+    // acquire() flushes stalled pending snapshots synchronously, so the
+    // remounted consumer's first read already holds both halves.
+    const second = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
+    expect(textOf(second.result.current.overlay['anchor-a'])).toBe('before after')
+  })
+
+  it('prevents a cancelled commit from restoring snapshots after a destructive clear', async () => {
+    const frames = installControlledCommitTimers()
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'stale' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+    const staleFlush = frames.callbacks.values().next().value as () => void
+
+    act(() => result.current.clear())
+    expect(frames.callbacks.size).toBe(0)
+
+    act(() => staleFlush())
+
+    expect(result.current.overlay).toEqual({})
+  })
+
   it('keeps live message metadata from message-metadata chunks', async () => {
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
 
     fake.emit(A, {
       type: 'message-metadata',
-      messageMetadata: { thoughtsTokens: 321 }
+      messageMetadata: { totalTokens: 321 }
     } as CherryUIMessageChunk)
 
     await waitFor(() => {
-      expect(result.current.liveAssistants.at(-1)?.metadata?.thoughtsTokens).toBe(321)
+      expect(result.current.liveAssistants.at(-1)?.metadata?.totalTokens).toBe(321)
     })
   })
 
@@ -295,11 +471,16 @@ describe('useExecutionOverlay', () => {
     })
   })
 
-  it('disposeOverlay drops a single entry by message id', async () => {
+  it('disposeOverlay drops a single settled entry by message id', async () => {
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
     streamText(A, 't', 'bye')
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeDefined())
+    // Dispose happens post-persist, after the execution's stream ended.
+    await act(async () => {
+      fake.terminal(A, { isAbort: false, isError: false })
+      await drainStreamMicrotasks()
+    })
     act(() => result.current.disposeOverlay('anchor-a'))
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeUndefined())
   })

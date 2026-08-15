@@ -31,6 +31,7 @@ describe('recoverV1ProviderLogoIconKey', () => {
 
   it('drops unrecognized values (renamed key, retired provider, empty)', () => {
     expect(recoverV1ProviderLogoIconKey('icon:aiStudio')).toBeNull()
+    expect(recoverV1ProviderLogoIconKey('/assets/o3-4444.png')).toBeNull() // retired, no v2 icon
     expect(recoverV1ProviderLogoIconKey('/assets/cephalon-5555.jpeg')).toBeNull() // retired, no v2 icon
     expect(recoverV1ProviderLogoIconKey('/assets/tokenflux-6666.png')).toBeNull() // retired, no v2 icon
     expect(recoverV1ProviderLogoIconKey('')).toBeNull()

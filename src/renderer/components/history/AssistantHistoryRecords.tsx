@@ -9,6 +9,7 @@ import { AssistantSelector } from '@renderer/components/resourceCatalog/selector
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -18,8 +19,7 @@ import {
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
-  useTopicMutations,
-  useTopics
+  useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -66,7 +66,7 @@ const AssistantHistoryRecords = ({
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
+  const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -79,7 +79,6 @@ const AssistantHistoryRecords = ({
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
@@ -116,12 +115,11 @@ const AssistantHistoryRecords = ({
     [assistantRankById, groupNow, topics]
   )
 
+  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
   const rendererTopicById = useMemo(
     () =>
-      new Map(
-        topics.map((topic) => [topic.id, { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) }])
-      ),
-    [isTopicPinned, topics]
+      new Map(rendererTopics.map((topic) => [topic.id, isTopicPinned(topic.id) ? { ...topic, pinned: true } : topic])),
+    [isTopicPinned, rendererTopics]
   )
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
@@ -356,7 +354,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.lastActivityAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {

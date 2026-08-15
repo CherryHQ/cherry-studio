@@ -134,6 +134,109 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
+  // launched against the synthetic gateway provider must send gateway: true so the main process
+  // addresses the model as providerId:apiModelId (+ sentinel); a regular provider sends false.
+  it('sends gateway: true when launching against the API gateway provider', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`,
+      providerId: CLI_API_GATEWAY_PROVIDER_ID,
+      rawModelId: 'deepseek:deepseek-chat',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.GEMINI_CLI,
+        toolName: 'Gemini CLI',
+        directory: '/tmp/project',
+        enabledProvider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' } as Provider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat` },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: true, providerId: CLI_API_GATEWAY_PROVIDER_ID })
+    )
+  })
+
+  it('sends gateway: false for a regular (non-gateway) provider', async () => {
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: false })
+    )
+  })
+
+  it('keeps the existing null-context cleanup for a regular provider', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+    const upsertProviderConfig = vi.fn().mockResolvedValue('anthropic')
+    const setCurrentProvider = vi.fn().mockResolvedValue(undefined)
+    const currentProviderConfig = { modelId: null }
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig,
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        upsertProviderConfig,
+        setCurrentProvider,
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.resolveCliConfigApplyContext).toHaveBeenCalledWith(
+      CodeCli.CLAUDE_CODE,
+      'anthropic',
+      currentProviderConfig,
+      undefined
+    )
+    expect(upsertProviderConfig).toHaveBeenCalledWith('anthropic', { modelId: null })
+    expect(setCurrentProvider).toHaveBeenCalledWith(null)
+    expect(mocks.requestMock).not.toHaveBeenCalled()
+  })
+
   it('resolves the same fallback for provider-less launches', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
@@ -176,7 +279,9 @@ describe('useLaunchDialogController', () => {
       ensureReady: ReturnType<typeof vi.fn>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById
     ) {
-      return renderHook(() =>
+      const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)
+      const setCurrentProvider = vi.fn().mockResolvedValue(undefined)
+      const rendered = renderHook(() =>
         useLaunchDialogController({
           selectedCliTool: CodeCli.CLAUDE_CODE,
           toolName: 'Claude Code',
@@ -187,12 +292,13 @@ describe('useLaunchDialogController', () => {
           selectedTerminal: 'terminal',
           apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureReady },
           gatewayModelsById: availableModels,
-          upsertProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
+          upsertProviderConfig,
+          setCurrentProvider,
           setTerminal: vi.fn(),
           selectFolder: vi.fn()
         })
       )
+      return { ...rendered, upsertProviderConfig, setCurrentProvider }
     }
 
     beforeEach(() => {
@@ -209,6 +315,28 @@ describe('useLaunchDialogController', () => {
       mocks.extractConfigFromCliConfigDraft.mockReturnValue(null)
       mocks.gatewayExpectedModel.mockReturnValue('deepseek:deepseek-chat')
       mocks.gatewayModelIdFromAddress.mockReturnValue(undefined)
+    })
+
+    it('keeps the gateway selection when its detailed model cannot be resolved', async () => {
+      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result, upsertProviderConfig, setCurrentProvider } = renderGatewayLaunch(ensureReady)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.resolveCliConfigApplyContext).toHaveBeenCalledWith(
+        CodeCli.CLAUDE_CODE,
+        CLI_API_GATEWAY_PROVIDER_ID,
+        { modelId: 'deepseek::deepseek-chat', config: { permissionMode: 'plan' } },
+        gatewayModelsById
+      )
+      expect(upsertProviderConfig).not.toHaveBeenCalled()
+      expect(setCurrentProvider).not.toHaveBeenCalled()
+      expect(ensureReady).not.toHaveBeenCalled()
+      expect(mocks.requestMock).not.toHaveBeenCalled()
     })
 
     it('re-verifies the gateway and rewrites the config with the fresh key before running', async () => {

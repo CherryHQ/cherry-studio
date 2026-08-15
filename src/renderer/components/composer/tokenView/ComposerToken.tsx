@@ -5,10 +5,16 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { Boxes, Braces, FileText, Folder, TextQuote, X, Zap } from 'lucide-react'
+import type { FileUrlString } from '@shared/types/file'
+import { fileUrlToPath } from '@shared/utils/file'
+import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -21,26 +27,31 @@ import {
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
+import { parseComposerLink } from '../linkToken'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
+const TOKEN_TOOLTIP_DELAY_MS = 300
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
-  'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--color-border-subtle)_0,var(--color-border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
+  'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
 const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
-  skill: <Zap className={tokenIconClassName} />,
+  skill: <ToolCase className={tokenIconClassName} />,
+  link: <Link2 className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
+  reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
-  promptVariable: <Braces className={tokenIconClassName} />
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -50,6 +61,8 @@ function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
 
 export interface ComposerTokenProps {
   token: ChatTokenView
+  readOnly?: boolean
+  readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -57,6 +70,12 @@ export interface ComposerTokenProps {
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
   onRemove?: () => void
   removeLabel?: string
+}
+
+export interface ReadOnlyComposerFileTokenPreview {
+  url?: string
+  mediaType?: string
+  composerFileKind?: ComposerFileKind
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
@@ -67,6 +86,13 @@ interface FileComposerTokenProps extends ComposerTokenProps {
 interface ActiveComposerTokenProps extends ComposerTokenProps {
   icon: ReactNode
   colorClassName?: string
+  interactionProps?: {
+    role: 'link'
+    tabIndex: number
+    'aria-label': string
+    onClick: MouseEventHandler<HTMLSpanElement>
+    onKeyDown: (event: ReactKeyboardEvent<HTMLSpanElement>) => void
+  }
 }
 
 function InlineTokenRemoveButton({
@@ -110,12 +136,14 @@ function InlineTokenIconSlot({
   icon,
   removeLabel,
   onRemove,
+  slotClassName,
   removeButtonClassName,
   removeIconClassName
 }: {
   icon: ReactNode
   removeLabel?: string
   onRemove?: () => void
+  slotClassName?: string
   removeButtonClassName?: string
   removeIconClassName?: string
 }) {
@@ -126,7 +154,7 @@ function InlineTokenIconSlot({
   // Icon and button cross-fade via opacity (not display) to keep the slot from
   // collapsing and to keep the button keyboard-focusable.
   return (
-    <span className="relative inline-flex shrink-0">
+    <span className={cn('relative inline-flex shrink-0', slotClassName)}>
       <span className="inline-flex shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
         {icon}
       </span>
@@ -164,6 +192,7 @@ function isSvgFile(file: ComposerAttachment | undefined, label: string) {
 
 function renderActiveComposerTokenElement({
   token,
+  readOnly = false,
   selected = false,
   className,
   children,
@@ -172,7 +201,8 @@ function renderActiveComposerTokenElement({
   onRemove,
   removeLabel,
   icon,
-  colorClassName = 'text-primary'
+  colorClassName = 'text-primary',
+  interactionProps
 }: ActiveComposerTokenProps) {
   const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
 
@@ -182,12 +212,14 @@ function renderActiveComposerTokenElement({
         'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
         maxWidthClassName,
         colorClassName,
+        readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
         selected && 'text-primary underline decoration-primary/40 underline-offset-2',
         className
       )}
       title={title}
       data-composer-token-kind={token.kind}
-      onMouseDown={onMouseDown}>
+      onMouseDown={onMouseDown}
+      {...interactionProps}>
       <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
         <InlineTokenIconSlot
           icon={token.icon ? token.icon : icon}
@@ -212,16 +244,58 @@ export function SkillComposerToken(props: ComposerTokenProps) {
   })
 }
 
+export function LinkComposerToken(props: ComposerTokenProps) {
+  const link = parseComposerLink(props.token.promptText ?? props.token.description)
+  if (!link) {
+    return renderActiveComposerTokenElement({
+      ...props,
+      icon: tokenIconByKind.link
+    })
+  }
+
+  const openLink = () => {
+    void ipcApi.request('system.shell.open_website', link.url)
+  }
+  const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
+    stopTokenActionEvent(event)
+    openLink()
+  }
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    openLink()
+  }
+
+  return renderActiveComposerTokenElement({
+    ...props,
+    className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
+    icon: props.readOnly ? (
+      <span
+        className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
+        data-composer-link-favicon="">
+        <Favicon hostname={link.hostname} alt="" />
+      </span>
+    ) : (
+      tokenIconByKind.link
+    ),
+    children: <span className="min-w-0 truncate">{link.label}</span>,
+    interactionProps: {
+      role: 'link',
+      tabIndex: 0,
+      'aria-label': link.url,
+      onClick: handleClick,
+      onKeyDown: handleKeyDown
+    }
+  })
+}
+
 function isComposerAttachment(value: unknown): value is ComposerAttachment {
   return typeof value === 'object' && value !== null
 }
 
 function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
   return file?.type === FILE_TYPE.IMAGE || file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT
-}
-
-function shouldShowFileTokenPathTooltip(file: ComposerAttachment | undefined) {
-  return Boolean(file?.path) && !shouldShowFileTokenPopover(file)
 }
 
 function readPastedTextPreview(path: string) {
@@ -234,6 +308,23 @@ function readPastedTextPreview(path: string) {
     pastedTextPreviewCache.set(path, request)
   }
   return request
+}
+
+function getReadOnlyFilePreviewPath(readOnlyFilePreview: ReadOnlyComposerFileTokenPreview | undefined) {
+  if (!readOnlyFilePreview?.url) return undefined
+
+  try {
+    return fileUrlToPath(readOnlyFilePreview.url as FileUrlString)
+  } catch {
+    return undefined
+  }
+}
+
+function getPastedTextPreviewPath(
+  file: ComposerAttachment | undefined,
+  readOnlyFilePreview: ReadOnlyComposerFileTokenPreview | undefined
+) {
+  return getReadOnlyFilePreviewPath(readOnlyFilePreview) ?? file?.path
 }
 
 function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?: string }) {
@@ -253,18 +344,21 @@ function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?
 
 function PastedTextTokenPreviewCard({
   file,
+  readOnlyFilePreview,
   secondaryAction
 }: {
   file: ComposerAttachment | undefined
+  readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
   secondaryAction?: ReactNode
 }) {
   const [previewText, setPreviewText] = useState('')
+  const previewPath = getPastedTextPreviewPath(file, readOnlyFilePreview)
 
   useEffect(() => {
-    if (!file?.path) return
+    if (!previewPath) return
 
     let disposed = false
-    void readPastedTextPreview(file.path)
+    void readPastedTextPreview(previewPath)
       .then((text) => {
         if (!disposed) setPreviewText(text)
       })
@@ -275,7 +369,7 @@ function PastedTextTokenPreviewCard({
     return () => {
       disposed = true
     }
-  }, [file?.path])
+  }, [previewPath])
 
   return (
     <div className="w-80 overflow-hidden text-left">
@@ -297,26 +391,51 @@ function FileTokenPreviewCard({
   file,
   label,
   presentation,
+  readOnlyFilePreview,
   secondaryAction
 }: {
   file: ComposerAttachment | undefined
   label: string
   presentation: FileTokenPresentation
+  readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
   secondaryAction?: ReactNode
 }) {
+  const { t } = useTranslation()
   const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
   const hasActions = Boolean(secondaryAction)
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
+  const hasFailedPreview = Boolean(presentation.previewUrl && presentation.previewUrl === failedPreviewUrl)
+  const previewUrl = hasFailedPreview ? undefined : presentation.previewUrl
 
   if (file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT) {
-    return <PastedTextTokenPreviewCard file={file} secondaryAction={secondaryAction} />
+    return (
+      <PastedTextTokenPreviewCard
+        file={file}
+        readOnlyFilePreview={readOnlyFilePreview}
+        secondaryAction={secondaryAction}
+      />
+    )
   }
 
-  if (presentation.previewUrl) {
+  if (previewUrl) {
+    return (
+      <div className="flex max-h-48 max-w-60 overflow-hidden bg-muted text-left" data-file-token-image-preview="">
+        <img
+          src={previewUrl}
+          alt={label}
+          className="block max-h-48 max-w-60 object-contain"
+          onError={() => setFailedPreviewUrl(previewUrl)}
+        />
+      </div>
+    )
+  }
+
+  if (hasFailedPreview) {
     return (
       <div
-        className="inline-flex max-h-64 max-w-80 overflow-hidden bg-muted text-left"
-        data-file-token-image-preview="">
-        <img src={presentation.previewUrl} alt={label} className="block max-h-64 max-w-80 object-contain" />
+        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        data-file-token-image-preview-error="">
+        {t('chat.input.image_preview_failed')}
       </div>
     )
   }
@@ -343,7 +462,7 @@ function FileTokenPreviewCard({
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
-                <span className="text-border-muted">·</span>
+                <span className="text-foreground-tertiary">·</span>
                 <span className="shrink-0">{sizeLabel}</span>
               </>
             )}
@@ -364,9 +483,16 @@ interface ComposerTokenHoverPopoverProps {
   content: ReactNode | ((controls: { closePopover: () => void }) => ReactNode)
   ariaLabel: string
   contentClassName?: string
+  onActivate?: () => void
 }
 
-function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassName }: ComposerTokenHoverPopoverProps) {
+function ComposerTokenHoverPopover({
+  trigger,
+  content,
+  ariaLabel,
+  contentClassName,
+  onActivate
+}: ComposerTokenHoverPopoverProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -482,7 +608,12 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.stopPropagation()
-        openPopover('keyboard')
+        if (onActivate) {
+          closePopover()
+          onActivate()
+        } else {
+          openPopover('keyboard')
+        }
         return
       }
 
@@ -492,7 +623,18 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
         closePopover()
       }
     },
-    [closePopover, openPopover]
+    [closePopover, onActivate, openPopover]
+  )
+
+  const handleTriggerClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (!onActivate || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+
+      stopTokenActionEvent(event)
+      closePopover()
+      onActivate()
+    },
+    [closePopover, onActivate]
   )
 
   useEffect(
@@ -506,7 +648,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
   const tokenElement = (
     <span
       ref={triggerRef}
-      className="group inline-flex align-baseline outline-none"
+      className="group inline align-baseline outline-none"
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
@@ -514,6 +656,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       onMouseLeave={scheduleClosePopover}
       onMouseMove={scheduleOpenPopover}
       onPointerDown={markPointerOpenReason}
+      onClick={handleTriggerClick}
       onBlur={handleTriggerBlur}
       onKeyDownCapture={handleTriggerKeyDown}>
       {trigger}
@@ -531,7 +674,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
         className={cn('w-fit max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl p-0 shadow-xl', contentClassName)}
         onMouseEnter={openPointerPopover}
         onMouseLeave={scheduleClosePopover}
-        onFocus={openPointerPopover}
+        onFocus={clearCloseTimer}
         onBlur={handleContentBlur}
         onOpenAutoFocus={handlePopoverOpenAutoFocus}
         onCloseAutoFocus={handlePopoverCloseAutoFocus}>
@@ -543,14 +686,37 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
 
 export function FileComposerToken(props: FileComposerTokenProps) {
   const { imageIconPreview = false, onRemove, removeLabel: removeLabelProp, tooltipActions } = props
-  const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
+  const tokenFile = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
+  const previewFileType = props.readOnlyFilePreview?.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : undefined
+  const file = props.readOnlyFilePreview
+    ? ({
+        ...tokenFile,
+        ...(!tokenFile?.type && previewFileType && { type: previewFileType }),
+        ...(props.readOnlyFilePreview.composerFileKind && {
+          composerFileKind: props.readOnlyFilePreview.composerFileKind
+        })
+      } as ComposerAttachment)
+    : tokenFile
   const label = file?.origin_name || file?.name || props.token.label
-  const presentation = getFileTokenPresentation(file, label)
+  const imagePreviewUrl = props.readOnlyFilePreview?.mediaType?.startsWith('image/')
+    ? props.readOnlyFilePreview.url
+    : undefined
+  const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const openImagePreview = useCallback(() => {
+    if (!presentation.previewUrl) return
+    void ImagePreviewService.show(presentation.previewUrl)
+  }, [presentation.previewUrl])
   const title = props.token.description ?? props.token.promptText ?? label
+  const accessibleTitle = props.readOnly ? label : title
   const removeLabel = removeLabelProp ?? 'Remove'
+  const shouldShowPopover =
+    shouldShowFileTokenPopover(file) && (!props.readOnly || Boolean(props.readOnlyFilePreview?.url))
+  const pathTooltipPath = props.readOnly ? getReadOnlyFilePreviewPath(props.readOnlyFilePreview) : file?.path
+  const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
+  const shouldUseNeutralImageIcon = imageIconPreview && presentation.variant === 'image'
   const tokenIcon = props.token.icon ? (
     props.token.icon
-  ) : imageIconPreview && presentation.variant === 'image' && !isSvgFile(file, label) ? (
+  ) : shouldUseNeutralImageIcon && !isSvgFile(file, label) ? (
     <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
   ) : (
     presentation.icon
@@ -559,30 +725,29 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 group-data-[state=open]:ring-1 group-data-[state=open]:ring-ring/50',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         presentation.containerClassName,
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
-      title={shouldShowFileTokenPathTooltip(file) ? undefined : title}
+      title={props.readOnly || shouldShowPathTooltip ? undefined : title}
       data-composer-token-kind={props.token.kind}
       data-file-token-variant={presentation.variant}
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
           'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
-          presentation.iconClassName
+          shouldUseNeutralImageIcon ? 'bg-accent text-muted-foreground' : presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
           icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
-          removeButtonClassName={cn(
-            'size-full rounded-[5px]',
-            presentation.variant !== 'text' && presentation.variant !== 'fallback' && 'dark:text-black'
-          )}
+          slotClassName="size-full items-center justify-center"
+          removeButtonClassName="size-full rounded-[5px] bg-muted text-foreground"
           removeIconClassName="size-3"
         />
       </span>
@@ -594,29 +759,54 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     </span>
   )
 
-  if (file && shouldShowFileTokenPathTooltip(file)) {
-    const sizeLabel = typeof file.size === 'number' ? formatFileSize(file.size) : undefined
+  if (pathTooltipPath && shouldShowPathTooltip) {
+    const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
+    const tooltipContent = <TokenPathTooltipContent path={pathTooltipPath} sizeLabel={sizeLabel} />
 
     return (
       <NormalTooltip
-        content={<TokenPathTooltipContent path={file.path} sizeLabel={sizeLabel} />}
+        content={tooltipContent}
         side="top"
         sideOffset={6}
-        delayDuration={300}>
+        delayDuration={TOKEN_TOOLTIP_DELAY_MS}
+        triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': accessibleTitle } : undefined}>
         {chipElement}
       </NormalTooltip>
     )
   }
 
-  if (!shouldShowFileTokenPopover(file)) return chipElement
+  if (props.readOnly && !shouldShowPopover) {
+    const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
+    const detail = [presentation.typeLabel, sizeLabel].filter(Boolean).join(' · ')
+
+    return (
+      <NormalTooltip
+        content={<TokenPathTooltipContent path={label} sizeLabel={detail} />}
+        side="top"
+        sideOffset={6}
+        delayDuration={TOKEN_TOOLTIP_DELAY_MS}
+        triggerProps={{ tabIndex: 0, 'aria-label': accessibleTitle }}>
+        {chipElement}
+      </NormalTooltip>
+    )
+  }
+
+  if (!shouldShowPopover) return chipElement
 
   return (
     <ComposerTokenHoverPopover
       trigger={chipElement}
-      ariaLabel={title}
+      ariaLabel={accessibleTitle}
       contentClassName={presentation.previewUrl ? 'rounded-lg border-0 bg-transparent' : undefined}
+      onActivate={presentation.previewUrl ? openImagePreview : undefined}
       content={
-        <FileTokenPreviewCard file={file} label={label} presentation={presentation} secondaryAction={tooltipActions} />
+        <FileTokenPreviewCard
+          file={file}
+          label={label}
+          presentation={presentation}
+          readOnlyFilePreview={props.readOnlyFilePreview}
+          secondaryAction={tooltipActions}
+        />
       }
     />
   )
@@ -631,9 +821,10 @@ export function FolderComposerToken(props: ComposerTokenProps) {
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
       title={path ? undefined : title}
@@ -661,7 +852,12 @@ export function FolderComposerToken(props: ComposerTokenProps) {
   if (!path) return chipElement
 
   return (
-    <NormalTooltip content={<TokenPathTooltipContent path={path} />} side="top" sideOffset={6} delayDuration={300}>
+    <NormalTooltip
+      content={<TokenPathTooltipContent path={path} />}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
       {chipElement}
     </NormalTooltip>
   )
@@ -671,6 +867,13 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
   return renderActiveComposerTokenElement({
     ...props,
     icon: tokenIconByKind.knowledge
+  })
+}
+
+export function ReferenceComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.reference
   })
 }
 
@@ -687,7 +890,8 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       sideOffset={6}
       delayDuration={300}
       showArrow={false}
-      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
+      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}
+      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
       {tokenElement}
     </NormalTooltip>
   )
@@ -699,9 +903,11 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
 
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
+  link: LinkComposerToken,
   file: FileComposerToken,
   folder: FolderComposerToken,
   knowledge: KnowledgeComposerToken,
+  reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>

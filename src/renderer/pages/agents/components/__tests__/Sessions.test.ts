@@ -1,7 +1,7 @@
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { describe, expect, it } from 'vitest'
 
-import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'
+import { buildCreateSessionSeed, buildCreateSessionSeedIndex } from '../Sessions'
 
 const workspace = (path: string) => ({
   id: `workspace-${path}`,
@@ -20,6 +20,7 @@ const session = (overrides: Partial<SessionListItem> = {}) =>
     workspaceId: 'workspace-1',
     workspace: workspace('/Users/jd/project-a'),
     pinned: false,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     ...overrides
   }) as SessionListItem
 
@@ -63,51 +64,76 @@ describe('buildCreateSessionSeed', () => {
   })
 })
 
-describe('findLatestCreateSessionSeed', () => {
-  it('uses the latest unpinned matching session', () => {
-    expect(
-      findLatestCreateSessionSeed([
-        session({
-          id: 'pinned-session',
-          agentId: 'agent-pinned',
-          pinned: true,
-          updatedAt: '2026-01-04T00:00:00.000Z'
-        }),
+describe('buildCreateSessionSeedIndex', () => {
+  it('indexes the latest unpinned session globally and per group', () => {
+    const sessions = [
+      session({
+        id: 'pinned-session',
+        agentId: 'agent-pinned',
+        pinned: true,
+        lastActivityAt: '2026-01-05T00:00:00.000Z'
+      }),
+      session({
+        id: 'older-session',
+        agentId: 'agent-older',
+        workspaceId: 'workspace-older',
+        lastActivityAt: '2026-01-02T00:00:00.000Z'
+      }),
+      session({
+        id: 'newer-session',
+        agentId: 'agent-newer',
+        workspaceId: 'workspace-newer',
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
+      }),
+      session({
+        id: 'other-session',
+        agentId: 'agent-other',
+        workspaceId: 'workspace-other',
+        lastActivityAt: '2026-01-04T00:00:00.000Z'
+      })
+    ]
+    const groupIdBySessionId = new Map([
+      ['pinned-session', 'group-pinned'],
+      ['older-session', 'group-a'],
+      ['newer-session', 'group-a'],
+      ['other-session', 'group-b']
+    ])
+
+    const index = buildCreateSessionSeedIndex(sessions, (candidate) => groupIdBySessionId.get(candidate.id))
+
+    expect(index.latest).toEqual({
+      agentId: 'agent-other',
+      workspace: { type: 'user', workspaceId: 'workspace-other' }
+    })
+    expect(index.byGroupId.get('group-a')).toEqual({
+      agentId: 'agent-newer',
+      workspace: { type: 'user', workspaceId: 'workspace-newer' }
+    })
+    expect(index.byGroupId.get('group-b')).toEqual({
+      agentId: 'agent-other',
+      workspace: { type: 'user', workspaceId: 'workspace-other' }
+    })
+    expect(index.byGroupId.has('group-pinned')).toBe(false)
+  })
+
+  it('preserves a null seed when the latest matching session has no agent', () => {
+    const index = buildCreateSessionSeedIndex(
+      [
         session({
           id: 'older-session',
           agentId: 'agent-older',
-          workspaceId: 'workspace-older',
-          updatedAt: '2026-01-02T00:00:00.000Z'
+          lastActivityAt: '2026-01-02T00:00:00.000Z'
         }),
         session({
           id: 'newer-session',
-          agentId: 'agent-newer',
-          workspaceId: 'workspace-newer',
-          updatedAt: '2026-01-03T00:00:00.000Z'
+          agentId: undefined,
+          lastActivityAt: '2026-01-03T00:00:00.000Z'
         })
-      ])
-    ).toEqual({ agentId: 'agent-newer', workspace: { type: 'user', workspaceId: 'workspace-newer' } })
-  })
+      ],
+      () => 'group-a'
+    )
 
-  it('honors the group predicate before choosing the seed', () => {
-    expect(
-      findLatestCreateSessionSeed(
-        [
-          session({
-            id: 'session-a',
-            agentId: 'agent-a',
-            workspaceId: 'workspace-a',
-            updatedAt: '2026-01-03T00:00:00.000Z'
-          }),
-          session({
-            id: 'session-b',
-            agentId: 'agent-b',
-            workspaceId: 'workspace-b',
-            updatedAt: '2026-01-02T00:00:00.000Z'
-          })
-        ],
-        (candidate) => candidate.id === 'session-b'
-      )
-    ).toEqual({ agentId: 'agent-b', workspace: { type: 'user', workspaceId: 'workspace-b' } })
+    expect(index.latest).toBeNull()
+    expect(index.byGroupId.get('group-a')).toBeNull()
   })
 })

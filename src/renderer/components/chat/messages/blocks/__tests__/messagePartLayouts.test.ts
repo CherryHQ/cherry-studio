@@ -113,7 +113,9 @@ describe('projectLiveMessageParts', () => {
         { type: 'step-start' },
         { type: 'source-url' },
         { type: 'source-document' },
-        { type: 'data-agent-task-event', data: {} }
+        { type: 'data-agent-task-event', data: {} },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } },
+        { type: 'data-clear', data: {} }
       ])
     )
     const emptyReasoning = projectLiveMessageParts(entries([{ type: 'reasoning', text: '', state: 'done' }]))
@@ -193,6 +195,33 @@ describe('projectLiveMessageParts', () => {
       ['part', 3]
     ])
     expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
+  })
+
+  it('keeps a channel authentication QR result outside the live process', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 1]
+    ])
   })
 })
 
@@ -419,6 +448,56 @@ describe('projectCompletedMessageParts', () => {
     expect(layout.resultEntries).toEqual([])
   })
 
+  it('keeps a channel authentication QR tool outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it('keeps a deferred channel authentication QR tool outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'feishu', auth_mode: 'qr' },
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'channel-auth'
+            }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
   it('preserves an interleaved AskUser boundary inside completed history', () => {
     const layout = projectCompletedMessageParts(
       entries([
@@ -436,6 +515,26 @@ describe('projectCompletedMessageParts', () => {
 
     expect(indexes(layout.historyEntries)).toEqual([0, 1, 2])
     expect(indexes(layout.resultEntries)).toEqual([3])
+  })
+
+  it('does not let AskUserQuestion split adjacent main text', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'PR review result' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'ask',
+          toolName: 'AskUserQuestion',
+          state: 'output-available'
+        },
+        { type: 'reasoning', text: 'Waiting for input', state: 'done' },
+        { type: 'text', text: 'Waiting for your choice' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 2, 3])
+    expect(indexes(layout.resultEntries)).toEqual([1, 4])
   })
 
   it('extracts report_artifacts without letting it split the final answer result', () => {

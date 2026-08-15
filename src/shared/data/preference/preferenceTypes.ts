@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
@@ -30,6 +31,10 @@ export type PreferenceShortcutType = {
 
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
+
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
+export type RetryFallbackModelId = UniqueModelId
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -245,6 +250,10 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Whether this capability requires a configured HTTP(S) endpoint. */
+    requiresApiHost?: boolean
+    /** Whether this capability requires at least one configured API key. */
+    requiresApiKey?: boolean
     /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>
@@ -260,7 +269,6 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
@@ -268,11 +276,13 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openai-codex',
   'opencode',
   'openclaw',
+  'deepseek-harness',
   'gemini-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',
-  'github-copilot-cli'
+  'github-copilot-cli',
+  'pi'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
@@ -330,6 +340,7 @@ export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
+  'local-document',
   'paddleocr',
   'local-paddleocr',
   'ovocr',
@@ -365,17 +376,18 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export type ManagedBinary = {
+/** User-configurable settings for BinaryManager's isolated mise install environment. */
+export type BinaryInstallSettings = {
+  githubMirror: string
+  githubToken: string
+  npmRegistry: string
+  pipIndexUrl: string
+  verifySignatures: boolean
+}
+
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
   name: string
   tool: string
-  version?: string
-}
-
-export interface ToolInstallState {
-  tool: string
-  version: string
-}
-
-export interface BinaryState {
-  tools: Record<string, ToolInstallState>
+  requestedVersion?: string
 }

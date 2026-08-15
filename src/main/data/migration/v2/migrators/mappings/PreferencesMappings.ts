@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-13T05:09:46.352Z
+ * Generated at: 2026-08-11T04:29:58.855Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -17,6 +17,10 @@ export const ELECTRON_STORE_MAPPINGS = [
   {
     originalKey: 'ZoomFactor',
     targetKey: 'app.zoom_factor'
+  },
+  {
+    originalKey: 'clientId',
+    targetKey: 'app.user.id'
   }
 ] as const
 
@@ -109,10 +113,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'userName',
       targetKey: 'app.user.name'
-    },
-    {
-      originalKey: 'userId',
-      targetKey: 'app.user.id'
     },
     {
       originalKey: 'showMessageDivider',
@@ -315,10 +315,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'topic.naming.enabled'
     },
     {
-      originalKey: 'customCss',
-      targetKey: 'ui.custom_css'
-    },
-    {
       originalKey: 'topicNamingPrompt',
       targetKey: 'topic.naming_prompt'
     },
@@ -447,6 +443,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.mini_app.region'
     },
     {
+      originalKey: 'privacyPolicyVersion',
+      targetKey: 'app.privacy.policy_version'
+    },
+    {
       originalKey: 'enableSpellCheck',
       targetKey: 'app.spell_check.enabled'
     },
@@ -497,10 +497,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'exportMenuOptions.plain_text',
       targetKey: 'data.export.menus.plain_text'
-    },
-    {
-      originalKey: 'exportMenuOptions.notes',
-      targetKey: 'data.export.menus.notes'
     },
     {
       originalKey: 'notification.assistant',
@@ -802,12 +798,12 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 
 /**
  * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 176
+ * - ElectronStore项: 2
+ * - Redux Store项: 174
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 182
+ * - 总配置项: 181
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

@@ -41,10 +41,22 @@ export const fileEntryTable = sqliteTable(
      * live value is read via File IPC `getMetadata`.
      */
     size: integer(),
+    /** Algorithm-tagged internal-content hash. Null means unknown, in-flight, or awaiting repair. */
+    contentHash: text(),
 
     // ─── External ───
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
     externalPath: text(),
+
+    // ─── Cleanup policy ───
+    /**
+     * Cleanup intent stored as data (docs/references/file/file-entry-cleanup.md §4).
+     * 'manual' = keep at zero refs; 'delete_when_unreferenced' = the cleanup
+     * pass may reclaim once zero persistent refs + past grace.
+     * DB default 'manual' is the safe backstop; TS creation surfaces require
+     * an explicit value.
+     */
+    cleanupPolicy: text().notNull().default('manual'),
 
     // ─── Timestamps ───
     // `deletedAt` is soft-delete (NULL = not deleted). Internal-only —
@@ -59,6 +71,9 @@ export const fileEntryTable = sqliteTable(
   (t) => [
     index('fe_deleted_at_idx').on(t.deletedAt),
     index('fe_created_at_idx').on(t.createdAt),
+    // Content hashes are deliberately non-unique: duplicate content may have
+    // multiple logical entries, and callers choose whether to reuse one.
+    index('fe_content_hash_idx').on(t.contentHash),
     // Case-insensitive uniqueness for `externalPath`. SQLite indexes
     // expressions verbatim, so this index covers both the uniqueness
     // invariant ("no two external rows whose canonical paths agree under
@@ -72,10 +87,11 @@ export const fileEntryTable = sqliteTable(
     // Windows NTFS default) `/foo/A.txt` and `/foo/a.txt` *are* the same
     // file, and this index correctly forbids a second entry. On
     // case-sensitive filesystems (Linux ext4, case-sensitive APFS volumes)
-    // those are two different files — `ensureExternalEntry` resolves the
-    // disambiguation at the application layer via `fs.realpath` before
-    // any insert is attempted, so the DB constraint never fires
-    // user-visibly on legitimate distinct-file references. See
+    // those are two different files, and this index forbids referencing
+    // both. `ensureExternalEntry` runs an `fs.realpath` probe before the
+    // insert, so what the user sees is a descriptive `case-collision` error
+    // rather than an opaque SQLITE_CONSTRAINT — the application layer
+    // improves the diagnostic, it does not lift the restriction. See
     // `file-manager-architecture.md §1.2 Duplicate-entry detection on
     // insert`.
     uniqueIndex('fe_external_path_lower_unique_idx').on(sql`lower(${t.externalPath})`),
@@ -86,6 +102,7 @@ export const fileEntryTable = sqliteTable(
     index('fe_external_path_idx').on(t.externalPath),
     // Origin must be 'internal' or 'external'
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
+    check('fe_cleanup_policy_check', sql`${t.cleanupPolicy} IN ('manual', 'delete_when_unreferenced')`),
     // externalPath must be non-null iff origin='external'
     check(
       'fe_origin_consistency',
@@ -95,6 +112,8 @@ export const fileEntryTable = sqliteTable(
     // External removal is always immediate via permanentDelete (DB-only; the
     // physical file is left untouched, path-level @main/utils/file/fs.remove is a separate call).
     check('fe_external_no_delete', sql`${t.origin} != 'external' OR ${t.deletedAt} IS NULL`),
+    // Cherry does not own external content, so its hash cannot be kept current.
+    check('fe_contenthash_external_null', sql`${t.origin} != 'external' OR ${t.contentHash} IS NULL`),
     // Size semantics are origin-dependent: internal rows carry an authoritative
     // byte count (non-null, ≥ 0); external rows must leave size NULL and read
     // live values from File IPC `getMetadata`. The Zod layer rejects the same

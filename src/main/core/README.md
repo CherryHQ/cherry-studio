@@ -10,6 +10,7 @@ Core services are things the app needs to function as an Electron application â€
 - Logging infrastructure
 - Configuration management
 - IPC communication framework
+- Security primitives (IPC sender source trust)
 - Plugin/extension system plumbing
 - Platform abstraction utilities
 

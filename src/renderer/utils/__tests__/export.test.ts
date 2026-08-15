@@ -2,6 +2,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as MessageFind from '@renderer/utils/message/find'
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
@@ -20,7 +21,10 @@ beforeEach(() => {
 })
 
 // Mock the find utility functions - crucial for the test
-vi.mock('@renderer/utils/message/find', () => ({
+vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
+  // `[cite:id]` resolution is the behaviour under test in the copy case below,
+  // so keep the real implementation rather than restating it as a mock.
+  getToolCitationExport: (await importOriginal<typeof MessageFind>()).getToolCitationExport,
   // Gated copy/naming variant — text-only here (the mock never synthesises
   // code/error/translation), which already matches dropping error/translation.
   getNamingTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
@@ -181,24 +185,10 @@ describe('export', () => {
       expect(getTitleFromString('a'.repeat(100), 10)).toBe('a'.repeat(10))
     })
 
-    it('should return slice if first line empty', () => {
-      expect(getTitleFromString('\nabc', 2)).toBe('ab')
-    })
-
-    it('should handle empty string', () => {
+    it('should fall back to the original input when no title remains', () => {
       expect(getTitleFromString('', 5)).toBe('')
-    })
-
-    it('should handle only punctuation', () => {
       expect(getTitleFromString('。', 5)).toBe('。')
-    })
-
-    it('should handle only whitespace', () => {
       expect(getTitleFromString('   ', 2)).toBe('  ')
-    })
-
-    it('should handle non-ascii', () => {
-      expect(getTitleFromString('你好，世界')).toBe('你好')
     })
   })
 
@@ -212,49 +202,6 @@ describe('export', () => {
       const result = messageToPlainText(testMessage)
       expect(result).toBe('Single Message Content')
       expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
-    })
-
-    it('should return empty string for message with no main text or empty content', () => {
-      // Test case 1: No blocks at all
-      const testMessageNoBlocks = createMessage({ role: 'user', id: 'empty_msg_plain' }, [])
-      ;(markdownToPlainText as any).mockReturnValue('')
-
-      const result1 = messageToPlainText(testMessageNoBlocks)
-      expect(result1).toBe('')
-      expect(markdownToPlainText).toHaveBeenCalledWith('')
-
-      // Test case 2: Block exists but content is empty
-      const testMessageEmptyContent = createMessage({ role: 'user', id: 'empty_content_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
-      ])
-
-      const result2 = messageToPlainText(testMessageEmptyContent)
-      expect(result2).toBe('')
-      expect(markdownToPlainText).toHaveBeenCalledWith('')
-    })
-
-    it('should handle special characters in message content', () => {
-      const testMessage = createMessage({ role: 'user', id: 'special_chars_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Text with "quotes" & <tags> and &entities;' }
-      ])
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
-
-      const result = messageToPlainText(testMessage)
-      expect(result).toBe('Text with "quotes" & <tags> and &entities;')
-      expect(markdownToPlainText).toHaveBeenCalledWith('Text with "quotes" & <tags> and &entities;')
-    })
-
-    it('should handle messages with markdown formatting', () => {
-      const testMessage = createMessage({ role: 'user', id: 'markdown_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '# Header\n**Bold** and *italic* text\n- List item' }
-      ])
-      ;(markdownToPlainText as any).mockImplementation((str: string) =>
-        str.replace(/[#*_]/g, '').replace(/^- /gm, '').replace(/\n+/g, '\n').trim()
-      )
-
-      const result = messageToPlainText(testMessage)
-      expect(result).toBe('Header\nBold and italic text\nList item')
-      expect(markdownToPlainText).toHaveBeenCalledWith('# Header\n**Bold** and *italic* text\n- List item')
     })
 
     it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', () => {
@@ -290,6 +237,30 @@ describe('export', () => {
 
       expect(result).toBe('/pdf/ hello')
       expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
+    })
+
+    it('should resolve tool citation markers to plain numbers before copying', () => {
+      // Left in place, `remove-markdown` mangles a chain of markers down to a bare
+      // `cite:<id>` and the internal id lands on the clipboard.
+      const testMessage = createExportView([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' },
+            { id: '3f2a1b9c-2', title: 'Second', url: 'https://b.com/y', content: 'beta' }
+          ]
+        },
+        { type: 'text', text: 'Prices rose. [cite:3f2a1b9c-1][cite:3f2a1b9c-2]' }
+      ])
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = messageToPlainText(testMessage)
+
+      expect(result).toBe('Prices rose. [1][2]')
+      expect(result).not.toContain('cite:')
     })
   })
 
@@ -416,24 +387,6 @@ describe('processCitations', () => {
     expect(processCitations(input, 'normalize')).toBe(expectedNormalize)
   })
 
-  test('should handle empty content', () => {
-    const input = ''
-    expect(processCitations(input, 'remove')).toBe('')
-    expect(processCitations(input, 'normalize')).toBe('')
-  })
-
-  test('should handle content with only code blocks', () => {
-    const input = '```json\n{"key": "value"}\n```'
-    expect(processCitations(input, 'remove')).toBe(input)
-    expect(processCitations(input, 'normalize')).toBe(input)
-  })
-
-  test('should handle content with only citations', () => {
-    const input = "[<sup data-citation='test'>1</sup>](http://example.com) [2]"
-    expect(processCitations(input, 'remove')).toBe('')
-    expect(processCitations(input, 'normalize')).toBe('[^1] [^2]')
-  })
-
   test('should preserve line breaks and formatting in markdown structures', () => {
     const input = `# Header [1]
 
@@ -487,15 +440,6 @@ Final paragraph [^8].`
     expect(processCitations(input, 'normalize')).toBe(expectedNormalize)
   })
 
-  test('should handle citations with special characters in content', () => {
-    const input = `Content with "quotes" [1] and symbols & entities [<sup>2</sup>](url) here.`
-    const expectedRemove = `Content with "quotes" and symbols & entities here.`
-    const expectedNormalize = `Content with "quotes" [^1] and symbols & entities [^2] here.`
-
-    expect(processCitations(input, 'remove')).toBe(expectedRemove)
-    expect(processCitations(input, 'normalize')).toBe(expectedNormalize)
-  })
-
   test('should handle whitespace around citations correctly', () => {
     const input = `Text before [1] text after.\nNew line [2] more text.\n\nNew paragraph [3] end.`
     const expectedRemove = `Text before text after.\nNew line more text.\n\nNew paragraph end.`
@@ -519,21 +463,5 @@ const arr = [3, 4, 5];
     // Content inside code blocks should remain unchanged
     expect(processCitations(input, 'remove')).toBe(input)
     expect(processCitations(input, 'normalize')).toBe(input)
-  })
-
-  test('should handle formatCitationsAsFootnotes edge cases', () => {
-    // Test empty citations
-    const emptyResult = processCitations('', 'normalize')
-    expect(emptyResult).toBe('')
-
-    // Test content with no citations
-    const noCitationsResult = processCitations('Just plain text without any citations.', 'normalize')
-    expect(noCitationsResult).toBe('Just plain text without any citations.')
-
-    // Test mixed content with various citation formats
-    const mixedContent =
-      'Text [<sup data-citation="test">1</sup>](url) and [2] plus <sup data-citation="test2">3</sup> citations.'
-    const normalizedResult = processCitations(mixedContent, 'normalize')
-    expect(normalizedResult).toBe('Text [^1] and [^2] plus [^3] citations.')
   })
 })

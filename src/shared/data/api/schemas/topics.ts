@@ -7,9 +7,10 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from '../../types/assistant'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -20,8 +21,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
-  assistantId: true,
-  groupId: true
+  assistantId: true
 }).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
@@ -34,14 +34,20 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
  */
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
-  isNameManuallyEdited: true,
-  groupId: true
+  isNameManuallyEdited: true
 })
   .partial()
   .extend({
     assistantId: z.string().nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
+
+/** Atomically update a topic's assistant and global order. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: AssistantIdSchema,
+  order: OrderRequestSchema
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
 /**
  * Query parameters for `GET /topics` (cursor pagination + search).
@@ -107,7 +113,7 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+/** Response for `GET /topics/latest` — the globally most-recently-active topic, or `null` when empty. */
 export interface LatestTopicResponse {
   topic: Topic | null
 }
@@ -135,8 +141,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
+ * callers only provide the relative anchor.
  */
 export type TopicSchemas = {
   /**
@@ -179,12 +185,12 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic across all assistants.
+   * Most-recently-active topic across all assistants.
    *
    * First-entry restore reads this to resume the last-touched conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `lastActivityAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
    *
    * @example GET /topics/latest
    */
@@ -216,6 +222,15 @@ export type TopicSchemas = {
     DELETE: {
       params: { id: string }
       response: void
+    }
+  }
+
+  /** Atomically move a topic to another assistant and order position. */
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
+      response: Topic
     }
   }
 

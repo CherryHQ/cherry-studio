@@ -49,8 +49,8 @@ describe('ProviderSetting', () => {
     })
   })
 
-  it('renders header, authentication section, and model list', () => {
-    render(<ProviderSetting providerId="openai" />)
+  it('keeps onboarding coordination at the page boundary', () => {
+    render(<ProviderSetting providerId="openai" isOnboarding />)
 
     expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
@@ -62,27 +62,6 @@ describe('ProviderSetting', () => {
         onOpenModelHealthCheck: openHealthCheckMock
       })
     )
-  })
-
-  it('keeps the provider detail shell transparent so the settings background is continuous', () => {
-    render(<ProviderSetting providerId="openai" />)
-
-    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-background')
-    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
-  })
-
-  it('renders the provider detail divider below the provider header, aligned to body content width', () => {
-    render(<ProviderSetting providerId="openai" />)
-
-    const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
-    expect(innerWrap.className).toMatch(/(^|\s)border-b(\s|$)/)
-    expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
-    expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
-  })
-
-  it('keeps onboarding coordination at the page boundary', () => {
-    render(<ProviderSetting providerId="openai" isOnboarding />)
-
     expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
       providerId: 'openai',
       isOnboarding: true

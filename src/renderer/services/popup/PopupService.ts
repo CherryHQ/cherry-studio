@@ -1,3 +1,4 @@
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 
 import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupComponent, PopupEntry } from './types'
@@ -5,13 +6,9 @@ import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupCom
 const logger = loggerService.withContext('PopupService')
 
 /**
- * Exit-phase duration: the host keeps a closing popup mounted this long so the Dialog close
- * animation can finish. Must equal @cherrystudio/ui's DIALOG_CLOSE_DURATION_MS, which mirrors
- * DialogContent's `duration-200` class. Kept as a local literal rather than imported from the
- * ui barrel so the many renderer tests that mock `@cherrystudio/ui` wholesale needn't expose
- * it; PopupService.test.ts imports the real ui constant and asserts they stay equal.
+ * Exit-phase duration before a closing popup is removed from the store.
  */
-export const POPUP_EXIT_MS = 200
+export const POPUP_EXIT_MS = DIALOG_UNMOUNT_DELAY_MS
 
 /**
  * Module-level store behind services/popup. Holds data-only entries (component

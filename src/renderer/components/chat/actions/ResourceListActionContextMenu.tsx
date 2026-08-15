@@ -52,9 +52,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
         })
         return
       }
-      // Defer until after the menu has closed so the action's own UI (rename input,
-      // popups) doesn't fight the menu close.
-      window.requestAnimationFrame(() => void onAction(action))
+      await onAction(action)
     },
     [onAction]
   )

@@ -13,19 +13,19 @@ const { LocalModelDownloadService } = await import('../LocalModelDownloadService
 
 class TestDownloadService extends LocalModelDownloadService {
   protected readonly kind = 'embedding' as const
-  ready = false
+  filesState: 'absent' | 'ready' = 'absent'
 
-  protected isReady(): boolean {
-    return this.ready
+  protected modelFilesState() {
+    return this.filesState
   }
 
   protected async performDownload(): Promise<void> {
-    this.ready = true
+    this.filesState = 'ready'
     this.broadcast({ status: 'ready', percent: 100 })
   }
 
   async remove(): Promise<{ removed: boolean }> {
-    this.ready = false
+    this.filesState = 'absent'
     return { removed: true }
   }
 }
@@ -38,7 +38,7 @@ describe('LocalModelDownloadService on darwin-x64', () => {
   })
 
   it('reports unsupported even when the model files are already on disk', () => {
-    service.ready = true
+    service.filesState = 'ready'
 
     expect(service.getStatus()).toBe('unsupported')
   })

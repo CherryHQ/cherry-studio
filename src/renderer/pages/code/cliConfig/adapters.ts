@@ -1,6 +1,7 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
+import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import {
   CLAUDE_SETTINGS_PATH,
   type CliConfigWriteFile,
@@ -12,6 +13,8 @@ import {
   getCliConfigTargets,
   KIMI_CONFIG_PATH,
   OPENCODE_CONFIG_PATH,
+  PI_MODELS_PATH,
+  PI_SETTINGS_PATH,
   QWEN_CONFIG_PATH
 } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
@@ -24,9 +27,12 @@ import {
   buildGeminiSettingsConfig,
   buildKimiConfig,
   buildOpenCodeConfig,
-  buildQwenConfig
+  buildPiModelsConfig,
+  buildPiSettingsConfig,
+  buildQwenConfig,
+  clearCodexApiKeyAuth
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readDraftFileText } from './draftFiles'
 import {
@@ -70,7 +76,8 @@ import {
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
   resolveOpenAIBaseUrl,
-  resolveOpenCodeNpmInfo
+  resolveOpenCodeNpmInfo,
+  resolvePiProviderInfo
 } from './resolvers'
 import {
   sanitizeClaudeConfigBlob,
@@ -342,10 +349,11 @@ const codexAdapter: CliConfigAdapter = {
       dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
-    if (existingAuth?.OPENAI_API_KEY !== undefined) {
-      const nextAuth = { ...existingAuth }
-      delete nextAuth.OPENAI_API_KEY
-      files.push({ target: 'codex-auth', content: renderJsonFile(nextAuth) })
+    if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
+      const nextAuth = clearCodexApiKeyAuth(existingAuth)
+      files.push(
+        nextAuth ? { target: 'codex-auth', content: renderJsonFile(nextAuth) } : { target: 'codex-auth', delete: true }
+      )
     }
     return files
   },
@@ -406,7 +414,10 @@ const openCodeAdapter: CliConfigAdapter = {
               reasoning: env.OPENCODE_REASONING === 'true',
               supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
               autoCompact: configBlob.autoCompact === true,
-              permissionMode: configBlob.permissionMode
+              permissionMode: configBlob.permissionMode,
+              providerHeaders: provider.settings?.extraHeaders,
+              contextWindow: modelRecord?.contextWindow,
+              maxOutputTokens: modelRecord?.maxOutputTokens
             }
           )
         )
@@ -423,6 +434,9 @@ const openCodeAdapter: CliConfigAdapter = {
     const providers = asRecord(existing.provider)
     const providerKey = cherryProviderKeyFrom(providers)
     const provider = asRecord(providers[providerKey])
+    const providerOptions = asRecord(provider.options)
+    const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
+    const existingLimit = asRecord(existingModel.limit)
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
     const env = asRecord(configBlob.env)
     const model = requireDraftValue(connection.model, 'OpenCode model')
@@ -442,7 +456,10 @@ const openCodeAdapter: CliConfigAdapter = {
         reasoning: env.OPENCODE_REASONING === 'true',
         supportsReasoningEffort: true,
         autoCompact: configBlob.autoCompact === true,
-        permissionMode: configBlob.permissionMode
+        permissionMode: configBlob.permissionMode,
+        providerHeaders: providerOptions.headers,
+        contextWindow: existingLimit.context,
+        maxOutputTokens: existingLimit.output
       }
     )
     return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))
@@ -453,6 +470,10 @@ const openCodeAdapter: CliConfigAdapter = {
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+    const compaction = { ...asRecord(next.compaction) }
+    delete compaction.auto
+    if (Object.keys(compaction).length > 0) next.compaction = compaction
+    else delete next.compaction
     // Only drop the top-level model when it points at a cherry-* provider (about to be
     // removed below — keeping it would leave a dangling reference); a user's own value
     // referencing their own provider stays.
@@ -482,7 +503,7 @@ const openCodeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     const out: Record<string, any> = {}
-    if (config.autoCompact === true) out.autoCompact = true
+    if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
     const providerKey = findCherryProviderKey(providers)
@@ -502,12 +523,20 @@ const geminiAdapter: CliConfigAdapter = {
     const envText = await readDraftFileText('gemini-env', args.files)
     const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files)
     const baseUrl = resolveGeminiBaseUrl(provider)
+    const isGateway = isApiGatewayProviderId(provider.id)
+    // Gateway addresses carry the sentinel suffix so gemini-cli's model
+    // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
+    // extractConnection strips it back off for connection matching.
+    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
     return [
       await makeDraftFile(
         'gemini-env',
-        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl }), envText)
+        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl, gateway: isGateway }), envText)
       ),
-      await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiSettingsConfig(settings, { model }, configBlob)))
+      await makeDraftFile(
+        'gemini-settings',
+        renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
+      )
     ]
   },
   assertCredentials(context) {
@@ -520,6 +549,14 @@ const geminiAdapter: CliConfigAdapter = {
   updateDraftConfig(files, connection, configBlob) {
     const envText = getDraftFile(files, 'gemini-env')?.content ?? ''
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+    const model = requireDraftValue(connection.model, 'Gemini model')
+    // A gateway draft carries the sentinel in settings.model.name; extractConnection
+    // strips it for connection matching, so re-append it here (and re-force the API
+    // version) to preserve the gateway identity through a foreign-edit round trip —
+    // gemini-cli reads settings.model.name, so a bare `flash`-ending address written
+    // back would be re-normalized on a direct terminal launch.
+    const isGateway = (stringValue(asRecord(settings.model).name) ?? '').endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
+    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
     return replaceDraftContent(
       replaceDraftContent(
         files,
@@ -527,15 +564,14 @@ const geminiAdapter: CliConfigAdapter = {
         renderDotenvFile(
           buildGeminiEnvConfig(parseDotenv(envText), {
             apiKey: connection.apiKey ?? '',
-            baseUrl: connection.baseUrl ?? ''
+            baseUrl: connection.baseUrl ?? '',
+            gateway: isGateway
           }),
           envText
         )
       ),
       'gemini-settings',
-      renderJsonFile(
-        buildGeminiSettingsConfig(settings, { model: requireDraftValue(connection.model, 'Gemini model') }, configBlob)
-      )
+      renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
     )
   },
   async buildClearFiles() {
@@ -563,10 +599,11 @@ const geminiAdapter: CliConfigAdapter = {
   extractConnection(files) {
     const env = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+    const model = stringValue(asRecord(settings.model).name)
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model: stringValue(asRecord(settings.model).name)
+      model: model === undefined ? model : stripGeminiGatewayModelSuffix(model)
     }
   },
   extractConfig(files) {
@@ -748,6 +785,100 @@ const kimiAdapter: CliConfigAdapter = {
   }
 }
 
+const piAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.PI),
+  providerBaseUrls: (provider) =>
+    PI_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolvePiProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { provider, apiKey, model, modelLabel, modelRecord } = context
+    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const models = await readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files)
+    const settings = await readAndParseDraftFile('pi-settings', parseJsonOrThrow, args.files)
+    const input: Array<'image' | 'text'> = modelRecord?.inputModalities?.includes('image')
+      ? ['text', 'image']
+      : ['text']
+    return [
+      await makeDraftFile(
+        'pi-models',
+        renderJsonFile(
+          buildPiModelsConfig(models, {
+            api: providerInfo.api,
+            apiKey,
+            baseUrl: providerInfo.baseUrl,
+            contextWindow: modelRecord?.contextWindow,
+            headers: provider.settings?.extraHeaders,
+            input,
+            maxTokens: modelRecord?.maxOutputTokens,
+            model,
+            modelLabel: modelLabel ?? model,
+            providerKey,
+            reasoning: Boolean(modelRecord?.reasoning)
+          })
+        )
+      ),
+      await makeDraftFile('pi-settings', renderJsonFile(buildPiSettingsConfig(settings, { model, providerKey })))
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolvePiProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('Pi config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files) {
+    return files
+  },
+  async buildClearFiles() {
+    const files: CliConfigWriteFile[] = []
+    const models = await readValidatedJsonOrNull(await resolveAbs(PI_MODELS_PATH), 'Pi models config')
+    if (models) {
+      files.push({
+        target: 'pi-models',
+        content: renderJsonFile({
+          ...models,
+          providers: omitKeysByPrefix(asRecord(models.providers), CHERRY_PROVIDER_PREFIX)
+        })
+      })
+    }
+
+    const settings = await readValidatedJsonOrNull(await resolveAbs(PI_SETTINGS_PATH), 'Pi settings config')
+    if (settings) {
+      const next = { ...settings }
+      if (stringValue(next.defaultProvider)?.startsWith(CHERRY_PROVIDER_PREFIX)) {
+        delete next.defaultProvider
+        delete next.defaultModel
+      }
+      files.push({ target: 'pi-settings', content: renderJsonFile(next) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const models = parseJsonOrThrow(getDraftFile(files, 'pi-models')?.content ?? '')
+    const settings = parseJsonOrThrow(getDraftFile(files, 'pi-settings')?.content ?? '')
+    const providers = asRecord(models.providers)
+    const providerKey = findCherryProviderKey(providers)
+    if (!providerKey) return null
+    const provider = asRecord(providers[providerKey])
+    const configuredModels = Array.isArray(provider.models) ? provider.models : []
+    const defaultModel =
+      settings.defaultProvider === providerKey
+        ? stringValue(settings.defaultModel)
+        : stringValue(configuredModels[0]?.id)
+    return {
+      baseUrl: stringValue(provider.baseUrl),
+      apiKey: stringValue(provider.apiKey),
+      model: defaultModel
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 /**
  * The file-based CLI tools, one adapter each. Typed as a **total** record over
  * `FileConfiguredCli` (the key set of `CLI_CONFIG_TARGETS`), so omitting an adapter
@@ -759,7 +890,8 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.OPEN_CODE]: openCodeAdapter,
   [CodeCli.GEMINI_CLI]: geminiAdapter,
   [CodeCli.QWEN_CODE]: qwenAdapter,
-  [CodeCli.KIMI_CODE]: kimiAdapter
+  [CodeCli.KIMI_CODE]: kimiAdapter,
+  [CodeCli.PI]: piAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {
@@ -773,5 +905,6 @@ export function sanitizeCliConfigBlob(
   cliTool: string,
   configBlob: Record<string, unknown> | undefined
 ): Record<string, any> {
+  if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
 }

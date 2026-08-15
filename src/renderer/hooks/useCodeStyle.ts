@@ -9,26 +9,14 @@ interface CodeStyleContextType {
   getShikiPreProperties: (language: string) => Promise<ShikiPreProperties>
   highlightCode: (code: string, language: string) => Promise<string>
   shikiMarkdownIt: (code: string) => Promise<string>
+  loadThemeNames: () => Promise<string[]>
   themeNames: string[]
   activeShikiTheme: string
   isShikiThemeDark: boolean
   activeCmTheme: CodeMirrorTheme
 }
 
-const defaultCodeStyleContext: CodeStyleContextType = {
-  highlightCodeChunk: async () => ({ lines: [], recall: 0 }),
-  highlightStreamingCode: async () => ({ lines: [], recall: 0 }),
-  cleanupTokenizers: () => {},
-  getShikiPreProperties: async () => ({ class: '', style: '', tabindex: 0 }),
-  highlightCode: async () => '',
-  shikiMarkdownIt: async () => '',
-  themeNames: ['auto'],
-  activeShikiTheme: 'auto',
-  isShikiThemeDark: false,
-  activeCmTheme: 'none'
-}
-
-export const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
+export const CodeStyleContext = createContext<CodeStyleContextType | null>(null)
 
 export const useCodeStyle = () => {
   const context = use(CodeStyleContext)

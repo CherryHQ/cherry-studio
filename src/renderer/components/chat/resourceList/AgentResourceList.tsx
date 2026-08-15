@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -14,6 +15,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -23,7 +25,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
-  type ConversationResourceMenuItem,
   renderAgentEntityIcon,
   ResourceList,
   SessionListOptionsMenu
@@ -45,15 +46,17 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAgentsActive?: boolean
   agentSessionsSource: AgentSessionsSource
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAgents?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -64,15 +67,17 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  dataEnabled = true,
   historyRecordsActive = false,
+  manageAgentsActive = false,
   agentSessionsSource,
   onAddAgent,
   onOpenHistoryRecords,
+  onManageAgents,
   onSelectSession,
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
-  resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
@@ -88,6 +93,7 @@ export function AgentResourceList({
     isLoadingAll,
     isFullyLoaded,
     isPinsLoading,
+    isValidating,
     error: sessionsError,
     reload
   } = agentSessionsSource
@@ -97,17 +103,17 @@ export function AgentResourceList({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent')
+  } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
-  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionItems = useMemo<SessionListItem[]>(
@@ -134,7 +140,7 @@ export function AgentResourceList({
                 onClick={() => {
                   void onCreateSession(agent.id)
                 }}>
-                <SquarePen className="block" />
+                <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )
@@ -191,10 +197,16 @@ export function AgentResourceList({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from classic-layout rail', { agentId, err })
         toast.error(t('common.error'))
+        return
+      }
+
+      try {
+        await refetchAgents()
+      } catch (err) {
+        logger.warn('Failed to refresh agents after toggling pin from classic-layout rail', { agentId, err })
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -204,11 +216,15 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
+      )
+
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t('agent.delete.title'),
-          content: t('agent.delete.content'),
+          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
+          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -218,13 +234,18 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-        closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        if (deleteTasksOnly) {
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
+        } else {
+          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        }
         if (activeAgentId === agentId) {
           await onActiveAgentDeleted?.(agentId)
         }
 
-        await refetchAgents()
+        if (!deleteTasksOnly) await refetchAgents()
         await reload()
         toast.success(t('common.delete_success'))
       } catch (err) {
@@ -234,12 +255,26 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
+    [
+      activeAgentId,
+      agents,
+      closeConversationTabs,
+      deleteAgent,
+      deleteAgentSessions,
+      deletingAgentId,
+      onActiveAgentDeleted,
+      refetchAgents,
+      reload,
+      t
+    ]
   )
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
+      )
 
       return [
         buildResolvedResourceEntityMenuAction({
@@ -265,7 +300,7 @@ export function AgentResourceList({
         ),
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_DELETE_ACTION_ID,
-          label: t('agent.delete.title'),
+          label: t(deleteTasksOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
           group: 'danger',
           order: 30,
@@ -274,7 +309,7 @@ export function AgentResourceList({
         })
       ]
     },
-    [agentPinnedIdSet, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
+    [agentPinnedIdSet, agents, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
   )
 
   const handleContextMenuAction = useCallback(
@@ -303,31 +338,29 @@ export function AgentResourceList({
       <ResourceEntityRail
         variant="agent"
         items={items}
-        selectedId={hasActiveResourceMenuItem ? null : selectedId}
-        selectedClickId={hasActiveResourceMenuItem ? null : activeAgentId}
+        selectedId={selectedId}
+        selectedClickId={manageAgentsActive ? null : activeAgentId}
+        selectionSuppressed={manageAgentsActive || historyRecordsActive}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
-        historyRecordsActive={historyRecordsActive}
         onAdd={onAddAgent ?? (() => onShowMissingAgentSelection?.())}
         headerActions={
           <SessionListOptionsMenu
             historyRecordsActive={historyRecordsActive}
-            manageAgentsActive={manageAgentsMenuItem?.active}
-            manageSkillsActive={manageSkillsMenuItem?.active}
-            manageSkillsIcon={manageSkillsMenuItem?.icon}
+            manageAgentsActive={manageAgentsActive}
             mode={sessionDisplayMode}
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-            onManageAgents={manageAgentsMenuItem?.onSelect}
-            onManageSkills={manageSkillsMenuItem?.onSelect}
+            onManageAgents={onManageAgents}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
+        reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />
@@ -336,7 +369,6 @@ export function AgentResourceList({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refetchAgents}
       />
     </>
   )

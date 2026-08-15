@@ -85,13 +85,17 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
-  const { themeNames } = useCodeStyle()
+  const { loadThemeNames, themeNames } = useCodeStyle()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
 
   useEffect(() => {
     setFontSizeValue(fontSize)
   }, [fontSize])
+
+  useEffect(() => {
+    void loadThemeNames()
+  }, [loadThemeNames])
 
   const handleSpellCheckChange = (checked: boolean) => {
     void setEnableSpellCheck(checked)
@@ -328,7 +332,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
-          <div className="w-full pt-(--cs-size-3xs)">
+          <div className="w-full pt-3">
             <Slider
               value={[fontSizeValue]}
               onValueChange={(values) => setFontSizeValue(values[0])}

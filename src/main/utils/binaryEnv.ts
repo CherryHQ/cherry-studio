@@ -44,7 +44,7 @@ function binaryDataDir(): string {
 }
 
 /** The mise shims dir — where installed-tool shim executables land. */
-function binaryShimsDir(): string {
+export function getBinaryShimsDir(): string {
   return path.join(binaryDataDir(), 'shims')
 }
 
@@ -57,7 +57,7 @@ function binaryShimsDir(): string {
  * `cherry.bin` / `feature.binary.data` elsewhere.
  */
 export function getBinarySearchDirs(): string[] {
-  return [binaryShimsDir(), application.getPath('cherry.bin')]
+  return [getBinaryShimsDir(), application.getPath('cherry.bin')]
 }
 
 /**
@@ -77,7 +77,7 @@ export function getBinaryExecutionEnv(): Record<string, string> {
     MISE_CONFIG_DIR: path.join(dataDir, 'config'),
     MISE_CACHE_DIR: path.join(dataDir, 'cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
-    MISE_SHIMS_DIR: binaryShimsDir(),
+    MISE_SHIMS_DIR: getBinaryShimsDir(),
     MISE_YES: '1',
     MISE_NO_ANALYTICS: '1',
     MISE_EXPERIMENTAL: '1'
@@ -94,12 +94,22 @@ export function getBinaryExecutionEnv(): Record<string, string> {
  */
 export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   const dataDir = binaryDataDir()
-  return {
+  const env: Record<string, string> = {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
   }
+  // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
+  // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
+  // strips the user's real values (they aren't in MISE_PASSTHROUGH_ENV), so without
+  // these the verify step fails with "Could not determine cache directory" (#16719).
+  // Point them into the isolated data dir alongside HOME/XDG.
+  if (isWin) {
+    env.LOCALAPPDATA = application.getPath('feature.binary.data.isolated.localappdata')
+    env.APPDATA = application.getPath('feature.binary.data.isolated.appdata')
+  }
+  return env
 }
 
 // `extraPathPrefixes` are prepended after the mise shims dir but before the

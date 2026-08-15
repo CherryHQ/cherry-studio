@@ -1,6 +1,8 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { cn } from '@renderer/utils/style'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
@@ -14,22 +16,28 @@ interface ProviderSettingProps {
   isOnboarding?: boolean
 }
 
-function ProviderSettingSections({ providerId }: { providerId: string }) {
+function ProviderSettingSections({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
   const health = useModelListHealth()
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
 
+  const authenticationSection = (
+    <AuthenticationSection
+      providerId={providerId}
+      onOpenModelHealthCheck={health.openHealthCheck}
+      onRequestModelPullGuide={requestModelPullGuide}
+    />
+  )
+
   return (
     <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-      <div className={providerDetailColumnClasses.sectionStack}>
-        <AuthenticationSection
-          providerId={providerId}
-          onOpenModelHealthCheck={health.openHealthCheck}
-          onRequestModelPullGuide={requestModelPullGuide}
-        />
-        <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+      <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
+        {authenticationSection}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+        </div>
       </div>
     </Scrollbar>
   )
@@ -58,7 +66,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
             </div>
           </div>
           <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} />
+            <ProviderSettingSections providerId={providerId} isLoginBased={isLoginBasedProvider(provider)} />
           </ModelListHealthProvider>
         </div>
       </div>

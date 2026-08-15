@@ -102,13 +102,15 @@ describe('writeCliConfigDraft', () => {
         }
       }
     })
-    // The disk write is main-process now (`code_cli.write_config` carries
-    // `{ target, content }`, never a path). Translate each target back to the
+    // The disk mutation is main-process now (`code_cli.write_config` carries
+    // a target, never a path). Translate each write target back to the
     // same `/resolved~/…` path so the content fixtures stay unchanged.
     mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
       for (const file of input.files) {
-        written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
-        writes.push(written)
+        if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
+        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        written = nextWrite
+        writes.push(nextWrite)
       }
       return { success: true }
     })
@@ -151,6 +153,32 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
         ANTHROPIC_AUTH_TOKEN: 'sk-secret',
         ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      })
+    })
+
+    it('normalizes a versioned CherryIN endpoint before writing Claude Code config', async () => {
+      const versionedCherryinProvider = {
+        ...cherryinProvider,
+        endpointConfigs: {
+          ...cherryinProvider.endpointConfigs,
+          'anthropic-messages': { baseUrl: 'https://open.cherryin.net/v1/' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/cherryin': () => versionedCherryinProvider,
+        '/providers/cherryin/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'cherryin::moonshotai/kimi-k3'
+      })
+
+      expect(JSON.parse(written!.content).env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://open.cherryin.net',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'moonshotai/kimi-k3'
       })
     })
 
@@ -207,6 +235,24 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env).not.toHaveProperty('ANTHROPIC_MODEL')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-5')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
+    })
+
+    it('round-trips a primary model together with an independent Subagent override', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-haiku-4-5' } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5')
+      expect(parsed.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-haiku-4-5')
     })
 
     it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
@@ -413,8 +459,9 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
-    it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
+    it('switches auth.json from ChatGPT OAuth to API-key mode while preserving the official login', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+        auth_mode: 'chatgpt',
         tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
       })
       mockGet({
@@ -429,6 +476,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const authParsed = JSON.parse(findWrite('auth.json')!.content)
+      expect(authParsed.auth_mode).toBe('apikey')
       expect(authParsed.tokens).toEqual({ id_token: 'oauth-jwt', access_token: 'oauth-access' })
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
@@ -595,7 +643,7 @@ describe('writeCliConfigDraft', () => {
     const reasoningModel = {
       id: 'deepseek-chat',
       name: 'DeepSeek Chat',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high'] }
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
     } as unknown
 
     it('writes a Cherry-* provider with the model and no reasoning by default', async () => {
@@ -622,6 +670,49 @@ describe('writeCliConfigDraft', () => {
       // Top-level default-model selector — OpenCode's launch reads the model from here
       // (no --model flag), so it must reference the exact provider key + model key above.
       expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
+    })
+
+    it('forwards provider headers to OpenCode options', async () => {
+      const providerWithRequestOptions = {
+        ...openaiCompatProvider,
+        settings: {
+          extraHeaders: { 'HTTP-Referer': 'https://cherry-ai.com', 'X-Title': 'Cherry Studio' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/deepseek': () => providerWithRequestOptions,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const options = JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].options
+      expect(options.headers).toEqual({
+        'HTTP-Referer': 'https://cherry-ai.com',
+        'X-Title': 'Cherry Studio'
+      })
+    })
+
+    it('writes OpenCode model limits from Cherry model metadata', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ contextWindow: 65536, maxOutputTokens: 8192 })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      expect(JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+        context: 65536,
+        output: 8192
+      })
     })
 
     it('enables anthropic thinking when reasoning is on', async () => {
@@ -745,6 +836,24 @@ describe('writeCliConfigDraft', () => {
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.permission).toBe('ask')
     })
+
+    it('writes automatic compaction to the OpenCode config file', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { autoCompact: true }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.compaction.auto).toBe(true)
+      expect(parsed).not.toHaveProperty('autoCompact')
+    })
   })
 
   describe('gemini-cli (~/.gemini/.env + settings.json)', () => {
@@ -837,6 +946,24 @@ describe('writeCliConfigDraft', () => {
         '# my proxy\nUSER_PROXY=http://localhost:8080\nGEMINI_API_KEY=sk-secret\n' +
           'GOOGLE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com\n'
       )
+    })
+
+    it("preserves a user's own GOOGLE_GENAI_API_VERSION on a direct (non-gateway) write", async () => {
+      // GOOGLE_GENAI_API_VERSION is deliberately NOT a managed key (only gateway mode forces it to
+      // v1beta), so a direct provider write must neither overwrite nor delete the user's own value.
+      existing['/resolved~/.gemini/.env'] = 'GOOGLE_GENAI_API_VERSION=v1\nGEMINI_API_KEY=old\n'
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      expect(findWrite('.env').content).toContain('GOOGLE_GENAI_API_VERSION=v1\n')
     })
   })
 
@@ -1066,6 +1193,62 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.model_provider).toBe('cherry-gateway')
       expect(parsed.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
       expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
+    })
+
+    it('writes the bare gateway host + gateway key + gateway-addressed model for gemini-cli', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      // @google/genai appends /v1beta itself, so the base URL must stay bare (no /v1, no /v1beta).
+      const env = writes.find((w) => w.path.endsWith('.env'))!.content
+      expect(env).toContain(`GOOGLE_GEMINI_BASE_URL=${GATEWAY_BASE_URL}`)
+      expect(env).not.toContain(`${GATEWAY_BASE_URL}/v1`)
+      expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
+      // The gateway serves only /v1beta; force the SDK's API version so a stale v1 can't redirect it.
+      expect(env).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
+
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
+      // suffix that keeps gemini-cli's model normalization from rewriting the name.
+      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+    })
+
+    it('writes Pi models/settings with the gateway endpoint, key, and gateway-addressed model', async () => {
+      mockGet({
+        '/models/': () => ({
+          id: 'deepseek::deepseek-chat',
+          apiModelId: 'deepseek-chat',
+          name: 'DeepSeek Chat',
+          endpointTypes: ['openai-chat-completions']
+        })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.PI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const models = JSON.parse(writes.find((w) => w.path.endsWith('models.json'))!.content)
+      expect(models.providers['cherry-gateway']).toMatchObject({
+        baseUrl: `${GATEWAY_BASE_URL}/v1`,
+        api: 'openai-completions',
+        apiKey: 'cs-sk-gateway',
+        models: [{ id: 'deepseek:deepseek-chat', name: 'DeepSeek Chat' }]
+      })
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      expect(settings).toMatchObject({
+        defaultProvider: 'cherry-gateway',
+        defaultModel: 'deepseek:deepseek-chat'
+      })
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })
 
     it('rejects the CherryAI managed default model and writes nothing', async () => {

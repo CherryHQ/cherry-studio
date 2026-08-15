@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
 import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
+import crossSpawn from 'cross-spawn'
 import path from 'path'
 
 import { getShellEnv } from './shellEnv'
@@ -14,17 +14,24 @@ import { getShellEnv } from './shellEnv'
 
 const logger = loggerService.withContext('Utils:ProcessRunner')
 
-/**
- * Strip proxy-related variables from an environment map in place.
- * Used before spawning child processes that must not inherit Cherry's proxy
- * settings (e.g. Bun, which does not support HTTPS proxies).
- */
-export const removeEnvProxy = (env: Record<string, string>) => {
-  delete env.HTTPS_PROXY
-  delete env.HTTP_PROXY
-  delete env.grpc_proxy
-  delete env.http_proxy
-  delete env.https_proxy
+const PROXY_ENV_KEYS = new Set([
+  'CHERRY_STUDIO_NODE_PROXY_RULES',
+  'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'SOCKS_PROXY',
+  'NO_PROXY',
+  'GRPC_PROXY'
+])
+
+/** Strip Cherry-managed proxy settings from an environment map in place. */
+export const removeEnvProxy = (env: NodeJS.ProcessEnv) => {
+  for (const key of Object.keys(env)) {
+    if (PROXY_ENV_KEYS.has(key.toUpperCase())) {
+      delete env[key]
+    }
+  }
 }
 
 export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {
@@ -57,30 +64,19 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
 }
 
 /**
- * Spawn a process with proper Windows handling for .cmd files and npm shims.
- * On Windows, .cmd/.bat files need `shell: true` so Node.js delegates quoting
- * to cmd.exe via `/d /s /c "..."`. Manually constructing `cmd.exe /c` args
- * breaks when both the command path and arguments contain spaces (cmd.exe's
- * quote-stripping rule 2 kicks in and mangles the command line).
+ * Spawn a process with cross-spawn's Windows `.cmd`/`.bat` handling.
+ *
+ * cross-spawn invokes batch shims through cmd.exe while quoting each argument,
+ * unlike `shell: true`, which concatenates arbitrary arguments into one shell
+ * command line. This boundary deliberately owns launch mechanics only; callers
+ * continue to choose their execution environment.
  */
 export function crossPlatformSpawn(
   command: string,
   args: string[],
-  options: SpawnOptions & { env: Record<string, string> }
+  options: SpawnOptions & { env: NodeJS.ProcessEnv }
 ): ChildProcess {
-  // Always hide console window on Windows
-  const baseOptions: SpawnOptions = { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' }
-
-  if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    // When shell: true, Node passes the command to cmd.exe as:
-    //   cmd /d /s /c "command arg1 arg2"
-    // If the command path contains spaces (e.g. C:\Program Files\nodejs\npm.cmd),
-    // cmd.exe splits on the space. Wrapping in quotes fixes this:
-    //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
-    const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
-    return spawn(quotedCommand, args, { ...baseOptions, shell: true })
-  }
-  return spawn(command, args, baseOptions)
+  return crossSpawn(command, args, { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' })
 }
 
 /**
@@ -95,7 +91,7 @@ export async function executeCommand(
     /** Capture and return stdout (default: false) */
     capture?: boolean
     /** Environment variables (defaults to getShellEnv()) */
-    env?: Record<string, string>
+    env?: NodeJS.ProcessEnv
     /** Timeout in milliseconds */
     timeout?: number
   }

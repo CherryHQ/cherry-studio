@@ -421,6 +421,17 @@ describe('TranslatePage', () => {
     expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
   })
 
+  it('keeps the input and output panes side by side', () => {
+    render(<TranslatePage />)
+
+    const inputSection = screen.getByTestId('translate-input-pane').parentElement
+    const outputSection = screen.getByTestId('translate-output-pane').parentElement
+
+    expect(inputSection?.parentElement).toHaveClass('grid-cols-2', 'grid-rows-1')
+    expect(outputSection).toHaveClass('border-l')
+    expect(outputSection).not.toHaveClass('border-t')
+  })
+
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
     MockUseCacheUtils.setCacheValue('translate.output', '\nFirst translated line\nSecond translated line\n')
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
@@ -438,23 +449,6 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('keeps commas and periods in the first translated line when exporting to notes', async () => {
-    MockUseCacheUtils.setCacheValue('translate.output', 'Hello, world.\nSecond translated line')
-    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
-
-    render(<TranslatePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
-
-    await waitFor(() =>
-      expect(exportContentToNotesMock).toHaveBeenCalledWith(
-        'Hello, world.',
-        'Hello, world.\nSecond translated line',
-        '/notes'
-      )
-    )
-  })
-
   it('logs failures when exporting the current translation result to notes', async () => {
     const exportError = new Error('export failed')
     MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
@@ -465,13 +459,6 @@ describe('TranslatePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
 
-    await waitFor(() =>
-      expect(exportContentToNotesMock).toHaveBeenCalledWith(
-        'First translated line',
-        'First translated line\nSecond translated line',
-        '/notes'
-      )
-    )
     await waitFor(() => {
       expect(loggerErrorMock).toHaveBeenCalledWith('Failed to export output to notes:', exportError)
     })

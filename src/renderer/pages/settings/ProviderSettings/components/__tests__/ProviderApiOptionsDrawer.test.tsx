@@ -110,16 +110,15 @@ describe('ProviderApiOptionsDrawer', () => {
     isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('patches apiFeatures when an option changes', () => {
+  it('patches only the toggled apiFeatures key (delta, not a full snapshot)', () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
+    // Echoing the merged runtime snapshot would mark every baseline value as
+    // a user override; main shallow-merges the stored delta instead.
     expect(updateProviderMock).toHaveBeenCalledWith({
-      apiFeatures: {
-        ...provider.apiFeatures,
-        developerRole: true
-      }
+      apiFeatures: { developerRole: true }
     })
   })
 

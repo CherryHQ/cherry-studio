@@ -9,27 +9,27 @@ import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
+import { SENSITIVE_ENV_KEYS } from '@main/utils/envRedaction'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import {
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport, SSEClientTransportOptions, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions
+  StreamableHTTPClientTransportOptions,
+  StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-// Import notification schemas from MCP SDK
-import {
+import type {
   CancelledNotificationSchema,
-  type GetPromptResult,
+  GetPromptResult,
   LoggingMessageNotificationSchema,
+  Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -38,10 +38,10 @@ import {
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
-import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -49,17 +49,123 @@ import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
+import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
+type McpClientSdk = {
+  Client: typeof Client
+  SSEClientTransport: typeof SSEClientTransport
+  SseError: typeof SseError
+  StdioClientTransport: typeof StdioClientTransport
+  StreamableHTTPClientTransport: typeof StreamableHTTPClientTransport
+  StreamableHTTPError: typeof StreamableHTTPError
+  InMemoryTransport: typeof InMemoryTransport
+  CancelledNotificationSchema: typeof CancelledNotificationSchema
+  LoggingMessageNotificationSchema: typeof LoggingMessageNotificationSchema
+  PromptListChangedNotificationSchema: typeof PromptListChangedNotificationSchema
+  ResourceListChangedNotificationSchema: typeof ResourceListChangedNotificationSchema
+  ResourceUpdatedNotificationSchema: typeof ResourceUpdatedNotificationSchema
+  ToolListChangedNotificationSchema: typeof ToolListChangedNotificationSchema
+}
+
+let mcpClientSdkPromise: Promise<McpClientSdk> | undefined
+
+function loadMcpClientSdk(): Promise<McpClientSdk> {
+  mcpClientSdkPromise ??= Promise.all([
+    import('@modelcontextprotocol/sdk/client/index.js'),
+    import('@modelcontextprotocol/sdk/client/sse.js'),
+    import('@modelcontextprotocol/sdk/client/stdio.js'),
+    import('@modelcontextprotocol/sdk/client/streamableHttp'),
+    import('@modelcontextprotocol/sdk/inMemory'),
+    import('@modelcontextprotocol/sdk/types.js')
+  ]).then(([client, sse, stdio, streamableHttp, inMemory, types]) => ({
+    Client: client.Client,
+    SSEClientTransport: sse.SSEClientTransport,
+    SseError: sse.SseError,
+    StdioClientTransport: stdio.StdioClientTransport,
+    StreamableHTTPClientTransport: streamableHttp.StreamableHTTPClientTransport,
+    StreamableHTTPError: streamableHttp.StreamableHTTPError,
+    InMemoryTransport: inMemory.InMemoryTransport,
+    CancelledNotificationSchema: types.CancelledNotificationSchema,
+    LoggingMessageNotificationSchema: types.LoggingMessageNotificationSchema,
+    PromptListChangedNotificationSchema: types.PromptListChangedNotificationSchema,
+    ResourceListChangedNotificationSchema: types.ResourceListChangedNotificationSchema,
+    ResourceUpdatedNotificationSchema: types.ResourceUpdatedNotificationSchema,
+    ToolListChangedNotificationSchema: types.ToolListChangedNotificationSchema
+  }))
+  return mcpClientSdkPromise
+}
+
+function buildStdioEnvironment(
+  loginShellEnv: Record<string, string>,
+  serverEnv: Record<string, string>
+): Record<string, string> {
+  const env = { ...loginShellEnv, ...serverEnv }
+  if (process.platform !== 'win32') return env
+
+  const serverPathKey = Object.keys(serverEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const shellPathKey = Object.keys(loginShellEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const pathValue = serverPathKey ? serverEnv[serverPathKey] : shellPathKey ? loginShellEnv[shellPathKey] : undefined
+
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'path') delete env[key]
+  }
+  if (pathValue !== undefined) env.PATH = pathValue
+
+  return env
+}
+
+function getAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
+}
+
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
-type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
-type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
+type CallToolArgs = {
+  serverId: string
+  name: string
+  args: any
+  callId?: string
+  /** Caller-isolation key (e.g. topicId) — abort-by-id only matches within the same scope. */
+  scope?: string
+  signal?: AbortSignal
+  /**
+   * Receives the upstream server's progress notifications. The renderer gets them
+   * unconditionally over IPC, so this is for callers outside it — currently the MCP bridge,
+   * relaying to a client that supplied a `progressToken`.
+   */
+  onProgress?: ProgressCallback
+}
+type RuntimeCallToolArgs = {
+  server: McpServer
+  name: string
+  args: any
+  callId?: string
+  scope?: string
+  signal?: AbortSignal
+  onProgress?: ProgressCallback
+}
+
+/**
+ * Registration key for `activeToolCalls`. AI SDK call ids are not process-wide unique
+ * (providers may reuse ids like "call_0" across topics), so a scoped caller's key is
+ * namespaced and an explicit abort must present the same scope — cancellation never
+ * reaches across scopes. NUL can occur in neither id, so the composite is unambiguous.
+ */
+function toolCallKey(callId: string, scope?: string): string {
+  return scope ? `${scope}\u0000${callId}` : callId
+}
+
+type ProgressCallback = (progress: Progress) => void
 type McpRuntimeState = McpRuntimeStatus['state']
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
@@ -90,9 +196,37 @@ export interface McpToolListChangedEvent {
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
+// Liveness ping before reusing a cached client. 1s falsely timed out on stdio servers busy
+// with a previous request, forcing needless reconnects.
+const PING_TIMEOUT_MS = 5_000
+
+// Order in which to attempt the URL-based transports for a given server. We try the
+// user-configured type first (no behavior change for correctly configured servers) and,
+// if that fails with a transport-level protocol error, retry with the other transport.
+// This bridges legacy SSE servers and modern Streamable HTTP servers (which reject the
+// SSE GET handshake with 405) without the user having to know the difference.
+function getTransportCandidates(server: McpServer): McpServerType[] | null {
+  if (!server.baseUrl) return null
+  if (server.type === 'sse') return ['sse', 'streamableHttp']
+  if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
+  return null
+}
+
+// A transport-level protocol error that indicates a *transport/protocol mismatch* (not an
+// auth, permission, or generic server error) and is worth retrying against the alternative
+// transport. The issue's 405 is the canonical signal: the SSE GET handshake is rejected
+// (server is actually Streamable HTTP) or the Streamable HTTP POST is rejected. A 404 on the
+// Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
+// streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
+// instead of being masked by a confusing fallback failure.
+function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
+  if (error instanceof sdk.SseError) return error.code === 405
+  if (error instanceof sdk.StreamableHTTPError) return error.code === 405 || error.code === 404
+  return false
+}
+
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
   const MAX_STRING = 300
 
   // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
@@ -111,7 +245,7 @@ export function redactSensitive(input: any): any {
     if (typeof val === 'object') {
       const out: Record<string, any> = {}
       for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
+        if (SENSITIVE_ENV_KEYS.some((sk) => k.toUpperCase().includes(sk))) {
           out[k] = '<redacted>'
         } else {
           out[k] = redact(v, seen)
@@ -123,6 +257,34 @@ export function redactSensitive(input: any): any {
   }
 
   return redact(input, new WeakSet())
+}
+
+// Strip secrets from a serialized serverKey (see getServerKey) before logging; a serverKey
+// that fails to parse yields a placeholder rather than the raw string.
+// env/headers fail CLOSED: every value is redacted — secrecy cannot be inferred from key
+// names (e.g. DATABASE_URL carries credentials in the value, matching no sensitive name).
+export function redactServerKey(serverKey: string): string {
+  const redactAllValues = (value: unknown): unknown =>
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.keys(value).map((key) => [key, '<redacted>']))
+      : value
+  try {
+    const parsed = JSON.parse(serverKey) as Record<string, unknown>
+    parsed.env = redactAllValues(parsed.env)
+    parsed.headers = redactAllValues(parsed.headers)
+    return JSON.stringify(parsed)
+  } catch {
+    return '<unparseable-serverKey>'
+  }
+}
+
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
 
 // Create a context-aware logger for a server
@@ -155,7 +317,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -165,7 +327,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -176,7 +342,11 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  private activeToolCalls: Map<string, AbortController> = new Map()
+  // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
+  // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
+  // are namespaced, and every concurrent call registers its own controller under its key
+  // instead of overwriting the previous one.
+  private activeToolCalls: Map<string, Set<AbortController>> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
@@ -321,20 +491,19 @@ export class McpRuntimeService extends BaseService {
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping({
           // add short timeout to prevent hanging
-          timeout: 1000
+          timeout: PING_TIMEOUT_MS
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, remove the client from the cache
-        // and create a new one
+        // If the ping fails, close the client and create a new one
         if (!pingResult) {
-          this.clients.delete(serverKey)
+          await this.discardStaleClient(serverKey)
         } else {
           this.setServerStatus(server.id, 'connected')
           return existingClient
         }
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        this.clients.delete(serverKey)
+        await this.discardStaleClient(serverKey)
       }
     }
 
@@ -350,8 +519,9 @@ export class McpRuntimeService extends BaseService {
     // Create a promise for the initialization process
     const initPromise = (async () => {
       try {
+        const sdk = await loadMcpClientSdk()
         // Create new client instance for each connection
-        const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
+        const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
         let args = [...(server.args || [])]
 
@@ -363,14 +533,14 @@ export class McpRuntimeService extends BaseService {
             .digest('hex')
         })
 
-        const initTransport = async (): Promise<
-          StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-        > => {
+        const initTransport = async (
+          typeOverride?: McpServerType
+        ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
           // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
           if (
-            isBuiltinMcpServer(server) &&
+            isInMemoryBuiltinMcpServer(server) &&
             (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
           ) {
             const httpUrlMap: Record<string, string> = {
@@ -391,14 +561,14 @@ export class McpRuntimeService extends BaseService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
+            return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
-          if (isBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
+          if (isInMemoryBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
-            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+            const [clientTransport, serverTransport] = sdk.InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
-            const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
+            const inMemoryServer = await createInMemoryMcpServer(server.name, args, server.env || {})
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
@@ -409,7 +579,8 @@ export class McpRuntimeService extends BaseService {
             // set the client transport to the client
             return clientTransport
           } else if (server.baseUrl) {
-            if (server.type === 'streamableHttp') {
+            const urlBasedType: McpServerType = typeOverride ?? server.type ?? 'sse'
+            if (urlBasedType === 'streamableHttp') {
               const options: StreamableHTTPClientTransportOptions = {
                 fetch: async (url, init) => {
                   return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -423,8 +594,8 @@ export class McpRuntimeService extends BaseService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
-            } else if (server.type === 'sse') {
+              return new sdk.StreamableHTTPClientTransport(new URL(server.baseUrl), options)
+            } else if (urlBasedType === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
                   fetch: async (url, init) => {
@@ -436,7 +607,7 @@ export class McpRuntimeService extends BaseService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl), options)
+              return new sdk.SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -475,7 +646,7 @@ export class McpRuntimeService extends BaseService {
 
             if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
-              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
+              const npxPath = await findExecutableInEnv('npx')
 
               if (npxPath) {
                 // Use system npx
@@ -525,7 +696,7 @@ export class McpRuntimeService extends BaseService {
               }
             } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              const uvPath = await findExecutableInEnv(effectiveCommand)
 
               if (uvPath) {
                 // Use system uvx/uv
@@ -557,6 +728,20 @@ export class McpRuntimeService extends BaseService {
                 connectEnv.UV_DEFAULT_INDEX = server.registryUrl
                 connectEnv.PIP_INDEX_URL = server.registryUrl
               }
+            } else {
+              // For any other command (e.g., globally installed npm packages, standalone binaries),
+              // try to resolve to a full path so cross-spawn doesn't depend on a potentially
+              // incomplete PATH in the environment.
+              const resolved = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              if (resolved) {
+                cmd = resolved
+                getServerLogger(server).debug(`Resolved command to full path`, { command: cmd })
+              } else {
+                getServerLogger(server).warn(
+                  `Could not resolve command '${effectiveCommand}' to a full path. ` +
+                    `If the server fails to start, try providing the full path in the command field.`
+                )
+              }
             }
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
@@ -569,10 +754,9 @@ export class McpRuntimeService extends BaseService {
             const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
-              env: {
-                ...loginShellEnv,
-                ...connectEnv
-              },
+              // On Windows the SDK prepends process.env.PATH before this object, so use
+              // one canonical key to ensure our fresh shell PATH replaces the stale value.
+              env: buildStdioEnvironment(loginShellEnv, connectEnv),
               stderr: 'pipe'
             }
 
@@ -584,9 +768,10 @@ export class McpRuntimeService extends BaseService {
               })
             }
 
-            const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) => {
-              const msg = data.toString()
+            const stdioTransport = new sdk.StdioClientTransport(transportOptions)
+            const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
+            stdioTransport.stderr?.on('data', (data: Buffer) => {
+              const msg = stderrDecoder.decode(data, { stream: true })
               getServerLogger(server).debug(`Stdio stderr`, { data: msg })
               this.emitServerLog(server, {
                 timestamp: Date.now(),
@@ -594,6 +779,18 @@ export class McpRuntimeService extends BaseService {
                 message: msg.trim(),
                 source: 'stdio'
               })
+            })
+            stdioTransport.stderr?.on('end', () => {
+              const remaining = stderrDecoder.decode()
+              if (remaining.trim()) {
+                getServerLogger(server).debug(`Stdio stderr (end)`, { data: remaining })
+                this.emitServerLog(server, {
+                  timestamp: Date.now(),
+                  level: 'stderr',
+                  message: remaining.trim(),
+                  source: 'stdio'
+                })
+              }
             })
             // StdioClientTransport does not expose stdout as a readable stream for raw logging
             // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.
@@ -603,7 +800,11 @@ export class McpRuntimeService extends BaseService {
           }
         }
 
-        const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+        const handleAuth = async (
+          client: Client,
+          transport: SSEClientTransport | StreamableHTTPClientTransport,
+          typeOverride?: McpServerType
+        ) => {
           getServerLogger(server).debug(`Starting OAuth flow`)
           // Create an event emitter for the OAuth callback
           const events = new EventEmitter()
@@ -631,7 +832,7 @@ export class McpRuntimeService extends BaseService {
 
             getServerLogger(server).debug(`OAuth flow completed`)
 
-            const newTransport = await initTransport()
+            const newTransport = await initTransport(typeOverride)
             // Try to connect again
             await client.connect(newTransport)
 
@@ -649,7 +850,6 @@ export class McpRuntimeService extends BaseService {
         }
 
         try {
-          const transport = await initTransport()
           // Bound the MCP `initialize` request so a non-responsive server fails fast via the
           // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
           // generous headroom is cheap) while still honoring larger `server.timeout` values
@@ -658,18 +858,57 @@ export class McpRuntimeService extends BaseService {
           const connectOptions: RequestOptions = {
             timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
           }
-          try {
-            await client.connect(transport, connectOptions)
-          } catch (error: any) {
-            if (
-              error instanceof Error &&
-              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-            ) {
-              logger.debug(`Authentication required for server: ${server.name}`)
-              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-            } else {
-              throw error
+
+          const candidates = getTransportCandidates(server)
+          // When no fallback candidates exist (stdio / in-memory / built-in), connect with the
+          // configured transport exactly once. Otherwise iterate the candidate transports,
+          // retrying with the alternative transport on a transport-level protocol error.
+          const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
+          let connected = false
+          let lastError: unknown
+
+          for (let i = 0; i < transportTypes.length; i++) {
+            const candidateType = transportTypes[i]
+            const transport = await initTransport(candidateType)
+            try {
+              await client.connect(transport, connectOptions)
+              connected = true
+              break
+            } catch (error: any) {
+              if (
+                error instanceof Error &&
+                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+              ) {
+                logger.debug(`Authentication required for server: ${server.name}`)
+                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
+                connected = true
+                break
+              }
+              lastError = error
+              // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+              // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+              if (!candidates || !isTransportFallbackError(error, sdk)) {
+                break
+              }
+              // No alternative transport left to try.
+              if (i === candidates.length - 1) {
+                break
+              }
+              const fallbackType = candidates[i + 1]
+              getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
+                error: redactSensitive(error)
+              })
+              // Close the whole client (not just the transport) so the SDK resets its internal
+              // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+              // re-auth path, which relies on client.close() clearing _transport first.
+              await client.close().catch(() => undefined)
             }
+          }
+
+          if (!connected) {
+            // Release the last (failed) transport/connection so it isn't leaked until GC.
+            await client.close().catch(() => undefined)
+            throw lastError ?? new Error('Failed to connect to MCP server')
           }
 
           this.emitServerLog(server, {
@@ -689,7 +928,7 @@ export class McpRuntimeService extends BaseService {
           this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
+          this.setupNotificationHandlers(client, server, sdk)
 
           // Clear existing cache to ensure fresh data
           this.clearServerCache(server)
@@ -729,45 +968,45 @@ export class McpRuntimeService extends BaseService {
   /**
    * Set up notification handlers for MCP client
    */
-  private setupNotificationHandlers(client: Client, server: McpServer) {
+  private setupNotificationHandlers(client: Client, server: McpServer, sdk: McpClientSdk) {
     const serverKey = this.getServerKey(server)
     const cacheService = application.get('CacheService')
 
     try {
       // Set up tools list changed notification handler
-      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
         this._onToolListChanged.fire({ serverId: server.id })
       })
 
       // Set up resources list changed notification handler
-      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceListChangedNotificationSchema, async () => {
         logger.debug(`Resources list changed for server: ${server.name}`)
         // Clear resources cache
         cacheService.delete(`mcp:list_resources:${serverKey}`)
       })
 
       // Set up prompts list changed notification handler
-      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.PromptListChangedNotificationSchema, async () => {
         logger.debug(`Prompts list changed for server: ${server.name}`)
         // Clear prompts cache
         cacheService.delete(`mcp:list_prompts:${serverKey}`)
       })
 
       // Set up resource updated notification handler
-      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceUpdatedNotificationSchema, async () => {
         logger.debug(`Resource updated for server: ${server.name}`)
         // Clear resource-specific caches
         this.clearResourceCaches(serverKey)
       })
 
       // Set up cancelled notification handler
-      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
+      client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
         logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
       })
 
       // Set up logging message notification handler
-      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
+      client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
         const message = safeSerialize(notification.params.data) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
@@ -805,7 +1044,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -817,9 +1056,11 @@ export class McpRuntimeService extends BaseService {
   }
 
   private abortActiveToolCalls() {
-    for (const [callId, controller] of this.activeToolCalls) {
-      controller.abort()
-      logger.debug(`Aborted active tool call during MCP runtime stop`, { callId })
+    for (const [key, controllers] of this.activeToolCalls) {
+      for (const controller of controllers) {
+        controller.abort()
+      }
+      logger.debug(`Aborted active tool call during MCP runtime stop`, { key })
     }
     this.activeToolCalls.clear()
   }
@@ -840,18 +1081,31 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
+  /**
+   * A client that failed its liveness ping must still be closed — dropping it from the map
+   * alone orphans the stdio child process (issue #18144).
+   */
+  private async discardStaleClient(serverKey: string): Promise<void> {
+    try {
+      await this.closeClient(serverKey)
+    } catch (error) {
+      logger.error(`Failed to close stale client`, error as Error)
+      this.clients.delete(serverKey)
+    }
+  }
+
   async closeClient(serverKey: string) {
     const client = this.clients.get(serverKey)
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 
@@ -995,18 +1249,42 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool({
+    serverId,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress
+  }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId })
+    return this.callToolByServer({ server, name, args, callId, scope, signal, onProgress })
   }
 
-  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+  public async callToolByServer({
+    server,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress
+  }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
+    const registrationKey = toolCallKey(toolCallId, scope)
     const abortController = new AbortController()
-    this.activeToolCalls.set(toolCallId, abortController)
+    const effectiveSignal = signal ? AbortSignal.any([abortController.signal, signal]) : abortController.signal
+    const controllersForKey = this.activeToolCalls.get(registrationKey) ?? new Set()
+    controllersForKey.add(abortController)
+    this.activeToolCalls.set(registrationKey, controllersForKey)
 
     const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
+        // Inside the try so an already-aborted signal still hits the finally cleanup below.
+        if (effectiveSignal.aborted) {
+          throw getAbortReason(effectiveSignal)
+        }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
           args: redactSensitive(args)
         })
@@ -1027,7 +1305,24 @@ export class McpRuntimeService extends BaseService {
         if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
-        const client = await this.getOrCreateClient(server)
+        // Client init (ping probe, transport connect, OAuth) has no unified timeout at this
+        // layer — release this call's wait on abort instead of blocking until it settles.
+        // The shared `pendingClients` init keeps running (only this caller's wait is released),
+        // and both racers are consumed, so the loser's late rejection is never unhandled.
+        // The listener is removed once the race settles: `once` only cleans up after an
+        // abort fires, and the composed signal is retained by the long-lived stream signal —
+        // leaving it installed would accumulate a closure per tool call.
+        let handleAbort: (() => void) | undefined
+        const client = await Promise.race([
+          this.getOrCreateClient(server),
+          new Promise<never>((_, reject) => {
+            handleAbort = (): void => reject(getAbortReason(effectiveSignal))
+            if (effectiveSignal.aborted) return handleAbort()
+            effectiveSignal.addEventListener('abort', handleAbort, { once: true })
+          })
+        ]).finally(() => {
+          if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
+        })
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
@@ -1037,20 +1332,42 @@ export class McpRuntimeService extends BaseService {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
             })
+            // Additional consumer outside the renderer; must not break the call or the
+            // broadcast above if it throws.
+            try {
+              onProgress?.(process)
+            } catch (error) {
+              getServerLogger(server, { tool: name, callId: toolCallId }).warn('Progress listener threw', {
+                error
+              })
+            }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           resetTimeoutOnProgress: server.longRunning,
           maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
-          signal: abortController.signal
+          signal: effectiveSignal
         })
         return result as McpCallToolResponse
       } catch (error) {
-        getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        if (isMcpCancellation(error, effectiveSignal)) {
+          // Expected cancellation (user stop / stream abort) — keep it out of error logs.
+          // A genuine failure that merely raced the abort does not match and stays error-level.
+          getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Tool call aborted`)
+        } else {
+          getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        }
         throw error
       } finally {
-        this.activeToolCalls.delete(toolCallId)
+        // Remove only this call's controller — a concurrent call sharing the key must stay abortable.
+        const controllers = this.activeToolCalls.get(registrationKey)
+        if (controllers) {
+          controllers.delete(abortController)
+          if (controllers.size === 0) {
+            this.activeToolCalls.delete(registrationKey)
+          }
+        }
       }
     }
 
@@ -1244,15 +1561,22 @@ export class McpRuntimeService extends BaseService {
   }
 
   // 实现 abortTool 方法
-  public async abortTool(callId: string) {
-    const activeToolCall = this.activeToolCalls.get(callId)
-    if (activeToolCall) {
-      activeToolCall.abort()
-      this.activeToolCalls.delete(callId)
-      logger.debug(`Aborted tool call`, { callId })
+  public async abortTool(callId: string, scope?: string) {
+    // Exact (scope, callId) match only — a colliding id registered under another scope
+    // (another topic's `call_0`) must never be collateral of this caller's cancel.
+    const key = toolCallKey(callId, scope)
+    const controllers = this.activeToolCalls.get(key)
+    if (controllers) {
+      // Within one scope a duplicated id is still ambiguous — abort every call under it:
+      // cancelling a same-scope sibling is recoverable; leaving one un-cancellable is not.
+      for (const controller of controllers) {
+        controller.abort()
+      }
+      this.activeToolCalls.delete(key)
+      logger.debug(`Aborted tool call`, { callId, scope })
       return true
     } else {
-      logger.warn(`No active tool call found for callId`, { callId })
+      logger.warn(`No active tool call found for callId`, { callId, scope })
       return false
     }
   }

@@ -20,7 +20,7 @@
  * see directory-tree.md §9.
  */
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import * as z from 'zod'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ export interface SerializedTreeNode {
 
 /**
  * Schema is source-of-truth: the inferred type below stays in lockstep with
- * the runtime validation used at the `File_TreeCreate` IPC boundary. Both sides
+ * the runtime validation used at the `file.tree.create` IPC boundary. Both sides
  * (main parser + renderer producer) import this schema; drift is structurally
  * impossible.
  */
@@ -72,7 +72,13 @@ export const DirectoryTreeOptionsSchema = z.strictObject({
   withStats: z.boolean().optional(),
 
   /** Max depth from root. Default unlimited. */
-  maxDepth: z.int().nonnegative().optional()
+  maxDepth: z.int().nonnegative().optional(),
+
+  /**
+   * Treat an absent root as an empty tree while continuing to watch for it.
+   * Intended for app-owned directories that are created lazily.
+   */
+  watchMissingRoot: z.boolean().optional()
 })
 
 export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
@@ -82,7 +88,7 @@ export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
  *
  * The watcher cannot synthesize `renamed` on its own (chokidar surfaces
  * renames as `unlink` + `add`), so that variant is only emitted via the
- * explicit `File_TreeRename` IPC — used by callers that already know they
+ * explicit `file.tree.rename` route — used by callers that already know they
  * just performed a rename (e.g. Notes after `file.rename`). When emitted,
  * the renderer applies it via the `TreeNode.path` setter, preserving node
  * identity through the rename. The chokidar `unlink`/`add` events that
@@ -114,19 +120,23 @@ export type TreeMutationEvent =
       readonly basename: string
     }
 
-/** Handle returned by the `File_TreeCreate` IPC. */
+/** Handle returned by the `file.tree.create` route. */
 export interface CreateTreeIpcResult {
   readonly treeId: string
+  /** Last mutation included in `snapshot`; later pushes increase by one. */
+  readonly revision: number
   readonly snapshot: SerializedTreeNode
 }
 
-/** Wire shape for the main→renderer `File_TreeMutation` push channel. */
+/** Wire shape for the main→renderer `file.tree.mutation` event. */
 export interface TreeMutationPushPayload {
   readonly treeId: string
+  /** Monotonic sequence scoped to `treeId`. */
+  readonly revision: number
   readonly event: TreeMutationEvent
 }
 
-export type TreeRootPath = FilePath | string
+export type TreeRootPath = AbsoluteFilePath | string
 
 // ─── Class hierarchy (shared between main and renderer) ─────────────────────
 

@@ -12,7 +12,7 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
-import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
+import { ClaudeCodeProcessManager, ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -26,11 +26,15 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/BinaryManager'
+import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -72,6 +76,7 @@ import { WebviewService } from '@main/services/WebviewService'
  * Value = service class constructor
  */
 export const services = {
+  MainNetworkDevtoolsService,
   WindowManager,
   DbService,
   CacheService,
@@ -84,6 +89,8 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  CitationPreviewService,
+  DeepSeekHarnessService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,
@@ -111,6 +118,7 @@ export const services = {
   McpCatalogService,
   BinaryManager,
   OpenClawService,
+  ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentJobsService,
   ChannelManager,
@@ -123,6 +131,7 @@ export const services = {
   KnowledgeVectorStoreService,
   ApiGatewayService,
   AppUpdaterService,
+  AutoBackupService,
   SchedulerService,
   JobManager
 } as const

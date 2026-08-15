@@ -73,6 +73,78 @@ function makeGeminiProvider() {
   })
 }
 
+describe('listModels — default grouping', () => {
+  it.each(['7f8b0f84-36d1-45ec-9f49-0bfb535ab38d', 'opencode'])(
+    'derives model-family groups instead of using provider id %s',
+    async (providerId) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          data: [
+            { id: 'deepseek-v4-pro', owned_by: providerId },
+            { id: 'glm-5.2', owned_by: providerId },
+            { id: 'grok-4.5', owned_by: providerId }
+          ]
+        }
+      })
+      const provider = makeProvider({
+        id: providerId,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://models.example.com/v1' }
+        }
+      })
+
+      const models = await listModels(provider)
+
+      expect(models.map((model) => model.group)).toEqual(['deepseek', 'glm', 'grok'])
+      expect(models.map((model) => model.group)).not.toContain(providerId)
+    }
+  )
+})
+
+describe('listModels — Ollama capabilities', () => {
+  function makeOllamaProvider() {
+    return makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://ollama.test:11434' }
+      }
+    })
+  }
+
+  it('maps native thinking support to the reasoning capability without declaring controls', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          {
+            name: 'qwen3:32b-q4_K_M',
+            capabilities: ['completion', 'tools', 'thinking'],
+            details: { family: 'qwen3' }
+          },
+          {
+            name: 'qwen3-embedding:4b',
+            capabilities: ['embedding'],
+            details: { family: 'qwen3' }
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen3:32b-q4_K_M',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    expect(models[0].reasoning).toBeUndefined()
+    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1].reasoning).toBeUndefined()
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://ollama.test:11434/api/tags'
+    })
+  })
+})
+
 describe('listModels — geminiFetcher API key transport', () => {
   it('passes the API key via the x-goog-api-key header, never the ?key= query (REGRESSION)', async () => {
     const provider = makeGeminiProvider()
@@ -360,6 +432,91 @@ describe('listModels — ppioFetcher capability mapping', () => {
   })
 })
 
+describe('listModels — openRouterFetcher image models', () => {
+  function makeOpenRouterProvider() {
+    return makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/',
+          modelsApiUrls: {
+            default: 'https://openrouter.example/models',
+            embedding: 'https://openrouter.example/embeddings/models',
+            image: 'https://openrouter.example/images/models'
+          }
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/'
+        }
+      }
+    })
+  }
+
+  it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              { id: 'openai/gpt-image-2', name: 'OpenAI: GPT Image 2' },
+              { id: 'sourceful/riverflow-v2.5-fast', name: 'Sourceful: Riverflow V2.5 Fast' }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://openrouter.example/models',
+      'https://openrouter.example/embeddings/models',
+      'https://openrouter.example/images/models'
+    ])
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-4',
+      'openai/gpt-image-2',
+      'openai/text-embedding-3-small',
+      'sourceful/riverflow-v2.5-fast'
+    ])
+    expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+    expect(models.find((model) => model.apiModelId === 'sourceful/riverflow-v2.5-fast')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      name: 'Sourceful: Riverflow V2.5 Fast'
+    })
+  })
+
+  it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/images/models')) {
+        return Promise.reject(new Error('image catalog unavailable'))
+      }
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }] } })
+    })
+
+    await expect(listModels(provider, undefined, { throwOnError: true })).resolves.toEqual([
+      expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
+      expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
+    ])
+  })
+})
+
 describe('listModels — copied preset provider routing', () => {
   it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
     const provider = makeProvider({
@@ -377,6 +534,35 @@ describe('listModels — copied preset provider routing', () => {
       url: 'https://models.github.ai/catalog/models'
     })
     expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
+  })
+})
+
+describe('listModels — Radeon Cloud source header', () => {
+  it('adds X-Source to Radeon model listing without adding it to other providers', async () => {
+    const radeonProvider = makeProvider({
+      id: 'radeon-cloud',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://developer.amd.com.cn/radeon/api/v1' }
+      }
+    })
+    const otherProvider = makeProvider({
+      id: 'other-openai-compatible',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [] } })
+
+    await listModels(radeonProvider)
+    await listModels(otherProvider)
+
+    const radeonCall = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    const otherCall = aiSdkGetFromApiMock.mock.calls[1][0] as { url: string; headers: Record<string, string> }
+    expect(radeonCall.url).toBe('https://developer.amd.com.cn/radeon/api/v1/models')
+    expect(radeonCall.headers['X-Source']).toBe('cherry-studio')
+    expect(otherCall.headers).not.toHaveProperty('X-Source')
   })
 })
 
@@ -590,6 +776,40 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     ])
   })
+
+  it('normalizes NewAPI embedding/video aliases and canonical media endpoints', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'embed-model', supported_endpoint_types: ['embeddings'] },
+          { id: 'video-model', supported_endpoint_types: ['openai-video'] },
+          { id: 'speech-model', supported_endpoint_types: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          apiModelId: 'embed-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          capabilities: [MODEL_CAPABILITY.EMBEDDING]
+        }),
+        expect.objectContaining({
+          apiModelId: 'video-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION],
+          capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
+        }),
+        expect.objectContaining({
+          apiModelId: 'speech-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+          capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
+        })
+      ])
+    )
+  })
 })
 
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {
@@ -646,6 +866,53 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models[0].ownedBy).toBe('google')
   })
 
+  it('bakes the publisher prefix into MaaS (non-google) model ids so the OpenAI-compatible endpoint gets the right model', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas', displayName: 'Llama 4 Scout' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    // Same MaaS model deduped across the per-publisher fan-out → a single entry.
+    expect(models).toHaveLength(1)
+    // Publisher-prefixed id (survives the bare-name support filter) is what the request sends.
+    expect(models[0].apiModelId).toBe('meta/llama-4-scout-17b-16e-instruct-maas')
+    expect(models[0].ownedBy).toBe('meta')
+  })
+
+  it('preserves the publisher prefix for MaaS models published by Google', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [{ name: 'publishers/google/models/gemma-4-26b-a4b-it-maas', displayName: 'Gemma 4 26B' }]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe('google/gemma-4-26b-a4b-it-maas')
+    expect(models[0].ownedBy).toBe('google')
+  })
+
+  it('filters non-google publisher models that do not use the MaaS id format', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas' },
+          { name: 'publishers/meta/models/llama-3.1-8b-instruct' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['meta/llama-4-scout-17b-16e-instruct-maas'])
+  })
+
   it('paginates a publisher via nextPageToken', async () => {
     // First call returns a page token; every subsequent call returns a final page.
     aiSdkGetFromApiMock
@@ -674,5 +941,110 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
 
     expect(models).toEqual([])
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
+  function makeJinaProvider() {
+    return makeProvider({
+      id: 'jina',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.jina.ai' }
+      }
+    })
+  }
+
+  // Jina's /v1/models returns `jina-ai/`-prefixed ids, but its inference endpoints and the registry
+  // catalog both key on the bare id. Capabilities/metadata come from the registry at enrich time.
+  it('strips the `jina-ai/` prefix so apiModelId matches the bare id (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'jina-ai/jina-embeddings-v2-base-zh', name: 'Jina AI: Embeddings v2 Base ZH' },
+          { id: 'jina-ai/jina-reranker-m0' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeJinaProvider())
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.jina.ai/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
+    // Forward the upstream display name; fall back to the bare id when absent.
+    expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
+  })
+})
+
+describe('listModels — ovmsFetcher config endpoint', () => {
+  function makeOvmsProvider(baseUrl: string) {
+    return makeProvider({
+      id: 'ovms',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+      }
+    })
+  }
+
+  // OVMS serves its servable-status document at /v1/config only — the /v3 namespace is the
+  // OpenAI-compatible surface and has no GET /config, so asking there 404s and every
+  // downloaded model silently disappears from the list.
+  it.each([
+    ['http://localhost:8000/v3/', 'the shipped default base URL'],
+    ['http://localhost:8000/v3', 'a base URL without the trailing slash'],
+    ['http://localhost:8000/v1', 'a base URL already pinned to v1'],
+    ['http://localhost:8000', 'a bare host']
+  ])('asks %s for the status document at /v1/config (%s) (REGRESSION)', async (baseUrl) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { 'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] } }
+    })
+
+    const models = await listModels(makeOvmsProvider(baseUrl))
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('http://localhost:8000/v1/config')
+    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+  })
+
+  // A servable that is registered in config.json but failed to load must not be offered
+  // as a usable model.
+  it('lists only servables reporting an AVAILABLE version', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
+        'FLUX.1-schnell-int4-ov': {
+          model_version_status: [{ state: 'LOADING', status: { error_code: 'UNKNOWN' } }]
+        },
+        'bge-base-en-v1.5-fp16-ov': { model_version_status: [] }
+      }
+    })
+
+    const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+  })
+})
+
+describe('listModels — openAICompatibleFetcher display names', () => {
+  it('forwards the upstream name and falls back to the model id when absent', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'named-model', name: 'Named Model' }, { id: 'unnamed-model' }]
+      }
+    })
+
+    const models = await listModels(
+      makeProvider({
+        id: 'custom-openai-compatible',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+
+    expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
   })
 })

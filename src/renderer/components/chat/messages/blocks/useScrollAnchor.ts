@@ -1,6 +1,15 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
-import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipContext'
+import {
+  findScrollParent,
+  useIsScrollRuntimeManaged,
+  useRequestScrollReadingControl
+} from '../list/ScrollOwnershipContext'
+
+interface ScrollAnchorOptions {
+  enterReadingMode?: boolean
+  settleAfterMs?: number
+}
 
 /**
  * Preserves the user's visual scroll position when an element's height changes
@@ -22,10 +31,26 @@ import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipCo
  */
 export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
   const anchorRef = useRef<T>(null)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMountedRef = useRef(true)
   const isRuntimeManaged = useIsScrollRuntimeManaged()
+  const requestReadingControl = useRequestScrollReadingControl(anchorRef)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (settleTimerRef.current !== null) clearTimeout(settleTimerRef.current)
+    }
+  }, [])
 
   const withScrollAnchor = useCallback(
-    (update: () => void) => {
+    (update: () => void, options?: ScrollAnchorOptions) => {
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
+      }
+
       const anchor = anchorRef.current
       if (!anchor) {
         update()
@@ -34,6 +59,11 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
 
       const scrollContainer = findScrollParent(anchor)
       if (!scrollContainer) {
+        // Nothing scrollable yet — this update may create the first overflow
+        // (short conversation, disclosure expand). Reading ownership must not
+        // depend on pre-existing overflow, so still hand the anchor to the
+        // runtime before bottom-follow can push the new overflow past it.
+        if (options?.enterReadingMode) requestReadingControl()
         update()
         return
       }
@@ -42,6 +72,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       // change. Yield only for that exact scroller; context may cross a portal
       // or include an independently scrollable descendant.
       if (isRuntimeManaged(scrollContainer)) {
+        if (options?.enterReadingMode) requestReadingControl()
         update()
         return
       }
@@ -56,12 +87,24 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       // After React commits the state change, restore scroll position
       // Use requestAnimationFrame to run after the paint
       requestAnimationFrame(() => {
+        if (!isMountedRef.current) return
+
         const rectAfter = anchor.getBoundingClientRect()
         const drift = rectAfter.top - rectBefore.top
-        scrollContainer.scrollTop = scrollBefore + drift
+        const restoredScrollTop = scrollBefore + drift
+        scrollContainer.scrollTop = restoredScrollTop
+
+        if (!options?.settleAfterMs) return
+        settleTimerRef.current = setTimeout(() => {
+          settleTimerRef.current = null
+          if (!isMountedRef.current || scrollContainer.scrollTop !== restoredScrollTop) return
+
+          const finalDrift = anchor.getBoundingClientRect().top - rectBefore.top
+          if (finalDrift !== 0) scrollContainer.scrollTop += finalDrift
+        }, options.settleAfterMs)
       })
     },
-    [isRuntimeManaged]
+    [isRuntimeManaged, requestReadingControl]
   )
 
   return { anchorRef, withScrollAnchor }

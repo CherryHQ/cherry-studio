@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
-const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, executionIds: [] }))
+const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -41,6 +41,7 @@ vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
   }))
 }))
 
+const { TerminalPersistenceError } = await import('../../../ai/streamManager/listeners/PersistenceListener')
 const { translateService } = await import('../translateService')
 
 const TARGET: TranslateLanguage = {
@@ -60,7 +61,7 @@ beforeEach(() => {
   messageGetByIdMock.mockReset()
   messageUpdateMock.mockReset()
   streamPromptMock.mockReset()
-  streamPromptMock.mockReturnValue({ mode: 'started' as const, executionIds: [] })
+  streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
 })
 
 describe('translateService.resolveTranslatePayload', () => {
@@ -139,12 +140,22 @@ describe('translateService.open', () => {
     expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const arg = (
       streamPromptMock.mock.calls as unknown as Array<
-        [{ streamId: string; uniqueModelId: string; prompt: string; listener: { id: string } | Array<{ id: string }> }]
+        [
+          {
+            streamId: string
+            uniqueModelId: string
+            prompt: string
+            reasoningEffort?: string
+            listener: { id: string } | Array<{ id: string }>
+          }
+        ]
       >
     )[0][0]
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
+    // Translation always requests thinking off; unsupported models degrade to omit downstream.
+    expect(arg.reasoningEffort).toBe('none')
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
@@ -188,10 +199,12 @@ describe('translateService.open', () => {
     const persistence = listeners.find((l: { id: string }) => l.id.includes('persistence'))
     const wc = listeners.find((l: { id: string }) => l.id.startsWith('wc:'))
 
-    await persistence.onDone({
-      finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
-      status: 'success'
-    })
+    await expect(
+      persistence.onDone({
+        finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
+        status: 'success'
+      })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
 
     expect(wc.onError).toHaveBeenCalledTimes(1)
     expect(wc.onError).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', isTopicDone: true }))

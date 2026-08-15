@@ -20,3 +20,42 @@ export function formatGatewayModelId(providerId: string, apiModelId: string): st
   }
   return `${providerId}:${apiModelId}`
 }
+
+/**
+ * Sentinel suffix on the gateway model id handed to gemini-cli (`--model` and
+ * `settings.model.name`). gemini-cli normalizes model names it thinks are its own:
+ * its `resolveModel` rewrites anything satisfying `endsWith("flash")` (or equal to
+ * aliases like `flash`/`auto`) to a default Gemini model, which corrupts any
+ * `providerId:apiModelId` address whose model happens to end in "flash" (e.g.
+ * `agent/deepseek-v4-flash` → sent as `gemini-3.5-flash`). The suffix makes the
+ * string unrecognizable to those checks and rides along verbatim in the request
+ * URL; the gateway's Gemini route (and the CLI-config connection readback) strip
+ * exactly one trailing sentinel via {@link stripGeminiGatewayModelSuffix}.
+ *
+ * The suffix is RESERVED: a real gateway model id may not end with it (see
+ * {@link isReservedGeminiGatewayModelId}). The gemini `/v1beta/models` list omits
+ * such ids and the route rejects them, so a listed model always round-trips to the
+ * same address once the suffix is stripped.
+ */
+export const GEMINI_GATEWAY_MODEL_SUFFIX = '@cherry'
+
+/** {@link formatGatewayModelId} plus the gemini-cli sentinel suffix (see above). */
+export function formatGeminiGatewayModelId(providerId: string, apiModelId: string): string {
+  return `${formatGatewayModelId(providerId, apiModelId)}${GEMINI_GATEWAY_MODEL_SUFFIX}`
+}
+
+/** Undo {@link formatGeminiGatewayModelId}: strip one trailing sentinel, if present. */
+export function stripGeminiGatewayModelSuffix(model: string): string {
+  return model.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX) ? model.slice(0, -GEMINI_GATEWAY_MODEL_SUFFIX.length) : model
+}
+
+/**
+ * A gateway model id is RESERVED — not routable through the Gemini `/v1beta` dialect —
+ * when it ends with {@link GEMINI_GATEWAY_MODEL_SUFFIX}: the route strips exactly one
+ * such suffix, so it cannot tell Cherry's sentinel apart from a real id that happens to
+ * end in `@cherry`. The models list omits these and the route rejects them, keeping
+ * list→request round-trips unambiguous. No real provider model ends in this marker.
+ */
+export function isReservedGeminiGatewayModelId(id: string): boolean {
+  return id.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
+}

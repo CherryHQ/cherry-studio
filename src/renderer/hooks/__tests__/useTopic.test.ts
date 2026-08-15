@@ -1,11 +1,26 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseDataChange,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseQuery,
+  mockUseWriteCache
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+import {
+  getTopicMessages,
+  useActiveTopic,
+  useLatestTopic,
+  useTopicById,
+  useTopicMutations,
+  useTopics
+} from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -17,6 +32,297 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
 }))
+
+const apiMessage = (id: string, isContextBoundary = false) => ({
+  id,
+  topicId: 'topic-a',
+  parentId: 'root',
+  role: 'user' as const,
+  data: {
+    parts: isContextBoundary ? [{ type: 'data-clear' as const, data: {} }] : [{ type: 'text' as const, text: id }]
+  },
+  searchableText: '',
+  status: 'success' as const,
+  siblingsGroupId: 0,
+  modelId: null,
+  messageSnapshot: null,
+  stats: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+const createApiTopic = (overrides: Partial<ApiTopic> = {}): ApiTopic => ({
+  id: 'topic-1',
+  name: 'Topic',
+  isNameManuallyEdited: false,
+  orderKey: 'a0',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  ...overrides
+})
+
+describe('getTopicMessages', () => {
+  beforeEach(() => {
+    MockDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('filters clear markers and does not count them toward maxMessages', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('clear-1', true) }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+
+  it('filters awaiting-input messages and does not count them toward maxMessages', async () => {
+    const awaitingInput = {
+      ...apiMessage('awaiting-input'),
+      data: { parts: [] }
+    }
+
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: awaitingInput }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+
+  it('filters awaiting-input messages from sibling groups', async () => {
+    const awaitingInputSibling = {
+      ...apiMessage('awaiting-input-sibling'),
+      data: { parts: [] }
+    }
+    const assistantSibling = {
+      ...apiMessage('assistant-sibling'),
+      role: 'assistant' as const
+    }
+
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({
+      items: [
+        {
+          message: apiMessage('user'),
+          siblingsGroup: [awaitingInputSibling, assistantSibling]
+        }
+      ],
+      nextCursor: undefined,
+      activeNodeId: 'assistant-sibling',
+      assistantId: 'assistant-1',
+      rootId: 'root'
+    } as never)
+
+    const messages = await getTopicMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['user', 'assistant-sibling'])
+  })
+})
+
+describe('useTopics', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('disables loaded-page revalidation while a load-all topic chain is still growing', () => {
+    renderHook(() => useTopics({ loadAll: true }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
+    })
+  })
+
+  it('flips revalidateAll on once a load-all topic chain is fully loaded', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [{ id: 'topic-a' }] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    } as never)
+
+    renderHook(() => useTopics({ loadAll: true }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/topics', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
+    })
+  })
+
+  it('keeps progressive topic sources on first-page revalidation', () => {
+    renderHook(() => useTopics())
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
+      query: undefined,
+      limit: 50,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
+    })
+  })
+
+  it('converges the topic list for every notification regardless of entity hints', () => {
+    renderHook(() => useTopics())
+    const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
+
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it('does not revalidate previously loaded pages while the load-all chain grows', () => {
+    // Simulate a multi-page loadAll: each render grows `pages` by one and
+    // keeps `hasNext` true until the final page. The auto-paginate effect
+    // drives `loadNext`; we assert that across every growth render the
+    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
+    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
+    // prevents one redundant page-0 request per `loadNext`.
+    const loadNext = vi.fn()
+    let pages: Array<{ items: Array<{ id: string }>; nextCursor?: string }> = [
+      { items: [{ id: 't1' }], nextCursor: 'c1' }
+    ]
+    let hasNext = true
+
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext,
+          loadNext,
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }) as never
+    )
+
+    const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
+
+    // Page 1 → 2
+    pages = [...pages, { items: [{ id: 't2' }], nextCursor: 'c2' }]
+    act(() => rerender())
+    // Page 2 → 3 (final)
+    pages = [...pages, { items: [{ id: 't3' }] }]
+    hasNext = false
+    act(() => rerender())
+
+    // The auto-paginate effect drives loadNext; the key regression check is
+    // that neither previous pages nor page 0 are revalidated during growth.
+    expect(loadNext).toHaveBeenCalled()
+
+    // All calls during growth (every call except the final post-fully-loaded
+    // re-render where the effect flips revalidateAll on) must keep both
+    // growth-time revalidation modes off.
+    const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
+    expect(growthCalls.length).toBeGreaterThan(0)
+    for (const call of growthCalls) {
+      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
+    }
+    // The final call — after the chain is fully loaded — flips revalidateAll on.
+    const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
+    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
+  })
+
+  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
+    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
+    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
+    let pages = [{ items: [topicA, topicB] }]
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }) as never
+    )
+
+    const { result, rerender } = renderHook(() => useTopics())
+    const firstTopics = result.current.topics
+
+    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics).not.toBe(firstTopics)
+    expect(result.current.topics[0]).toBe(firstTopics[1])
+    expect(result.current.topics[1]).toBe(firstTopics[0])
+
+    const reorderedTopics = result.current.topics
+    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
+    expect(result.current.topics[1]).toBe(reorderedTopics[1])
+  })
+})
+
+describe('useTopicById', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('scopes concrete topic notifications by route and filters their entity id', () => {
+    renderHook(() => useTopicById('topic-a'))
+    const mutate = mockUseQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:id', expect.any(Function), {
+      routeParams: { id: 'topic-a' }
+    })
+
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-b'] }])
+    expect(mutate).not.toHaveBeenCalled()
+
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    expect(mutate).toHaveBeenCalledOnce()
+  })
+})
 
 describe('useTopicMutations', () => {
   beforeEach(() => {
@@ -92,6 +398,67 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
+  })
+
+  it('moves a topic across assistants with one atomic write, then revalidates once', async () => {
+    const movedTopic = createApiTopic({ id: 'topic-a', assistantId: 'assistant-2', orderKey: 'a2' })
+    const moveTrigger = vi.fn().mockResolvedValue(movedTopic)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/move', moveTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () =>
+      result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+    )
+
+    expect(moveTrigger).toHaveBeenCalledExactlyOnceWith({
+      params: { id: 'topic-a' },
+      body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
+    })
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(moveTrigger.mock.invocationCallOrder[0])
+    expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(writeCacheSpy.mock.invocationCallOrder[0])
+  })
+
+  it('reorders without an assistant change using only the order write and a list refresh', async () => {
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () => result.current.moveTopic('topic-a', { anchor: { before: 'topic-b' } }))
+
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
+    expect(writeCacheSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+  })
+
+  it('reconciles caches and rethrows when an atomic topic move fails', async () => {
+    const moveError = new Error('move failed')
+    const moveTrigger = vi.fn().mockRejectedValue(moveError)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/move', moveTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+      } catch (err) {
+        caught = err
+      }
+    })
+
+    expect(caught).toBe(moveError)
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
   })
 })
 

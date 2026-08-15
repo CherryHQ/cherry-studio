@@ -99,7 +99,7 @@ describe('codeCliHandlers', () => {
 
   describe('code_cli.get_available_terminals', () => {
     it('projects to { id, name }, keeping the internal bundleId off the wire', async () => {
-      // The service's TerminalConfig carries a macOS bundleId for internal mdfind resolution; the
+      // The service's TerminalConfig carries a macOS bundleId for internal LaunchServices resolution; the
       // renderer never consumes it, so the handler must strip it (the router does not re-parse output).
       codeCliService.getAvailableTerminalsForPlatform.mockResolvedValue([
         { id: 'terminal', name: 'Terminal', bundleId: 'com.apple.Terminal' }

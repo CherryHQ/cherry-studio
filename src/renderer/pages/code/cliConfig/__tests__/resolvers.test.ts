@@ -1,7 +1,8 @@
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl } from '../resolvers'
+import { resolveGeminiBaseUrl, resolvePiProviderInfo } from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -76,5 +77,59 @@ describe('resolveGeminiBaseUrl', () => {
 
   it('returns empty for a provider with no resolvable endpoint', () => {
     expect(resolveGeminiBaseUrl(provider({ id: 'noendpoint' }))).toBe('')
+  })
+
+  // The synthetic gateway provider declares no google endpoint (adding one would flip
+  // OpenCode+gateway to the google dialect), so gemini reads its shared bare host —
+  // @google/genai appends /v1beta itself.
+  it('returns the bare gateway host for the synthetic API-gateway provider', () => {
+    expect(
+      resolveGeminiBaseUrl(
+        provider({
+          id: CLI_API_GATEWAY_PROVIDER_ID,
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'http://127.0.0.1:23333' },
+            'openai-chat-completions': { baseUrl: 'http://127.0.0.1:23333' },
+            'openai-responses': { baseUrl: 'http://127.0.0.1:23333' }
+          }
+        })
+      )
+    ).toBe('http://127.0.0.1:23333')
+  })
+})
+
+describe('resolvePiProviderInfo', () => {
+  it('prefers a model-supported endpoint and maps it to Pi API names', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('normalizes the Google endpoint to the v1beta API required by Pi', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'google-generate-content',
+          endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+        })
+      )
+    ).toEqual({
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      endpointType: 'google-generate-content'
+    })
   })
 })

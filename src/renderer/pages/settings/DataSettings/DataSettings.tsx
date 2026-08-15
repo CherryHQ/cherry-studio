@@ -13,7 +13,7 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,7 +47,7 @@ const DataSettings: FC = () => {
     {
       key: 'import_settings',
       title: t('settings.data.import_settings.title'),
-      icon: <FolderOpen size={16} />
+      icon: <Import size={16} />
     },
     { key: 'divider_3', isDivider: true, text: t('settings.data.divider.export_settings') },
     {

@@ -1,3 +1,4 @@
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManager } from '../../AiStreamManager'
@@ -13,7 +14,12 @@ const mocks = vi.hoisted(() => ({
   agentCanHandle: vi.fn<(topicId: string) => boolean>(),
   agentPrepare: vi.fn(),
   persistentPrepare: vi.fn(),
-  isWorkspaceErr: vi.fn<(error: unknown) => boolean>()
+  isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
+  setActiveNode: vi.fn()
+}))
+
+vi.mock('@main/data/services/TopicService', () => ({
+  topicService: { setActiveNode: mocks.setActiveNode }
 }))
 
 vi.mock('../AgentChatContextProvider', () => ({
@@ -33,7 +39,7 @@ vi.mock('../PersistentChatContextProvider', () => ({
     prepareDispatch: mocks.persistentPrepare
   }
 }))
-vi.mock('../../../runtime/claudeCode/settingsBuilder', () => ({
+vi.mock('../../../runtime/agentSessionWorkspace', () => ({
   isAgentSessionWorkspaceError: mocks.isWorkspaceErr
 }))
 
@@ -46,16 +52,21 @@ function makeSubscriber(): StreamListener {
 function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
+    inspect: vi.fn(() => undefined),
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
-      return { mode: live ? ('injected' as const) : ('started' as const), executionIds: [] }
+      return { mode: live ? ('injected' as const) : ('started' as const), activeExecutions: [] }
     })
   } as unknown as AiStreamManager
 }
 
 /** `inject: true` mirrors PersistentChatContextProvider's `hasLiveStream` branch — no models + a user row. */
-function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { inject: boolean; steer?: boolean }) {
+function wirePrepare(
+  spy: typeof mocks.agentPrepare,
+  topicId: string,
+  opts: { inject: boolean; steer?: boolean; reasoningEffort?: ReasoningEffortOption; fastMode?: boolean }
+) {
   spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
     order.push('prepareDispatch')
     preparedWithCtx = ctx
@@ -63,11 +74,11 @@ function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { in
       topicId,
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
-      isMultiModel: false,
-      userMessageId: 'u1',
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
-      pendingSteerUserMessageId: opts.steer ? 'u1' : undefined
+      pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
+      pendingSteerReasoningEffort: opts.reasoningEffort,
+      pendingSteerFastMode: opts.fastMode
     })
   })
 }
@@ -85,7 +96,7 @@ beforeEach(() => {
 
 describe('dispatchStreamRequest — steer', () => {
   it('persists a live chat submit as a steer and enqueues it (no abort, stream stays live)', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true })
+    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true, reasoningEffort: 'high' })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
@@ -94,7 +105,21 @@ describe('dispatchStreamRequest — steer', () => {
     // and the persisted user row is enqueued as a pending steer before send (which just attaches).
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1')
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', false)
+  })
+
+  it('carries Fast into a queued steer continuation', async () => {
+    wirePrepare(mocks.persistentPrepare, 'topic-fast', {
+      inject: true,
+      steer: true,
+      reasoningEffort: 'high',
+      fastMode: true
+    })
+    const manager = makeManager(true)
+
+    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-fast'))
+
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', true)
   })
 
   it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {
@@ -158,13 +183,44 @@ describe('dispatchStreamRequest — steer', () => {
         { modelId: 'p::m2', request: {} }
       ],
       listeners: [] as StreamListener[],
-      isMultiModel: true
+      reservedMessages: [{ id: 'assistant-1', role: 'assistant', parts: [] }]
     })
     const manager = makeManager(false)
 
     await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-3'))).rejects.toThrow(
-      'Multi-model dispatch produced 1 placeholderIds for 2 models'
+      'Multi-model dispatch produced 1 assistant reservations for 2 models'
     )
     expect(manager.send).not.toHaveBeenCalled()
+  })
+
+  it('activates the reserved assistant when a live-group append settles during preparation', async () => {
+    mocks.persistentPrepare.mockResolvedValue({
+      topicId: 'topic-append',
+      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
+      listeners: [] as StreamListener[],
+      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'assistant-1',
+        parentAnchorId: 'user-1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
+      preserveActiveNode: true
+    })
+    const manager = makeManager(true)
+    vi.mocked(manager.hasLiveStream).mockReturnValueOnce(true).mockReturnValueOnce(false)
+
+    const result = await dispatchStreamRequest(manager, makeSubscriber(), {
+      topicId: 'topic-append',
+      trigger: 'regenerate-message',
+      parentAnchorId: 'user-1',
+      appendToLiveGroupMessageId: 'assistant-1',
+      mentionedModelIds: ['p::m2']
+    })
+
+    expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
+    expect(result).toMatchObject({ preserveActiveNode: false })
   })
 })

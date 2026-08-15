@@ -132,4 +132,22 @@ describe('useProviderModelSync', () => {
       }
     ])
   })
+
+  it('uses an endpoint provider override when settings changed before the hook rerenders', async () => {
+    const currentProvider = { id: 'new-api', defaultChatEndpoint: 'openai-chat-completions' }
+    const updatedProvider = { id: 'new-api', defaultChatEndpoint: 'anthropic-messages' }
+    const model = { id: 'new-api:model-alpha', providerId: 'new-api', name: 'Alpha' }
+    useProviderMock.mockReturnValue({ provider: currentProvider })
+    fetchResolvedProviderModelsMock.mockResolvedValue([model])
+    resolveCreateModelEndpointTypesMock.mockReturnValue(['anthropic-messages'])
+    createModelsMock.mockResolvedValue([{ id: 'new-api:model-alpha' }])
+
+    const { result } = renderHook(() => useProviderModelSync('new-api', { existingModels: [] }))
+
+    await act(async () => {
+      await result.current.syncProviderModels(updatedProvider as any)
+    })
+
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith(updatedProvider, model)
+  })
 })

@@ -1,4 +1,5 @@
-import { CodeCli } from '@shared/types/codeCli'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
 import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../applyContext'
@@ -32,6 +33,20 @@ describe('resolveCliConfigApplyContext', () => {
     })
   })
 
+  it('keeps the primary model when a Subagent override is configured', () => {
+    expect(
+      resolveCliConfigApplyContext(CodeCli.CLAUDE_CODE, 'anthropic', {
+        modelId: 'anthropic::claude-fable-5',
+        config: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-5' } }
+      })
+    ).toEqual({
+      modelId: 'anthropic::claude-fable-5',
+      providerId: 'anthropic',
+      rawModelId: 'claude-fable-5',
+      writePrimaryModel: true
+    })
+  })
+
   it('prefers the detailed Claude env model over the stored modelId and skips the primary write', () => {
     expect(
       resolveCliConfigApplyContext(CodeCli.CLAUDE_CODE, 'anthropic', {
@@ -42,6 +57,32 @@ describe('resolveCliConfigApplyContext', () => {
       modelId: 'anthropic::claude-detailed',
       providerId: 'anthropic',
       rawModelId: 'claude-detailed',
+      writePrimaryModel: false
+    })
+  })
+
+  it('resolves a detailed gateway address to its real model', () => {
+    const model = {
+      id: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-chat'
+    } as unknown as Model
+    const gatewayModels = new Map<UniqueModelId, Model>([[model.id, model]])
+
+    expect(
+      resolveCliConfigApplyContext(
+        CodeCli.CLAUDE_CODE,
+        CLI_API_GATEWAY_PROVIDER_ID,
+        {
+          modelId: null,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek:deepseek-chat' } }
+        },
+        gatewayModels
+      )
+    ).toEqual({
+      modelId: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      rawModelId: 'deepseek-chat',
       writePrimaryModel: false
     })
   })

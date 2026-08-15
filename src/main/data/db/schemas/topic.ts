@@ -2,13 +2,11 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { assistantTable } from './assistant'
-import { groupTable } from './group'
 
 /**
  * Topic table - stores conversation topics/threads
  *
  * Topics are containers for messages and reference assistants via FK.
- * They can be organized into groups.
  */
 export const topicTable = sqliteTable(
   'topic',
@@ -23,19 +21,19 @@ export const topicTable = sqliteTable(
     // Active node ID in the message tree
     activeNodeId: text(),
 
-    // FK to group table for organization
-    // SET NULL: preserve topic when group is deleted
-    groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-
     traceId: text(),
 
-    // Fractional-indexing order key, partitioned by groupId.
+    // Global fractional-indexing order key.
     ...orderKeyColumns,
+
+    // User-visible conversation activity. Metadata writes still advance
+    // updatedAt, but only activity-bearing message phases update this column.
+    lastActivityAt: integer().notNull().$defaultFn(Date.now),
 
     ...createUpdateDeleteTimestamps
   },
   (t) => [
-    index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
+    index('topic_last_activity_at_idx').on(t.lastActivityAt),
     index('topic_updated_at_idx').on(t.updatedAt),
     orderKeyIndex('topic')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
