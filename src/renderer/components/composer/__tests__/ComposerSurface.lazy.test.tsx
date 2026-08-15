@@ -13,12 +13,25 @@ import type { ComposerDraftToken } from '../tokens'
 const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
   runtimeLoads: 0,
-  runtimeIntent: undefined as ComposerDeferredIntent | undefined
+  runtimeIntent: undefined as ComposerDeferredIntent | undefined,
+  toastError: vi.fn()
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: ({ sendMessage }: { sendMessage: () => void }) => (
-    <button type="button" onClick={sendMessage}>
+  default: ({
+    disabled,
+    onDisabledClick,
+    sendMessage
+  }: {
+    disabled?: boolean
+    onDisabledClick?: () => void
+    sendMessage: () => void
+  }) => (
+    <button type="button" onClick={disabled ? onDisabledClick : sendMessage}>
       Send
     </button>
   )
@@ -95,6 +108,7 @@ describe('deferred ComposerSurface', () => {
     vi.stubGlobal('DataTransfer', FakeDataTransfer)
     mocks.runtimeIntent = undefined
     mocks.onSendDraft.mockClear()
+    mocks.toastError.mockClear()
     MockUsePreferenceUtils.resetMocks()
   })
 
@@ -300,5 +314,19 @@ describe('deferred ComposerSurface', () => {
     const { container } = render(<Harness isLoading sendDisabled />)
     const pause = container.querySelector('[data-ui="chat.composer.action.pause"]')
     expect(pause?.getAttribute('aria-label')).toBeTruthy()
+  })
+
+  it('shows blocked-send feedback when the disabled send button is clicked before the runtime loads', () => {
+    render(<Harness sendDisabled sendBlockedReason="test.send_blocked" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
+  })
+
+  it('shows blocked-send feedback when the send shortcut is pressed while disabled', () => {
+    render(<Harness sendDisabled sendBlockedReason="test.send_blocked" />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter' })
+    expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
   })
 })
