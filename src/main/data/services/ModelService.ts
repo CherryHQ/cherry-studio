@@ -356,6 +356,22 @@ function presetDeltaToNewUserModel(
   }
 }
 
+/**
+ * A registry `endpointTypes` override lists the endpoints a provider-model can actually be served on,
+ * so a stored row selects WITHIN it instead of past it. That is what heals a row synced before the
+ * override existed: model-list sync writes the provider's advertised list into the same delta layer a
+ * user edit uses, and it only ever adds or removes rows, so a stale delta would otherwise shadow the
+ * correction forever. An empty intersection falls back to the baseline, never to an unreachable model.
+ */
+function selectStoredEndpointTypes(
+  baseline: EndpointType[] | undefined,
+  stored: EndpointType[] | null
+): EndpointType[] | null {
+  if (!stored?.length || !baseline?.length) return stored
+  const servable = stored.filter((endpointType) => baseline.includes(endpointType))
+  return servable.length > 0 ? servable : null
+}
+
 function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
   return applyUserOverlay(baseline, {
     name: row.name,
@@ -364,7 +380,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     capabilities: row.capabilities,
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
-    endpointTypes: row.endpointTypes,
+    endpointTypes: selectStoredEndpointTypes(baseline.endpointTypes, row.endpointTypes),
     contextWindow: row.contextWindow,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,

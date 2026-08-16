@@ -18,7 +18,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1033,6 +1033,93 @@ describe('ModelService.list — registry enrichment', () => {
       contextWindow: 128_000,
       supportsStreaming: true
     })
+  })
+
+  // Model-list sync writes the provider's advertised endpoints into the same delta layer a user edit
+  // uses, and it only adds/removes rows — so a row synced while CherryIN advertised `openai-response`
+  // for Grok 4.1 Fast would keep routing to the endpoint its relay answers with a 400 (#18696).
+  it('drops a stored endpoint the registry override says the provider cannot serve', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIN'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'x-ai/grok-4-1-fast-reasoning', {
+        presetModelId: 'grok-4-1-fast',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast Reasoning' },
+      registryOverride: {
+        providerId: 'cherryin',
+        modelId: 'grok-4-1-fast',
+        apiModelId: 'x-ai/grok-4-1-fast-reasoning',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'cherryin' })
+
+    expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('keeps a stored endpoint choice the registry override still serves', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('deepseek', 'DeepSeek'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('deepseek', 'deepseek-v4-flash', {
+        presetModelId: 'deepseek-v4-flash',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+      registryOverride: {
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash',
+        endpointTypes: [
+          ENDPOINT_TYPE.OPENAI_RESPONSES,
+          ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        ]
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'deepseek' })
+
+    expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('falls back to the registry list when no stored endpoint survives', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIN'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'x-ai/grok-4-1-fast-non-reasoning', {
+        presetModelId: 'grok-4-1-fast-non-reasoning',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'grok-4-1-fast-non-reasoning', name: 'Grok 4.1 Fast Non-Reasoning' },
+      registryOverride: {
+        providerId: 'cherryin',
+        modelId: 'grok-4-1-fast-non-reasoning',
+        apiModelId: 'x-ai/grok-4-1-fast-non-reasoning',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'cherryin' })
+
+    expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 
   it('hydrates same-canonical variants through their exact API model ID', async () => {
