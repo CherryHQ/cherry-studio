@@ -7,6 +7,7 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -66,10 +67,9 @@ const EMPTY_MCP_TOOLS: McpTool[] = []
 interface McpSettingsContentProps {
   server: McpServer
   updateMcpServer: ReturnType<typeof useMcpServer>['updateMcpServer']
-  deleteMcpServer: ReturnType<typeof useMcpServer>['deleteMcpServer']
 }
 
-const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
+const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer }) => {
   const { t } = useTranslation()
   const search = useSearch({ strict: false }) as McpSettingsSearch
   const serverId = server.id
@@ -228,6 +228,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
+  const invalidateCache = useInvalidateCache()
   const onDeleteMcpServer = useCallback(
     async (serverToDelete: McpServer) => {
       try {
@@ -240,7 +241,11 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         if (!confirmed) return
 
         await ipcApi.request('mcp.server.remove', { serverId: serverToDelete.id })
-        await deleteMcpServer({})
+        // The delete is committed once the IPC call returns — a failed cache
+        // refresh must not surface as a delete failure.
+        await invalidateCache('/mcp-servers').catch((error) =>
+          logger.warn('Failed to refresh MCP server cache after delete', error as Error)
+        )
         toast.success(t('settings.mcp.deleteSuccess'))
         void navigate({ to: '/settings/mcp' })
       } catch (error: any) {
@@ -248,7 +253,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       }
     },
 
-    [deleteMcpServer, t, navigate]
+    [invalidateCache, t, navigate]
   )
 
   const onToggleActive = async (active: boolean) => {
@@ -588,20 +593,13 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 const McpSettings: React.FC = () => {
   const params = useParams({ strict: false })
   const serverId = params.serverId
-  const { server, isLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+  const { server, isLoading, updateMcpServer } = useMcpServer(serverId ?? '')
 
   if (!server || isLoading) {
     return null
   }
 
-  return (
-    <McpSettingsContent
-      key={server.id}
-      server={server}
-      updateMcpServer={updateMcpServer}
-      deleteMcpServer={deleteMcpServer}
-    />
-  )
+  return <McpSettingsContent key={server.id} server={server} updateMcpServer={updateMcpServer} />
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

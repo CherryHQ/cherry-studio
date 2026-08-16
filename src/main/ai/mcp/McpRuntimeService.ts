@@ -342,6 +342,10 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // Ids removed this run (ids are never reused). Guards the delete-vs-reconnect race:
+  // a late connect must self-close instead of re-caching a client nothing would ever close.
+  private removedServerIds = new Set<string>()
+  private pendingRemovals = new Map<string, Promise<void>>()
   // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
   // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
   // are namespaced, and every concurrent call registers its own controller under its key
@@ -469,6 +473,10 @@ export class McpRuntimeService extends BaseService {
       throw new Error('MCP runtime is stopping')
     }
 
+    if (this.removedServerIds.has(server.id)) {
+      throw new Error(`MCP server ${server.name} has been removed`)
+    }
+
     if (!server.isActive) {
       this.setServerStatus(server.id, 'disabled')
       throw new Error(`MCP server ${server.name} is disabled`)
@@ -487,6 +495,7 @@ export class McpRuntimeService extends BaseService {
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
+      let alive = false
       try {
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping({
@@ -494,17 +503,23 @@ export class McpRuntimeService extends BaseService {
           timeout: PING_TIMEOUT_MS
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, close the client and create a new one
-        if (!pingResult) {
-          await this.discardStaleClient(serverKey)
-        } else {
-          this.setServerStatus(server.id, 'connected')
-          return existingClient
-        }
+        alive = !!pingResult
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        await this.discardStaleClient(serverKey)
       }
+      // If the ping fails, close the client and create a new one
+      if (!alive) {
+        await this.discardStaleClient(serverKey)
+      } else if (!this.removedServerIds.has(server.id)) {
+        this.setServerStatus(server.id, 'connected')
+        return existingClient
+      }
+    }
+
+    // Re-check after the ping/cleanup awaits above: removeServer may have completed
+    // meanwhile — do not hand back or start a connection for a removed server.
+    if (this.removedServerIds.has(server.id)) {
+      throw new Error(`MCP server ${server.name} has been removed`)
     }
 
     this.setServerStatus(server.id, 'connecting')
@@ -923,6 +938,11 @@ export class McpRuntimeService extends BaseService {
             throw new Error('MCP runtime is stopping')
           }
 
+          if (this.removedServerIds.has(server.id)) {
+            await client.close()
+            throw new Error(`MCP server ${server.name} was removed during connect`)
+          }
+
           // Store the new client in the cache
           this.clients.set(serverKey, client)
           this.setServerStatus(server.id, 'connected')
@@ -1139,13 +1159,54 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  async removeServer(serverId: string) {
+  async removeServer(serverId: string): Promise<void> {
+    // Concurrent removals of one server (e.g. two windows) must share one flow: the
+    // loser's row delete would fail NOT_FOUND and wrongly revoke the winner's tombstone.
+    const inFlight = this.pendingRemovals.get(serverId)
+    if (inFlight) return inFlight
+    const removal = this.doRemoveServer(serverId).finally(() => {
+      this.pendingRemovals.delete(serverId)
+    })
+    this.pendingRemovals.set(serverId, removal)
+    return removal
+  }
+
+  // Fail open: only a confirmed missing row counts as deleted. On a transient DB
+  // failure the row may still exist, and keeping the tombstone would dead-lock it.
+  private serverRowMayExist(serverId: string): boolean {
+    try {
+      return mcpServerService.list({ id: serverId }).items.length > 0
+    } catch {
+      return true
+    }
+  }
+
+  private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
+    this.removedServerIds.add(serverId)
     try {
       await this.closeClientsForServer(server.id)
+      mcpServerService.delete(serverId)
+    } catch (error) {
+      // Roll back unless the row is confirmed gone; once it is gone the tombstone
+      // must survive, else the server would dead-lock until app restart.
+      if (this.serverRowMayExist(serverId)) {
+        this.removedServerIds.delete(serverId)
+      }
+      throw error
     } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'disabled')
+      // Best-effort, isolated per step: after the row delete committed neither hiccup
+      // may fail the removal, and a cache failure must not skip the status reset.
+      try {
+        application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      } catch (error) {
+        getServerLogger(server).error(`Post-removal tools cache cleanup failed`, error as Error)
+      }
+      try {
+        this.setServerStatus(server.id, 'disabled')
+      } catch (error) {
+        getServerLogger(server).error(`Post-removal status reset failed`, error as Error)
+      }
     }
 
     // Cleanup OAuth token file for this server, but only if no other server

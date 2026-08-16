@@ -15,9 +15,13 @@ vi.mock('@application', async () => {
 })
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
+const deleteServerMock = vi.fn<(id: string) => void>()
+const listServersMock = vi.fn<(query: { id?: string }) => { items: McpServer[]; total: number; page: number }>()
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
-    getById: (id: string) => getByIdMock(id)
+    getById: (id: string) => getByIdMock(id),
+    delete: (id: string) => deleteServerMock(id),
+    list: (query: { id?: string }) => listServersMock(query)
   }
 }))
 
@@ -853,5 +857,158 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+  })
+})
+
+// Delete-vs-reconnect race: removeServer (close + row delete) scans pendingClients/clients
+// once, so a late or in-flight connect would re-cache a ghost stdio client unless tombstoned.
+describe('McpRuntimeService.removeServer vs concurrent connect', () => {
+  const server = {
+    id: 'server-1',
+    name: 'race-server',
+    command: 'python',
+    args: ['server.py'],
+    isActive: true
+  } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+    deleteServerMock.mockReset()
+    listServersMock.mockReset()
+    listServersMock.mockReturnValue({ items: [server], total: 1, page: 1 })
+    mcpCatalogMock.clearSharedToolsCache.mockReset()
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  it('rejects a connect attempt made after removeServer instead of resurrecting the server', async () => {
+    const service = new McpRuntimeService()
+    await service.removeServer('server-1')
+    expect(deleteServerMock).toHaveBeenCalledWith('server-1')
+
+    const clientCountBefore = mcpSdkMock.clients.length
+    await expect(service.withClient('server-1', async () => 'used')).rejects.toThrow(/removed/)
+    expect(mcpSdkMock.clients.length).toBe(clientCountBefore)
+  })
+
+  it('self-closes a connect that is in flight when removeServer runs and rejects its caller', async () => {
+    const service = new McpRuntimeService()
+    const gate = createDeferred<void>()
+    const connectSpy = vi.spyOn(mcpSdkMock.Client.prototype, 'connect').mockImplementation(() => gate.promise)
+    try {
+      const racer = service.withClient('server-1', async () => 'used')
+      racer.catch(() => undefined)
+      await vi.waitFor(() => expect(connectSpy).toHaveBeenCalledTimes(1))
+
+      const removal = service.removeServer('server-1')
+      gate.resolve()
+      await removal
+
+      await expect(racer).rejects.toThrow(/removed/)
+      expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalled()
+    } finally {
+      connectSpy.mockRestore()
+    }
+  })
+
+  it('does not start a fresh connection when removeServer completes during a liveness ping', async () => {
+    const service = new McpRuntimeService()
+    const pingGate = createDeferred<boolean>()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(service.getServerKey(server), { close, ping: vi.fn(() => pingGate.promise) })
+
+    const racer = (service as any).getOrCreateClient(server) as Promise<unknown>
+    racer.catch(() => undefined)
+
+    await service.removeServer('server-1')
+
+    const clientCountBefore = mcpSdkMock.clients.length
+    pingGate.resolve(false)
+
+    await expect(racer).rejects.toThrow(/removed/)
+    expect(mcpSdkMock.clients.length).toBe(clientCountBefore)
+  })
+
+  it('revokes the tombstone when removal fails so the server stays connectable', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).clients.set(service.getServerKey(server), {
+      close: vi.fn().mockRejectedValue(new Error('close failed')),
+      ping: vi.fn().mockResolvedValue(true)
+    })
+
+    await expect(service.removeServer('server-1')).rejects.toThrow('close failed')
+    expect(deleteServerMock).not.toHaveBeenCalled()
+
+    await expect(service.withClient('server-1', async () => 'ok')).resolves.toBe('ok')
+  })
+
+  it('collapses concurrent removals of the same server into one flow', async () => {
+    const service = new McpRuntimeService()
+    const closeGate = createDeferred<void>()
+    ;(service as any).clients.set(service.getServerKey(server), {
+      close: vi.fn(() => closeGate.promise),
+      ping: vi.fn().mockResolvedValue(true)
+    })
+    // Without single-flight the loser's row delete throws NOT_FOUND and its
+    // rollback would wrongly revoke the winner's tombstone.
+    deleteServerMock
+      .mockImplementationOnce(() => undefined)
+      .mockImplementation(() => {
+        throw new Error('MCP server not found')
+      })
+
+    const first = service.removeServer('server-1')
+    const second = service.removeServer('server-1')
+    closeGate.resolve()
+    await expect(first).resolves.toBeUndefined()
+    await expect(second).resolves.toBeUndefined()
+
+    expect(deleteServerMock).toHaveBeenCalledTimes(1)
+    const racer = (service as any).getOrCreateClient(server) as Promise<unknown>
+    await expect(racer).rejects.toThrow(/removed/)
+  })
+
+  it('keeps the tombstone when removal fails but the row is confirmed gone', async () => {
+    const service = new McpRuntimeService()
+    deleteServerMock.mockImplementation(() => {
+      throw new Error('MCP server not found')
+    })
+    listServersMock.mockReturnValue({ items: [], total: 0, page: 1 })
+
+    await expect(service.removeServer('server-1')).rejects.toThrow('not found')
+
+    const racer = (service as any).getOrCreateClient(server) as Promise<unknown>
+    await expect(racer).rejects.toThrow(/removed/)
+  })
+
+  it('revokes the tombstone when the row-existence check itself fails', async () => {
+    const service = new McpRuntimeService()
+    getByIdMock.mockReturnValueOnce(server).mockImplementation(() => {
+      throw new Error('db locked')
+    })
+    deleteServerMock.mockImplementation(() => {
+      throw new Error('db locked')
+    })
+    listServersMock.mockImplementation(() => {
+      throw new Error('db locked')
+    })
+
+    await expect(service.removeServer('server-1')).rejects.toThrow('db locked')
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+  })
+
+  it('resolves the removal and still resets status when post-delete cache cleanup fails', async () => {
+    const service = new McpRuntimeService()
+    const statusSpy = vi.spyOn(service, 'setServerStatus')
+    mcpCatalogMock.clearSharedToolsCache.mockImplementation(() => {
+      throw new Error('cache backend down')
+    })
+
+    await expect(service.removeServer('server-1')).resolves.toBeUndefined()
+    expect(deleteServerMock).toHaveBeenCalledWith('server-1')
+    expect(statusSpy).toHaveBeenCalledWith('server-1', 'disabled')
   })
 })

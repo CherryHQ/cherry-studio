@@ -45,10 +45,11 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
 }
 
 /**
- * Single MCP server hook — read + update + delete.
- * Fetches via the list endpoint with an id filter (separate SWR cache entry
- * from the unfiltered list). Mutations use refresh: ['/mcp-servers'] to
- * auto-invalidate all /mcp-servers caches (list, filtered, and detail).
+ * Single MCP server hook — read + update. Deletion goes through the
+ * `mcp.server.remove` IPC channel (main orchestrates runtime cleanup + row
+ * deletion), not DataApi. Fetches via the list endpoint with an id filter
+ * (separate SWR cache entry from the unfiltered list). Mutations use
+ * refresh: ['/mcp-servers'] to auto-invalidate all /mcp-servers caches.
  */
 export const useMcpServer = (id: string) => {
   const { data, isLoading } = useQuery('/mcp-servers', {
@@ -56,11 +57,11 @@ export const useMcpServer = (id: string) => {
     enabled: !!id
   })
 
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(id)
+  const { updateMcpServer } = useMcpServerMutations(id)
 
   const server = useMemo(() => data?.items?.[0], [data])
 
-  return { server, isLoading, updateMcpServer, deleteMcpServer }
+  return { server, isLoading, updateMcpServer }
 }
 
 /**
@@ -87,9 +88,5 @@ export const useMcpServerMutations = (id: string) => {
     refresh: ['/mcp-servers']
   })
 
-  const { trigger: deleteMcpServer } = useMutation('DELETE', path, {
-    refresh: ['/mcp-servers']
-  })
-
-  return { updateMcpServer, deleteMcpServer }
+  return { updateMcpServer }
 }
