@@ -35,7 +35,7 @@ export const AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY = (sessionId: string) =>
  */
 export type AgentSessionTaskEvents = Record<string, AgentTaskEventPartData>
 
-const TERMINAL_TASK_STATUSES = new Set<AgentTaskEventPartData['status']>(['completed', 'stopped', 'error'])
+export const TERMINAL_TASK_STATUSES = new Set<AgentTaskEventPartData['status']>(['completed', 'stopped', 'error'])
 const LATE_NONTERMINAL_ENRICHMENT_FIELDS = [
   'createdAt',
   'toolUseId',

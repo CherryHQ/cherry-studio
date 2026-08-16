@@ -86,7 +86,7 @@ vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
 }))
 
-const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
+const { AgentSessionRuntimeService, WORKFLOW_CHECKPOINT_THROTTLE_MS } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
@@ -2578,7 +2578,7 @@ describe('AgentSessionRuntimeService', () => {
           expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 10 }) })
         )
 
-        vi.advanceTimersByTime(1_000)
+        vi.advanceTimersByTime(WORKFLOW_CHECKPOINT_THROTTLE_MS)
         expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
         expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
           'session-1',
@@ -2728,7 +2728,7 @@ describe('AgentSessionRuntimeService', () => {
 
         ;(service as any).pruneSettledBackgroundFlowState(entry)
         expect(vi.getTimerCount()).toBe(0)
-        vi.advanceTimersByTime(1_000)
+        vi.advanceTimersByTime(WORKFLOW_CHECKPOINT_THROTTLE_MS)
 
         expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
         expect(entry.workflowCheckpoints?.has('workflow-pruned-checkpoint')).toBe(false)

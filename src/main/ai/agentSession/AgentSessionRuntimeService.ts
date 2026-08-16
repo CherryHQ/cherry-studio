@@ -25,7 +25,8 @@ import {
   AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
   type AgentSessionBackgroundTasks,
   type AgentSessionTaskEvents,
-  mergeAgentSessionTaskEvent
+  mergeAgentSessionTaskEvent,
+  TERMINAL_TASK_STATUSES
 } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
@@ -114,9 +115,8 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
-const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
+export const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
 const MAX_PENDING_TASK_EVENT_HANDOFFS = 256
-const TERMINAL_TASK_STATUSES = new Set<AgentTaskEventPartData['status']>(['completed', 'stopped', 'error'])
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false

@@ -1253,9 +1253,7 @@ describe('AgentRightPane', () => {
 
     const preview = screen.getByTestId('status-shortcut-preview')
     const contextUsage = within(preview).getByTestId('context-usage')
-    const taskButton = within(preview).getByRole('button', {
-      name: 'Inspect task state · agent.right_pane.status.view_details'
-    })
+    const taskButton = within(preview).getByTitle('agent.right_pane.status.view_details')
     expect(contextUsage.compareDocumentPosition(taskButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
@@ -1295,9 +1293,7 @@ describe('AgentRightPane', () => {
       }
     ])
 
-    const taskButton = screen.getByRole('button', {
-      name: 'Inspect asynchronously · agent.right_pane.status.view_details'
-    })
+    const taskButton = screen.getByTitle('agent.right_pane.status.view_details')
     const asyncLabel = within(taskButton).getByText('agent.right_pane.status.execution_async')
     const duration = within(taskButton).getByText('5s')
     expect(asyncLabel.compareDocumentPosition(duration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -1315,9 +1311,7 @@ describe('AgentRightPane', () => {
       }
     ])
 
-    const taskButton = screen.getByRole('button', {
-      name: 'Inspect without statistics · agent.right_pane.status.view_details'
-    })
+    const taskButton = screen.getByTitle('agent.right_pane.status.view_details')
     expect(within(taskButton).getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
     expect(within(taskButton).getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
     expect(within(taskButton).getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
