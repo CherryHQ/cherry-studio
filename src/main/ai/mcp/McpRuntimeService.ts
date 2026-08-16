@@ -10,6 +10,7 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
+import { SENSITIVE_ENV_KEYS } from '@main/utils/envRedaction'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -226,7 +227,6 @@ function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
   const MAX_STRING = 300
 
   // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
@@ -245,7 +245,7 @@ export function redactSensitive(input: any): any {
     if (typeof val === 'object') {
       const out: Record<string, any> = {}
       for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
+        if (SENSITIVE_ENV_KEYS.some((sk) => k.toUpperCase().includes(sk))) {
           out[k] = '<redacted>'
         } else {
           out[k] = redact(v, seen)
@@ -257,6 +257,34 @@ export function redactSensitive(input: any): any {
   }
 
   return redact(input, new WeakSet())
+}
+
+// Strip secrets from a serialized serverKey (see getServerKey) before logging; a serverKey
+// that fails to parse yields a placeholder rather than the raw string.
+// env/headers fail CLOSED: every value is redacted — secrecy cannot be inferred from key
+// names (e.g. DATABASE_URL carries credentials in the value, matching no sensitive name).
+export function redactServerKey(serverKey: string): string {
+  const redactAllValues = (value: unknown): unknown =>
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.keys(value).map((key) => [key, '<redacted>']))
+      : value
+  try {
+    const parsed = JSON.parse(serverKey) as Record<string, unknown>
+    parsed.env = redactAllValues(parsed.env)
+    parsed.headers = redactAllValues(parsed.headers)
+    return JSON.stringify(parsed)
+  } catch {
+    return '<unparseable-serverKey>'
+  }
+}
+
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
 
 // Create a context-aware logger for a server
@@ -289,7 +317,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -299,7 +327,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -970,13 +1002,14 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+        logger.debug(`Operation cancelled for server: ${server.name}`, redactSensitive(notification.params))
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactSensitive(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -984,7 +1017,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
@@ -1012,7 +1045,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -1067,13 +1100,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 
