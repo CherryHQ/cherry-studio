@@ -1694,6 +1694,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next'))
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(EVENT_NAMES.FOCUS_CHAT_COMPOSER, expect.anything())
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalledWith(false)
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
