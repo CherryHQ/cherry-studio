@@ -50,6 +50,11 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode).toBe('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('acceptEdits')
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.knowledgeBases).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.mcp).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].backgroundTaskFlows).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.backgroundTaskFlows).toBe(false)
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.backgroundTaskFlows).toBe(false)
   })
 
   describe('isModelCompatible — managed CherryAI default model', () => {

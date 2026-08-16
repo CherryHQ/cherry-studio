@@ -1,4 +1,4 @@
-import { closeSync, fstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, fstatSync, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import type {
@@ -40,8 +40,8 @@ import type {
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { t } from '@main/i18n'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -102,10 +102,12 @@ const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
 const MAX_WORKFLOW_SNAPSHOT_BYTES = 1_048_576
-const MAX_WORKFLOW_TRANSCRIPT_READ_BYTES = 256 * 1024
+const MAX_AGENT_TRANSCRIPT_READ_BYTES = 256 * 1024
+const TERMINAL_TASK_RECONCILE_DELAY_MS = 1000
 const BACKGROUND_BASH_HEAD_BYTES = 32 * 1024
 const BACKGROUND_BASH_TAIL_BYTES = 32 * 1024
 const BACKGROUND_BASH_POLL_INTERVAL_MS = 1000
+const SAFE_TRANSCRIPT_ID = /^[A-Za-z0-9_-]{1,128}$/
 
 // ── Internal types ──────────────────────────────────────────────────
 
@@ -213,12 +215,7 @@ type WorkflowSnapshotCacheEntry = {
   workflow?: AgentTaskEventPartData['workflow']
 }
 
-type WorkflowTranscriptStatsCacheEntry = {
-  transcriptPath: string
-  sizeBytes: number
-  mtimeMs: number
-  readOffset: number
-  pendingLine: Buffer
+type AgentUsageStats = {
   cumulativeTokens: number
   latestTokens: number
   latestMessageId?: string
@@ -227,10 +224,28 @@ type WorkflowTranscriptStatsCacheEntry = {
   toolCallIds: Set<string>
 }
 
+type AgentTranscriptStatsCacheEntry = AgentUsageStats & {
+  transcriptPath: string
+  sizeBytes: number
+  mtimeMs: number
+  readOffset: number
+  pendingLine: Buffer
+}
+
+type PendingTerminalWorkflowState = {
+  eventData: AgentTaskEventPartData
+  timer: NodeJS.Timeout
+}
+
+type PendingTerminalAgentState = PendingTerminalWorkflowState & {
+  sdkSessionId: string
+}
+
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
   /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
   sessionId: string
+  claudeConfigDir?: string
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
   statusSink: StatusSink
@@ -292,6 +307,40 @@ function getBackgroundBashTaskId(result: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+type CompletedAgentOutputStats = {
+  agentId: string
+  contextTokens?: number
+  toolUses?: number
+  durationMs?: number
+}
+
+function getCompletedAgentOutputStats(value: unknown): CompletedAgentOutputStats | undefined {
+  if (!isRecord(value) || value.status !== 'completed' || typeof value.agentId !== 'string' || !value.agentId) {
+    return undefined
+  }
+
+  const contextTokens =
+    typeof value.totalTokens === 'number' && Number.isFinite(value.totalTokens) && value.totalTokens > 0
+      ? value.totalTokens
+      : undefined
+  const toolUses =
+    typeof value.totalToolUseCount === 'number' &&
+    Number.isFinite(value.totalToolUseCount) &&
+    value.totalToolUseCount >= 0
+      ? value.totalToolUseCount
+      : undefined
+  const durationMs =
+    typeof value.totalDurationMs === 'number' && Number.isFinite(value.totalDurationMs) && value.totalDurationMs >= 0
+      ? value.totalDurationMs
+      : undefined
+  return {
+    agentId: value.agentId,
+    ...(contextTokens !== undefined ? { contextTokens } : {}),
+    ...(toolUses !== undefined ? { toolUses } : {}),
+    ...(durationMs !== undefined ? { durationMs } : {})
+  }
 }
 
 function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
@@ -358,7 +407,6 @@ function summarizeSdkMessage(message: SDKMessage): Record<string, unknown> {
       }
     })
   }
-
   return summary
 }
 
@@ -550,6 +598,37 @@ function isTerminalTaskStatus(status: AgentTaskEventPartData['status']): boolean
   return status === 'completed' || status === 'stopped' || status === 'error'
 }
 
+function hasWorkflowStatsChanged(
+  previous: AgentTaskEventPartData['workflow'] | undefined,
+  next: NonNullable<AgentTaskEventPartData['workflow']>
+): boolean {
+  if (!previous) return true
+  const signature = (workflow: NonNullable<AgentTaskEventPartData['workflow']>) =>
+    JSON.stringify([
+      workflow.totalTokens ?? null,
+      workflow.totalCumulativeTokens ?? null,
+      workflow.totalToolCalls ?? null,
+      workflow.workflowProgress.flatMap((item) =>
+        item.type === 'workflow_agent'
+          ? [[item.index, item.tokens ?? null, item.cumulativeTokens ?? null, item.toolCalls ?? null]]
+          : []
+      )
+    ])
+  return signature(previous) !== signature(next)
+}
+
+function hasAgentUsageChanged(
+  previous: AgentTaskEventPartData['usage'] | undefined,
+  next: NonNullable<AgentTaskEventPartData['usage']>
+): boolean {
+  return (
+    previous?.totalTokens !== next.totalTokens ||
+    previous?.contextTokens !== next.contextTokens ||
+    previous?.toolUses !== next.toolUses ||
+    previous?.durationMs !== next.durationMs
+  )
+}
+
 function readBufferAt(fd: number, length: number, position: number): Buffer {
   const buffer = Buffer.allocUnsafe(length)
   let offset = 0
@@ -588,7 +667,79 @@ function readUtf8FileWithinLimit(
   }
 }
 
-function applyAssistantTranscriptStats(line: string, cache: WorkflowTranscriptStatsCacheEntry): void {
+function createAgentUsageStats(): AgentUsageStats {
+  return {
+    cumulativeTokens: 0,
+    latestTokens: 0,
+    messageTokens: new Map(),
+    totalToolCalls: 0,
+    toolCallIds: new Set()
+  }
+}
+
+function hasAgentUsageStats(stats: AgentUsageStats | undefined): stats is AgentUsageStats {
+  return Boolean(stats && (stats.messageTokens.size > 0 || stats.toolCallIds.size > 0))
+}
+
+function applyAssistantMessageStats(message: unknown, stats: AgentUsageStats): boolean {
+  if (!isRecord(message)) return false
+
+  let changed = false
+  const content = message.content
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (!isRecord(block) || typeof block.id !== 'string' || !block.id || stats.toolCallIds.has(block.id)) continue
+      switch (block.type) {
+        case 'tool_use':
+        case 'server_tool_use':
+        case 'mcp_tool_use':
+          stats.toolCallIds.add(block.id)
+          stats.totalToolCalls += 1
+          changed = true
+      }
+    }
+  }
+
+  const messageId = message.id
+  const usage = isRecord(message.usage) ? message.usage : undefined
+  if (typeof messageId !== 'string' || !messageId || !usage) return changed
+
+  const inputTokens = usage.input_tokens
+  const outputTokens = usage.output_tokens
+  if (
+    typeof inputTokens !== 'number' ||
+    !Number.isInteger(inputTokens) ||
+    inputTokens < 0 ||
+    typeof outputTokens !== 'number' ||
+    !Number.isInteger(outputTokens) ||
+    outputTokens < 0
+  ) {
+    return changed
+  }
+
+  let total = inputTokens + outputTokens
+  for (const key of ['cache_creation_input_tokens', 'cache_read_input_tokens'] as const) {
+    const tokens = usage[key]
+    if (tokens === undefined || tokens === null) continue
+    if (typeof tokens !== 'number' || !Number.isInteger(tokens) || tokens < 0) return changed
+    total += tokens
+  }
+  if (total <= 0) return changed
+
+  const previous = stats.messageTokens.get(messageId)
+  if (previous !== undefined && total <= previous) return changed
+  stats.messageTokens.set(messageId, total)
+  stats.cumulativeTokens += total - (previous ?? 0)
+  if (previous === undefined) {
+    stats.latestMessageId = messageId
+    stats.latestTokens = total
+  } else if (stats.latestMessageId === messageId) {
+    stats.latestTokens = total
+  }
+  return true
+}
+
+function applyAssistantTranscriptStats(line: string, cache: AgentTranscriptStatsCacheEntry): void {
   let value: unknown
   try {
     value = JSON.parse(line)
@@ -596,51 +747,13 @@ function applyAssistantTranscriptStats(line: string, cache: WorkflowTranscriptSt
     return
   }
   if (!isRecord(value) || value.type !== 'assistant' || value.isApiErrorMessage === true) return
-  const message = isRecord(value.message) ? value.message : undefined
-  const content = message?.content
-  if (Array.isArray(content)) {
-    for (const block of content) {
-      if (!isRecord(block) || typeof block.id !== 'string' || !block.id || cache.toolCallIds.has(block.id)) continue
-      switch (block.type) {
-        case 'tool_use':
-        case 'server_tool_use':
-        case 'mcp_tool_use':
-          cache.toolCallIds.add(block.id)
-          cache.totalToolCalls += 1
-      }
-    }
-  }
-
-  const messageId = message?.id
-  const usage = message && isRecord(message.usage) ? message.usage : undefined
-  if (typeof messageId !== 'string' || !messageId || !usage) return
-
-  let total = 0
-  for (const key of ['input_tokens', 'output_tokens'] as const) {
-    const tokens = usage[key]
-    if (typeof tokens !== 'number' || !Number.isInteger(tokens) || tokens < 0) return
-    total += tokens
-  }
-  for (const key of ['cache_creation_input_tokens', 'cache_read_input_tokens'] as const) {
-    const tokens = usage[key]
-    if (tokens === undefined) continue
-    if (typeof tokens !== 'number' || !Number.isInteger(tokens) || tokens < 0) return
-    total += tokens
-  }
-  if (total <= 0) return
-
-  const previous = cache.messageTokens.get(messageId)
-  if (previous !== undefined && total <= previous) return
-  cache.messageTokens.set(messageId, total)
-  cache.cumulativeTokens += total - (previous ?? 0)
-  if (previous === undefined) cache.latestMessageId = messageId
-  if (cache.latestMessageId === messageId) cache.latestTokens = total
+  applyAssistantMessageStats(value.message, cache)
 }
 
-function readWorkflowTranscriptStats(
+function readAgentTranscriptStats(
   transcriptPath: string,
-  cached?: WorkflowTranscriptStatsCacheEntry
-): WorkflowTranscriptStatsCacheEntry {
+  cached?: AgentTranscriptStatsCacheEntry
+): AgentTranscriptStatsCacheEntry {
   const fd = openSync(transcriptPath, 'r')
   try {
     const stat = fstatSync(fd)
@@ -653,11 +766,7 @@ function readWorkflowTranscriptStats(
         mtimeMs: stat.mtimeMs,
         readOffset: 0,
         pendingLine: Buffer.alloc(0),
-        cumulativeTokens: 0,
-        latestTokens: 0,
-        messageTokens: new Map(),
-        totalToolCalls: 0,
-        toolCallIds: new Set()
+        ...createAgentUsageStats()
       }
     } else if (
       stat.size < cache.readOffset ||
@@ -669,7 +778,7 @@ function readWorkflowTranscriptStats(
     if (cache.readOffset >= stat.size && cache.sizeBytes === stat.size && cache.mtimeMs === stat.mtimeMs) return cache
 
     while (cache.readOffset < stat.size) {
-      const length = Math.min(MAX_WORKFLOW_TRANSCRIPT_READ_BYTES, stat.size - cache.readOffset)
+      const length = Math.min(MAX_AGENT_TRANSCRIPT_READ_BYTES, stat.size - cache.readOffset)
       const chunk = readBufferAt(fd, length, cache.readOffset)
       if (chunk.length === 0) break
       cache.readOffset += chunk.length
@@ -758,6 +867,7 @@ export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
   private readonly modelId: string
   private readonly sessionId: string
+  private readonly claudeConfigDir?: string
   private readonly sink: StreamSink
   private readonly statusSink: StatusSink
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
@@ -782,7 +892,14 @@ export class ClaudeCodeStreamAdapter {
   private readonly persistedWorkflowSnapshotTaskIds = new Set<string>()
   private readonly persistedTerminalWorkflowSnapshotTaskIds = new Set<string>()
   private readonly workflowSnapshotCache = new Map<string, WorkflowSnapshotCacheEntry>()
-  private readonly workflowTranscriptStatsCaches = new Map<string, Map<string, WorkflowTranscriptStatsCacheEntry>>()
+  private readonly workflowTranscriptStatsCaches = new Map<string, Map<string, AgentTranscriptStatsCacheEntry>>()
+  private readonly pendingTerminalWorkflowEvents = new Map<string, PendingTerminalWorkflowState>()
+  private readonly pendingTerminalAgentEvents = new Map<string, PendingTerminalAgentState>()
+  private readonly claudeSessionProjectDirectories = new Map<string, string>()
+  private readonly agentTranscriptStatsCaches = new Map<string, AgentTranscriptStatsCacheEntry>()
+  private readonly agentTaskIdsByToolCallId = new Map<string, string>()
+  private readonly agentFlowStats = new Map<string, AgentUsageStats>()
+  private readonly asyncAgentTaskIds = new Set<string>()
   private readonly backgroundBashOutputs = new Map<string, BackgroundBashOutputState>()
   private disposed = false
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
@@ -795,6 +912,7 @@ export class ClaudeCodeStreamAdapter {
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
     this.sessionId = options.sessionId
+    this.claudeConfigDir = options.claudeConfigDir
     this.sink = options.sink
     this.statusSink = options.statusSink
     this.streamOptions = options.streamOptions
@@ -918,6 +1036,7 @@ export class ClaudeCodeStreamAdapter {
       (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user')
     ) {
       const flow = this.getOrCreateFlowContext(parentToolUseId)
+      if (message.type === 'assistant') this.updateAgentFlowStats(flow.rootToolCallId, message)
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
@@ -1519,10 +1638,15 @@ export class ClaudeCodeStreamAdapter {
     const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
     const isProviderBash = toolName === 'Bash' && state.toolType !== 'mcp'
+    const completedAgentOutput =
+      !isError && isSubagentToolName(toolName) && normalizedStructuredResult !== undefined
+        ? getCompletedAgentOutputStats(normalizedStructuredResult)
+        : undefined
     let backgroundTaskId: string | undefined
     if (!isError) {
       const launchResult =
-        (isProviderWorkflow || isProviderBash) && normalizedStructuredResult !== undefined
+        (isSubagentToolName(toolName) || isProviderWorkflow || isProviderBash) &&
+        normalizedStructuredResult !== undefined
           ? normalizedStructuredResult
           : normalizedResult
       backgroundTaskId = isProviderBash
@@ -1530,7 +1654,14 @@ export class ClaudeCodeStreamAdapter {
         : getLaunchedBackgroundTaskId(launchResult)
       if (backgroundTaskId && (isSubagentToolName(toolName) || isProviderWorkflow || isProviderBash)) {
         this.registerBackgroundTaskToolCallId(backgroundTaskId, result.tool_use_id)
+        if (isSubagentToolName(toolName)) {
+          this.asyncAgentTaskIds.add(backgroundTaskId)
+          this.registerAgentTaskToolCallId(backgroundTaskId, result.tool_use_id)
+        }
         if (isProviderBash) this.backgroundTaskTypes.set(backgroundTaskId, 'local_bash')
+      }
+      if (completedAgentOutput) {
+        this.registerAgentTaskToolCallId(completedAgentOutput.agentId, result.tool_use_id)
       }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
@@ -1559,6 +1690,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolResultsEmitted.add(result.tool_use_id)
     if (!isError && isProviderBash && backgroundTaskId && sdkSessionId) {
       this.registerBackgroundBashOutput(backgroundTaskId, result.tool_use_id, result.content, sdkSessionId)
+    }
+    if (completedAgentOutput) {
+      this.publishCompletedAgentOutput(result.tool_use_id, completedAgentOutput, resultTimestamp, sdkSessionId)
     }
   }
 
@@ -1649,6 +1783,9 @@ export class ClaudeCodeStreamAdapter {
         const nextTasks = new Map(
           message.tasks.map((task) => {
             this.backgroundTaskTypes.set(task.task_id, task.task_type)
+            if (task.task_type === 'local_agent' || task.task_type === 'subagent') {
+              this.asyncAgentTaskIds.add(task.task_id)
+            }
             return [
               task.task_id,
               {
@@ -1758,6 +1895,126 @@ export class ClaudeCodeStreamAdapter {
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
+  private registerAgentTaskToolCallId(taskId: string, toolCallId: string): void {
+    this.registerBackgroundTaskToolCallId(taskId, toolCallId)
+    this.agentTaskIdsByToolCallId.set(toolCallId, taskId)
+  }
+
+  private getAgentUsage(
+    stats: AgentUsageStats | undefined,
+    reported: AgentTaskEventPartData['usage'] | undefined,
+    terminal: boolean
+  ): AgentTaskEventPartData['usage'] | undefined {
+    const hasTokenStats = Boolean(stats && stats.messageTokens.size > 0)
+    const hasToolStats = Boolean(stats && (hasTokenStats || stats.toolCallIds.size > 0))
+    const manualToolUses = hasToolStats ? stats?.totalToolCalls : undefined
+    let toolUses = reported?.toolUses
+    if ((!terminal || toolUses === undefined) && manualToolUses !== undefined) {
+      toolUses = toolUses === undefined ? manualToolUses : Math.max(manualToolUses, toolUses)
+    }
+    const contextTokens =
+      terminal && reported?.contextTokens !== undefined
+        ? reported.contextTokens
+        : hasTokenStats && stats && stats.latestTokens > 0
+          ? stats.latestTokens
+          : reported?.contextTokens
+    const usage = {
+      ...(hasTokenStats && stats && stats.cumulativeTokens > 0 ? { totalTokens: stats.cumulativeTokens } : {}),
+      ...(contextTokens !== undefined ? { contextTokens } : {}),
+      ...(toolUses !== undefined ? { toolUses } : {}),
+      ...(reported?.durationMs !== undefined ? { durationMs: reported.durationMs } : {})
+    }
+    return Object.keys(usage).length > 0 ? usage : undefined
+  }
+
+  private updateAgentFlowStats(rootToolCallId: string, message: SDKAssistantMessage): void {
+    const taskId = this.agentTaskIdsByToolCallId.get(rootToolCallId)
+    const flowStats = this.agentFlowStats.get(rootToolCallId) ?? createAgentUsageStats()
+    if (!this.agentFlowStats.has(rootToolCallId)) this.agentFlowStats.set(rootToolCallId, flowStats)
+    const flowChanged = applyAssistantMessageStats(message.message, flowStats)
+    if (!taskId || this.terminalTaskIds.has(taskId)) return
+
+    const cachedTranscriptStats = this.agentTranscriptStatsCaches.get(taskId)
+    const previousTranscriptStats = cachedTranscriptStats
+      ? {
+          cumulativeTokens: cachedTranscriptStats.cumulativeTokens,
+          latestTokens: cachedTranscriptStats.latestTokens,
+          totalToolCalls: cachedTranscriptStats.totalToolCalls
+        }
+      : undefined
+    const transcriptStats = this.readAgentTaskTranscriptStats(taskId, message.session_id)
+    const transcriptChanged = Boolean(
+      transcriptStats &&
+        (transcriptStats.cumulativeTokens !== (previousTranscriptStats?.cumulativeTokens ?? 0) ||
+          transcriptStats.latestTokens !== (previousTranscriptStats?.latestTokens ?? 0) ||
+          transcriptStats.totalToolCalls !== (previousTranscriptStats?.totalToolCalls ?? 0))
+    )
+    if (!flowChanged && !transcriptChanged) return
+
+    const stats = hasAgentUsageStats(transcriptStats) ? transcriptStats : flowStats
+    const usage = this.getAgentUsage(stats, undefined, false)
+    if (!usage) return
+    const eventData: AgentTaskEventPartData = {
+      event: 'progress',
+      taskId,
+      toolUseId: rootToolCallId,
+      status: 'in_progress',
+      ...(this.asyncAgentTaskIds.has(taskId) ? { isBackgrounded: true } : {}),
+      ...this.getTaskTimeline(taskId, 'in_progress', getSdkMessageTimestamp(message)),
+      usage
+    }
+    this.statusSink.emit({ type: 'background-task-event', data: eventData })
+    if (this.turnActive && this.ctx.toolStates.has(rootToolCallId)) {
+      this.ctx.sink.enqueue({
+        type: 'data-agent-task-event',
+        id: `task-${taskId}-progress`,
+        data: eventData
+      })
+    }
+  }
+
+  private publishCompletedAgentOutput(
+    toolCallId: string,
+    completed: CompletedAgentOutputStats,
+    timestamp?: string,
+    sdkSessionId?: string
+  ): void {
+    const reportedUsage: NonNullable<AgentTaskEventPartData['usage']> = {
+      ...(completed.contextTokens !== undefined ? { contextTokens: completed.contextTokens } : {}),
+      ...(completed.toolUses !== undefined ? { toolUses: completed.toolUses } : {}),
+      ...(completed.durationMs !== undefined ? { durationMs: completed.durationMs } : {})
+    }
+    const transcriptStats = sdkSessionId
+      ? this.readAgentTaskTranscriptStats(completed.agentId, sdkSessionId)
+      : undefined
+    const usage = this.getAgentUsage(
+      hasAgentUsageStats(transcriptStats) ? transcriptStats : this.agentFlowStats.get(toolCallId),
+      reportedUsage,
+      true
+    )
+    const eventData: AgentTaskEventPartData = {
+      event: 'notification',
+      taskId: completed.agentId,
+      toolUseId: toolCallId,
+      status: 'completed',
+      ...(this.asyncAgentTaskIds.has(completed.agentId) ? { isBackgrounded: true } : {}),
+      ...this.getTaskTimeline(completed.agentId, 'completed', timestamp ?? new Date().toISOString()),
+      ...(usage ? { usage } : {})
+    }
+    this.statusSink.emit({ type: 'background-task-event', data: eventData })
+    this.terminalTaskIds.add(completed.agentId)
+    const taskIndex = this.backgroundTasks.findIndex((task) => task.id === completed.agentId)
+    if (taskIndex >= 0) {
+      this.backgroundTasks.splice(taskIndex, 1)
+      this.publishBackgroundTasks()
+    }
+    if (sdkSessionId) {
+      this.scheduleTerminalAgentReconciliation(eventData, sdkSessionId)
+    } else {
+      this.releaseTerminalTaskState(completed.agentId)
+    }
+  }
+
   private registerBackgroundBashOutput(
     taskId: string,
     toolCallId: string,
@@ -1767,9 +2024,7 @@ export class ClaudeCodeStreamAdapter {
     if (this.disposed) return
     const receipt = extractBackgroundBashReceipt(content)
     const outputFile =
-      receipt?.taskId === taskId
-        ? this.validateBackgroundBashOutputPath(receipt.outputFile, taskId, sdkSessionId)
-        : undefined
+      receipt?.taskId === taskId ? this.validateTaskOutputPath(receipt.outputFile, taskId, sdkSessionId) : undefined
     if (!outputFile) {
       logger.warn('Rejected background Bash output receipt', {
         sessionId: this.sessionId,
@@ -1790,11 +2045,7 @@ export class ClaudeCodeStreamAdapter {
     this.pollBackgroundBashOutput(taskId)
   }
 
-  private validateBackgroundBashOutputPath(
-    outputFile: string,
-    taskId: string,
-    sdkSessionId: string
-  ): string | undefined {
+  private validateTaskOutputPath(outputFile: string, taskId: string, sdkSessionId: string): string | undefined {
     if (!path.isAbsolute(outputFile)) return undefined
     try {
       const claudeRoot = realpathSync(path.join(application.getPath('sys.temp'), 'claude'))
@@ -1896,6 +2147,8 @@ export class ClaudeCodeStreamAdapter {
 
   private clearBackgroundTaskState(): void {
     for (const taskId of this.backgroundBashOutputs.keys()) this.stopBackgroundBashPolling(taskId, false)
+    for (const pending of this.pendingTerminalWorkflowEvents.values()) clearTimeout(pending.timer)
+    for (const pending of this.pendingTerminalAgentEvents.values()) clearTimeout(pending.timer)
     this.backgroundBashOutputs.clear()
     this.backgroundTaskToolCallIds.clear()
     this.backgroundTaskTypes.clear()
@@ -1909,6 +2162,13 @@ export class ClaudeCodeStreamAdapter {
     this.persistedTerminalWorkflowSnapshotTaskIds.clear()
     this.workflowSnapshotCache.clear()
     this.workflowTranscriptStatsCaches.clear()
+    this.pendingTerminalWorkflowEvents.clear()
+    this.pendingTerminalAgentEvents.clear()
+    this.claudeSessionProjectDirectories.clear()
+    this.agentTranscriptStatsCaches.clear()
+    this.agentTaskIdsByToolCallId.clear()
+    this.agentFlowStats.clear()
+    this.asyncAgentTaskIds.clear()
   }
 
   private registerLocalWorkflowLaunch(toolCallId: string, value: unknown, createdAt: string): void {
@@ -1993,7 +2253,7 @@ export class ClaudeCodeStreamAdapter {
     agentId: unknown
   ): { cumulativeTokens: number; latestTokens: number; totalToolCalls: number } | undefined {
     const launch = this.localWorkflowLaunches.get(taskId)
-    if (!launch?.transcriptDir || typeof agentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId)) {
+    if (!launch?.transcriptDir || typeof agentId !== 'string' || !SAFE_TRANSCRIPT_ID.test(agentId)) {
       return undefined
     }
 
@@ -2006,8 +2266,8 @@ export class ClaudeCodeStreamAdapter {
         transcriptPath = realpathSync(path.join(transcriptDir, `agent-${agentId}.jsonl`))
         if (path.dirname(transcriptPath) !== transcriptDir) return undefined
       }
-      const next = readWorkflowTranscriptStats(transcriptPath, cached)
-      const nextTaskCache = taskCache ?? new Map<string, WorkflowTranscriptStatsCacheEntry>()
+      const next = readAgentTranscriptStats(transcriptPath, cached)
+      const nextTaskCache = taskCache ?? new Map<string, AgentTranscriptStatsCacheEntry>()
       nextTaskCache.set(agentId, next)
       if (!taskCache) this.workflowTranscriptStatsCaches.set(taskId, nextTaskCache)
       return {
@@ -2023,6 +2283,57 @@ export class ClaudeCodeStreamAdapter {
             totalToolCalls: cached.totalToolCalls
           }
         : undefined
+    }
+  }
+
+  private resolveClaudeSessionProjectDirectory(sdkSessionId: string): string | undefined {
+    const cached = this.claudeSessionProjectDirectories.get(sdkSessionId)
+    if (cached) return cached
+    if (!this.claudeConfigDir || !SAFE_TRANSCRIPT_ID.test(sdkSessionId)) return undefined
+
+    try {
+      const projectsDir = realpathSync(path.join(this.claudeConfigDir, 'projects'))
+      for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        try {
+          const projectDir = realpathSync(path.join(projectsDir, entry.name))
+          if (path.dirname(projectDir) !== projectsDir) continue
+          const sessionTranscriptPath = realpathSync(path.join(projectDir, `${sdkSessionId}.jsonl`))
+          if (path.dirname(sessionTranscriptPath) !== projectDir || !statSync(sessionTranscriptPath).isFile()) continue
+          this.claudeSessionProjectDirectories.set(sdkSessionId, projectDir)
+          return projectDir
+        } catch {
+          continue
+        }
+      }
+    } catch {
+      return undefined
+    }
+    return undefined
+  }
+
+  private readAgentTaskTranscriptStats(taskId: string, sdkSessionId: string): AgentUsageStats | undefined {
+    if (!SAFE_TRANSCRIPT_ID.test(taskId)) return undefined
+
+    const cached = this.agentTranscriptStatsCaches.get(taskId)
+    try {
+      let transcriptPath = cached?.transcriptPath
+      if (!transcriptPath) {
+        const projectDir = this.resolveClaudeSessionProjectDirectory(sdkSessionId)
+        if (!projectDir) return undefined
+        const sessionDir = realpathSync(path.join(projectDir, sdkSessionId))
+        if (path.dirname(sessionDir) !== projectDir) return undefined
+        const transcriptDir = realpathSync(path.join(sessionDir, 'subagents'))
+        if (path.dirname(transcriptDir) !== sessionDir) return undefined
+        transcriptPath = realpathSync(path.join(transcriptDir, `agent-${taskId}.jsonl`))
+        if (path.dirname(transcriptPath) !== transcriptDir) return undefined
+      }
+
+      const next = readAgentTranscriptStats(transcriptPath, cached)
+      this.agentTranscriptStatsCaches.set(taskId, next)
+      return next
+    } catch {
+      return cached
     }
   }
 
@@ -2134,6 +2445,69 @@ export class ClaudeCodeStreamAdapter {
     return workflow
   }
 
+  private scheduleTerminalWorkflowReconciliation(eventData: AgentTaskEventPartData): void {
+    const existing = this.pendingTerminalWorkflowEvents.get(eventData.taskId)
+    if (existing) clearTimeout(existing.timer)
+    const timer = setTimeout(
+      () => this.reconcileTerminalWorkflowStats(eventData.taskId),
+      TERMINAL_TASK_RECONCILE_DELAY_MS
+    )
+    timer.unref?.()
+    this.pendingTerminalWorkflowEvents.set(eventData.taskId, { eventData, timer })
+  }
+
+  private reconcileTerminalWorkflowStats(taskId: string): void {
+    const pending = this.pendingTerminalWorkflowEvents.get(taskId)
+    if (!pending) return
+    const workflow = this.readLocalWorkflowSnapshot(taskId, true)
+    if (workflow && hasWorkflowStatsChanged(pending.eventData.workflow, workflow)) {
+      this.statusSink.emit({
+        type: 'background-task-event',
+        data: { ...pending.eventData, workflow }
+      })
+    }
+    this.finishTerminalTaskReconciliation(taskId)
+  }
+
+  private scheduleTerminalAgentReconciliation(eventData: AgentTaskEventPartData, sdkSessionId: string): void {
+    const existing = this.pendingTerminalAgentEvents.get(eventData.taskId)
+    if (existing) clearTimeout(existing.timer)
+    const timer = setTimeout(() => this.reconcileTerminalAgentStats(eventData.taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
+    timer.unref?.()
+    this.pendingTerminalAgentEvents.set(eventData.taskId, { eventData, sdkSessionId, timer })
+  }
+
+  private reconcileTerminalAgentStats(taskId: string): void {
+    const pending = this.pendingTerminalAgentEvents.get(taskId)
+    if (!pending) return
+    const transcriptStats = this.readAgentTaskTranscriptStats(taskId, pending.sdkSessionId)
+    const usage = this.getAgentUsage(transcriptStats, pending.eventData.usage, true)
+    if (usage && hasAgentUsageChanged(pending.eventData.usage, usage)) {
+      this.statusSink.emit({
+        type: 'background-task-event',
+        data: { ...pending.eventData, usage }
+      })
+    }
+    this.finishTerminalTaskReconciliation(taskId)
+  }
+
+  private finishTerminalTaskReconciliation(taskId: string): void {
+    this.releaseTerminalTaskState(taskId)
+    if (
+      !this.turnActive &&
+      this.backgroundTasks.length === 0 &&
+      !this.backgroundWorkReleasePending &&
+      !this.hasPendingTerminalReconciliation()
+    ) {
+      this.flowContexts.length = 0
+      this.clearBackgroundTaskState()
+    }
+  }
+
+  private hasPendingTerminalReconciliation(): boolean {
+    return this.pendingTerminalWorkflowEvents.size > 0 || this.pendingTerminalAgentEvents.size > 0
+  }
+
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
     this.setSessionId(message.session_id)
     // A primed connection initializes before any turn opens. The resume token above is session state
@@ -2164,6 +2538,17 @@ export class ClaudeCodeStreamAdapter {
       }
     }
     if (baseEventData.taskType) this.backgroundTaskTypes.set(baseEventData.taskId, baseEventData.taskType)
+    const toolUseId = baseEventData.toolUseId ?? this.backgroundTaskToolCallIds.get(baseEventData.taskId)
+    const isAgentTask =
+      baseEventData.taskType === 'local_agent' ||
+      baseEventData.taskType === 'subagent' ||
+      Boolean(baseEventData.subagentType) ||
+      Boolean(toolUseId && this.agentTaskIdsByToolCallId.get(toolUseId) === baseEventData.taskId)
+    if (isAgentTask) {
+      if (baseEventData.isBackgrounded === true) this.asyncAgentTaskIds.add(baseEventData.taskId)
+      if (baseEventData.isBackgrounded === false) this.asyncAgentTaskIds.delete(baseEventData.taskId)
+      if (toolUseId) this.registerAgentTaskToolCallId(baseEventData.taskId, toolUseId)
+    }
     const timeline = this.getTaskTimeline(baseEventData.taskId, baseEventData.status, getSdkMessageTimestamp(message))
     const reportedWorkflowProgress =
       message.subtype === 'task_progress' ? (message as SdkTaskProgressRuntimeMessage).workflow_progress : undefined
@@ -2172,6 +2557,14 @@ export class ClaudeCodeStreamAdapter {
     }
     const runtimeWorkflowProgress = this.localWorkflowRuntimeProgresses.get(baseEventData.taskId)
     const isTerminal = isTerminalTaskStatus(baseEventData.status)
+    const shouldReconcileTerminalWorkflow =
+      message.subtype === 'task_notification' &&
+      baseEventData.status === 'completed' &&
+      (this.backgroundTaskTypes.get(baseEventData.taskId) === 'local_workflow' ||
+        this.localWorkflowLaunches.has(baseEventData.taskId))
+    const shouldReconcileTerminalAgent =
+      message.subtype === 'task_notification' && baseEventData.status === 'completed' && isAgentTask
+    const shouldReconcileTerminalTask = shouldReconcileTerminalWorkflow || shouldReconcileTerminalAgent
     const workflowSnapshot =
       this.readLocalWorkflowSnapshot(baseEventData.taskId, isTerminal) ??
       this.updateLocalWorkflowLiveSnapshot(
@@ -2185,13 +2578,28 @@ export class ClaudeCodeStreamAdapter {
       workflowSnapshot && isTerminal && baseEventData.usage
         ? {
             ...workflowSnapshot,
-            ...(baseEventData.usage.totalTokens !== undefined ? { totalTokens: baseEventData.usage.totalTokens } : {}),
+            ...(baseEventData.usage.contextTokens !== undefined
+              ? { totalTokens: baseEventData.usage.contextTokens }
+              : {}),
             ...(baseEventData.usage.toolUses !== undefined ? { totalToolCalls: baseEventData.usage.toolUses } : {})
           }
         : workflowSnapshot
+    const transcriptStats = isAgentTask
+      ? this.readAgentTaskTranscriptStats(baseEventData.taskId, message.session_id)
+      : undefined
+    const agentStats = hasAgentUsageStats(transcriptStats)
+      ? transcriptStats
+      : toolUseId
+        ? this.agentFlowStats.get(toolUseId)
+        : undefined
+    const usage = isAgentTask ? this.getAgentUsage(agentStats, baseEventData.usage, isTerminal) : baseEventData.usage
     const eventData: AgentTaskEventPartData = {
       ...baseEventData,
-      toolUseId: baseEventData.toolUseId ?? this.backgroundTaskToolCallIds.get(baseEventData.taskId),
+      toolUseId,
+      ...(usage ? { usage } : {}),
+      ...(isAgentTask && baseEventData.isBackgrounded === undefined && this.asyncAgentTaskIds.has(baseEventData.taskId)
+        ? { isBackgrounded: true }
+        : {}),
       ...timeline,
       ...(workflow ? { workflow } : {})
     }
@@ -2213,6 +2621,11 @@ export class ClaudeCodeStreamAdapter {
 
     // Keep a process-scoped per-task surface for status history and stop targets.
     this.statusSink.emit({ type: 'background-task-event', data: eventData })
+    if (shouldReconcileTerminalWorkflow) {
+      this.scheduleTerminalWorkflowReconciliation(eventData)
+    } else if (shouldReconcileTerminalAgent) {
+      this.scheduleTerminalAgentReconciliation(eventData, message.session_id)
+    }
     if (isTerminal) {
       this.terminalTaskIds.add(eventData.taskId)
       const taskIndex = this.backgroundTasks.findIndex((task) => task.id === eventData.taskId)
@@ -2223,7 +2636,9 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (!this.turnActive) {
-      if (message.subtype === 'task_notification' && isTerminal) this.releaseTerminalTaskState(eventData.taskId)
+      if (message.subtype === 'task_notification' && isTerminal && !shouldReconcileTerminalTask) {
+        this.releaseTerminalTaskState(eventData.taskId)
+      }
       return
     }
 
@@ -2248,10 +2663,17 @@ export class ClaudeCodeStreamAdapter {
       id: `task-${eventData.taskId}-${eventData.event}`,
       data: persistedEventData
     })
-    if (message.subtype === 'task_notification' && isTerminal) this.releaseTerminalTaskState(eventData.taskId)
+    if (message.subtype === 'task_notification' && isTerminal && !shouldReconcileTerminalTask) {
+      this.releaseTerminalTaskState(eventData.taskId)
+    }
   }
 
   private releaseTerminalTaskState(taskId: string): void {
+    const pendingWorkflow = this.pendingTerminalWorkflowEvents.get(taskId)
+    if (pendingWorkflow) clearTimeout(pendingWorkflow.timer)
+    const pendingAgent = this.pendingTerminalAgentEvents.get(taskId)
+    if (pendingAgent) clearTimeout(pendingAgent.timer)
+    const toolCallId = this.backgroundTaskToolCallIds.get(taskId)
     this.backgroundTaskToolCallIds.delete(taskId)
     this.backgroundTaskTypes.delete(taskId)
     this.localWorkflowLaunches.delete(taskId)
@@ -2262,6 +2684,14 @@ export class ClaudeCodeStreamAdapter {
     this.persistedTerminalWorkflowSnapshotTaskIds.delete(taskId)
     this.workflowSnapshotCache.delete(taskId)
     this.workflowTranscriptStatsCaches.delete(taskId)
+    this.pendingTerminalWorkflowEvents.delete(taskId)
+    this.pendingTerminalAgentEvents.delete(taskId)
+    this.agentTranscriptStatsCaches.delete(taskId)
+    if (toolCallId) {
+      this.agentTaskIdsByToolCallId.delete(toolCallId)
+      this.agentFlowStats.delete(toolCallId)
+    }
+    this.asyncAgentTaskIds.delete(taskId)
     this.backgroundBashOutputs.delete(taskId)
   }
 
@@ -2276,7 +2706,7 @@ export class ClaudeCodeStreamAdapter {
     const toolCallId = state?.toolCallId ?? this.backgroundTaskToolCallIds.get(message.task_id)
     if (!toolCallId) return
     const notificationOutputFile = message.output_file
-      ? this.validateBackgroundBashOutputPath(message.output_file, message.task_id, message.session_id)
+      ? this.validateTaskOutputPath(message.output_file, message.task_id, message.session_id)
       : undefined
     const outputState = notificationOutputFile ? { toolCallId, outputFile: notificationOutputFile } : state
     const result = outputState ? this.readBackgroundBashOutput(message.task_id, outputState, true) : undefined
@@ -2362,7 +2792,7 @@ export class ClaudeCodeStreamAdapter {
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
     if (!this.backgroundWorkReleasePending) {
-      if (!this.turnActive && this.backgroundTasks.length === 0) {
+      if (!this.turnActive && this.backgroundTasks.length === 0 && !this.hasPendingTerminalReconciliation()) {
         this.flowContexts.length = 0
         this.clearBackgroundTaskState()
       }
@@ -2373,7 +2803,7 @@ export class ClaudeCodeStreamAdapter {
       this.backgroundTasks = []
       this.publishBackgroundTasks()
     }
-    if (!this.turnActive) {
+    if (!this.turnActive && !this.hasPendingTerminalReconciliation()) {
       this.flowContexts.length = 0
       this.clearBackgroundTaskState()
     }
@@ -2441,7 +2871,7 @@ export class ClaudeCodeStreamAdapter {
           summary: message.summary,
           subagentType: message.subagent_type,
           lastToolName: message.last_tool_name,
-          usage: this.getTaskUsage(message.usage)
+          usage: this.getTaskUsage(message.usage, false)
         }
       case 'task_updated': {
         const status = mapTaskStatus(message.patch.status)
@@ -2465,17 +2895,18 @@ export class ClaudeCodeStreamAdapter {
           summary: message.summary,
           outputFile: message.output_file,
           skipTranscript: message.skip_transcript === true,
-          usage: this.getTaskUsage(message.usage)
+          usage: this.getTaskUsage(message.usage, true)
         }
     }
   }
 
   private getTaskUsage(
-    value: SDKTaskNotificationMessage['usage'] | SDKTaskProgressMessage['usage'] | undefined
+    value: SDKTaskNotificationMessage['usage'] | SDKTaskProgressMessage['usage'] | undefined,
+    includeContextTokens: boolean
   ): AgentTaskEventPartData['usage'] | undefined {
     if (!value) return undefined
     return {
-      totalTokens: value.total_tokens,
+      ...(includeContextTokens && value.total_tokens > 0 ? { contextTokens: value.total_tokens } : {}),
       toolUses: value.tool_uses,
       durationMs: value.duration_ms
     }

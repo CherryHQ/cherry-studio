@@ -90,7 +90,10 @@ export interface AgentTaskEventPartData {
   skipTranscript?: boolean
   workflow?: AgentWorkflowSnapshot
   usage?: {
+    /** Sum of all assistant request usages observed in this task transcript. */
     totalTokens?: number
+    /** Latest request usage while running; the terminal SDK value is authoritative after completion. */
+    contextTokens?: number
     toolUses?: number
     durationMs?: number
   }
