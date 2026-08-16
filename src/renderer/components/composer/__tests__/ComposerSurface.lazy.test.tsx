@@ -136,6 +136,13 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('keeps a whitespace-only draft on the fallback without loading the runtime', () => {
+    render(<Harness text="   " />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('   ')
+    expect(mocks.runtimeLoads).toBe(0)
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 

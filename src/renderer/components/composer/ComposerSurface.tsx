@@ -116,9 +116,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   )
 
   // The fallback cannot rebase token offsets, render the editing header, or grow beyond its fixed
-  // two-line box — any non-empty draft (multi-line, or a single line soft-wrapping in a narrow
-  // input) would collapse to that box with its content scrolling out of view — so hand those
-  // states straight to the runtime instead of serving them badly.
+  // two-line box — hand those states to the runtime instead of serving them badly.
   const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length) || props.text.trim().length > 0
   useEffect(() => {
     if (needsRuntime) requestRuntime()
