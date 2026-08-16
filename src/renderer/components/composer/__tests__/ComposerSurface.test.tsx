@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
-  editorViewConnected: true,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
@@ -234,14 +233,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           return mocks.editorViewComposing
         },
         dispatch: mocks.dispatch,
-        get dom() {
-          const element = document.createElement('div')
-          Object.defineProperty(element, 'isConnected', {
-            configurable: true,
-            get: () => mocks.editorViewConnected
-          })
-          return element
-        }
+        dom: document.createElement('div')
       },
       state: {
         get selection() {
@@ -441,8 +433,12 @@ async function primeComposerClipboardSessionCache(plainText: string, fragment: s
 }
 
 describe('ComposerSurface', () => {
+  let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
+
   beforeEach(() => {
     clearMockTimers()
+    // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
+    hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
     mocks.currentView = undefined
@@ -453,7 +449,6 @@ describe('ComposerSurface', () => {
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
-    mocks.editorViewConnected = true
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -521,52 +516,32 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('defers the editor engine so the composer frame can render first', () => {
+  it('renders the editor view synchronously so the fallback swap never drops the input target', () => {
     render(<ComposerSurface {...baseProps} />)
 
-    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+    expect(mocks.editorOptions?.immediatelyRender).toBe(true)
+    expect(mocks.focus).toHaveBeenCalledWith('end')
   })
 
-  it('keeps a focused standby textarea while the editor view is detached and folds it away once the view attaches', () => {
-    mocks.editorViewConnected = false
-    const onTextChange = vi.fn()
-    const { rerender } = render(<ComposerSurface {...baseProps} onTextChange={onTextChange} />)
-
-    // While the editor view is not yet in the DOM the surface functions as a plain textarea,
-    // keeping a live input target (and its focus) through the swap.
-    const standby = screen.getByTestId('composer-standby-input')
-    expect(standby).toBeInTheDocument()
-    expect(standby).toHaveFocus()
-    fireEvent.change(standby, { target: { value: 'h' } })
-    expect(onTextChange).toHaveBeenCalledWith('h')
-
-    // Once the view connects, the standby gives way to the editor and hands focus to it.
-    mocks.editorViewConnected = true
-    rerender(<ComposerSurface {...baseProps} onTextChange={onTextChange} />)
-
-    expect(screen.queryByTestId('composer-standby-input')).not.toBeInTheDocument()
-    expect(mocks.focus).toHaveBeenCalled()
-  })
-
-  it('carries the standby caret into the editor when the view attaches after a selection', () => {
-    mocks.editorViewConnected = false
+  it('restores the caret the fallback left behind instead of collapsing to the end', () => {
     mocks.docContentSize = 10
     mocks.docTextBetween.mockImplementation((_from: number, to: number) => 'x'.repeat(Math.max(0, to)))
-    const onTextChange = vi.fn()
-    const { rerender } = render(<ComposerSurface {...baseProps} text="draft" onTextChange={onTextChange} />)
 
-    const standby = screen.getByTestId<HTMLTextAreaElement>('composer-standby-input')
-    expect(standby).toHaveValue('draft')
-    standby.setSelectionRange(3, 3)
-    fireEvent.select(standby)
+    render(<ComposerSurface {...baseProps} text="draft" initialTextSelection={{ start: 3, end: 3 }} />)
 
-    mocks.editorViewConnected = true
-    rerender(<ComposerSurface {...baseProps} text="draft" onTextChange={onTextChange} />)
-
-    // The caret the user left in the standby textarea is mapped into the editor through
-    // setTextSelection instead of being collapsed to the end.
     expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
     expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('leaves focus alone when the user moved on to another input while the runtime loaded', () => {
+    const elsewhere = document.createElement('input')
+    document.body.appendChild(elsewhere)
+    elsewhere.focus()
+
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+    elsewhere.remove()
   })
 
   it('uses the card color with a subtle shadow', () => {
@@ -622,6 +597,7 @@ describe('ComposerSurface', () => {
 
   afterEach(() => {
     clearMockTimers()
+    hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   })

@@ -288,21 +288,7 @@ function insertComposerTokenAtCursor(
   chain.insertContent(' ').run()
 }
 
-/** Clipboard payloads are only readable during their own event, so keep an owned copy. */
-function cloneStandbyTransfer(source: DataTransfer | null): DataTransfer | undefined {
-  if (!source) return undefined
-  const clone = new DataTransfer()
-  for (const type of source.types) {
-    if (type !== 'Files') clone.setData(type, source.getData(type))
-  }
-  for (const file of source.files) clone.items.add(file)
-  return clone
-}
-
-function isComposerSendKeyPressed(
-  event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>,
-  shortcut: SendMessageShortcut
-) {
+function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
   switch (shortcut) {
     case 'Enter':
       return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
@@ -1768,7 +1754,9 @@ export default function ComposerSurfaceRuntime({
     extensions: editorExtensions,
     content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
     editable,
-    immediatelyRender: false,
+    // Render the view synchronously: the fallback textarea unmounts in the same commit this
+    // runtime mounts, so a view that attaches a frame later leaves nothing focused in between.
+    immediatelyRender: true,
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
@@ -1807,97 +1795,30 @@ export default function ComposerSurfaceRuntime({
     editorRef.current = editor
   }, [editor])
 
-  // --- Standby input: while the editor's view is not yet attached to the DOM, this surface
-  // keeps a plain controlled textarea focused inside the editor frame so every keystroke
-  // has a live input target. The moment the view connects, focus moves onto it before the
-  // standby textarea unmounts — the swap itself never exposes a focus vacuum.
-  const standbyTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const standbyEditedRef = useRef(false)
-  const standbySelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const standbyPasteRef = useRef<DataTransfer | null>(null)
-  const standbyFocusSnapshotRef = useRef<ComposerFocusRestoreSnapshot | null>(null)
-  const [standbyViewReady, setStandbyViewReady] = useState(() => editor?.view?.dom?.isConnected === true)
-  const [standbyComposing, setStandbyComposing] = useState(false)
-
-  const standbyShouldTakeFocus = useCallback(() => {
-    const active = document.activeElement
-    return (
-      active === standbyTextareaRef.current ||
-      active === document.body ||
-      active === null ||
-      (!!standbyFocusSnapshotRef.current && shouldRestoreEditorFocus(standbyFocusSnapshotRef.current))
-    )
-  }, [shouldRestoreEditorFocus])
-
+  // The fallback textarea is removed in the same commit that attaches this view, so focus has to
+  // land on it before paint — a deferred restore would leave a keystroke with nowhere to go.
+  const focusHandoffDoneRef = useRef(false)
   useLayoutEffect(() => {
-    if (standbyViewReady || standbyComposing) return
-    const standby = standbyTextareaRef.current
-    if (!standby) return
-    standbyFocusSnapshotRef.current = createEditorFocusRestoreSnapshot()
-    if (!standbyShouldTakeFocus()) return
-    standby.focus()
-    const end = standby.value.length
-    standby.setSelectionRange(initialTextSelection?.start ?? end, initialTextSelection?.end ?? end)
-  }, [
-    createEditorFocusRestoreSnapshot,
-    initialTextSelection,
-    standbyComposing,
-    standbyShouldTakeFocus,
-    standbyViewReady
-  ])
+    if (focusHandoffDoneRef.current) return
+    if (!editor || editor.isDestroyed) return
+    focusHandoffDoneRef.current = true
+    const active = document.activeElement
+    if (!document.hasFocus()) return
+    if (active && active !== document.body && !frameRef.current?.contains(active)) return
 
-  useEffect(() => {
-    if (standbyViewReady || standbyComposing) return
-    if (!editor || editor.isDestroyed || editor.view?.dom?.isConnected !== true) return
-
-    // The editor's view is live. The standby textarea still holds focus here, so re-syncing
-    // the editor content with the draft first (the text-sync effect below only fires on
-    // later drafts) and moving the caret into it synchronously — before this surface
-    // unmounts the textarea — keeps every keystroke landing on a focused input target.
-    if (standbyShouldTakeFocus()) {
-      const currentText = serializeComposerDocument(editor).text
-      if (currentText !== text) {
-        editor.commands.setContent(createComposerDraftContent({ text, tokens: draftTokens ?? [] }), {
-          emitUpdate: false
+    if (initialTextSelection) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({
+          from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
+          to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
         })
-      }
-      const standbyCaret = standbySelectionRef.current
-      if (standbyCaret) {
-        // The user selected or moved the caret inside the standby textarea — carry that exact
-        // position into the editor before the textarea unmounts.
-        editor
-          .chain()
-          .focus()
-          .setTextSelection({
-            from: getComposerPositionAtTextOffset(editor, standbyCaret.start),
-            to: getComposerPositionAtTextOffset(editor, standbyCaret.end)
-          })
-          .run()
-      } else if (!standbyEditedRef.current && initialTextSelection) {
-        // No standby interaction: restore the fallback's pre-swap caret.
-        editor
-          .chain()
-          .focus()
-          .setTextSelection({
-            from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
-            to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
-          })
-          .run()
-      } else {
-        editor.commands.focus('end')
-      }
+        .run()
+      return
     }
-    // Replay a paste captured while the editor's view was still offline onto the live view —
-    // the same path the deferred fallback's transfer takes (files, HTML and tokens included).
-    const pendingPaste = standbyPasteRef.current
-    if (pendingPaste && editor.view?.dom) {
-      standbyPasteRef.current = null
-      editor.view.dom.dispatchEvent(
-        new ClipboardEvent('paste', { clipboardData: pendingPaste, bubbles: true, cancelable: true })
-      )
-    }
-    setStandbyViewReady(true)
-  }, [draftTokens, editor, initialTextSelection, standbyComposing, standbyShouldTakeFocus, standbyViewReady, text])
+    editor.commands.focus('end')
+  }, [editor, frameRef, initialTextSelection])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -2191,7 +2112,7 @@ export default function ComposerSurfaceRuntime({
 
   // Replay what the deferred fallback captured while this runtime was still loading. Both transfers
   // are re-dispatched on the editor DOM so they take the very same paths a live event would; the
-  // timer queues behind onCreate's focus restore so a paste lands on the caret the user left.
+  // timer queues behind the mount-time focus restore so a paste lands on the caret the user left.
   const unifiedPanelOpen = unifiedPanelControl.open
   useEffect(() => {
     if (!deferredIntent || !editor) return
@@ -2371,90 +2292,9 @@ export default function ComposerSurfaceRuntime({
           ref={frameRef}
           data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('relative min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
-          {!standbyViewReady || standbyComposing ? (
-            <textarea
-              ref={standbyTextareaRef}
-              data-composer-standby-input=""
-              data-testid="composer-standby-input"
-              aria-label={placeholder}
-              placeholder={placeholder}
-              value={text}
-              rows={1}
-              disabled={!editable}
-              spellCheck={enableSpellCheck}
-              className="box-border absolute inset-0 block w-full resize-none overflow-auto bg-transparent text-foreground outline-none"
-              style={{
-                padding: isCompact ? '3px 0' : '6px 44px 0 15px',
-                fontSize,
-                lineHeight: 1.4
-              }}
-              onFocus={() => {
-                onFocus?.()
-                pasteHandling.setLastFocusedComponent('inputbar')
-              }}
-              onSelect={(event) => {
-                standbySelectionRef.current = {
-                  start: event.currentTarget.selectionStart,
-                  end: event.currentTarget.selectionEnd
-                }
-              }}
-              onChange={(event) => {
-                standbyEditedRef.current = true
-                onTextChange(event.currentTarget.value)
-              }}
-              onPaste={(event) => {
-                // Native insertion would keep only the plain text and drop files, HTML and
-                // token fragments; replay the whole payload onto the editor's view instead
-                // (see the standby interaction hand-off further up).
-                event.preventDefault()
-                standbyPasteRef.current = cloneStandbyTransfer(event.clipboardData) ?? null
-              }}
-              onKeyDown={(event) => {
-                // Mirror the fallback textarea's shortcuts while the editor view is still on
-                // its way: Enter sends, ArrowUp/Down bounce through input history.
-                if (event.nativeEvent.isComposing) return
-                if (
-                  (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
-                  isInputHistoryActiveRef.current &&
-                  onInputHistoryNavigateRef.current &&
-                  !event.ctrlKey &&
-                  !event.metaKey &&
-                  !event.altKey &&
-                  !event.shiftKey
-                ) {
-                  const input = event.currentTarget
-                  const isAllSelected =
-                    input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
-                  const isAtBoundary =
-                    event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
-                  if (textRef.current.trim().length === 0 || isAllSelected || isAtBoundary) {
-                    if (onInputHistoryNavigateRef.current(event.key === 'ArrowUp' ? 'up' : 'down')) {
-                      event.preventDefault()
-                      return
-                    }
-                  }
-                }
-                if (!isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) return
-                event.preventDefault()
-                if (event.repeat) return
-                if (sendDisabledRef.current) {
-                  showBlockedSendReason()
-                } else {
-                  void onSendDraftRef.current({ text: textRef.current, tokens: draftTokens ? [...draftTokens] : [] })
-                }
-              }}
-              onCompositionStart={() => setStandbyComposing(true)}
-              onCompositionEnd={(event) => {
-                // Some IMEs only write the committed characters on compositionend — read the
-                // final value here, then let the view hand-off proceed.
-                if (event.currentTarget.value !== text) onTextChange(event.currentTarget.value)
-                setStandbyComposing(false)
-              }}
-            />
-          ) : null}
           <EditorContent
             editor={editor}
             style={isCompact ? compactEditorContentStyle : editorContentStyle}

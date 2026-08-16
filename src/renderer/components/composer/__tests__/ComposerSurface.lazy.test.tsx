@@ -136,6 +136,19 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('swaps in the rich runtime while idle, before the user can type into the fallback', async () => {
+    const idleCallbacks: Array<() => void> = []
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => idleCallbacks.push(callback))
+    vi.stubGlobal('cancelIdleCallback', () => {})
+
+    render(<Harness text="" />)
+    expect(mocks.runtimeLoads).toBe(0)
+
+    act(() => idleCallbacks.forEach((callback) => callback()))
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
   it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
     render(<Harness text="" />)
 
