@@ -572,6 +572,64 @@ describe('composer clipboard', () => {
     }
   })
 
+  it('restores the pasted-text marker so a copied pasted-text attachment keeps its preview and expand action', () => {
+    const content = createComposerRichClipboardContentFromParts([
+      {
+        type: 'text',
+        text: ' check this',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'file:source-pasted',
+                  kind: 'file',
+                  label: 'Pasted text.txt',
+                  index: 0,
+                  textOffset: 0,
+                  payload: {
+                    fileTokenSourceId: 'source-pasted',
+                    type: 'text',
+                    ext: '.txt',
+                    name: 'pasted_text.txt',
+                    origin_name: 'Pasted text.txt'
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        filename: 'pasted_text.txt',
+        mediaType: 'text/plain',
+        url: 'file:///internal/message-files/pasted_text.txt',
+        providerMetadata: {
+          cherry: {
+            fileTokenSourceId: 'source-pasted',
+            composerFileKind: 'pasted-text'
+          }
+        }
+      }
+    ] as any)
+
+    const fragmentText = content?.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? ''
+    const segment = readComposerClipboardFragment(fragmentText)?.segments[0]
+
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toEqual(
+        expect.objectContaining({
+          fileTokenSourceId: 'source-pasted',
+          path: '/internal/message-files/pasted_text.txt',
+          composerFileKind: 'pasted-text'
+        })
+      )
+    }
+  })
+
   it('restores Windows file URLs without adding a POSIX leading slash', () => {
     const content = createComposerRichClipboardContentFromParts([
       {

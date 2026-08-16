@@ -1,5 +1,11 @@
 import { loggerService } from '@logger'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
+import {
+  COMPOSER_FILE_KIND,
+  type ComposerFileKind,
+  FILE_TYPE,
+  type FileMetadata,
+  type FileType
+} from '@renderer/types/file'
 import {
   type ComposerClipboardTokenKind,
   isComposerClipboardPromptTokenKind,
@@ -49,6 +55,7 @@ export interface ComposerClipboardToken {
     origin_name?: string
     size?: number
     handle?: string
+    composerFileKind?: ComposerFileKind
   }
 }
 
@@ -141,6 +148,10 @@ function isFileType(value: unknown): value is FileType {
   return typeof value === 'string' && Object.values(FILE_TYPE).includes(value as FileType)
 }
 
+function readComposerFileKind(value: unknown): ComposerFileKind | undefined {
+  return value === COMPOSER_FILE_KIND.PASTED_TEXT ? value : undefined
+}
+
 function readFileDisplayPayload(
   payload: unknown,
   options: { includeHandle?: boolean } = {}
@@ -153,6 +164,7 @@ function readFileDisplayPayload(
   const name = readString(payload.name)
   const originName = readString(payload.origin_name)
   const handle = readString(payload.handle)
+  const composerFileKind = readComposerFileKind(payload.composerFileKind)
 
   if (type) result.type = type
   if (ext) result.ext = ext
@@ -160,6 +172,7 @@ function readFileDisplayPayload(
   if (originName) result.origin_name = originName
   if (readNumber(payload.size) !== undefined) result.size = readNumber(payload.size)
   if (options.includeHandle && handle) result.handle = handle
+  if (composerFileKind) result.composerFileKind = composerFileKind
 
   return Object.keys(result).length > 0 ? result : undefined
 }
@@ -219,6 +232,7 @@ function createFileMetadataFromWritePayload(
   const ext = readString(payload.ext) || getFileExtensionFromName(name)
   const type = isFileType(payload.type) ? payload.type : getFileTypeByExt(ext)
   const rawId = readString(payload.id)
+  const composerFileKind = readComposerFileKind(payload.composerFileKind)
 
   return {
     id: rawId && !hasUnsafeComposerClipboardFileTokenId({ id: rawId, kind: 'file' }) ? rawId : sourceId,
@@ -230,7 +244,9 @@ function createFileMetadataFromWritePayload(
     ext,
     type,
     created_at: readString(payload.created_at) ?? '',
-    count: readNumber(payload.count) ?? 1
+    count: readNumber(payload.count) ?? 1,
+    // Restores the pasted-text preview and its expand-into-input action after a copy round trip.
+    ...(composerFileKind && { composerFileKind })
   }
 }
 
@@ -424,6 +440,7 @@ function readMessageFilePayload(part: CherryMessagePart): FileClipboardPayload |
     type: filePart.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext),
     ...(ext && { ext }),
     ...(name && { name, origin_name: name }),
+    ...(cherry.composerFileKind && { composerFileKind: cherry.composerFileKind }),
     path
   }
 }
