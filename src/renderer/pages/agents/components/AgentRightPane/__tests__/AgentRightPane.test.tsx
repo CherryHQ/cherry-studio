@@ -177,7 +177,13 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
 
 vi.mock('@renderer/components/chat/messages/tools/agent', async (importActual) => ({
   ...(await importActual<Record<string, unknown>>()),
-  TerminalOutput: ({ content }: { content: string }) => <pre>{content}</pre>
+  TerminalOutput: ({ command, content }: { command?: string; content: string }) => (
+    <pre>
+      {command ? <span>{command}</span> : null}
+      {command && content ? '\n\n' : null}
+      {content ? <span>{content}</span> : null}
+    </pre>
+  )
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -1850,9 +1856,9 @@ describe('AgentRightPane', () => {
       'Earlier workflow',
       'Later workflow',
       'Legacy workflow',
-      '> Later shell',
-      '> Legacy shell',
-      '> Aggregate-only shell'
+      'Later shell',
+      'Legacy shell',
+      'Aggregate-only shell'
     ])
 
     const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
@@ -1861,7 +1867,7 @@ describe('AgentRightPane', () => {
     const completedTitles = within(completed)
       .getAllByTestId('agent-run-task-title')
       .map((node) => node.textContent)
-    expect(completedTitles).toEqual(['Later completed agent', '> Earlier completed shell', 'Legacy completed agent'])
+    expect(completedTitles).toEqual(['Later completed agent', 'Earlier completed shell', 'Legacy completed agent'])
 
     await user.click(runningToggle)
     expect(runningToggle).toHaveAttribute('aria-expanded', 'false')
@@ -1912,8 +1918,11 @@ describe('AgentRightPane', () => {
       fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
       const commandButton = screen.getByRole('button', {
-        name: /agent\.right_pane\.status\.background_command.*pnpm dev/
+        name: /agent\.right_pane\.status\.background_command.*Start development server/
       })
+      expect(within(commandButton).getByTestId('agent-run-task-title')).toHaveTextContent('Start development server')
+      expect(within(commandButton).getByText('local_bash')).toBeInTheDocument()
+      expect(within(commandButton).queryByText('> pnpm dev')).not.toBeInTheDocument()
       expect(within(commandButton).getByText('10s')).toBeInTheDocument()
 
       await act(async () => vi.advanceTimersByTime(2000))
@@ -1974,16 +1983,15 @@ describe('AgentRightPane', () => {
     const view = render(renderPane(parts))
     await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    const commandButton = screen.getByRole('button', { name: /> pnpm dev/ })
+    const commandButton = screen.getByRole('button', { name: /Start development server/ })
     expect(commandButton).toHaveAttribute('aria-expanded', 'false')
-    // The user explicitly requires long background commands to stay on one truncated summary line.
-    expect(screen.getByTitle('> pnpm dev')).toHaveClass('truncate')
-    expect(screen.getAllByText('> pnpm dev')).toHaveLength(1)
+    expect(screen.getByTitle('Start development server')).toHaveClass('truncate')
+    expect(screen.queryByText('> pnpm dev')).not.toBeInTheDocument()
     expect(screen.queryByText(/ready on http:\/\/localhost:5173/)).not.toBeInTheDocument()
 
     await user.click(commandButton)
     expect(commandButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getAllByText('> pnpm dev')).toHaveLength(1)
+    expect(commandButton.parentElement?.parentElement).toHaveTextContent('pnpm dev')
     expect(screen.getByText(/ready on http:\/\/localhost:5173/)).toBeInTheDocument()
 
     const updatedParts = createParts('ready on http://localhost:5173\nrebuilt renderer')
@@ -2008,7 +2016,6 @@ describe('AgentRightPane', () => {
     }
     view.rerender(renderPane(createParts(initialDeferredOutput)))
 
-    expect(screen.getAllByText('> pnpm dev')).toHaveLength(1)
     expect(await screen.findByText(/first deferred snapshot/)).toBeInTheDocument()
     expect(screen.getByText(/warning: fixture/)).toBeInTheDocument()
 
@@ -2029,7 +2036,7 @@ describe('AgentRightPane', () => {
     view.rerender(renderPane(createParts(appendedDeferredOutput, 'completed')))
 
     const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
-    const completedCommandButton = within(completed).getByRole('button', { name: /> pnpm dev/ })
+    const completedCommandButton = within(completed).getByRole('button', { name: /Start development server/ })
     await user.click(completedCommandButton)
     expect(await screen.findByText(/final output after completion/)).toBeInTheDocument()
   })
@@ -2071,7 +2078,7 @@ describe('AgentRightPane', () => {
     )
     await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    const commandButton = screen.getByRole('button', { name: /> pnpm build/ })
+    const commandButton = screen.getByRole('button', { name: /Build application/ })
     expect(commandButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(/build started/)).not.toBeInTheDocument()
     expect(ipcRequestMock.mock.calls.filter(([channel]) => channel === 'ai.tool.get_result')).toHaveLength(0)

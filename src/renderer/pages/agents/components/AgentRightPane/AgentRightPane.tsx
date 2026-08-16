@@ -86,6 +86,7 @@ import {
   Package,
   Waypoints
 } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import {
   createContext,
@@ -1359,6 +1360,7 @@ function ShellRunTaskCard({
   nowMs: number
 }) {
   const { t } = useTranslation()
+  const prefersReducedMotion = useReducedMotion()
   const outputId = useId()
   const [expanded, setExpanded] = useState(false)
   const deferredResultRef = task.deferredOutput?.$deferredToolResult
@@ -1371,6 +1373,7 @@ function ShellRunTaskCard({
   const resolvedOutputText = getBashOutputText(resolvedOutput)
   const excerptText = excerpt ? [excerpt.head, '…', excerpt.tail].filter(Boolean).join('\n') : undefined
   const output = resolvedOutputText ?? task.output ?? excerptText
+  const title = task.description?.trim() || task.title
   const command = `> ${task.command ?? task.title}`
   const terminalContent = output ? `${command}\n\n${output}` : command
   const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
@@ -1384,18 +1387,23 @@ function ShellRunTaskCard({
           size="sm"
           aria-expanded={expanded}
           aria-controls={outputId}
-          className="h-5 min-w-0 flex-1 justify-start gap-1.5 p-0 text-left font-normal hover:bg-transparent"
+          className="h-auto min-h-5 min-w-0 flex-1 items-start justify-start gap-1.5 p-0 text-left font-normal hover:bg-transparent"
           onClick={() => setExpanded((current) => !current)}>
           <TaskStatusIcon status={task.status} />
-          <span className="shrink-0 text-muted-foreground text-xs">
-            {t('agent.right_pane.status.background_command')}
+          <span className="shrink-0">
+            <span className="block text-muted-foreground text-xs leading-5">
+              {t('agent.right_pane.status.background_command')}
+            </span>
+            {task.taskType ? (
+              <span className="block text-[11px] text-muted-foreground leading-4">{task.taskType}</span>
+            ) : null}
           </span>
-          <code
+          <span
             data-testid="agent-run-task-title"
-            title={command}
-            className="min-w-0 flex-1 truncate text-foreground text-xs">
-            {command}
-          </code>
+            title={title}
+            className="min-w-0 flex-1 truncate text-foreground text-xs leading-5">
+            {title}
+          </span>
           {durationMs !== undefined ? (
             <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
               {durationFormatter(durationMs)}
@@ -1415,20 +1423,31 @@ function ShellRunTaskCard({
         </Button>
         {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
       </div>
-      <div id={outputId} hidden={!expanded} className="mt-2">
-        {expanded ? (
-          <div className="dark relative">
-            <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
-            <CopyButton
-              textToCopy={terminalContent}
-              tooltip={t('agent.right_pane.status.copy_all')}
-              successFeedback="icon"
-              size={13}
-              aria-label={t('agent.right_pane.status.copy_all')}
-              className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
-            />
-          </div>
-        ) : null}
+      <div id={outputId}>
+        <AnimatePresence initial={false}>
+          {expanded ? (
+            <motion.div
+              initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
+              className="overflow-hidden">
+              <div className="pt-2">
+                <div className="dark relative">
+                  <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
+                  <CopyButton
+                    textToCopy={terminalContent}
+                    tooltip={t('agent.right_pane.status.copy_all')}
+                    successFeedback="icon"
+                    size={13}
+                    aria-label={t('agent.right_pane.status.copy_all')}
+                    className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </div>
   )
