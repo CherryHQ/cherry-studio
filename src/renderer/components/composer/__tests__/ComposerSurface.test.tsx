@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
+  editorViewDom: undefined as HTMLElement | undefined,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
@@ -228,6 +229,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       view: {
         get composing() {
           return mocks.editorViewComposing
+        },
+        get dom() {
+          return mocks.editorViewDom
         },
         dispatch: mocks.dispatch
       },
@@ -441,6 +445,7 @@ describe('ComposerSurface', () => {
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
+    mocks.editorViewDom = document.createElement('div')
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -506,6 +511,39 @@ describe('ComposerSurface', () => {
         error: vi.fn()
       }
     })
+  })
+
+  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+    const viewDom = mocks.editorViewDom!
+    document.body.appendChild(viewDom)
+    class FakeClipboardEvent extends Event {
+      clipboardData: unknown
+      constructor(type: string, init: EventInit & { clipboardData?: unknown }) {
+        super(type, init)
+        this.clipboardData = init.clipboardData
+      }
+    }
+    vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
+    const onView = vi.fn()
+    const onDocument = vi.fn()
+    viewDom.addEventListener('paste', onView)
+    document.addEventListener('paste', onDocument)
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
+      />
+    )
+
+    // The editor's own listener sits on the view element; the document-level handler in
+    // pasteHandling would hand the same payload to this composer a second time.
+    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
+    expect(onDocument).not.toHaveBeenCalled()
+
+    document.removeEventListener('paste', onDocument)
+    viewDom.remove()
+    vi.unstubAllGlobals()
   })
 
   it('defers the editor engine so the composer frame can render first', () => {
