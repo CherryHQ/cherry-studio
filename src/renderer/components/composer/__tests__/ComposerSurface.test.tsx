@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
+  editorViewDom: undefined as HTMLElement | undefined,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
@@ -234,8 +235,10 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         get composing() {
           return mocks.editorViewComposing
         },
-        dispatch: mocks.dispatch,
-        dom: document.createElement('div')
+        get dom() {
+          return mocks.editorViewDom
+        },
+        dispatch: mocks.dispatch
       },
       state: {
         get selection() {
@@ -451,6 +454,7 @@ describe('ComposerSurface', () => {
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
+    mocks.editorViewDom = document.createElement('div')
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -526,6 +530,39 @@ describe('ComposerSurface', () => {
     expect(mocks.focus).toHaveBeenCalledWith('end')
   })
 
+  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+    const viewDom = mocks.editorViewDom!
+    document.body.appendChild(viewDom)
+    class FakeClipboardEvent extends Event {
+      clipboardData: unknown
+      constructor(type: string, init: EventInit & { clipboardData?: unknown }) {
+        super(type, init)
+        this.clipboardData = init.clipboardData
+      }
+    }
+    vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
+    const onView = vi.fn()
+    const onDocument = vi.fn()
+    viewDom.addEventListener('paste', onView)
+    document.addEventListener('paste', onDocument)
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
+      />
+    )
+
+    // The editor's own listener sits on the view element; the document-level handler in
+    // pasteHandling would hand the same payload to this composer a second time.
+    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
+    expect(onDocument).not.toHaveBeenCalled()
+
+    document.removeEventListener('paste', onDocument)
+    viewDom.remove()
+    vi.unstubAllGlobals()
+  })
+
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
     mocks.docContentSize = 10
     mocks.docTextBetween.mockImplementation((_from: number, to: number) => 'x'.repeat(Math.max(0, to)))
@@ -595,6 +632,32 @@ describe('ComposerSurface', () => {
       expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('applies the transferred text selection when the editor is created', async () => {
+    const text = 'previous chat prompt'
+    const textEndPosition = text.length + 1
+    mocks.stabilizeEditor = true
+    mocks.docContentSize = text.length + 2
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => text.slice(0, Math.max(0, to - 1)))
+    const hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+
+    try {
+      render(
+        <ComposerSurface {...baseProps} text={text} initialTextSelection={{ start: text.length, end: text.length }} />
+      )
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
+      await waitFor(() =>
+        expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: textEndPosition, to: textEndPosition })
+      )
+    } finally {
+      hasFocusSpy.mockRestore()
     }
   })
 

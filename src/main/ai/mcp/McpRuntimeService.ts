@@ -1002,13 +1002,14 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+        logger.debug(`Operation cancelled for server: ${server.name}`, redactSensitive(notification.params))
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactSensitive(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -1016,7 +1017,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
