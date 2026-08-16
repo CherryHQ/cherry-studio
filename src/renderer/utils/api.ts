@@ -1,4 +1,4 @@
-import { formatApiHost, isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, isBareVertexApiHost, SUPPORTED_ENDPOINT_LIST, withoutTrailingSlash } from '@shared/utils/api'
 import { trim } from 'es-toolkit/compat'
 
 // Re-export from shared, for backward compatibility
@@ -10,6 +10,7 @@ export {
   joinApiKeyString,
   maskApiKey,
   splitApiKeyString,
+  SUPPORTED_ENDPOINT_LIST,
   withoutTrailingSharp,
   withoutTrailingSlash
 } from '@shared/utils/api'
@@ -42,14 +43,7 @@ export function formatVertexApiHost(input: { apiHost?: string; project: string; 
 
 // 目前对话界面只支持这些端点
 export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict'] as const
-export const SUPPORTED_ENDPOINT_LIST = [
-  'chat/completions',
-  'responses',
-  'messages',
-  'generateContent',
-  'streamGenerateContent',
-  ...SUPPORTED_IMAGE_ENDPOINT_LIST
-] as const
+// SUPPORTED_ENDPOINT_LIST 已在 @shared/utils/api 中统一维护,本文件顶部直接导入并 re-export。
 
 /**
  * Converts an API host URL into separate base URL and endpoint components.

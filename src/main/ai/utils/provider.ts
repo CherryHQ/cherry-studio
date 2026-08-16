@@ -2,6 +2,7 @@ import { providerService } from '@data/services/ProviderService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { SUPPORTED_ENDPOINT_LIST } from '@shared/utils/api'
 
 const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -71,17 +72,7 @@ export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: s
     return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
   }
   const host = trimmedHost.slice(0, -1)
-  const SUPPORTED_ENDPOINTS = [
-    'chat/completions',
-    'responses',
-    'messages',
-    'generateContent',
-    'streamGenerateContent',
-    'images/generations',
-    'images/edits',
-    'predict'
-  ]
-  const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
+  const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((ep) => host.endsWith(ep))
   if (!endpointMatch) {
     return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
   }

@@ -61,6 +61,17 @@ export function joinApiKeyString(apiKeys: readonly string[]): string {
   return apiKeys.map((key) => key.replaceAll(',', '\\,')).join(', ')
 }
 
+export const SUPPORTED_ENDPOINT_LIST = [
+  'chat/completions',
+  'responses',
+  'messages',
+  'generateContent',
+  'streamGenerateContent',
+  'images/generations',
+  'images/edits',
+  'predict'
+] as const
+
 /**
  * Determines whether a host or path string contains a version-like segment (e.g., /v1, /v2beta).
  *
@@ -72,10 +83,12 @@ export function hasApiVersion(host?: string): boolean {
 
   try {
     const url = new URL(host)
-    return VERSION_REGEX.test(url.pathname)
+    return (
+      VERSION_REGEX.test(url.pathname) || SUPPORTED_ENDPOINT_LIST.some((endpoint) => url.pathname.endsWith(endpoint))
+    )
   } catch {
     // If the input cannot be parsed as a full URL, treat it as a path and test directly.
-    return VERSION_REGEX.test(host)
+    return VERSION_REGEX.test(host) || SUPPORTED_ENDPOINT_LIST.some((endpoint) => host.endsWith(endpoint))
   }
 }
 
