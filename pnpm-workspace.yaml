@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
 
 overrides:
+  picomatch: '4.0.4'
   'concurrently>shell-quote': '1.8.4'
   fast-xml-parser: '>=5.10.1'
   protobufjs: '^7.5.5'
@@ -40,12 +41,13 @@ overrides:
   'tmp@>=0.2.0 <0.2.7': '0.2.7'
   vite: 'npm:rolldown-vite@7.3.0'
   yaml: '2.8.2'
-  '@img/sharp-darwin-arm64': '0.34.5'
-  '@img/sharp-darwin-x64': '0.34.5'
-  '@img/sharp-linux-arm': '0.34.5'
-  '@img/sharp-linux-arm64': '0.34.5'
-  '@img/sharp-linux-x64': '0.34.5'
-  '@img/sharp-win32-x64': '0.34.5'
+  sharp: '0.35.3'
+  '@img/sharp-darwin-arm64': '0.35.3'
+  '@img/sharp-darwin-x64': '0.35.3'
+  '@img/sharp-linux-arm': '0.35.3'
+  '@img/sharp-linux-arm64': '0.35.3'
+  '@img/sharp-linux-x64': '0.35.3'
+  '@img/sharp-win32-x64': '0.35.3'
   '@napi-rs/canvas': '0.1.97'
   # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
   # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
@@ -90,6 +92,7 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
 
 allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
@@ -101,7 +104,9 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  koffi: true
   msw: true
+  node-pty: true
   onnxruntime-node: true
   protobufjs: true
   registry-js: true
@@ -120,3 +125,85 @@ supportedArchitectures:
   cpu:
     - x64
     - arm64
+
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/cordis@4.0.1'
+  - '@deepseek-ai/cosmokit@1.8.2'
+  - '@deepseek-ai/dsh-agent@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-attachment@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-attachment-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-brand@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-code-runtime@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-invariants@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-llm@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-scope@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-session@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-system-prompt@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-timeout@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tools@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-user-approval@0.1.0-rc.6'
+  - '@deepseek-ai/schemastery@3.18.1'
+  - '@deepseek-ai/cordis-plugin-group@1.0.1'
+  - '@deepseek-ai/cordis-plugin-include@1.0.6'
+  - '@deepseek-ai/cordis-plugin-loader@1.0.2'
+  - '@deepseek-ai/cordis-plugin-timer@1.1.3'
+  - '@deepseek-ai/dsh-agent-instructions@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-agent-loop@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-agent-spine-demo@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-anonymous-user-id@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-app-boot@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-bash-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-bash-sandbox@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-credentials@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-fs-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-fs@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-goal-round-driver@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-goal@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-home-paths@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-jobs-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-jobs@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-launch-environment@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-llm-deepseek@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-llm-retry@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-output-retention@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-pwsh-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-pwsh-sandbox@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sandbox-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sandbox-policy@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sandbox-windows-acl@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sandbox@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sdk-client@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sdk-jsonrpc-demo@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sdk-jsonrpc-server@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-sdk-protocol@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-session-persistence-jsonl@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-session-persistence@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-session-projection@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-session-title@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-settings@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-shell-env@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-shell@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-skill-filesystem@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-skill@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-subagent@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-subprocess-local@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-subprocess@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-bash@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-fs@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-goal@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-jobs@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-pwsh@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-skill@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-tool-todo@0.1.0-rc.6'
+  - '@deepseek-ai/node-addon-landlock-run-linux-arm64@0.1.1'
+  - '@deepseek-ai/node-addon-landlock-run-linux-x64@0.1.1'
+  - '@deepseek-ai/node-addon-landlock-run@0.1.1'
+  - '@deepseek-ai/dsh-commands@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-compaction@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-token-meter@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-compaction-basic@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-compaction-tool-result-pruner@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-command-compact@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-command-goal@0.1.0-rc.6'

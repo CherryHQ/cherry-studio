@@ -79,6 +79,8 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
+  - "node_modules/@deepseek-ai/**" # dsh runtime bin + composition plugins are spawned/imported by a subprocess outside asar
+  - "node_modules/@cherrystudio/dsh-bridge/**" # bridge plugin bundle loaded by the dsh subprocess
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
@@ -163,6 +165,7 @@ releaseInfo:
     - [Help] Added a localized Help & Feedback menu with the in-app update feature list and history, documentation and repository shortcuts, anonymous diagnostic upload, Cherry Support feedback, and GitHub Issues
     - [Agent] Agents no longer stop at a maximum turn count — a long autonomous run continues until it finishes or is interrupted. To keep a hard cap, set CLAUDE_CODE_MAX_TURNS in the agent's environment variables
     - [Agent] Fast (Pi) agents gain an "Approve for Me" permission mode and new ones start in it — the agent works on its own and asks when it recognizes a risky action. "Full Access" on a Fast (Pi) agent is now unconditional. The agent create dialog now picks the runtime with flat cards, and the edit dialog shows the (unchangeable) runtime
+    - [Agent] Add DeepSeek Harness (dsh) as a third agent runtime for agent sessions, with tool approvals, host-bridged MCP and Cherry built-in tools, skills, context-usage reporting, auto-compaction, /compact and /goal commands, provider retry status, and OpenTelemetry tracing
     - [Code Mate] Code Mate can now install and run DeepSeek Harness with Cherry providers or the Unified Gateway, with managed settings, Web UI access, and a Launchpad shortcut
     - [Chat] Composer shortcuts for send, line break, and steer are now configurable in Settings → Chat → Input. While an Agent is running, the new steer shortcut (⌘Enter on macOS, Ctrl+Enter elsewhere) sends your message straight into the current turn instead of queueing it. Shift+Enter still inserts a line break. On Windows and Linux the send shortcut drops the Win/Super+Enter option that the OS reserved and that never worked
 
@@ -212,6 +215,7 @@ releaseInfo:
     - [帮助] 新增本地化的"帮助与反馈"菜单，包含应用内更新功能列表与历史、文档与仓库快捷入口、匿名诊断上传、Cherry Support 反馈和 GitHub Issues
     - [Agent] Agent 不再受最大回合数限制 —— 长时间自主运行会持续到完成或被打断。如需硬性上限，可在 Agent 环境变量中设置 CLAUDE_CODE_MAX_TURNS
     - [Agent] 快速（Pi）Agent 新增"自动批准"权限模式，且新创建的 Agent 默认使用该模式 —— Agent 自主工作，识别到风险操作时才询问。快速（Pi）Agent 的"完全访问"现在为无条件开启。新建 Agent 对话改用扁平卡片选择运行时，编辑对话框会显示（不可更改的）运行时
+    - [Agent] 新增 DeepSeek Harness（dsh）作为第三个 Agent 会话运行时，支持工具审批、由宿主桥接的 MCP 与 Cherry 内置工具、技能、上下文用量上报、自动压缩、/compact 和 /goal 命令、服务商重试状态和 OpenTelemetry 追踪
     - [Code Mate] Code Mate 现在可以使用 Cherry 服务商或统一网关安装并运行 DeepSeek Harness，提供托管设置、Web UI 访问和启动台快捷方式
     - [对话] 发送、换行和干预快捷键现在可在"设置 → 对话 → 输入"中自定义。Agent 运行时，新的干预快捷键（macOS 为 ⌘Enter，其他系统为 Ctrl+Enter）会将消息直接发送到当前回合，而不是排队。Shift+Enter 仍用于插入换行。Windows 和 Linux 上发送快捷键移除了被系统保留且从未生效的 Win/Super+Enter 选项
 

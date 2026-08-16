@@ -209,8 +209,7 @@
       "type": "Icône de l'agent"
     },
     "input": {
-      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
-      "placeholder_streaming": "Agent travaille — {{sendKey}} met en file d'attente un suivi, {{steerKey}} le guide maintenant."
+      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
     },
     "list": {
       "error": {
@@ -663,16 +662,13 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
-            "description_pi": "Travaille de manière autonome. Interroge lorsqu’il reconnaît une action risquée.",
             "title": "Approuver pour moi",
-            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander.",
-            "warning_pi": "La reconnaissance est effectuée au mieux ; une commande inhabituelle peut toujours passer au travers."
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
             "title": "Accès complet",
-            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation.",
-            "warning_pi": "Dangereux — aucune opération n’est jamais demandée, sauf pour les outils désactivés, y compris la suppression de fichiers et l’accès réseau."
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
           },
           "confirmChange": {
             "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
@@ -1092,6 +1088,10 @@
           "description": "Exécuter des commandes shell",
           "label": "Exécuter des commandes shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
@@ -1099,6 +1099,10 @@
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
@@ -1111,6 +1115,22 @@
         "read": {
           "description": "Lire des fichiers",
           "label": "Lire des fichiers"
+        },
+        "read_image": {
+          "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
+          "label": "Lire une image"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Écrire des fichiers",
@@ -2207,7 +2227,7 @@
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "DeepSeek Harness",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Code Kimi",
@@ -2231,39 +2251,39 @@
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "deepseek_harness": {
-      "agent_preset": "Mode agent par défaut",
+      "agent_preset": "[to be translated]:Default agent mode",
       "agent_presets": {
         "code": {
-          "description": "Combine un travail sur plusieurs étapes avec Outils via le SDK PTC Code Mode pour des tâches de codage complexes.",
-          "label": "PTC Code"
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
         },
         "inherit": {
-          "description": "Conserve le préréglage par défaut existant dans les paramètres partagés ~/.dsh.",
-          "label": "Valeur par défaut de Harness"
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
         },
         "minimal": {
-          "description": "Utilise uniquement un shell persistant et un éditeur de texte pour une surface d'outils minimale.",
-          "label": "Minimal"
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
         },
         "standard": {
-          "description": "Agent de codage complet avec fichiers, shell, recherche, compétences, planification et sous-agents.",
-          "label": "Standard"
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
         }
       },
-      "danger_warning": "L'accès complet permet à l'agent d'atteindre les fichiers en dehors de l'espace de travail et ignore l'approbation des opérations. Utilisez-le uniquement pour les tâches que vous jugez fiables.",
-      "permission_mode": "Autorisation par défaut",
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
       "permission_modes": {
         "danger-full-access": {
-          "description": "Permet un accès sans restriction et sans demande d'approbation.",
-          "label": "Accès complet"
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
         },
         "read-only": {
-          "description": "Restreint les écritures de fichiers et demande confirmation avant les opérations risquées.",
-          "label": "Lecture seule"
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
         },
         "workspace-write": {
-          "description": "Permet les écritures dans l'espace de travail DSH actuel et demande confirmation avant les opérations risquées.",
-          "label": "Écriture dans l'espace de travail"
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
         }
       }
     },
@@ -2317,7 +2337,7 @@
     "no_tools": "Aucun outil disponible",
     "not_installed": "Non installé",
     "open_provider_settings": "Ouvrir les paramètres du fournisseur",
-    "open_web_ui": "Ouvrir l’interface Web",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Officiel"
     },
@@ -2327,10 +2347,10 @@
     "search_provider_placeholder": "Rechercher des fournisseurs…",
     "select_folder": "Sélectionner le dossier",
     "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
-    "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
-    "stop": "Arrêter",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
@@ -2646,6 +2666,7 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n'a pas pu extraire de texte lisible de la pièce jointe. Choisissez un modèle compatible avec la vision ou supprimez l'image et réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3196,8 +3217,6 @@
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
         "loaded_only_hint": "S'applique uniquement aux éléments chargés ({{total}} au total)",
         "reindex": "Réindexer",
-        "reindex_none_eligible": "Toutes les sources de données sélectionnées sont en cours de traitement et ne peuvent pas encore être ré-indexées",
-        "reindex_skipped": "{{count}} source(s) de données en cours de traitement ignorée(s)",
         "selected_count": "{{count}} sélectionné"
       },
       "chunks_count": "{{count}} morceaux",
@@ -3531,11 +3550,8 @@
             "label": "Mode d’exécution",
             "option": {
               "claude_code": "Avancé : Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rapide : Pi"
-            },
-            "option_description": {
-              "claude_code": "Plus capable — mode plan et modèles par niveau",
-              "pi": "Réponses plus rapides, surcharge plus faible"
             }
           },
           "small_model": {
@@ -7417,11 +7433,8 @@
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
-        "newline_shortcuts": "Raccourci de saut de ligne",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
-        "steer_shortcuts": "Raccourci de guidage",
-        "steer_shortcuts_hint": "Lorsqu’un Agent est en cours d'exécution, ce raccourci envoie votre message immédiatement dans le tour en cours pour le guider ; le raccourci d'envoi le met en file d'attente jusqu'à la fin du tour.",
         "title": "Paramètres d'entrée"
       },
       "layout": {

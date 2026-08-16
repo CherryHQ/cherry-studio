@@ -209,8 +209,7 @@
       "type": "Agent 圖示"
     },
     "input": {
-      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段",
-      "placeholder_streaming": "智能體工作進行中 — {{sendKey}} 排隊發送後續指令，{{steerKey}} 立即引導"
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段"
     },
     "list": {
       "error": {
@@ -663,16 +662,13 @@
           },
           "auto": {
             "description": "無需逐次批准，安全檢查會攔截風險操作。",
-            "description_pi": "自主執行，僅在識別到風險操作時詢問。",
             "title": "智慧批准",
-            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。",
-            "warning_pi": "識別為盡力而為，仍可能有少見指令被放行。"
+            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。"
           },
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
-            "warning_pi": "危險 — 除已停用的工具外，包括刪除檔案和網路存取在內的一切操作都不再詢問。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1092,6 +1088,10 @@
           "description": "執行 Shell 命令",
           "label": "執行 Shell 命令"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "編輯檔案",
           "label": "編輯檔案"
@@ -1099,6 +1099,10 @@
         "find": {
           "description": "尋找檔案",
           "label": "尋找檔案"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "搜尋檔案內容",
@@ -1111,6 +1115,22 @@
         "read": {
           "description": "讀取檔案",
           "label": "讀取檔案"
+        },
+        "read_image": {
+          "description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",
+          "label": "讀取圖片"
+        },
+        "skill": {
+          "description": "載入啟用技能的完整指令",
+          "label": "載入技能指令"
+        },
+        "todo_write": {
+          "description": "管理任務清單",
+          "label": "管理任務清單"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "寫入檔案",
@@ -2207,7 +2227,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "DeepSeek Harness",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2231,39 +2251,39 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "deepseek_harness": {
-      "agent_preset": "預設智能體模式",
+      "agent_preset": "[to be translated]:Default agent mode",
       "agent_presets": {
         "code": {
-          "description": "透過 PTC Code Mode SDK 組合多步驟工具操作，適用於複雜編碼任務。",
-          "label": "PTC 程式碼"
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
         },
         "inherit": {
-          "description": "保留共用 ~/.dsh 設定中的現有預設預設集。",
-          "label": "Harness 預設"
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
         },
         "minimal": {
-          "description": "僅使用持久性 Shell 和文字編輯器，工具面最精簡。",
-          "label": "極簡"
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
         },
         "standard": {
-          "description": "完整編碼智能體，具備檔案、Shell、檢索、技能、規劃與子代理功能。",
-          "label": "標準"
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
         }
       },
-      "danger_warning": "完全存取允許智能體觸及工作區外的檔案並略過操作確認。請僅在信任當下任務時使用。",
-      "permission_mode": "預設權限",
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
       "permission_modes": {
         "danger-full-access": {
-          "description": "允許無限制存取且不請求操作確認。",
-          "label": "完全存取"
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
         },
         "read-only": {
-          "description": "限制檔案寫入，並在風險操作前詢問。",
-          "label": "唯讀"
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
         },
         "workspace-write": {
-          "description": "允許在當前 DSH 工作區內寫入，並在風險操作前詢問。",
-          "label": "工作區寫入"
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
         }
       }
     },
@@ -2317,7 +2337,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
-    "open_web_ui": "開啟 Web UI",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2327,10 +2347,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
-    "select_provider_model": "請先選擇供應商與模型",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
-    "stop": "停止",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
@@ -2646,6 +2666,7 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
+    "image_unreadable_for_non_vision_model": "所選模型不支援圖片，且 Cherry Studio 無法從附件中擷取可讀文字。請選擇支援視覺的模型，或移除圖片後再試一次。",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
@@ -3196,8 +3217,6 @@
         "delete_confirm_title": "確認批次刪除",
         "loaded_only_hint": "僅作用於已載入項，共 {{total}} 項",
         "reindex": "重新索引",
-        "reindex_none_eligible": "所有選取的資料來源仍在處理中，暫時無法重新索引",
-        "reindex_skipped": "已跳過 {{count}} 個處理中的資料來源",
         "selected_count": "已選 {{count}} 項"
       },
       "chunks_count": "{{count}} 個片段",
@@ -3531,11 +3550,8 @@
             "label": "執行模式",
             "option": {
               "claude_code": "增強：Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "快速：Pi"
-            },
-            "option_description": {
-              "claude_code": "能力更強 — 支援 Plan 模式與分層模型",
-              "pi": "回應更快，開銷更低"
             }
           },
           "small_model": {
@@ -7417,11 +7433,8 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 觸發輸入快速面板",
-        "newline_shortcuts": "換行捷徑鍵",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
-        "steer_shortcuts": "引導捷徑鍵",
-        "steer_shortcuts_hint": "智能體執行中時，使用此捷徑鍵可立即將訊息發送至當前回合進行引導；傳送捷徑鍵則會將訊息排隊，直到該回合結束後才送出。",
         "title": "輸入設定"
       },
       "layout": {

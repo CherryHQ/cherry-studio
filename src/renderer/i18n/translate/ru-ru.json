@@ -209,8 +209,7 @@
       "type": "Иконка агента"
     },
     "input": {
-      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
-      "placeholder_streaming": "Агент работает — {{sendKey}} ставит в очередь продолжение, {{steerKey}} направляет его сейчас."
+      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
     },
     "list": {
       "error": {
@@ -663,16 +662,13 @@
           },
           "auto": {
             "description": "Работает без обычных запросов. Проверка безопасности блокирует рискованные действия.",
-            "description_pi": "Работает самостоятельно. Запрашивает разрешение при распознавании рискованного действия.",
             "title": "Одобрять за меня",
-            "warning": "Требуется модель с поддержкой этого режима; другие могут игнорировать его или продолжать спрашивать.",
-            "warning_pi": "Распознавание осуществляется в меру возможностей; необычная команда всё же может пройти."
+            "warning": "Требуется модель с поддержкой этого режима; другие могут игнорировать его или продолжать спрашивать."
           },
           "bypassPermissions": {
             "description": "Пропускает проверки разрешений. Может удалять файлы и использовать сеть.",
             "title": "Полный доступ",
-            "warning": "Использовать с осторожностью — все инструменты будут запущены без запроса подтверждения.",
-            "warning_pi": "Опасно — ни о чём не спрашивается, кроме отключённых инструментов, включая удаление файлов и доступ к сети."
+            "warning": "Использовать с осторожностью — все инструменты будут запущены без запроса подтверждения."
           },
           "confirmChange": {
             "description": "Переключение режимов обновляет автоматически одобренные инструменты.",
@@ -1092,6 +1088,10 @@
           "description": "Выполнять команды shell",
           "label": "Выполнять команды shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Редактировать файлы",
           "label": "Редактировать файлы"
@@ -1099,6 +1099,10 @@
         "find": {
           "description": "Искать файлы",
           "label": "Искать файлы"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Искать содержимое файлов",
@@ -1111,6 +1115,22 @@
         "read": {
           "description": "Читать файлы",
           "label": "Читать файлы"
+        },
+        "read_image": {
+          "description": "Читает файл PNG, JPEG, WebP или GIF с помощью модели с поддержкой зрения",
+          "label": "Прочитать изображение"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Записывать файлы",
@@ -2207,7 +2227,7 @@
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
     "cli_tools": {
       "claude_code": "Клод Код",
-      "deepseek_harness": "DeepSeek Harness",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2231,39 +2251,39 @@
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
     "custom_path_set": "Пользовательский путь терминала успешно установлен",
     "deepseek_harness": {
-      "agent_preset": "Режим агента по умолчанию",
+      "agent_preset": "[to be translated]:Default agent mode",
       "agent_presets": {
         "code": {
-          "description": "Объединяет многошаговую работу с инструментами через SDK PTC Code Mode для сложных задач кодирования.",
-          "label": "PTC Code"
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
         },
         "inherit": {
-          "description": "Сохраняет существующий пресет по умолчанию в общих настройках ~/.dsh.",
-          "label": "По умолчанию для Harness"
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
         },
         "minimal": {
-          "description": "Использует только постоянную оболочку и текстовый редактор для минимальной поверхности инструментов.",
-          "label": "Минимальный"
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
         },
         "standard": {
-          "description": "Полноценный агент для кодирования с файлами, оболочкой, поиском, навыками, планированием и подчиненными агентами.",
-          "label": "Стандартный"
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
         }
       },
-      "danger_warning": "Полный доступ позволяет агенту взаимодействовать с файлами вне рабочей области и пропускает подтверждение операций. Используйте его только для задач, которым доверяете.",
-      "permission_mode": "Разрешение по умолчанию",
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
       "permission_modes": {
         "danger-full-access": {
-          "description": "Разрешает неограниченный доступ без подтверждения операций.",
-          "label": "Полный доступ"
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
         },
         "read-only": {
-          "description": "Запрещает запись файлов и запрашивает разрешение перед рискованными операциями.",
-          "label": "Только чтение"
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
         },
         "workspace-write": {
-          "description": "Разрешает запись в текущей рабочей области DSH и запрашивает разрешение перед рискованными операциями.",
-          "label": "Запись в рабочей области"
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
         }
       }
     },
@@ -2317,7 +2337,7 @@
     "no_tools": "Нет доступных инструментов",
     "not_installed": "Не установлено",
     "open_provider_settings": "Открыть настройки провайдера",
-    "open_web_ui": "Открыть веб-интерфейс",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "Официальный вход {{toolName}}"
     },
@@ -2327,10 +2347,10 @@
     "search_provider_placeholder": "Поиск провайдеров…",
     "select_folder": "Выберите папку",
     "select_provider_before_launch": "Выберите провайдер перед запуском {{toolName}}",
-    "select_provider_model": "Пожалуйста, сначала выберите сервис и модель",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Выберите инструмент CLI слева, чтобы начать настройку",
     "set_custom_path": "Настройка пользовательского пути терминала",
-    "stop": "Остановить",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Поддерживаемые провайдеры",
     "terminal": "терминал",
     "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
@@ -2646,6 +2666,7 @@
       "503": "Серверная ошибка. Пожалуйста, попробуйте позже",
       "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
     },
+    "image_unreadable_for_non_vision_model": "Выбранная модель не поддерживает изображения, а Cherry Studio не удалось извлечь читаемый текст из вложения. Выберите модель с поддержкой зрения или удалите изображение и повторите попытку.",
     "lastError": "Последняя ошибка",
     "maxEmbeddingsPerCall": "Максимум эмбеддингов за вызов",
     "message": "Сообщение об ошибке",
@@ -3196,8 +3217,6 @@
         "delete_confirm_title": "Удалить выбранные источники данных?",
         "loaded_only_hint": "Применяется только к загруженным элементам (всего {{total}})",
         "reindex": "Переиндексация",
-        "reindex_none_eligible": "Все выбранные источники данных всё ещё обрабатываются и пока не могут быть переиндексированы",
-        "reindex_skipped": "Пропущено {{count}} источников данных, которые всё ещё обрабатываются",
         "selected_count": "{{count}} выбрано"
       },
       "chunks_count": "{{count}} частей",
@@ -3531,11 +3550,8 @@
             "label": "Режим выполнения",
             "option": {
               "claude_code": "Расширенный: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Быстрый: Pi"
-            },
-            "option_description": {
-              "claude_code": "Более способный — режим планирования и модели по уровням",
-              "pi": "Более быстрые ответы, меньшие накладные расходы"
             }
           },
           "small_model": {
@@ -7417,11 +7433,8 @@
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
         "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
-        "newline_shortcuts": "Сочетание клавиш для разрыва строки",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать оценочное число токенов",
-        "steer_shortcuts": "Сочетание клавиш для управления",
-        "steer_shortcuts_hint": "Когда агент работает, это сочетание сразу отправляет ваше сообщение в текущий ход, чтобы управлять им; сочетание для отправки ставит сообщение в очередь до окончания хода.",
         "title": "Настройки ввода"
       },
       "layout": {
