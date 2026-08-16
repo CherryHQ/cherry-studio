@@ -369,7 +369,6 @@ describe('AppShellTabBar', () => {
         screenY: 100
       })
       Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
 
       const pointerUp = new MouseEvent('pointerup', {
         bubbles: true,
@@ -379,7 +378,15 @@ describe('AppShellTabBar', () => {
         screenY: 100
       })
       Object.defineProperty(pointerUp, 'pointerId', { value: 1 })
-      fireEvent(document, pointerUp)
+
+      // Dispatch both inside one act so React cannot flush the pending
+      // setDragState({ mode: 'detach' }) between them — pointerup then sees only
+      // the synchronous dragRef.detachedCreated flag, the stale-closure fallback
+      // the fix adds (real-world fast drops race the render commit the same way).
+      act(() => {
+        document.dispatchEvent(pointerMove)
+        document.dispatchEvent(pointerUp)
+      })
 
       expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
       expect(moveWindowSend).toHaveBeenCalledWith(
