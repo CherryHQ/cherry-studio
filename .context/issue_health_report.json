@@ -1,45 +1,45 @@
 {
-  "generated_at": "2026-08-15T18:00:00Z",
-  "date": "2026-08-15",
-  "total_open": 876,
-  "delta_from_yesterday": "+3",
+  "generated_at": "2026-08-16T19:30:00Z",
+  "date": "2026-08-16",
+  "total_open": 881,
+  "delta_from_yesterday": "+5",
   "health_distribution": {
     "active": {
-      "count": 224,
-      "pct": 25.6,
-      "definition": "updated in last 7 days (>=2026-08-08)"
+      "count": 192,
+      "pct": 21.8,
+      "definition": "updated in last 7 days (>=2026-08-09)"
     },
     "aging": {
-      "count": 229,
-      "pct": 26.1,
-      "definition": "updated 7-30 days ago (2026-07-16..2026-08-07)"
+      "count": 263,
+      "pct": 29.8,
+      "definition": "updated 7-30 days ago (2026-07-17..2026-08-08)"
     },
     "stale": {
-      "count": 192,
-      "pct": 21.9,
-      "definition": "updated 30-90 days ago (2026-05-17..2026-07-15)"
+      "count": 197,
+      "pct": 22.4,
+      "definition": "updated 30-90 days ago (2026-05-17..2026-07-16)"
     },
     "zombie": {
-      "count": 231,
-      "pct": 26.4,
+      "count": 229,
+      "pct": 26.0,
       "definition": "not updated in 90+ days (<=2026-05-16)"
     }
   },
   "label_health": {
-    "unlabeled_open": 113,
-    "unlabeled_pct": 12.9,
-    "note": "Significant drop from 237 yesterday — possible mass-labeling or search methodology difference; verified via GitHub no:label filter",
-    "inactive_labeled": 71,
+    "unlabeled_open": 109,
+    "unlabeled_pct": 12.4,
+    "note": "Slight improvement from 113 yesterday — 4 issues labeled",
+    "inactive_labeled": 130,
     "p1_labeled": 3,
     "top_backlog_labels": {
-      "UI/UX": "est. 300+",
-      "Models": "est. 160+",
-      "Assistant": "est. 70+",
-      "Performance": "est. 65+",
-      "MCP": "est. 50+",
+      "UI/UX": "est. 320+",
+      "Models": "est. 180+",
+      "Assistant": "est. 60+",
+      "Performance": "est. 60+",
+      "MCP": "est. 45+",
       "RAG": "est. 30+",
-      "Data": "est. 25+",
-      "Connectivity": "est. 30+"
+      "Connectivity": "est. 40+",
+      "Data": "est. 20+"
     }
   },
   "security_items": [
@@ -47,49 +47,37 @@
       "number": 18273,
       "title": "Backup restore: zip-slip path traversal vulnerability",
       "severity": "SECURITY",
-      "age_days": 6,
-      "status": "OPEN — needs immediate fix"
-    },
-    {
-      "number": 18648,
-      "title": "MCP server env secrets (GITHUB_PERSONAL_ACCESS_TOKEN) logged in plaintext",
-      "severity": "SECURITY",
-      "age_days": 0,
-      "status": "CLOSED today — resolved"
+      "age_days": 7,
+      "status": "OPEN — critical, 7 days unaddressed"
     }
   ],
-  "new_audit_flag": {
-    "number": 18669,
-    "title": "[WhaleHarness audit] CherryHQ/cherry-studio@2.0.5: REJECT",
-    "opened_by": "moby-whaleharness",
-    "opened_at": "2026-08-15T14:51:36Z",
-    "status": "OPEN — needs review by maintainers to assess findings"
-  },
   "high_comment_active_issues": [
-    {"number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8, "age_days": 1, "labels": ["UI/UX"]},
-    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 8, "labels": ["needs-more-info", "MCP"]},
-    {"number": 17629, "title": "Processes remain running after closing window (tray disabled)", "comments": 7, "age_days": 16},
-    {"number": 18371, "title": "Agent session reasoning rendered as plain body text (v2.0.3)", "comments": 5, "age_days": 4, "labels": ["UI/UX"]},
-    {"number": 5442, "title": "LLMOps/Langfuse observability support", "comments": 7, "age_days": 475, "labels": ["feature", "Models", "Blocked: v2"]}
+    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 9, "labels": ["needs-more-info", "MCP"]},
+    {"number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8, "age_days": 2, "labels": ["UI/UX"]},
+    {"number": 17629, "title": "Processes remain running after closing window (tray disabled)", "comments": 7, "age_days": 17},
+    {"number": 5442, "title": "LLMOps/Langfuse observability support", "comments": 7, "age_days": 476, "labels": ["feature", "Models", "Blocked: v2"]},
+    {"number": 18683, "title": "TypeError in knowledgeListModelOutput (kb_list tool call)", "comments": 2, "age_days": 0, "labels": ["RAG"]}
   ],
   "regression_watch_v2": [
+    {"number": 18698, "title": "LaTeX formula copying issue (v2.0.5)", "opened": "2026-08-16"},
     {"number": 18665, "title": "Math formula superscripts garbled in v2.0.5 (v1.9.3 fine)", "opened": "2026-08-15"},
+    {"number": 18706, "title": "AI-generated content can no longer be edited (v2)", "opened": "2026-08-16"},
     {"number": 18607, "title": "Scheduled tasks skip missed runs after v2 upgrade", "opened": "2026-08-14"},
     {"number": 18644, "title": "Migration from 1.9.3 to 2.0.2 failed", "opened": "2026-08-15"},
     {"number": 18099, "title": "\"Save only\" option removed in v2.x (was in v1.9.13)", "opened": "2026-08-07"},
-    {"number": 18220, "title": "Subscription source for web search blacklist missing in v2", "opened": "2026-08-08"}
+    {"number": 18196, "title": "Regenerate Conversation button removed in v2", "opened": "2026-08-08"}
   ],
   "triage_recommendations": [
-    "URGENT: #18273 zip-slip security in backup restore — 6 days old, still unaddressed",
-    "NEW TODAY: #18669 WhaleHarness audit REJECT v2.0.5 — review bot findings immediately",
-    "REGRESSION: #18665 math formula garbled in v2.0.5 — opened today, likely needs hotfix",
-    "113 (~12.9%) open issues have no category label — continue batch-triage",
-    "231 zombie issues (>90 days) — review for auto-close with 'inactive' bot",
-    "Consolidate process-leak reports: #18445 + #17629 likely same root cause",
-    "MCP #18131 at 9 comments, needs-more-info, 8 days old — close or escalate",
-    "Agent + Ollama (#18643) and Agent Feishu (#18336) are both runtime failures — co-triage"
+    "CRITICAL: #18273 zip-slip security in backup restore — 7 days old, STILL unaddressed — escalate",
+    "REGRESSION CLUSTER: LaTeX/math copy broken (#18665 + #18698) — 2 reports in 2 days, likely needs hotfix in v2.0.6",
+    "REGRESSION: #18706 AI message editing removed — high user frustration, multiple threads",
+    "v2.0.6 release PR #18704 open — verify LaTeX fix + zip-slip security before merging",
+    "109 (~12.4%) open issues have no category label — continue batch-triage",
+    "229 zombie issues (>90 days) — review for auto-close with 'inactive' bot",
+    "MCP #18131 at 9 comments, needs-more-info, 9 days old — close or escalate to v2.0.6",
+    "Agent + Ollama (#18643) and Agent Feishu (#18336) both runtime failures — co-triage"
   ],
-  "closed_last_30d": 555,
-  "close_rate_per_day_30d": 18.5,
-  "inactive_close_notes": "Continued high close velocity (555/30d); 18648 security fix resolved same day — good response time"
+  "closed_last_30d": 561,
+  "close_rate_per_day_30d": 18.7,
+  "close_velocity_note": "High close velocity maintained (561/30d). v2.0.6 release PR open — prepare for another close spike post-release."
 }

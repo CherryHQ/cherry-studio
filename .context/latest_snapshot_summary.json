@@ -1,25 +1,25 @@
 {
-  "generated_at": "2026-08-15T18:00:00Z",
-  "date": "2026-08-15",
+  "generated_at": "2026-08-16T19:30:00Z",
+  "date": "2026-08-16",
   "source": "github_mcp",
   "open_issues": {
-    "total": 876,
-    "delta_from_yesterday": "+3",
-    "unlabeled_count": 113,
-    "unlabeled_pct": 12.9,
-    "inactive_labeled": 71,
+    "total": 881,
+    "delta_from_yesterday": "+5",
+    "unlabeled_count": 109,
+    "unlabeled_pct": 12.4,
+    "inactive_labeled": 130,
     "label_breakdown": {
-      "UI/UX": "highest (est. 300+)",
-      "Models": "2nd (est. 160+)",
-      "Performance": "est. 65+",
-      "MCP": "est. 50+",
-      "Connectivity": "est. 30+",
+      "UI/UX": "highest (est. 320+)",
+      "Models": "2nd (est. 180+)",
+      "Performance": "est. 60+",
+      "MCP": "est. 45+",
+      "Connectivity": "est. 40+",
       "RAG": "est. 30+",
-      "Assistant": "est. 60+",
-      "Data": "est. 25+",
+      "Assistant": "est. 25+",
+      "Data": "est. 20+",
       "Docs": "est. 15+",
-      "Agent": "est. 10+",
-      "inactive": 71,
+      "Agent": "est. 15+",
+      "inactive": 130,
       "needs-repro": "est. 25+",
       "needs-more-info": "est. 8+",
       "Planned": "est. 5+",
@@ -27,18 +27,23 @@
     }
   },
   "open_prs": {
-    "total": 438,
-    "targeting_main": "est. 430+",
+    "total": 439,
+    "targeting_main": "est. 435+",
     "targeting_v2": 0,
-    "targeting_v1": 1,
-    "targeting_other": "est. 5+",
+    "targeting_v1": 0,
+    "targeting_other": "est. 4+",
     "drafts": "est. 20+",
-    "recent_prs_today_aug15": [
-      {"number": 18673, "title": "fix(files): keep upload entry available in file type categories", "base": "main"},
-      {"number": 18671, "title": "refactor(code): retire CLI config read IO, broadcast managed-tool status", "base": "main", "draft": true},
-      {"number": 18670, "title": "fix(mcp): redact secrets from logging notification message", "base": "main"},
-      {"number": 18668, "title": "fix(button-group): preserve outline button seams", "base": "main"},
-      {"number": 18666, "title": "fix(local-embedding): verify the cache on disk before reporting model ready", "base": "main"}
+    "recent_prs_today_aug16": [
+      {"number": 18711, "title": "fix(ui-markdown): keep styles entry in bundle so formats render", "base": "main"},
+      {"number": 18709, "title": "fix(agent-composer): stop UNC workspace paths from failing space scan", "base": "main"},
+      {"number": 18708, "title": "feat(pi-runtime): add TypeScript-guided code mode tools", "base": "main"},
+      {"number": 18704, "title": "chore: release v2.0.6", "base": "main"},
+      {"number": 18703, "title": "fix(composer): stop losing pasted text at the input limit", "base": "main"},
+      {"number": 18702, "title": "fix(image-generation): stop forcing response_format on OpenAI", "base": "main"},
+      {"number": 18701, "title": "perf(code-viewer): share selection listener (deduplicate listeners)", "base": "main"},
+      {"number": 18699, "title": "fix(provider-registry): keep CherryIN Grok 4.1 Fast off the main list", "base": "main"},
+      {"number": 18697, "title": "fix(api-gateway): keep Agent SDK system messages out of the context", "base": "main"},
+      {"number": 18694, "title": "fix(agent-migration): stop uncopyable memory entry from aborting migration", "base": "main"}
     ]
   },
   "v2_branch_prs": {
@@ -47,46 +52,54 @@
     "note": "v2 branch merged into main; no active PRs target v2 base. All development on main."
   },
   "closed_last_30d": {
-    "issues": 555,
+    "issues": 561,
     "delta_from_yesterday": "+6",
-    "close_rate_per_day": 18.5,
+    "close_rate_per_day": 18.7,
     "notable_closes_recent": [
+      {"number": 18688, "title": "fix(shortcut): accept F13-F24 as shortcut keys", "closed_at": "2026-08-16", "label": "UI/UX"},
+      {"number": 18685, "title": "fix(composer): stop the deferred paste replay from being handled twice", "closed_at": "2026-08-16"},
+      {"number": 18664, "title": "fix(composer): swap the deferred composer while idle instead of mid-keystroke", "closed_at": "2026-08-16"},
       {"number": 18648, "title": "[Security]: MCP server env secrets logged in plaintext", "closed_at": "2026-08-15", "label": "MCP"},
-      {"number": 18618, "title": "[Bug]: Parallelize backup dialog metadata IPC", "closed_at": "2026-08-14", "label": "Performance"},
-      {"number": 18569, "title": "[Bug]: Since 2.0, minimize to tray still active even when disabled", "closed_at": "2026-08-14"},
-      {"number": 18554, "title": "[Bug]: Preserve disabled-send feedback in deferred composer", "closed_at": "2026-08-14", "label": "UI/UX"},
-      {"number": 18545, "title": "[Feature]: Topic dual-column side-by-side display", "closed_at": "2026-08-14", "label": "UI/UX"}
+      {"number": 18618, "title": "[Bug]: Parallelize backup dialog metadata IPC", "closed_at": "2026-08-14", "label": "Performance"}
     ]
   },
   "p1_urgent_open": [
     {
-      "number": 18669,
-      "title": "[WhaleHarness audit] CherryHQ/cherry-studio@2.0.5: REJECT",
-      "labels": [],
-      "severity": "AUDIT",
+      "number": 18698,
+      "title": "[Bug]: LaTeX formula copying issue",
+      "labels": ["UI/UX"],
+      "severity": "REGRESSION",
       "age_days": 0,
-      "note": "Security/audit bot opened today — needs triage to assess legitimacy and findings"
+      "note": "Duplicate cluster with #18665 — LaTeX/math copy broken in v2.0.5"
     },
     {
       "number": 18665,
       "title": "[Bug] Severe distortion when copying math formula: superscripts lost/garbled (v2.0.5, v1.9.3 works)",
       "labels": ["UI/UX"],
       "severity": "REGRESSION",
-      "age_days": 0
+      "age_days": 1
+    },
+    {
+      "number": 18683,
+      "title": "[Bug]: TypeError in knowledgeListModelOutput when continuing chat containing kb_list tool call",
+      "labels": ["RAG"],
+      "severity": "P1",
+      "age_days": 0,
+      "comments": 2
     },
     {
       "number": 18643,
       "title": "[Bug]: Agent runtime + local Ollama model: all tool calls return 500",
       "labels": [],
       "severity": "P1",
-      "age_days": 0
+      "age_days": 1
     },
     {
       "number": 18607,
       "title": "[Bug]: Scheduled tasks silently skip missed runs after v2 upgrade (regression — v1 caught up)",
       "labels": [],
       "severity": "REGRESSION",
-      "age_days": 1,
+      "age_days": 2,
       "comments": 1
     },
     {
@@ -94,7 +107,7 @@
       "title": "[Bug] Agent Feishu channel: WebSocket connects but inbound messages never reach the session (2.0.3)",
       "labels": ["BUG", "Connectivity"],
       "severity": "P1",
-      "age_days": 4,
+      "age_days": 5,
       "comments": 1
     },
     {
@@ -102,15 +115,15 @@
       "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
       "labels": ["Data"],
       "severity": "SECURITY",
-      "age_days": 6,
-      "note": "Still open — critical security vulnerability"
+      "age_days": 7,
+      "note": "Still open — critical security vulnerability (zip-slip / path traversal)"
     },
     {
       "number": 18131,
       "title": "[Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
       "labels": ["needs-more-info", "MCP"],
       "severity": "P1",
-      "age_days": 8,
+      "age_days": 9,
       "comments": 9
     },
     {
@@ -118,7 +131,7 @@
       "title": "[Bug]: Processes remain running in Task Manager after closing window (tray disabled)",
       "labels": [],
       "severity": "P1",
-      "age_days": 16,
+      "age_days": 17,
       "comments": 7
     },
     {
@@ -126,14 +139,14 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "severity": "P1-label",
-      "age_days": 100
+      "age_days": 101
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "severity": "P1-label",
-      "age_days": 150,
+      "age_days": 151,
       "comments": 8
     },
     {
@@ -141,26 +154,26 @@
       "title": "[Bug]: Azure OpenAI Resource not found, default use responses API (macOS)",
       "labels": ["P1", "Models"],
       "severity": "P1-label",
-      "age_days": 164,
+      "age_days": 165,
       "comments": 1
     }
   ],
-  "new_issues_today_aug15": [
-    {"number": 18669, "title": "[WhaleHarness audit] CherryHQ/cherry-studio@2.0.5: REJECT", "labels": []},
-    {"number": 18667, "title": "[Bug]: Windows: F13-F24 not recognized by shortcut recorder", "labels": []},
-    {"number": 18665, "title": "[Bug] Math formula superscripts lost/garbled in v2.0.5", "labels": ["UI/UX"]},
-    {"number": 18663, "title": "[Bug]: Mini program lacks clear closing logic", "labels": ["UI/UX"]},
-    {"number": 18662, "title": "[Feature]: Customizable response_format whitelist for image generation", "labels": ["Models"]},
-    {"number": 18658, "title": "[Feature]: Re-input should not include deleted message content", "labels": ["UI/UX"]},
-    {"number": 18646, "title": "[Bug]: Table rendering issue on chat page", "labels": ["needs-repro", "UI/UX"]},
-    {"number": 18644, "title": "Migration from 1.9.3 to 2.0.2 failed", "labels": ["needs-more-info"]},
-    {"number": 18643, "title": "[Bug]: Agent runtime + Ollama: all tool calls return 500", "labels": []}
+  "new_issues_today_aug16": [
+    {"number": 18710, "title": "[Feature]: Support for OpenRouter Presets", "labels": ["Models"]},
+    {"number": 18707, "title": "[Bug]: Unable to use up/down arrow keys to scroll the window view in chat", "labels": ["UI/UX"]},
+    {"number": 18706, "title": "[Discussion]: Why can't I edit the AI-generated content anymore?", "labels": ["help wanted", "discussion", "UI/UX"]},
+    {"number": 18705, "title": "[Bug]: Interface disappears and freezes", "labels": ["UI/UX"]},
+    {"number": 18700, "title": "[Bug]: In agent, modifying conversation topic name causes a complete freeze", "labels": ["UI/UX"]},
+    {"number": 18698, "title": "[Bug]: LaTeX formula copying issue", "labels": ["UI/UX"]},
+    {"number": 18695, "title": "[Bug]: Agent mode fails with 400 Bad Request when sending images to Ollama (Gemma 4)", "labels": ["Models"]},
+    {"number": 18696, "title": "[Bug]: API Error 400 when using grok-4-1-fast-* models with Claude Code Runtime Driver", "labels": ["Models"]},
+    {"number": 18691, "title": "Generated program is incomplete and cannot be used directly", "labels": []}
   ],
   "notable_recently_closed": [
+    {"number": 18688, "title": "fix(shortcut): accept F13-F24 as shortcut keys", "closed_at": "2026-08-16"},
+    {"number": 18685, "title": "fix(composer): stop the deferred paste replay from being handled twice", "closed_at": "2026-08-16"},
+    {"number": 18664, "title": "fix(composer): swap deferred composer while idle", "closed_at": "2026-08-16"},
     {"number": 18648, "title": "MCP env secrets logged in plaintext — SECURITY", "closed_at": "2026-08-15"},
-    {"number": 18318, "title": "DeepSeek V4 Pro & 57+ models clamped to 100K context", "closed_at": "2026-08-11"},
-    {"number": 18397, "title": "Model context window not passed to Claude Code SDK — [1m] suffix not parsed", "closed_at": "2026-08-12"},
-    {"number": 18317, "title": "Agent session deadlocks — live-stream replay ring overflow", "closed_at": "2026-08-12"},
-    {"number": 18175, "title": "Agent outputs internal system reminder verbatim", "closed_at": "2026-08-11"}
+    {"number": 18397, "title": "Model context window not passed to Claude Code SDK", "closed_at": "2026-08-12"}
   ]
 }
