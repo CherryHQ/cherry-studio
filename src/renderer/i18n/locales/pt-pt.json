@@ -226,17 +226,30 @@
           "system_tools": "Ferramentas do sistema"
         },
         "context_usage": "Uso de contexto",
-        "shell_tasks": "Comandos em segundo plano",
-        "subagents": "Subagentes",
-        "workflows": "Fluxos de trabalho"
+        "label": "Informações da sessão",
+        "more": "+{{count}} mais",
+        "no_artifacts": "Nenhum entregável declarado",
+        "no_subagents": "Sem subagentes"
       },
       "status": {
         "stop_run_task": "Parar tarefa",
         "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
         "task_progress_compact": "Passo {{current}}/{{total}}",
-        "tool_uses_one": "{{count}} chamada de ferramenta",
-        "tool_uses_other": "{{count}} chamadas de ferramenta"
+        "activity": "Atividade",
+        "agent": "Agente",
+        "context": "Contexto",
+        "no_tasks": "Sem tarefas ativas",
+        "run_task_live_one": "{{count}} ao vivo",
+        "run_task_live_other": "{{count}} ao vivo",
+        "run_tasks": "Subtarefas",
+        "selected_tool": "Ferramenta selecionada",
+        "tasks": "Tarefas",
+        "tools_active": "Ativo",
+        "tools_done": "Feito",
+        "tools_failed": "Falhou",
+        "tools_total": "Total",
+        "workspace": "Área de Trabalho"
       },
       "tabs": {
         "files": "Ficheiros",

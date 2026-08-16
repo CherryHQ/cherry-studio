@@ -232,9 +232,10 @@
           "system_tools": "System tools"
         },
         "context_usage": "Context usage",
-        "shell_tasks": "Background commands",
-        "subagents": "Sub-agents",
-        "workflows": "Workflows"
+        "label": "Session information",
+        "more": "+{{count}} more",
+        "no_artifacts": "No declared outputs",
+        "no_subagents": "No sub-agents"
       },
       "status": {
         "activity": "Activity",
@@ -250,7 +251,6 @@
         "execution_async": "Async",
         "execution_sync": "Sync",
         "hide_output": "Collapse output",
-        "no_output": "No output yet",
         "no_tasks": "No active tasks",
         "run_task_live_one": "{{count}} live",
         "run_task_live_other": "{{count}} live",
@@ -266,8 +266,6 @@
         "tasks": "Tasks",
         "time": "Time",
         "toggle_workflow": "Toggle {{name}} details",
-        "tool_uses_one": "{{count}} tool call",
-        "tool_uses_other": "{{count}} tool calls",
         "tools": "Tools",
         "tools_active": "Active",
         "tools_done": "Done",

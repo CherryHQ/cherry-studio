@@ -226,17 +226,30 @@
           "system_tools": "Εργαλεία συστήματος"
         },
         "context_usage": "Χρήση πλαισίου",
-        "shell_tasks": "Εντολές παρασκηνίου",
-        "subagents": "Υπο-πράκτορες",
-        "workflows": "Ροές εργασίας"
+        "label": "Πληροφορίες συνεδρίας",
+        "more": "+{{count}} ακόμα",
+        "no_artifacts": "Καμία δηλωμένη παράδοση",
+        "no_subagents": "Καμία υπο-αντιπροσωπεία"
       },
       "status": {
         "stop_run_task": "Διακοπή εργασίας",
         "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
         "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
         "task_progress_compact": "Βήμα {{current}}/{{total}}",
-        "tool_uses_one": "{{count}} κλήση εργαλείου",
-        "tool_uses_other": "{{count}} κλήσεις εργαλείων"
+        "activity": "Δραστηριότητα",
+        "agent": "Πράκτορας",
+        "context": "Συμφραζόμενα",
+        "no_tasks": "Κανένα ενεργό καθήκον",
+        "run_task_live_one": "{{count}} ζωντανά",
+        "run_task_live_other": "{{count}} ζωντανά",
+        "run_tasks": "Υποεργασίες",
+        "selected_tool": "Επιλεγμένο εργαλείο",
+        "tasks": "Εργασίες",
+        "tools_active": "Ενεργός",
+        "tools_done": "Έγινε",
+        "tools_failed": "Απέτυχε",
+        "tools_total": "Σύνολο",
+        "workspace": "Χώρος εργασίας"
       },
       "tabs": {
         "files": "Αρχεία",

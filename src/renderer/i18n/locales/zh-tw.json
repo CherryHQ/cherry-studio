@@ -226,17 +226,30 @@
           "system_tools": "系統工具"
         },
         "context_usage": "上下文用量",
-        "shell_tasks": "背景指令",
-        "subagents": "子 Agent",
-        "workflows": "工作流程"
+        "label": "任務資訊",
+        "more": "還有 {{count}} 項",
+        "no_artifacts": "目前沒有宣告產物",
+        "no_subagents": "目前沒有子 Agent"
       },
       "status": {
         "stop_run_task": "停止任務",
         "stop_run_task_failed": "無法停止任務",
         "task_count": "{{completed}} / {{total}} 完成",
         "task_progress_compact": "步驟 {{current}}/{{total}}",
-        "tool_uses_one": "{{count}} 個工具呼叫",
-        "tool_uses_other": "{{count}} 個工具呼叫"
+        "activity": "活動",
+        "agent": "Agent",
+        "context": "上下文",
+        "no_tasks": "沒有進行中的任務",
+        "run_task_live_one": "{{count}} 直播中",
+        "run_task_live_other": "{{count}} 個執行中",
+        "run_tasks": "子任務",
+        "selected_tool": "選取的工具",
+        "tasks": "任務",
+        "tools_active": "活躍",
+        "tools_done": "完成",
+        "tools_failed": "失敗",
+        "tools_total": "總計",
+        "workspace": "工作區"
       },
       "tabs": {
         "files": "檔案",

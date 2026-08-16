@@ -226,17 +226,30 @@
           "system_tools": "システムツール"
         },
         "context_usage": "コンテキストの使用",
-        "shell_tasks": "バックグラウンドコマンド",
-        "subagents": "サブエージェント",
-        "workflows": "ワークフロー"
+        "label": "セッション情報",
+        "more": "+{{count}} 件",
+        "no_artifacts": "宣言された成果物なし",
+        "no_subagents": "サブエージェントなし"
       },
       "status": {
         "stop_run_task": "タスクを停止",
         "stop_run_task_failed": "タスクの停止に失敗しました",
         "task_count": "{{completed}} / {{total}} 完了",
         "task_progress_compact": "ステップ {{current}}/{{total}}",
-        "tool_uses_one": "{{count}} ツール呼び出し",
-        "tool_uses_other": "{{count}} 回のツール呼び出し"
+        "activity": "活動",
+        "agent": "エージェント",
+        "context": "コンテキスト",
+        "no_tasks": "アクティブなタスクはありません",
+        "run_task_live_one": "{{count}} ライブ",
+        "run_task_live_other": "{{count}} ライブ",
+        "run_tasks": "サブタスク",
+        "selected_tool": "選択されたツール",
+        "tasks": "タスク",
+        "tools_active": "アクティブ",
+        "tools_done": "完了",
+        "tools_failed": "失敗",
+        "tools_total": "合計",
+        "workspace": "ワークスペース"
       },
       "tabs": {
         "files": "ファイル",

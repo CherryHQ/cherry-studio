@@ -232,9 +232,10 @@
           "system_tools": "系统工具"
         },
         "context_usage": "上下文用量",
-        "shell_tasks": "后台命令",
-        "subagents": "子智能体",
-        "workflows": "工作流"
+        "label": "任务信息",
+        "more": "还有 {{count}} 项",
+        "no_artifacts": "暂无声明产物",
+        "no_subagents": "暂无子智能体"
       },
       "status": {
         "activity": "活动",
@@ -250,7 +251,6 @@
         "execution_async": "异步",
         "execution_sync": "同步",
         "hide_output": "收起输出",
-        "no_output": "暂无输出",
         "no_tasks": "暂无活动任务",
         "run_task_live_one": "{{count}} 个进行中",
         "run_task_live_other": "{{count}} 个进行中",
@@ -266,8 +266,6 @@
         "tasks": "任务",
         "time": "时间",
         "toggle_workflow": "展开或折叠 {{name}} 的详情",
-        "tool_uses_one": "{{count}} 次工具调用",
-        "tool_uses_other": "{{count}} 次工具调用",
         "tools": "工具",
         "tools_active": "活跃",
         "tools_done": "完成",

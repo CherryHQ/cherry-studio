@@ -14,7 +14,8 @@ import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/t
 import {
   type AgentSessionBackgroundTasks,
   type AgentSessionTaskEvents,
-  mergeAgentSessionTaskEvent
+  mergeAgentSessionTaskEvent,
+  TERMINAL_TASK_STATUSES
 } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transport'
@@ -81,7 +82,6 @@ export interface AgentRunTask {
   subagentType?: string
   workflowName?: string
   description?: string
-  summary?: string
   usage?: AgentTaskEventPartData['usage']
   workflow?: AgentTaskEventPartData['workflow']
   command?: string
@@ -519,8 +519,6 @@ function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined
     ]
   })
 }
-
-const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
 const WORKFLOW_AGENT_ACTIVE_STATES = new Set(['active', 'in_progress', 'running'])
 
 function settleActiveWorkflowAgents(
@@ -561,7 +559,7 @@ function applyAgentTaskEvent(
   const isBackgrounded = mergedData.isBackgrounded ?? existing?.isBackgrounded
   const workflowSnapshot = mergedData.workflow ?? existing?.workflow
   const workflow =
-    workflowSnapshot && RUN_TASK_TERMINAL_STATUSES.has(status)
+    workflowSnapshot && TERMINAL_TASK_STATUSES.has(status)
       ? settleActiveWorkflowAgents(workflowSnapshot, status === 'completed' ? 'completed' : 'interrupted')
       : workflowSnapshot
 
@@ -578,7 +576,6 @@ function applyAgentTaskEvent(
     subagentType: mergedData.subagentType ?? existing?.subagentType,
     workflowName: mergedData.workflowName ?? existing?.workflowName,
     description: existing?.description ?? mergedData.description,
-    summary: mergedData.summary ?? existing?.summary,
     usage: mergedData.usage ?? existing?.usage,
     ...(workflow ? { workflow } : {}),
     ...(existing?.command ? { command: existing.command } : {}),
@@ -693,7 +690,7 @@ export function buildAgentRightPaneStatus(
   // while a detached task remains live only while the runtime aggregate still contains it.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
-      if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
+      if (TERMINAL_TASK_STATUSES.has(task.status)) continue
       const originMessageId = runTaskOriginMessageIds.get(id)
       const originIsLive = Boolean(originMessageId && liveness.activeMessageIds.has(originMessageId))
       const aggregateIsLive = aggregateTaskIds.has(id)

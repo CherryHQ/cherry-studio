@@ -563,7 +563,6 @@ describe('agent right pane projections', () => {
         status: 'completed',
         taskType: 'subagent',
         subagentType: 'code-reviewer',
-        summary: 'Inspect task state',
         usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
       })
     ])
@@ -751,7 +750,6 @@ describe('agent right pane projections', () => {
         status: 'completed',
         completedAt: '2026-08-12T01:05:00.000Z',
         activeText: 'Fetching final page',
-        summary: 'Fetched every page',
         usage: { totalTokens: 200, toolUses: 3, durationMs: 5000 }
       })
     ])

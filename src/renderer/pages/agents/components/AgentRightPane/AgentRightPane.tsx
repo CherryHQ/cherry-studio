@@ -65,6 +65,7 @@ import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { TERMINAL_TASK_STATUSES } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentWorkflowAgentProgress } from '@shared/ai/agentWorkflowProgress'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
@@ -951,10 +952,8 @@ function isLocalWorkflowRunTask(task: AgentRunTask): boolean {
   return task.taskType === 'local_workflow'
 }
 
-const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
-
 function isRunTaskTerminal(task: AgentRunTask): boolean {
-  return RUN_TASK_TERMINAL_STATUSES.has(task.status)
+  return TERMINAL_TASK_STATUSES.has(task.status)
 }
 
 function compareRunTaskTimestamps(left: string | undefined, right: string | undefined, newestFirst = false): number {
@@ -1326,7 +1325,6 @@ function GenericRunTaskCard({
         {toolCallId ? (
           <button
             type="button"
-            aria-label={`${task.title} · ${t('agent.right_pane.status.view_details')}`}
             title={t('agent.right_pane.status.view_details')}
             className="flex min-w-0 items-start px-2.5 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:outline-none"
             onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title, agentName })}>
@@ -1422,7 +1420,7 @@ function ShellRunTaskCard({
                 successFeedback="icon"
                 size={13}
                 aria-label={t('agent.right_pane.status.copy_all')}
-                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
+                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
           </AccordionContent>

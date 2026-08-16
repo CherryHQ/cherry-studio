@@ -226,17 +226,30 @@
           "system_tools": "Системные инструменты"
         },
         "context_usage": "Использование контекста",
-        "shell_tasks": "Фоновые команды",
-        "subagents": "Субагенты",
-        "workflows": "Рабочие процессы"
+        "label": "Информация о сессии",
+        "more": "+{{count}} ещё",
+        "no_artifacts": "Нет заявленных результатов",
+        "no_subagents": "Без субагентов"
       },
       "status": {
         "stop_run_task": "Остановить задачу",
         "stop_run_task_failed": "Не удалось остановить задачу",
         "task_count": "{{completed}} / {{total}} завершено",
         "task_progress_compact": "Шаг {{current}}/{{total}}",
-        "tool_uses_one": "{{count}} вызов инструмента",
-        "tool_uses_other": "{{count}} вызова инструмента"
+        "activity": "Деятельность",
+        "agent": "Агент",
+        "context": "Контекст",
+        "no_tasks": "Нет активных задач",
+        "run_task_live_one": "{{count}} активная задача",
+        "run_task_live_other": "{{count}} активной задачи",
+        "run_tasks": "Подзадачи",
+        "selected_tool": "Выбранный инструмент",
+        "tasks": "Задачи",
+        "tools_active": "Активный",
+        "tools_done": "Готово",
+        "tools_failed": "Не удалось",
+        "tools_total": "Итого",
+        "workspace": "Рабочая область"
       },
       "tabs": {
         "files": "Файлы",
