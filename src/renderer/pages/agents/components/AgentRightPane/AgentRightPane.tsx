@@ -77,7 +77,6 @@ import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   CheckCircle,
-  ChevronDown,
   Circle,
   CircleStop,
   FileText,
@@ -87,7 +86,6 @@ import {
   Package,
   Waypoints
 } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import {
   createContext,
@@ -97,7 +95,6 @@ import {
   use,
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -1363,8 +1360,6 @@ function ShellRunTaskCard({
   nowMs: number
 }) {
   const { t } = useTranslation()
-  const prefersReducedMotion = useReducedMotion()
-  const outputId = useId()
   const [expanded, setExpanded] = useState(false)
   const deferredResultRef = task.deferredOutput?.$deferredToolResult
   const shouldResolveDeferredOutput = expanded && Boolean(deferredResultRef)
@@ -1382,77 +1377,61 @@ function ShellRunTaskCard({
   const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
 
   return (
-    <div className="rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-      <div className="flex items-start gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-expanded={expanded}
-          aria-controls={outputId}
-          className="h-auto min-h-5 min-w-0 flex-1 items-start justify-start gap-1.5 p-0 text-left font-normal hover:bg-transparent"
-          onClick={() => setExpanded((current) => !current)}>
-          <TaskStatusIcon status={task.status} />
-          <span className="shrink-0">
-            <span className="block text-muted-foreground text-xs leading-5">
-              {t('agent.right_pane.status.background_command')}
-            </span>
-            {task.taskType ? (
-              <span className="block text-[11px] text-muted-foreground leading-4">{task.taskType}</span>
-            ) : null}
-          </span>
-          <span
-            data-testid="agent-run-task-title"
-            title={title}
-            className="min-w-0 flex-1 truncate text-foreground text-xs leading-5">
-            {title}
-          </span>
-          {durationMs !== undefined ? (
-            <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
-              {durationFormatter(durationMs)}
-            </span>
-          ) : null}
-          <ChevronDown
-            aria-hidden
-            size={13}
-            className={cn(
-              'shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none',
-              expanded && 'rotate-180'
-            )}
-          />
-          <span className="sr-only">
-            {expanded ? t('agent.right_pane.status.hide_output') : t('agent.right_pane.status.show_output')}
-          </span>
-        </Button>
-        {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
-      </div>
-      <div id={outputId}>
-        <AnimatePresence initial={false}>
-          {expanded ? (
-            <motion.div
-              initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
-              className="overflow-hidden">
-              <div className="pt-2">
-                <div className="dark relative">
-                  <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
-                  <CopyButton
-                    textToCopy={terminalContent}
-                    tooltip={t('agent.right_pane.status.copy_all')}
-                    successFeedback="icon"
-                    size={13}
-                    aria-label={t('agent.right_pane.status.copy_all')}
-                    className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
-                  />
-                </div>
+    <Accordion
+      type="single"
+      collapsible
+      value={expanded ? 'output' : ''}
+      onValueChange={(value) => setExpanded(value === 'output')}>
+      <AccordionItem value="output" className="border-0 first:border-t-0 last:border-b-0">
+        <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
+          <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
+            <AccordionTrigger className="min-w-0 items-start gap-2 rounded-none px-2.5 py-2 font-normal hover:bg-accent/50 hover:no-underline">
+              <TaskStatusIcon status={task.status} />
+              <span className="shrink-0">
+                <span className="block text-muted-foreground text-xs leading-5">
+                  {t('agent.right_pane.status.background_command')}
+                </span>
+                {task.taskType ? (
+                  <span className="block text-[11px] text-muted-foreground leading-4">{task.taskType}</span>
+                ) : null}
+              </span>
+              <span
+                data-testid="agent-run-task-title"
+                title={title}
+                className="min-w-0 flex-1 truncate text-foreground text-xs leading-5">
+                {title}
+              </span>
+              {durationMs !== undefined ? (
+                <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
+                  {durationFormatter(durationMs)}
+                </span>
+              ) : null}
+              <span className="sr-only">
+                {expanded ? t('agent.right_pane.status.hide_output') : t('agent.right_pane.status.show_output')}
+              </span>
+            </AccordionTrigger>
+            {task.status === 'in_progress' ? (
+              <div className="py-2 pr-2.5">
+                <RunTaskStopButton sessionId={sessionId} taskId={task.id} />
               </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </div>
-    </div>
+            ) : null}
+          </div>
+          <AccordionContent className="px-2.5 pt-0 pb-2">
+            <div className="dark relative">
+              <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
+              <CopyButton
+                textToCopy={terminalContent}
+                tooltip={t('agent.right_pane.status.copy_all')}
+                successFeedback="icon"
+                size={13}
+                aria-label={t('agent.right_pane.status.copy_all')}
+                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
+              />
+            </div>
+          </AccordionContent>
+        </div>
+      </AccordionItem>
+    </Accordion>
   )
 }
 

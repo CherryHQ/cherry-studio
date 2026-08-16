@@ -2085,7 +2085,7 @@ describe('AgentRightPane', () => {
 
     await user.click(commandButton)
     expect(commandButton).toHaveAttribute('aria-expanded', 'true')
-    expect(commandButton.parentElement?.parentElement).toHaveTextContent('pnpm dev')
+    expect(screen.getByText('> pnpm dev')).toBeInTheDocument()
     expect(screen.getByText(/ready on http:\/\/localhost:5173/)).toBeInTheDocument()
 
     const updatedParts = createParts('ready on http://localhost:5173\nrebuilt renderer')
