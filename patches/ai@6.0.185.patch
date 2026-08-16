@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
+index 23c5e35..3a73d98 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
 @@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
@@ -25,7 +25,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316
  
  /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
+index 23c5e35..3a73d98 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
@@ -51,7 +51,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837d8961e535a03b2037c58bdcff45cf1916..88b42b959c5520e4ca74f9ac805db11717f329fd 100644
+index 5774837..e5fa6d9 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -8468,6 +8468,16 @@ function createUIMessageStream({
@@ -90,7 +90,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..88b42b959c5520e4ca74f9ac805db117
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,21 +9707,37 @@ async function generateImage({
+@@ -9696,21 +9707,40 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -126,6 +126,9 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..88b42b959c5520e4ca74f9ac805db117
 +              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
 +            });
 +          }
++          // A url we failed to fetch is not image data — dropping it beats persisting the
++          // url string as if it were the base64 bytes.
++          return null;
 +        }
 +        return new DefaultGeneratedFile({
 +          data: image,
@@ -136,12 +139,12 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..88b42b959c5520e4ca74f9ac805db117
 +        });
 +      })
      );
-+    images.push(...processedImages);
++    images.push(...processedImages.filter((file) => file != null));
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01537bf5c2c5d47772fab0174a99180fdf6..9d7639bbf5fac589564d197e0b791d9e240ba6d7 100644
+index 6862f01..6d2bd9c 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -8392,6 +8392,16 @@ function createUIMessageStream({
@@ -180,7 +183,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..9d7639bbf5fac589564d197e0b791d9e
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,21 +9646,37 @@ async function generateImage({
+@@ -9635,21 +9646,40 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -216,6 +219,9 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..9d7639bbf5fac589564d197e0b791d9e
 +              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
 +            });
 +          }
++          // A url we failed to fetch is not image data — dropping it beats persisting the
++          // url string as if it were the base64 bytes.
++          return null;
 +        }
 +        return new DefaultGeneratedFile({
 +          data: image,
@@ -226,7 +232,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..9d7639bbf5fac589564d197e0b791d9e
 +        });
 +      })
      );
-+    images.push(...processedImages);
++    images.push(...processedImages.filter((file) => file != null));
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
