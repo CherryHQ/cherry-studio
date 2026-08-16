@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "Εκτελείται χωρίς συνήθεις ερωτήσεις. Ένας έλεγχος ασφαλείας μπλοκάρει επικίνδυνες ενέργειες.",
+            "description_pi": "Δουλεύει μόνο του. Ρωτά όταν αναγνωρίζει μια επικίνδυνη ενέργεια.",
             "title": "Έγκριση για μένα",
-            "warning": "Απαιτεί μοντέλο που το υποστηρίζει· άλλα μοντέλα ενδέχεται να το αγνοήσουν ή να συνεχίσουν να ρωτούν."
+            "warning": "Απαιτεί μοντέλο που το υποστηρίζει· άλλα μοντέλα ενδέχεται να το αγνοήσουν ή να συνεχίσουν να ρωτούν.",
+            "warning_pi": "Η αναγνώριση είναι προσπάθεια· μια ασυνήθιστη εντολή ενδέχεται να περάσει."
           },
           "bypassPermissions": {
             "description": "Παρακάμπτει τους ελέγχους δικαιωμάτων. Μπορεί να διαγράψει αρχεία και να χρησιμοποιήσει το δίκτυο.",
             "title": "Πλήρης πρόσβαση",
-            "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση."
+            "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση.",
+            "warning_pi": "Επικίνδυνο — τίποτα δεν ερωτείται, εκτός από απενεργοποιημένα εργαλεία, συμπεριλαμβανομένης της διαγραφής αρχείων και της πρόσβασης στο δίκτυο."
           },
           "confirmChange": {
             "description": "Η αλλαγή λειτουργιών ενημερώνει τα εργαλεία που εγκρίνονται αυτόματα.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Προεπιλεγμένη λειτουργία πράκτορα",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Συνδυάζει εργασία πολλαπλών βημάτων με εργαλεία μέσω του PTC Code Mode SDK για σύνθετες εργασίες κώδικα.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Διατηρεί το υπάρχον προεπιλεγμένο preset στις κοινόχρηστες ρυθμίσεις ~/.dsh.",
+          "label": "Προεπιλογή Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Χρησιμοποιεί μόνο έναν μόνιμο κέλυφος και συντάκτη κειμένου για την ελάχιστη επιφάνεια εργαλείων.",
+          "label": "Ελάχιστο"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Πλήρης πράκτορας κώδικα με αρχεία, κέλυφος, αναζήτηση, ικανότητες, σχεδιασμό και υποπράκτορες.",
+          "label": "Πρότυπο"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Η πλήρης πρόσβαση επιτρέπει στον πράκτορα να φτάσει αρχεία έξω από τον χώρο εργασίας και να παραλείψει την έγκριση λειτουργίας. Χρησιμοποιήστε το μόνο για εργασίες στις οποίες εμπιστεύεστε.",
+      "permission_mode": "Προεπιλεγμένη άδεια",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Επιτρέπει ανεξέλεγκτη πρόσβαση χωρίς έγκριση λειτουργίας.",
+          "label": "Πλήρης πρόσβαση"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Περιορίζει τις εγγραφές αρχείων και ρωτά πριν από επικίνδυνες λειτουργίες.",
+          "label": "Μόνο ανάγνωση"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Επιτρέπει εγγραφές στον τρέχοντα χώρο εργασίας DSH και ρωτά πριν από επικίνδυνες λειτουργίες.",
+          "label": "Εγγραφή χώρου εργασίας"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Δεν υπάρχουν διαθέσιμα εργαλεία",
     "not_installed": "Δεν είναι εγκατεστημένο",
     "open_provider_settings": "Άνοιγμα ρυθμίσεων παρόχου",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Άνοιγμα Web UI",
     "own_login": {
       "title": "{{toolName}} Επίσημο"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Αναζήτηση παρόχων…",
     "select_folder": "Επιλογή φακέλου",
     "select_provider_before_launch": "Επιλέξτε έναν πάροχο πριν εκκινήσετε το {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Παρακαλώ επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο",
     "select_tool_to_start": "Επιλέξτε ένα εργαλείο CLI από τα αριστερά για να ξεκινήσετε τη διαμόρφωση",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
-    "stop": "[to be translated]:Stop",
+    "stop": "Διακοπή",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
     "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
@@ -2642,7 +2645,6 @@
       "503": "Η υπηρεσία δεν είναι διαθέσιμη, παρακαλώ δοκιμάστε ξανά",
       "504": "Υπερχρονισμός φάρων, παρακαλώ δοκιμάστε ξανά"
     },
-    "image_unreadable_for_non_vision_model": "Το επιλεγμένο μοντέλο δεν υποστηρίζει εικόνες και το Cherry Studio δεν μπόρεσε να εξάγει αναγνώσιμο κείμενο από το συνημμένο. Επιλέξτε ένα μοντέλο που υποστηρίζει όραση ή αφαιρέστε την εικόνα και δοκιμάστε ξανά.",
     "lastError": "Τελευταίο σφάλμα",
     "maxEmbeddingsPerCall": "Μέγιστες ενσωματώσεις ανά κλήση",
     "message": "Μήνυμα σφάλματος",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
         "loaded_only_hint": "Ισχύει μόνο για φορτωμένα στοιχεία ({{total}} συνολικά)",
         "reindex": "Επανεισαγωγή ευρετηρίου",
+        "reindex_none_eligible": "Όλες οι επιλεγμένες πηγές δεδομένων ακόμη επεξεργάζονται και δεν μπορούν να επανευρετηριαστούν ακόμη",
+        "reindex_skipped": "Παραλείφθηκε/αν {{count}} πηγή/ές δεδομένων που ακόμη επεξεργάζεται/ονται",
         "selected_count": "{{count}} επιλεγμένα"
       },
       "chunks_count": "{{count}} κομμάτια",
@@ -3528,9 +3532,9 @@
               "claude_code": "Προηγμένο: Claude Agent",
               "pi": "Γρήγορο: Pi"
             },
-            "selected": {
-              "claude_code": "Προηγμένο",
-              "pi": "Γρήγορο"
+            "option_description": {
+              "claude_code": "Πιο ικανό — λειτουργία σχεδίασης και μοντέλα ανά επίπεδο",
+              "pi": "Ταχύτερες απαντήσεις, χαμηλότερο κόστος"
             }
           },
           "small_model": {

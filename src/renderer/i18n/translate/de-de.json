@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "Läuft ohne routinemäßige Rückfragen. Eine Sicherheitsprüfung blockiert riskante Aktionen.",
+            "description_pi": "Arbeitet autonom. Fragt, wenn es eine riskante Aktion erkennt.",
             "title": "Für mich genehmigen",
-            "warning": "Erfordert ein Modell, das dies unterstützt; andere ignorieren den Modus möglicherweise oder fragen weiterhin nach."
+            "warning": "Erfordert ein Modell, das dies unterstützt; andere ignorieren den Modus möglicherweise oder fragen weiterhin nach.",
+            "warning_pi": "Die Erkennung erfolgt nach bestem Bemühen; ungewöhnliche Befehle können dennoch durchgehen."
           },
           "bypassPermissions": {
             "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
             "title": "Vollzugriff",
-            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
+            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt.",
+            "warning_pi": "Gefährlich – es wird nie etwas gefragt, außer bei deaktivierten Tools, inklusive Dateilöschung und Netzwerkzugriff."
           },
           "confirmChange": {
             "description": "Das Wechseln des Modus aktualisiert die automatisch vorab autorisierten Tools.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "CLI-Tool auswählen",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
     "custom_path_set": "Benutzerdefinierter Terminalpfad erfolgreich festgelegt",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Standard-Agent-Modus",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Kombiniert mehrstufige Tool-Arbeit über das PTC Code Mode SDK für komplexe Programmieraufgaben.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Behält das bestehende Standard-Preset in den gemeinsamen ~/.dsh-Einstellungen.",
+          "label": "Harness-Standard"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Verwendet nur einen persistenter Shell und Texteditor für die kleinste Tool-Oberfläche.",
+          "label": "Minimal"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Vollständiger Coding-Agent mit Dateien, Shell, Suche, Fähigkeiten, Planung und Subagenten.",
+          "label": "Standard"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Vollständiger Zugriff erlaubt dem Agent den Zugriff auf Dateien außerhalb des Arbeitsbereichs und überspringt die Genehmigung von Operationen. Nutzen Sie dies nur für Aufgaben, denen Sie vertrauen.",
+      "permission_mode": "Standardberechtigung",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Erlaubt uneingeschränkten Zugriff ohne Genehmigung von Operationen.",
+          "label": "Vollzugriff"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Beschränkt Dateischreibvorgänge und fragt vor riskanten Operationen.",
+          "label": "Nur lesen"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Erlaubt Schreibvorgänge im aktuellen DSH-Arbeitsbereich und fragt vor riskanten Operationen.",
+          "label": "Arbeitsbereich schreiben"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Keine Tools verfügbar",
     "not_installed": "Nicht installiert",
     "open_provider_settings": "Anbieter-Einstellungen öffnen",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Web-UI öffnen",
     "own_login": {
       "title": "{{toolName}} Offiziell"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Suchanbieter…",
     "select_folder": "Ordner auswählen",
     "select_provider_before_launch": "Wählen Sie einen Anbieter aus, bevor Sie {{toolName}} starten",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Bitte wählen Sie zuerst einen Anbieter und ein Modell",
     "select_tool_to_start": "Wählen Sie links ein CLI-Tool aus, um mit der Konfiguration zu beginnen",
     "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
-    "stop": "[to be translated]:Stop",
+    "stop": "Stopp",
     "supported_providers": "Unterstützte Anbieter",
     "terminal": "Terminal",
     "terminal_hint": "Wählen Sie, in welchem Terminal die CLI ausgeführt werden soll",
@@ -2642,7 +2645,6 @@
       "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
       "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
-    "image_unreadable_for_non_vision_model": "Das ausgewählte Modell unterstützt keine Bilder, und Cherry Studio konnte keinen lesbaren Text aus dem Anhang extrahieren. Wählen Sie ein bildfähiges Modell oder entfernen Sie das Bild und versuchen Sie es erneut.",
     "lastError": "Letzter Fehler",
     "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
     "message": "Fehlermeldung",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Ausgewählte Datenquellen löschen?",
         "loaded_only_hint": "Gilt nur für geladene Elemente (insgesamt {{total}})",
         "reindex": "Neuindizierung",
+        "reindex_none_eligible": "Alle ausgewählten Datenquellen werden noch verarbeitet und können nicht neu indiziert werden",
+        "reindex_skipped": "{{count}} noch verarbeitende Datenquelle(n) übersprungen",
         "selected_count": "{{count}} ausgewählt"
       },
       "chunks_count": "{{count}} Chunks",
@@ -3528,9 +3532,9 @@
               "claude_code": "Erweitert: Claude Agent",
               "pi": "Schnell: Pi"
             },
-            "selected": {
-              "claude_code": "Erweitert",
-              "pi": "Schnell"
+            "option_description": {
+              "claude_code": "Fähiger – Plan-Modus und pro-Ebenen-Modelle",
+              "pi": "Schnellere Antworten, geringerer Overhead"
             }
           },
           "small_model": {

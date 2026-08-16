@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
+            "description_pi": "Fonctionne de manière autonome. Demande quand il reconnaît une action risquée.",
             "title": "Approuver pour moi",
-            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander.",
+            "warning_pi": "La reconnaissance est faite de manière indicative ; une commande inhabituelle peut toujours passer."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
             "title": "Accès complet",
-            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation.",
+            "warning_pi": "Dangereux — aucune demande n'est faite sauf pour les outils désactivés, y compris la suppression de fichiers et l'accès réseau."
           },
           "confirmChange": {
             "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Code Kimi",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Mode agent par défaut",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combine le travail multi-étapes d'outils via le SDK PTC Code Mode pour des tâches de codage complexes.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Conserve le préréglage par défaut existant dans les paramètres partagés ~/.dsh.",
+          "label": "Valeur par défaut de Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "N'utilise qu'un shell persistant et un éditeur de texte pour une surface d'outils minimale.",
+          "label": "Minimal"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agent de codage complet avec fichiers, shell, recherche, compétences, planification et sous-agents.",
+          "label": "Standard"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "L'accès complet permet à l'agent d'atteindre des fichiers en dehors de l'espace de travail et saute l'approbation des opérations. Utilisez-le uniquement pour des tâches de confiance.",
+      "permission_mode": "Permission par défaut",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Permet un accès sans restriction et sans approbation des opérations.",
+          "label": "Accès complet"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Limite les écritures de fichiers et demande confirmation avant les opérations risquées.",
+          "label": "Lecture seule"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Permet les écritures dans l'espace de travail DSH actuel et demande confirmation avant les opérations risquées.",
+          "label": "Écriture dans l'espace de travail"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Aucun outil disponible",
     "not_installed": "Non installé",
     "open_provider_settings": "Ouvrir les paramètres du fournisseur",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Ouvrir l'interface Web",
     "own_login": {
       "title": "{{toolName}} Officiel"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Rechercher des fournisseurs…",
     "select_folder": "Sélectionner le dossier",
     "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle",
     "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
-    "stop": "[to be translated]:Stop",
+    "stop": "Arrêter",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
@@ -2642,7 +2645,6 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
-    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n'a pas pu extraire de texte lisible de la pièce jointe. Choisissez un modèle compatible avec la vision ou supprimez l'image et réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
         "loaded_only_hint": "S'applique uniquement aux éléments chargés ({{total}} au total)",
         "reindex": "Réindexer",
+        "reindex_none_eligible": "Toutes les sources de données sélectionnées sont encore en cours de traitement et ne peuvent pas être réindexées pour le moment",
+        "reindex_skipped": "{{count}} source(s) de données en cours de traitement ignorée(s)",
         "selected_count": "{{count}} sélectionné"
       },
       "chunks_count": "{{count}} morceaux",
@@ -3528,9 +3532,9 @@
               "claude_code": "Avancé : Claude Agent",
               "pi": "Rapide : Pi"
             },
-            "selected": {
-              "claude_code": "Avancé",
-              "pi": "Rapide"
+            "option_description": {
+              "claude_code": "Plus performant — mode plan et modèles par niveau",
+              "pi": "Réponses plus rapides, surcharge réduite"
             }
           },
           "small_model": {
