@@ -6047,7 +6047,6 @@
         "button_caption": "模型检测",
         "checking": "检测中…",
         "concurrent_hint": "模型之间可并发；同一模型的多个 API 密钥始终并发检测。",
-        "disabled": "未启用",
         "disclaimer": "模型检测会向选中的模型和 API 密钥发送真实请求，可能产生费用。图片、视频、音频生成及语音识别、语音合成模型会跳过。",
         "enable_concurrent": "并发检测",
         "failed": "失败",

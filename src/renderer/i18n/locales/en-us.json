@@ -6047,7 +6047,6 @@
         "button_caption": "Model Check",
         "checking": "Checking…",
         "concurrent_hint": "Models run concurrently; API keys for each model are always checked concurrently.",
-        "disabled": "Not enabled",
         "disclaimer": "Model Check sends real requests to the selected models and API keys. Requests may incur charges. Image, video, audio generation, speech-to-text, and text-to-speech models are skipped.",
         "enable_concurrent": "Concurrent",
         "failed": "Failed",

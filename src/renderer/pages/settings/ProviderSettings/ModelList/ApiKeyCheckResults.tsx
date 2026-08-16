@@ -44,7 +44,6 @@ export default function ApiKeyCheckResults({
         const checkedEntry = result.credential.entry
         const currentEntry = apiKeyEntries.find((entry) => entry.id === checkedEntry.id) ?? checkedEntry
         const passed = result.status === HealthStatus.SUCCESS
-        const disabled = !currentEntry.isEnabled
         const label = currentEntry.label?.trim() || t('settings.provider.api_key.unnamed')
 
         return (
@@ -63,10 +62,9 @@ export default function ApiKeyCheckResults({
                 <div className={passed ? 'text-success' : 'text-error'}>
                   {t(passed ? 'settings.models.check.passed' : 'settings.models.check.failed')}
                 </div>
-                {disabled ? <div className="text-muted-foreground">{t('settings.models.check.disabled')}</div> : null}
                 {passed && result.latency != null ? (
                   <div className="text-muted-foreground">
-                    {t('settings.models.check.latency', { latency: result.latency })}
+                    {t('settings.models.check.latency', { latency: result.latency.toFixed(2) })}
                   </div>
                 ) : null}
               </div>

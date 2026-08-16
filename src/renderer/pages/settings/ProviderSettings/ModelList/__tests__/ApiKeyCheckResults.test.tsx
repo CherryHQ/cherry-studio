@@ -8,10 +8,15 @@ import { describe, expect, it, vi } from 'vitest'
 import ApiKeyCheckResults from '../ApiKeyCheckResults'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { latency?: string }) =>
+      key === 'settings.models.check.latency' ? `${options?.latency} ms` : key
+  })
+}))
 
 describe('ApiKeyCheckResults', () => {
-  it('shows stable key identity, full errors, latency, and only an enable switch', async () => {
+  it('shows stable key identity, two-decimal latency, full errors, and no disabled status row', async () => {
     const user = userEvent.setup()
     const primary = { id: 'key-1', key: 'sk-primary-1234', label: 'Primary', isEnabled: true }
     const backup = { id: 'key-2', key: 'sk-backup-5678', isEnabled: false }
@@ -21,7 +26,7 @@ describe('ApiKeyCheckResults', () => {
         credential: { kind: 'api-key', entry: primary },
         status: HealthStatus.SUCCESS,
         checking: false,
-        latency: 42
+        latency: 2060.2434580000117
       },
       {
         kind: 'failed',
@@ -36,12 +41,15 @@ describe('ApiKeyCheckResults', () => {
     render(<ApiKeyCheckResults keyResults={results} apiKeyEntries={[primary, backup]} onToggleKey={onToggleKey} />)
 
     expect(screen.getByText('Primary')).toBeInTheDocument()
+    expect(screen.getByText('2060.24 ms')).toBeInTheDocument()
     expect(screen.getByText('quota exhausted')).toBeInTheDocument()
-    expect(screen.getByText('settings.models.check.disabled')).toBeInTheDocument()
-    expect(screen.getAllByRole('switch')).toHaveLength(2)
+    expect(screen.queryByText('settings.models.check.disabled')).not.toBeInTheDocument()
+    const switches = screen.getAllByRole('switch')
+    expect(switches).toHaveLength(2)
+    expect(switches[1]).not.toBeChecked()
     expect(screen.queryByRole('button', { name: /copy|edit|delete/i })).not.toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('switch')[1])
+    await user.click(switches[1])
     expect(onToggleKey).toHaveBeenCalledWith('key-2', true)
   })
 
