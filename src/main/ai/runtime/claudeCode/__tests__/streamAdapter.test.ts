@@ -2575,7 +2575,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
-    it('polls a validated background Bash output file and only emits replacements when the content changes', () => {
+    it('marks polled background Bash output as preliminary and only emits replacements when the content changes', () => {
       vi.useFakeTimers()
       const fixture = createBackgroundBashFixture()
       try {
@@ -2588,7 +2588,8 @@ describe('ClaudeCodeStreamAdapter', () => {
           toolCallId: 'bash-tool-use',
           output: 'server starting\n',
           dynamic: true,
-          providerExecuted: true
+          providerExecuted: true,
+          preliminary: true
         })
         adapter.handleMessage(successResult())
         statusEvents.length = 0
@@ -2604,7 +2605,8 @@ describe('ClaudeCodeStreamAdapter', () => {
               toolCallId: 'bash-tool-use',
               output: 'server starting\nready on http://localhost:5173\n',
               dynamic: true,
-              providerExecuted: true
+              providerExecuted: true,
+              preliminary: true
             }
           }
         ])
@@ -2637,7 +2639,8 @@ describe('ClaudeCodeStreamAdapter', () => {
           toolCallId: 'bash-tool-use',
           output: 'final receipt selected\n',
           dynamic: true,
-          providerExecuted: true
+          providerExecuted: true,
+          preliminary: true
         })
         adapter.dispose()
       } finally {

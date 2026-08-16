@@ -2086,7 +2086,8 @@ export class ClaudeCodeStreamAdapter {
       toolCallId: state.toolCallId,
       output: result.text,
       dynamic: true,
-      providerExecuted: true
+      providerExecuted: true,
+      preliminary: true
     })
   }
 

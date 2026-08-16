@@ -28,7 +28,7 @@ const light = {
 type ColorPalette = typeof dark
 export const shellColorPalettes = { dark, light }
 export const TERMINAL_SURFACE_CLASS = 'bg-[#f5f5f5] text-[#1e1e1e] dark:bg-[#1e1e1e] dark:text-[#d4d4d4]'
-export const TERMINAL_DARK_SURFACE_CLASS = 'bg-[#1e1e1e]! text-[#d4d4d4]!'
+export const TERMINAL_DARK_SURFACE_CLASS = 'bg-[#121212]! text-[#d4d4d4]!'
 export const TERMINAL_LINK_CLASS =
   '[&_a]:text-[#0366d6]! [&_a:hover]:text-[#0550ae]! [&_[role=link]]:text-[#0366d6]! [&_[role=link]:hover]:text-[#0550ae]! dark:[&_a]:text-[#569cd6]! dark:[&_a:hover]:text-[#7cb9e8]! dark:[&_a:hover]:decoration-solid dark:[&_[role=link]]:text-[#569cd6]! dark:[&_[role=link]:hover]:text-[#7cb9e8]! dark:[&_[role=link]:hover]:decoration-solid'
 export const TERMINAL_DARK_LINK_CLASS =
