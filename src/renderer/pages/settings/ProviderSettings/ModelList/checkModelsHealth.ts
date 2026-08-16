@@ -1,45 +1,10 @@
 import { loggerService } from '@logger'
-import { serializeHealthCheckError } from '@renderer/utils/error'
 
-import type { ApiKeyWithStatus, ModelCheckCredential, ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
+import type { ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
-import { aggregateApiKeyResults, checkApi } from '../utils/healthCheck'
+import { aggregateApiKeyResults, checkModelWithMultipleKeys } from '../utils/healthCheck'
 
 const logger = loggerService.withContext('ProviderSettings:checkModelsHealth')
-
-export async function checkModelWithMultipleKeys(
-  model: ModelCheckOptions['models'][number],
-  credentials: ModelCheckCredential[],
-  timeout?: number,
-  signal?: AbortSignal
-): Promise<ApiKeyWithStatus[]> {
-  if (credentials.length === 0) return []
-
-  return Promise.all(
-    credentials.map(async (credential) => {
-      signal?.throwIfAborted()
-      try {
-        const apiKey = credential.kind === 'api-key' ? credential.entry.key : undefined
-        const { latency } = await checkApi(model.id, { apiKey, timeout, signal })
-        return {
-          kind: 'ok',
-          credential,
-          status: HealthStatus.SUCCESS,
-          checking: false,
-          latency
-        } satisfies ApiKeyWithStatus
-      } catch (error) {
-        return {
-          kind: 'failed',
-          credential,
-          status: HealthStatus.FAILED,
-          checking: false,
-          error: serializeHealthCheckError(error)
-        } satisfies ApiKeyWithStatus
-      }
-    })
-  )
-}
 
 export async function checkModelsHealth(
   options: ModelCheckOptions,

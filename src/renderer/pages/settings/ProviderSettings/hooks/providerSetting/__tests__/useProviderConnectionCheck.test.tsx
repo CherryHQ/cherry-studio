@@ -19,6 +19,7 @@ const commitInputApiKeyNowMock = vi.fn()
 const refetchApiKeysMock = vi.fn()
 
 let inputApiKey = 'sk-primary,sk-backup'
+let hasPendingSync = false
 let apiKeyEntries: ApiKeyEntry[]
 
 vi.mock('react-i18next', () => ({
@@ -97,6 +98,7 @@ describe('useProviderConnectionCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     inputApiKey = 'sk-primary,sk-backup'
+    hasPendingSync = false
     apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
       { id: 'key-2', key: 'sk-backup', label: 'Backup', isEnabled: true }
@@ -115,6 +117,7 @@ describe('useProviderConnectionCheck', () => {
     commitInputApiKeyNowMock.mockResolvedValue(undefined)
     useAuthenticationApiKeyMock.mockImplementation(() => ({
       inputApiKey,
+      hasPendingSync,
       commitInputApiKeyNow: commitInputApiKeyNowMock
     }))
     useProviderEndpointsMock.mockReturnValue({
@@ -305,7 +308,7 @@ describe('useProviderConnectionCheck', () => {
     )
   })
 
-  it('retains results across enable toggles but clears them when credential content changes', async () => {
+  it('retains results across synchronized enable toggles and excludes disabled keys from the next run', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
       credentials.map((credential) => successfulResult(credential))
     )
@@ -317,11 +320,41 @@ describe('useProviderConnectionCheck', () => {
     expect(result.current.singleModelResult).not.toBeNull()
 
     apiKeyEntries = apiKeyEntries.map((entry, index) => (index === 0 ? { ...entry, isEnabled: false } : entry))
+    inputApiKey = 'sk-backup'
     rerender()
     expect(result.current.singleModelResult).not.toBeNull()
 
-    apiKeyEntries = apiKeyEntries.map((entry, index) => (index === 0 ? { ...entry, label: 'Renamed' } : entry))
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    expect(checkModelWithMultipleKeysMock).toHaveBeenLastCalledWith(
+      model,
+      [{ kind: 'api-key', entry: apiKeyEntries[1] }],
+      15000,
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('aborts and clears an active run when the credential draft changes', async () => {
+    let signal: AbortSignal | undefined
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, _credentials, _timeout, nextSignal) => {
+      signal = nextSignal
+      await new Promise<void>(() => undefined)
+    })
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    act(() => {
+      void result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    await vi.waitFor(() => expect(signal).toBeDefined())
+
+    inputApiKey = 'sk-edited,sk-backup'
+    hasPendingSync = true
     rerender()
+
+    expect(signal?.aborted).toBe(true)
+    expect(result.current.isSingleModelChecking).toBe(false)
     expect(result.current.singleModelResult).toBeNull()
   })
 

@@ -55,7 +55,13 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
           : t('settings.models.check.failed')
   const Icon = result.kind === 'skipped' ? Info : result.kind === 'ok' ? CheckCircle2 : partial ? CircleAlert : CircleX
   const color =
-    result.kind === 'ok' ? 'text-success' : result.kind === 'skipped' ? 'text-muted-foreground' : 'text-error'
+    result.kind === 'ok'
+      ? 'text-success'
+      : result.kind === 'skipped'
+        ? 'text-muted-foreground'
+        : partial
+          ? 'text-warning'
+          : 'text-error'
 
   return (
     <Popover>

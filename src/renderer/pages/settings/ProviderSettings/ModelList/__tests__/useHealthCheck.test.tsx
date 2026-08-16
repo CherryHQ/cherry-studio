@@ -112,6 +112,7 @@ describe('useHealthCheck', () => {
   let apiKeys = [primaryKey, backupKey]
   let models = [chatModel, imageModel, rerankModel]
   let inputApiKey = 'sk-primary,sk-backup'
+  let hasPendingSync = false
   const commitInputApiKeyNow = vi.fn()
   const refetchApiKeys = vi.fn()
 
@@ -120,12 +121,13 @@ describe('useHealthCheck', () => {
     apiKeys = [primaryKey, backupKey]
     models = [chatModel, imageModel, rerankModel]
     inputApiKey = 'sk-primary,sk-backup'
+    hasPendingSync = false
     commitInputApiKeyNow.mockResolvedValue(undefined)
     refetchApiKeys.mockImplementation(async () => ({ keys: apiKeys }))
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
     useModelsMock.mockImplementation(() => ({ models }))
     useProviderApiKeysMock.mockImplementation(() => ({ data: { keys: apiKeys }, refetch: refetchApiKeys }))
-    useAuthenticationApiKeyMock.mockImplementation(() => ({ commitInputApiKeyNow, inputApiKey }))
+    useAuthenticationApiKeyMock.mockImplementation(() => ({ commitInputApiKeyNow, hasPendingSync, inputApiKey }))
     useProviderEndpointsMock.mockReturnValue({ apiHost: 'https://api.openai.com', anthropicApiHost: '' })
     useProviderMetaMock.mockReturnValue({ isApiKeyFieldVisible: true })
   })
@@ -359,7 +361,7 @@ describe('useHealthCheck', () => {
     )
   })
 
-  it('aborts and clears on provider or credential content changes but not key enablement changes', async () => {
+  it('retains an active run across synchronized key enablement changes', async () => {
     let signal: AbortSignal | undefined
     checkModelsHealthMock.mockImplementation(
       (options) =>
@@ -375,14 +377,43 @@ describe('useHealthCheck', () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
     })
 
-    apiKeys = apiKeys.map((entry) => ({ ...entry, isEnabled: !entry.isEnabled }))
+    apiKeys = apiKeys.map((entry) => (entry.id === primaryKey.id ? { ...entry, isEnabled: false } : entry))
+    inputApiKey = 'sk-backup'
     rerender({ providerId: 'openai' })
     expect(signal?.aborted).toBe(false)
+    expect(result.current.isChecking).toBe(true)
     expect(result.current.modelStatuses).not.toEqual([])
+  })
 
-    apiKeys = apiKeys.map((entry) => (entry.id === primaryKey.id ? { ...entry, label: 'Renamed' } : entry))
-    rerender({ providerId: 'openai' })
-    expect(signal?.aborted).toBe(true)
+  it('aborts and clears an active run on each pending credential draft edit', async () => {
+    const signals: AbortSignal[] = []
+    checkModelsHealthMock.mockImplementation(
+      (options) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          signals.push(options.signal)
+          options.signal.addEventListener('abort', () => resolve([]), { once: true })
+        })
+    )
+    const { result, rerender } = renderHook(() => useHealthCheck('openai'))
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    inputApiKey = 'sk-edited,sk-backup'
+    hasPendingSync = true
+    rerender()
+    expect(signals[0].aborted).toBe(true)
+    expect(result.current.isChecking).toBe(false)
+    expect(result.current.modelStatuses).toEqual([])
+
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    inputApiKey = 'sk-edited-again,sk-backup'
+    rerender()
+    expect(signals[1].aborted).toBe(true)
+    expect(result.current.isChecking).toBe(false)
     expect(result.current.modelStatuses).toEqual([])
   })
 

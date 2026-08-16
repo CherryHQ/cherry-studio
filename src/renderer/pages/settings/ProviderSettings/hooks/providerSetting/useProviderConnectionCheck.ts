@@ -45,7 +45,7 @@ export function useProviderConnectionCheck(providerId: string) {
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { data: apiKeysData, refetch: refetchApiKeys } = useProviderApiKeys(providerId)
-  const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
+  const { commitInputApiKeyNow, hasPendingSync, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { isApiKeyFieldVisible } = useProviderMeta(providerId)
   const { i18n } = useTranslation()
@@ -193,7 +193,15 @@ export function useProviderConnectionCheck(providerId: string) {
     abortInFlightCheck()
     setIsSingleModelChecking(false)
     setSingleModelResult(null)
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, inputApiKey, provider?.id])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id])
+
+  useEffect(() => {
+    if (!hasPendingSync) return
+
+    abortInFlightCheck()
+    setIsSingleModelChecking(false)
+    setSingleModelResult(null)
+  }, [abortInFlightCheck, hasPendingSync, inputApiKey])
 
   useEffect(() => {
     if (previousCredentialFingerprintRef.current === credentialFingerprint) return

@@ -68,7 +68,7 @@ export function useHealthCheck(providerId: string) {
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { data: apiKeysData, refetch: refetchApiKeys } = useProviderApiKeys(providerId)
-  const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
+  const { commitInputApiKeyNow, hasPendingSync, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { isApiKeyFieldVisible } = useProviderMeta(providerId)
   const apiKeyEntries = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
@@ -269,7 +269,14 @@ export function useHealthCheck(providerId: string) {
   useEffect(() => {
     abortInFlightCheck()
     setModelStatuses([])
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, inputApiKey, provider?.id, providerId])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id, providerId])
+
+  useEffect(() => {
+    if (!hasPendingSync) return
+
+    abortInFlightCheck()
+    setModelStatuses([])
+  }, [abortInFlightCheck, hasPendingSync, inputApiKey])
 
   useEffect(() => {
     if (previousCredentialFingerprintRef.current === credentialFingerprint) return
