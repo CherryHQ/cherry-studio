@@ -1211,6 +1211,73 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
+  it('sends directly via the steer option while streaming, bypassing the queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('treats the steer option as a plain send when idle', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
+    // and the persisted draft cache is rewritten with the pre-send content.
+    expect(mocks.surfaceProps?.text).toBe('hello')
+    expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
+      'agent.composer_draft.session_session-1',
+      expect.objectContaining({ text: 'hello' }),
+      expect.anything()
+    )
+  })
+
   it('uses the controlled session, agent, and model context', () => {
     const resolvedAgent = {
       id: 'agent-1',
