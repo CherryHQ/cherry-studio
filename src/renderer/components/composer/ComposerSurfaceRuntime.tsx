@@ -208,6 +208,8 @@ export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
+  hadFocus?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -1791,6 +1793,9 @@ export default function ComposerSurfaceRuntime({
         'composerSurfaceFocus',
         () => {
           if (!createdEditor || createdEditor.isDestroyed || !shouldRestoreEditorFocus(focusRestoreSnapshot)) return
+          // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal
+          // focus from wherever the user left it — restore only after real fallback interaction.
+          if (deferredIntent && !deferredIntent.hadFocus) return
           if (initialTextSelection) {
             createdEditor
               .chain()

@@ -562,8 +562,45 @@ describe('ComposerSurface', () => {
     }
   })
 
+  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', async () => {
+    mocks.stabilizeEditor = true
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.focus.mockClear()
+
+    act(() => {
+      mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('restores mount focus when the fallback textarea held focus', async () => {
+    mocks.stabilizeEditor = true
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.focus.mockClear()
+
+    act(() => {
+      mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
   afterEach(() => {
     clearMockTimers()
+    ;(document.hasFocus as unknown as { mockRestore?: () => void }).mockRestore?.()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   })

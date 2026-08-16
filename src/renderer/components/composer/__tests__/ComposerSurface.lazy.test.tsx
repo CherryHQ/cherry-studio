@@ -240,6 +240,17 @@ describe('deferred ComposerSurface', () => {
     expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('one long single line')
   })
 
+  it('marks the deferred intent as focused when the fallback textarea gained focus', async () => {
+    render(<Harness />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'hello' } })
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.hadFocus).toBe(true)
+  })
+
   it('follows the send-shortcut preference when the caller does not pass one', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.input.send_message_shortcut', 'Ctrl+Enter')
     render(<Harness sendMessageShortcut={undefined} />)

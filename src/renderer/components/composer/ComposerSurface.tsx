@@ -266,6 +266,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             requestRuntime()
           }}
           onFocus={() => {
+            intentRef.current.hadFocus = true
             props.onFocus?.()
           }}
           onSelect={updateSelection}
