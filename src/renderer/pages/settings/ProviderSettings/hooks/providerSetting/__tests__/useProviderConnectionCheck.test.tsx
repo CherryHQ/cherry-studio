@@ -231,7 +231,7 @@ describe('useProviderConnectionCheck', () => {
     expect(result.current.singleModelResult?.kind).toBe('failed')
   })
 
-  it('stops before probing when the pending API key cannot be saved', async () => {
+  it('leaves save failure feedback to the API key owner before stopping', async () => {
     commitInputApiKeyNowMock.mockRejectedValueOnce(new Error('save failed'))
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
@@ -243,9 +243,7 @@ describe('useProviderConnectionCheck', () => {
     expect(outcome).toBe('failed')
     expect(refetchApiKeysMock).not.toHaveBeenCalled()
     expect(checkModelWithMultipleKeysMock).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'settings.provider.api_key.save_failed' })
-    )
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('checks keyless providers through provider authentication', async () => {

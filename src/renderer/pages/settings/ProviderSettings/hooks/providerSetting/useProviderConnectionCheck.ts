@@ -158,7 +158,6 @@ export function useProviderConnectionCheck(providerId: string) {
             modelId: model.id,
             error
           })
-          toast.error({ timeout: 8000, title: i18n.t('settings.provider.api_key.save_failed') })
         } else if (error instanceof ModelCheckCredentialsError) {
           toast.error(i18n.t('message.error.enter.api.label'))
         } else {

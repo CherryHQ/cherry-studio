@@ -22,7 +22,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import { checkModelsHealth } from './checkModelsHealth'
@@ -39,6 +39,40 @@ function getRefetchedApiKeyEntries(value: unknown, fallback: readonly ApiKeyEntr
 
 function createCredentialFingerprint(entries: readonly ApiKeyEntry[]) {
   return JSON.stringify(entries.map(({ id, key, label }) => ({ id, key, label: label ?? '' })))
+}
+
+function createModelCheckFingerprint(model: Model) {
+  return JSON.stringify({
+    providerId: model.providerId,
+    apiModelId: model.apiModelId ?? '',
+    capabilities: model.capabilities.toSorted(),
+    inputModalities: model.inputModalities?.toSorted() ?? [],
+    outputModalities: model.outputModalities?.toSorted() ?? [],
+    endpointTypes: model.endpointTypes ?? []
+  })
+}
+
+function reconcileModelStatuses(statuses: ModelWithStatus[], models: readonly Model[]) {
+  let changed = false
+  const currentModels = new Map(models.map((model) => [model.id, model]))
+  const next: ModelWithStatus[] = []
+
+  for (const status of statuses) {
+    const currentModel = currentModels.get(status.model.id)
+    if (!currentModel || createModelCheckFingerprint(currentModel) !== createModelCheckFingerprint(status.model)) {
+      changed = true
+      continue
+    }
+
+    if (currentModel.name !== status.model.name) {
+      changed = true
+      next.push({ ...status, model: currentModel })
+    } else {
+      next.push(status)
+    }
+  }
+
+  return changed ? next : statuses
 }
 
 function createInitialStatuses(models: readonly Model[]) {
@@ -77,11 +111,16 @@ export function useHealthCheck(providerId: string) {
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const isCheckingRef = useRef(false)
+  const modelsRef = useRef(models)
   const runIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
   const preparingCredentialsRef = useRef(false)
   const acceptedCredentialFingerprintRef = useRef<string | null>(null)
   const previousCredentialFingerprintRef = useRef(credentialFingerprint)
+
+  useLayoutEffect(() => {
+    modelsRef.current = models
+  }, [models])
 
   const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
@@ -143,6 +182,7 @@ export function useHealthCheck(providerId: string) {
           const originalIndex = originalIndexes[index]
           if (originalIndex != null) finalStatuses[originalIndex] = result
         })
+        finalStatuses = reconcileModelStatuses(finalStatuses, modelsRef.current)
         setModelStatuses(finalStatuses)
         toast.success(summarizeHealthResults(finalStatuses, provider?.name))
       } catch (error) {
@@ -197,15 +237,18 @@ export function useHealthCheck(providerId: string) {
           canSelectApiKey,
           requiresApiKey
         })
+        const runModels = modelsRef.current
 
-        if (models.length === 0) {
+        if (runModels.length === 0) {
           toast.error({ timeout: 5000, title: i18n.t('settings.provider.no_models_for_check') })
           return false
         }
 
-        const initialStatuses = createInitialStatuses(models)
+        const initialStatuses = createInitialStatuses(runModels)
         const originalIndexes = initialStatuses.flatMap((status, index) => (status.kind === 'skipped' ? [] : [index]))
-        const checkableModels = originalIndexes.map((index) => models[index]).filter((model): model is Model => !!model)
+        const checkableModels = originalIndexes
+          .map((index) => runModels[index])
+          .filter((model): model is Model => !!model)
         setModelStatuses(initialStatuses)
 
         if (checkableModels.length === 0) {
@@ -253,7 +296,6 @@ export function useHealthCheck(providerId: string) {
       apiKeyEntries,
       canSelectApiKey,
       commitInputApiKeyNow,
-      models,
       provider,
       providerId,
       refetchApiKeys,
@@ -296,13 +338,9 @@ export function useHealthCheck(providerId: string) {
   }, [abortInFlightCheck, credentialFingerprint])
 
   useEffect(() => {
-    if (isCheckingRef.current) return
-    const currentModelIds = new Set(models.map((model) => model.id))
-    setModelStatuses((current) => {
-      const next = current.filter((status) => currentModelIds.has(status.model.id))
-      return next.length === current.length ? current : next
-    })
-  }, [models])
+    if (isChecking) return
+    setModelStatuses((current) => reconcileModelStatuses(current, models))
+  }, [isChecking, models])
 
   useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 

@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -172,15 +172,17 @@ describe('useHealthCheck', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
-  it('enters the shared loading state while credentials are still being prepared', async () => {
+  it('uses the latest models after credentials are prepared', async () => {
     let resolveCommit!: () => void
+    models = [imageModel]
     commitInputApiKeyNow.mockReturnValueOnce(
       new Promise<void>((resolve) => {
         resolveCommit = resolve
       })
     )
-    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
-    const { result } = renderHook(() => useHealthCheck('openai'))
+    const reclassifiedModel = { ...imageModel, name: 'Image Model Reclassified', capabilities: [] }
+    checkModelsHealthMock.mockResolvedValue([okResult(reclassifiedModel)])
+    const { result, rerender } = renderHook(() => useHealthCheck('openai'))
 
     let startTask!: Promise<boolean>
     act(() => {
@@ -194,11 +196,19 @@ describe('useHealthCheck', () => {
     expect(result.current.isChecking).toBe(true)
     expect(checkModelsHealthMock).not.toHaveBeenCalled()
 
+    models = [reclassifiedModel]
+    rerender()
+
     await act(async () => {
       resolveCommit()
       await expect(startTask).resolves.toBe(true)
     })
     await waitFor(() => expect(result.current.isChecking).toBe(false))
+    expect(checkModelsHealthMock).toHaveBeenCalledWith(
+      expect.objectContaining({ models: [reclassifiedModel] }),
+      expect.any(Function)
+    )
+    expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
   it('does not duplicate API key save failure feedback before stopping', async () => {
@@ -383,6 +393,42 @@ describe('useHealthCheck', () => {
     expect(signal?.aborted).toBe(false)
     expect(result.current.isChecking).toBe(true)
     expect(result.current.modelStatuses).not.toEqual([])
+  })
+
+  it('reconciles a completed run against model edits made in flight', async () => {
+    let finishCheck: ((results: ModelWithStatus[]) => void) | undefined
+    let signal: AbortSignal | undefined
+    checkModelsHealthMock.mockImplementation(
+      (options) =>
+        new Promise<ModelWithStatus[]>((resolve) => {
+          finishCheck = resolve
+          signal = options.signal
+        })
+    )
+    const { result, rerender } = renderHook(() => useHealthCheck('openai'))
+    await act(async () => {
+      await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+
+    const renamedChatModel = { ...chatModel, name: 'GPT-4o Renamed' }
+    models = [
+      renamedChatModel,
+      { ...imageModel, capabilities: [] },
+      { ...rerankModel, endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
+    ]
+    rerender()
+    expect(signal?.aborted).toBe(false)
+
+    await act(async () => {
+      finishCheck?.([okResult(chatModel), okResult(rerankModel)])
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(result.current.modelStatuses).toEqual([expect.objectContaining({ model: renamedChatModel })])
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_passed:{\\"count\\":1}'))
+    expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
   it('aborts and clears an active run on each pending credential draft edit', async () => {
