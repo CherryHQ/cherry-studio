@@ -177,6 +177,79 @@ describe('JobManager schedule control APIs', () => {
   })
 
   // ----------------------------------------------------------------------
+  // resume catch-up — a fire that elapsed while paused is made up once
+  // (issue #18607: v1 caught up, v2 `skip-missed` silently dropped it)
+  // ----------------------------------------------------------------------
+
+  describe('resume catch-up', () => {
+    it('catches up an overdue interval fire for after-startup policies — exactly once', async () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        trigger: { kind: 'interval', ms: 3_600_000 },
+        jobInputTemplate: { msg: 'beat' } as Record<string, unknown>,
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+        enabled: false
+      })
+      // Paused past the due moment: the last fire was 7 h ago (interval 1 h).
+      jobScheduleService.markFired(snap.id, Date.now() - 7 * 3_600_000, null)
+
+      expect(jobManager.resumeJobScheduleById(snap.id)).toBe(true)
+
+      // The make-up run is enqueued and executes once.
+      await waitForImmediateJobsToDrain()
+      const rows = jobService.list({ type: DUMMY_TYPE })
+      expect(rows).toHaveLength(1)
+      expect(rows[0].scheduleId).toBe(snap.id)
+
+      // The catch-up fire advanced lastRun, so pausing + resuming again inside
+      // the interval (or restarting before the next natural fire) cannot
+      // enqueue a duplicate make-up job.
+      expect(jobScheduleService.getById(snap.id)?.lastRun).toBeTruthy()
+      await jobManager.pauseJobScheduleById(snap.id)
+      expect(jobManager.resumeJobScheduleById(snap.id)).toBe(true)
+      expect(jobService.list({ type: DUMMY_TYPE })).toHaveLength(1)
+    })
+
+    it('records the next cron occurrence when catching up an overdue cron fire', async () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        trigger: { kind: 'cron', expr: '0 * * * *' },
+        jobInputTemplate: {} as Record<string, unknown>,
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+        enabled: false
+      })
+      // Missed the top of the last hour: lastRun 2 h ago, nextRun 1 h ago.
+      jobScheduleService.markFired(snap.id, Date.now() - 7_200_000, Date.now() - 3_600_000)
+
+      expect(jobManager.resumeJobScheduleById(snap.id)).toBe(true)
+
+      await waitForImmediateJobsToDrain()
+      expect(jobService.list({ type: DUMMY_TYPE })).toHaveLength(1)
+      const schedule = jobScheduleService.getById(snap.id)
+      // The make-up fire moved nextRun to the next calendar occurrence, so a
+      // restart before it finds the schedule not overdue.
+      expect(schedule?.lastRun).toBeTruthy()
+      const nextRunMs = schedule?.nextRun ? Date.parse(schedule.nextRun) : null
+      expect(nextRunMs).not.toBeNull()
+      expect(nextRunMs!).toBeGreaterThan(Date.now())
+    })
+
+    it('leaves a missed fire un-caught-up for skip-missed policies', async () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        trigger: { kind: 'interval', ms: 3_600_000 },
+        jobInputTemplate: {} as Record<string, unknown>,
+        catchUpPolicy: { kind: 'skip-missed' },
+        enabled: false
+      })
+      jobScheduleService.markFired(snap.id, Date.now() - 7_200_000, null)
+
+      expect(jobManager.resumeJobScheduleById(snap.id)).toBe(true)
+      expect(jobService.list({ type: DUMMY_TYPE })).toHaveLength(0)
+    })
+  })
+
+  // ----------------------------------------------------------------------
   // by-name family — resolves to by-id via resolveScheduleIdByName
   // ----------------------------------------------------------------------
 

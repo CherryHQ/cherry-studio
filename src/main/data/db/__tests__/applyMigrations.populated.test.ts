@@ -323,8 +323,44 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
-  it('backfills conversation activity from message phases without losing populated rows', () => {
+  it('flips pre-fix agent.task catch-up policies from skip-missed to after-startup', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const trigger = JSON.stringify({ kind: 'interval', ms: 60_000 })
+    const template = JSON.stringify({})
+    const metadata = JSON.stringify({})
+    for (const [id, type, name, policy] of [
+      // Existing agent tasks created with the old hardcoded default (#18607).
+      ['flip-agent', 'agent.task', 'a', JSON.stringify({ kind: 'skip-missed' })],
+      // Other schedule types keep their explicit skip-missed policy.
+      ['flip-other', 'dummy.other', '', JSON.stringify({ kind: 'skip-missed' })],
+      // Already-configured after-startup rows (delays included) stay untouched.
+      ['keep-after', 'agent.task', 'b', JSON.stringify({ kind: 'after-startup', minutes: 5 })]
+    ]) {
+      sqlite
+        .prepare(
+          `INSERT INTO job_schedule
+            (id, type, name, trigger, job_input_template, enabled, catch_up_policy, metadata, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+        )
+        .run(id, type, name, trigger, template, policy, metadata, now, now)
+    }
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite.prepare(`SELECT id, catch_up_policy FROM job_schedule ORDER BY id`).all() as Array<{
+      id: string
+      catch_up_policy: string
+    }>
+    expect(rows).toEqual([
+      { id: 'flip-agent', catch_up_policy: JSON.stringify({ kind: 'after-startup', minutes: 0 }) },
+      { id: 'flip-other', catch_up_policy: JSON.stringify({ kind: 'skip-missed' }) },
+      { id: 'keep-after', catch_up_policy: JSON.stringify({ kind: 'after-startup', minutes: 5 }) }
+    ])
+  })
+
+  it('backfills conversation activity from message phases without losing populated rows', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite
       .prepare(

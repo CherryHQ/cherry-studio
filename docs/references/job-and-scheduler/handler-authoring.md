@@ -142,6 +142,8 @@ Pass an explicit name on multi-instance types — relying on "exactly one row" a
 | **retry** | running → pending on startup; delayed kept as-is. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min. |
 | **singleton** | Keep newest non-terminal, cancel the rest. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min (joins the single-instance slot when free). |
 
+A make-up enqueue **records the catch-up fire** (`lastRun` advances to the catch-up moment; a cron's `nextRun` moves to the next calendar occurrence) so the schedule stops being overdue — a restart before the next natural fire does not enqueue a duplicate. The same catch-up step runs when a paused schedule is resumed (`resumeJobScheduleById`), so a fire that elapsed while the task was paused is made up exactly once, mirroring the v1 scheduler's poll-loop behaviour (#18607).
+
 ### Recovery internals
 
 A few invariants govern recovery decisions; the matrix above abstracts over them, but consumers occasionally need to debug startup behaviour and these knobs surface in logs and tests.

@@ -179,4 +179,10 @@ describe('cron trigger', () => {
     expect(scheduler.getNextRun('i-only')).toBeNull()
     expect(scheduler.getNextRun('nope')).toBeNull()
   })
+
+  it('nextRunFor computes the next fire without registering anything', () => {
+    const next = scheduler.nextRunFor({ kind: 'cron', expr: '0 0 1 1 *' })
+    expect(next).toBeInstanceOf(Date)
+    expect(scheduler.has('probe')).toBe(false)
+  })
 })

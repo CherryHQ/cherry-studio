@@ -212,6 +212,24 @@ export class SchedulerService extends BaseService {
   }
 
   /**
+   * Compute the next fire time for a cron trigger without registering it —
+   * the same Croner probe as `validateTrigger`. JobManager's catch-up path
+   * uses it to record the calendar point a make-up run covers, when the
+   * schedule is not armed yet and `getNextRun` therefore cannot answer.
+   *
+   * @param trigger - Cron trigger config
+   * @returns The next fire `Date`, or `null` if the pattern has no further run
+   */
+  nextRunFor(trigger: Extract<Trigger, { kind: 'cron' }>): Date | null {
+    const probe = new Cron(trigger.expr, { timezone: trigger.timezone, maxRuns: trigger.limit })
+    try {
+      return probe.nextRun() ?? null
+    } finally {
+      probe.stop()
+    }
+  }
+
+  /**
    * @param id - Schedule identifier
    * @returns `true` if a schedule with this id is registered (any kind)
    */

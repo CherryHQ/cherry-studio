@@ -97,7 +97,10 @@ export class AgentJobsService extends BaseService {
           enabled: form.reuseSession === true,
           revision: 0
         }),
-        catchUpPolicy: { kind: 'skip-missed' }
+        // Restores the v1 catch-up contract: a fire that elapsed while the app
+        // was closed or the task paused is made up once on startup / enable
+        // instead of being silently dropped (see issue #18607).
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 }
       })
       if (channelIds.length > 0) {
         agentChannelService.replaceTaskSubscriptionsTx(tx, created.id, channelIds)

@@ -387,9 +387,9 @@ export class JobManager extends BaseService {
    * atomic and runs to completion even if pause lands inside its awaited
    * `onMissed`; drainInFlight joins the flow, so that enqueue always lands
    * before a drain verdict. `resume` re-enters from the cursor; completed
-   * catch-up steps are never re-run (`computeCatchUpAction` reads
-   * lastRun/nextRun, which catch-up enqueues do not update — a re-run would
-   * duplicate make-up jobs). Shutdown still wins over pause and leaves no
+   * catch-up steps are never re-run (`catchUpSchedule` records the make-up
+   * fire, moving lastRun / nextRun past the missed point, so a re-run would
+   * find nothing overdue). Shutdown still wins over pause and leaves no
    * replay debt.
    */
   private runStartupRecoveryFlow(resume?: RecoveryResumePoint): Promise<void> {
@@ -1356,8 +1356,9 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Resume a paused schedule by id. Sets `enabled=true` in the DB and re-arms
-   * the SchedulerService timer using the persisted trigger config.
+   * Resume a paused schedule by id. Sets `enabled=true` in the DB, catches up
+   * a fire that elapsed while paused (per the schedule's `catchUpPolicy`),
+   * and re-arms the SchedulerService timer using the persisted trigger config.
    *
    * @param id - Schedule row id
    * @returns `true` if the row existed and was updated; `false` if not found
@@ -1366,7 +1367,18 @@ export class JobManager extends BaseService {
     const updated = jobScheduleService.setEnabled(id, true)
     if (updated) {
       const snapshot = jobScheduleService.getById(id)
-      if (snapshot) this.armSchedule(snapshot)
+      if (snapshot) {
+        // Catch-up BEFORE arming, mirroring startup recovery: the make-up
+        // enqueue is synchronous (only a handler's onMissed is deferred), so
+        // it always lands before the re-armed timer's first natural fire.
+        void this.catchUpSchedule(snapshot, Date.now()).catch((err) => {
+          logger.warn('Resume catch-up failed — schedule armed without make-up run', {
+            scheduleId: id,
+            err: (err as Error).message
+          })
+        })
+        this.armSchedule(snapshot)
+      }
     }
     return updated
   }
@@ -2226,11 +2238,11 @@ export class JobManager extends BaseService {
    * `skip-missed` still emits `onMissed` — handlers may use it for breaker
    * logic or telemetry even when no make-up job is wanted.
    *
-   * One schedule's `onMissed` + catch-up enqueue is an atomic step: shutdown
-   * and pause are checked only at the loop top, so a step that entered its
-   * (possibly unbounded) `await onMissed` still finishes its enqueue. Returns
-   * the first index whose step did NOT start — `schedules.length` when the
-   * sweep completed — so a pause-interrupted flow can resume exactly there.
+   * One schedule's catch-up step is atomic: shutdown and pause are checked
+   * only at the loop top, so a step that entered its (possibly unbounded)
+   * `await onMissed` still finishes its enqueue. Returns the first index
+   * whose step did NOT start — `schedules.length` when the sweep completed —
+   * so a pause-interrupted flow can resume exactly there.
    */
   private async detectAndDispatchOverdue(schedules: JobScheduleSnapshot[], startIndex = 0): Promise<number> {
     const nowMs = Date.now()
@@ -2242,29 +2254,51 @@ export class JobManager extends BaseService {
       // `enqueue` round-trip to finish before `_recoveryDone` resolves.
       // Pause short-circuits at the same boundary (the caller records `i`).
       if (this._isShuttingDown || this.isQuiesced) return i
-      const handler = this.handlers.get(schedule.type)
-      if (!handler) continue
-      const action = computeCatchUpAction(schedule, handler, nowMs)
-      if (action.missEvent && handler.onMissed) {
-        try {
-          await handler.onMissed(action.missEvent)
-        } catch (err) {
-          logger.warn('handler.onMissed threw — ignoring', {
-            scheduleId: schedule.id,
-            err: (err as Error).message
-          })
-        }
-      }
-      if (action.shouldEnqueue) {
-        const scheduledAt = nowMs + action.enqueueDelayMs
-        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
-          scheduleId: schedule.id,
-          scheduledAt
-        })
-        logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt })
-      }
+      await this.catchUpSchedule(schedule, nowMs)
     }
     return schedules.length
+  }
+
+  /**
+   * One schedule's catch-up step, shared by the startup sweep and the resume
+   * path. Decides via `computeCatchUpAction` whether the schedule missed its
+   * expected fire; when the policy requests a make-up job, enqueues it and
+   * records the catch-up fire (`lastRun` + cron `nextRun`) so a restart
+   * before the next natural fire cannot enqueue a duplicate. `onMissed` runs
+   * after the writes — its awaited body is the only suspension point, so the
+   * enqueue and recording are synchronous for handlers without one.
+   */
+  private async catchUpSchedule(schedule: JobScheduleSnapshot, nowMs: number): Promise<void> {
+    const handler = this.handlers.get(schedule.type)
+    if (!handler) return
+    const action = computeCatchUpAction(schedule, handler, nowMs)
+    if (action.shouldEnqueue) {
+      const scheduledAt = nowMs + action.enqueueDelayMs
+      this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+        scheduleId: schedule.id,
+        scheduledAt
+      })
+      // Record the make-up fire: advancing lastRun converges the overdue
+      // check, and a cron's nextRun moves to the next calendar occurrence
+      // the re-armed timer will fire (null for interval — its natural fires
+      // persist the same way).
+      const nextRunMs =
+        schedule.trigger.kind === 'cron'
+          ? (application.get('SchedulerService').nextRunFor(schedule.trigger)?.getTime() ?? null)
+          : null
+      jobScheduleService.markFired(schedule.id, nowMs, nextRunMs)
+      logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt, nextRunMs })
+    }
+    if (action.missEvent && handler.onMissed) {
+      try {
+        await handler.onMissed(action.missEvent)
+      } catch (err) {
+        logger.warn('handler.onMissed threw — ignoring', {
+          scheduleId: schedule.id,
+          err: (err as Error).message
+        })
+      }
+    }
   }
 
   // ---------------- GC ----------------

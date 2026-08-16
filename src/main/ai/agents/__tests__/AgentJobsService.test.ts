@@ -176,7 +176,13 @@ describe('AgentJobsService', () => {
       const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
 
       expect(task).toMatchObject({ agentId: AGENT_ID, name: form.name, enabled: true, channelIds: [CHANNEL_ID] })
-      expect(jobScheduleService.getById(task.id)).toMatchObject({ type: 'agent.task', enabled: true })
+      expect(jobScheduleService.getById(task.id)).toMatchObject({
+        type: 'agent.task',
+        enabled: true,
+        // Default is after-startup: a fire missed while closed / paused is
+        // made up once on startup or enable instead of being dropped (#18607).
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 }
+      })
       expect(subscriptionRows(task.id)).toHaveLength(1)
       // Anti-regression for the two-step design: forgetting the post-commit
       // sync would leave a committed row with no timer.

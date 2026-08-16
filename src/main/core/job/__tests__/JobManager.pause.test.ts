@@ -848,8 +848,9 @@ describe('JobManager pause / drainInFlight', () => {
       const hold = jobManager.pause('test: atomic step')
       const drainP = jobManager.drainInFlight({ timeoutMs: 3000 })
       await sleep(30)
-      // Pause landed inside `await onMissed` — the step must still finish its
-      // catch-up enqueue, and that write must land before drain returns.
+      // Pause landed inside `await onMissed` — the step enqueued its make-up
+      // job BEFORE awaiting onMissed, so the write is already durable; the
+      // drain verdict must still observe the settled step.
       missGate.release()
 
       const verdict = await drainP
@@ -857,7 +858,6 @@ describe('JobManager pause / drainInFlight', () => {
       expect(verdict.stragglerIds).toEqual([])
       const rows = jobService.list({ type: 'pause.recov2' })
       expect(rows).toHaveLength(1)
-      expect(rows[0].status).toBe('pending') // enqueued but not dispatched
       expect(rows[0].scheduleId).toBe(scheduleId)
 
       // Release replays the remaining steps (arm + dispatch) — the already-run
@@ -1135,6 +1135,40 @@ describe('JobManager pause / drainInFlight', () => {
 
       process.off('unhandledRejection', listener)
       await scheduler._doStop()
+    })
+
+    it('catch-up records the make-up fire — a second sweep pass enqueues no duplicate', async () => {
+      const scheduleId = await insertOverdueSchedule('pause.recov7', 's1', { kind: 'after-startup', minutes: 0 })
+
+      const counter = { count: 0 }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.recov7', makeCountingHandler(counter)]]
+      })
+      await internals(jobManager)._recoveryDone
+      await pollUntil(() => {
+        const rows = jobService.list({ type: 'pause.recov7' })
+        return rows.length === 1 && rows[0].status === 'completed'
+      })
+      expect(counter.count).toBe(1)
+
+      // The catch-up fire advanced the schedule: nextRun moved to the next
+      // top-of-hour, so a restart before it finds the schedule not overdue.
+      const schedule = jobScheduleService.getById(scheduleId)
+      expect(schedule?.lastRun).toBeTruthy()
+      expect(schedule?.nextRun ? Date.parse(schedule.nextRun) : null).toBeGreaterThan(Date.now())
+
+      // Re-running the overdue sweep over the same schedule — the restart
+      // path — enqueues nothing.
+      await (
+        jobManager as unknown as {
+          detectAndDispatchOverdue: (schedules: never[], startIndex?: number) => Promise<number>
+        }
+      ).detectAndDispatchOverdue([jobScheduleService.getById(scheduleId) as never], 0)
+      expect(jobService.list({ type: 'pause.recov7' })).toHaveLength(1)
+      expect(counter.count).toBe(1)
+
+      await drainTrailingDispatch(jobManager)
+      await teardownManager(scheduler, jobManager)
     })
   })
 
