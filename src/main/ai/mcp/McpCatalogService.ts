@@ -10,6 +10,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
+import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -55,7 +56,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) return cachedData
     }
@@ -63,7 +64,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }

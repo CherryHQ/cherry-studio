@@ -209,7 +209,8 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions.",
+      "placeholder_streaming": "Agent is working — {{sendKey}} queues a follow-up, {{steerKey}} steers it now."
     },
     "list": {
       "error": {
@@ -7416,8 +7417,11 @@
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / to open the input quick panel",
+        "newline_shortcuts": "Line break shortcut",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
+        "steer_shortcuts": "Steer shortcut",
+        "steer_shortcuts_hint": "While an Agent is running, this sends your message into the current turn right away to steer it; the send shortcut queues it until the turn ends.",
         "title": "Input Settings"
       },
       "layout": {

@@ -133,6 +133,20 @@ export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
 
+/**
+ * A stored tool result that matches none of the shapes below (an output written by an older build, a
+ * trimmed/rendered envelope, a non-object). The `toModelOutput` formatters re-run over EVERY tool
+ * part of the conversation on every turn (`convertToModelMessages`), so one unreadable part must
+ * degrade to this note — throwing breaks every later turn of that conversation, not just the part.
+ */
+export const KNOWLEDGE_UNREADABLE_OUTPUT_NOTE =
+  'This knowledge base tool result could not be read back from the conversation history. Ignore it — call kb_list to re-check the current knowledge bases before acting on it.'
+
+/** Narrow to the object shapes the formatters below discriminate on; anything else is unreadable. */
+function isObjectOutput<T>(output: T): output is T & object {
+  return typeof output === 'object' && output !== null && !Array.isArray(output)
+}
+
 export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
   // kb_search success is always the results array; the error object is the only non-array shape.
   // kb_list has two object success shapes, so it uses explicit property discriminants instead.
@@ -272,6 +286,10 @@ async function readConcept(
 export function knowledgeReadModelOutput(
   output: KnowledgeReadResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput | KbGrepOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_read output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -517,6 +535,10 @@ export async function manageKnowledge(
 export function knowledgeManageModelOutput(
   output: KnowledgeManageResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbManageOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_manage output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -639,15 +661,22 @@ export function knowledgeListModelOutput(
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
   const outlineMode = input?.baseId != null
 
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_list output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
+
   if ('error' in output) {
     // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
     // the raw listBasesForDiscovery() infra error behind a fixed note (mirrors kb_search's all-failed path).
     return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
   }
 
-  if ('items' in output) {
+  // `Array.isArray` rather than the key alone: a stored part can carry `items`/`nodes` without the
+  // array (or neither), and a bare deref of the missing one is what crashed the whole conversation.
+  if ('items' in output && Array.isArray(output.items)) {
     if (output.items.length === 0) {
-      if (output.total > 0 || input.cursor) {
+      if (output.total > 0 || input?.cursor) {
         return {
           type: 'text',
           value:
@@ -666,10 +695,17 @@ export function knowledgeListModelOutput(
   }
 
   // Outline mode success: one base's tree.
-  if (output.nodes.length === 0) {
-    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+  if ('nodes' in output && Array.isArray(output.nodes)) {
+    if (output.nodes.length === 0) {
+      return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+    }
+    return { type: 'json', value: output }
   }
-  return { type: 'json', value: output }
+
+  logger.warn('kb_list output matches no known shape; rendering the unreadable-output note', {
+    keys: Object.keys(output)
+  })
+  return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
 }
 
 function buildOutputItem(

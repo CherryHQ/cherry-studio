@@ -10,6 +10,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
@@ -133,6 +134,9 @@ const createSerializedFolderToken = (folderPath: string): ComposerSerializedToke
   textOffset: 0
 })
 
+/** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
+const ps = (...values: string[]) => values as AbsoluteFilePath[]
+
 const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
   renderHook(
     ({ paths }) =>
@@ -142,7 +146,7 @@ const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = [
         setFiles: mocks.setFiles,
         enabled: true
       }),
-    { initialProps: { paths: accessiblePaths } }
+    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[] } }
   )
 
 const requireFirstResourceMentionSource = (
@@ -1205,6 +1209,73 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('sends directly via the steer option while streaming, bypassing the queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('treats the steer option as a plain send when idle', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
+    // and the persisted draft cache is rewritten with the pre-send content.
+    expect(mocks.surfaceProps?.text).toBe('hello')
+    expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
+      'agent.composer_draft.session_session-1',
+      expect.objectContaining({ text: 'hello' }),
+      expect.anything()
+    )
   })
 
   it('uses the controlled session, agent, and model context', () => {
@@ -2277,6 +2348,26 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('ignores a workspace path that is not an absolute filesystem path', async () => {
+    mocks.sessionWorkspacePath = 'relative/workspace'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: 'notes', editor: {} as any })
+
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+    expect(items).toEqual([expect.objectContaining({ id: 'agent-resource:no-paths' })])
+  })
+
   it('provides workspace file resources through the @ mention suggestion source', async () => {
     vi.useFakeTimers()
     try {
@@ -2318,7 +2409,7 @@ describe('AgentComposer', () => {
       const items = await itemsPromise
       expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: true,
-        maxDepth: 3,
+        maxDepth: 10,
         includeHidden: false,
         includeFiles: true,
         includeDirectories: true,
@@ -2364,6 +2455,34 @@ describe('AgentComposer', () => {
         })
       ])
       expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Regression: #17979. Keep this behavior assertion separate from the search-options assertions so
+  // lowering maxDepth cannot make the implementation and its tests agree while hiding deep files again.
+  it('finds a workspace file beneath three nested directories through @ search', async () => {
+    vi.useFakeTimers()
+    try {
+      const targetPath =
+        '/workspace/考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md'
+      mocks.listDirectoryEntries.mockImplementation(async (_dirPath: string, options?: { maxDepth?: number }) =>
+        (options?.maxDepth ?? 0) >= 4 ? [{ path: targetPath, isDirectory: false }] : []
+      )
+      const { result } = renderAgentResourceMentionSource()
+      const source = requireFirstResourceMentionSource(result.current)
+
+      const itemsPromise = source.items({ query: '微分方程', editor: buildComposerEditorMock().editor })
+      await vi.advanceTimersByTimeAsync(200)
+
+      await expect(itemsPromise).resolves.toEqual([
+        expect.objectContaining({
+          label: '考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md',
+          description: targetPath,
+          disabled: false
+        })
+      ])
     } finally {
       vi.useRealTimers()
     }
@@ -2418,7 +2537,7 @@ describe('AgentComposer', () => {
       expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1)
       expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: true,
-        maxDepth: 3,
+        maxDepth: 10,
         includeHidden: false,
         includeFiles: true,
         includeDirectories: true,
@@ -2470,7 +2589,7 @@ describe('AgentComposer', () => {
     const staleSource = requireFirstResourceMentionSource(hook.result.current)
     const staleItemsPromise = staleSource.items({ query: '', editor: buildComposerEditorMock().editor })
 
-    hook.rerender({ paths: ['/workspace-2'] })
+    hook.rerender({ paths: ps('/workspace-2') })
     const currentSource = requireFirstResourceMentionSource(hook.result.current)
     await expect(currentSource.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
       expect.objectContaining({ label: 'current', description: '/workspace-2/current' })

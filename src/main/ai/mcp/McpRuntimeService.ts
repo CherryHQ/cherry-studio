@@ -34,7 +34,7 @@ import {
   type McpTransport
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
-import { redactSensitive } from './mcpRedact'
+import { redactCacheKey, redactSensitive, redactServerKey } from './mcpRedact'
 import { createTransport } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -148,7 +148,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -158,7 +158,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -577,13 +581,14 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+        logger.debug(`Operation cancelled for server: ${server.name}`, redactSensitive(notification.params))
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactSensitive(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -591,7 +596,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
@@ -619,7 +624,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -674,13 +679,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 

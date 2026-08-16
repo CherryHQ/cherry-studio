@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { getBinaryPath } from '@main/utils/binaryResolver'
+import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -55,7 +56,9 @@ export async function createInMemoryMcpServer(
   args: string[] = [],
   envs: Record<string, string> = {}
 ): Promise<Server> {
-  logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
+  logger.debug(
+    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(sanitizeEnvForLogging(envs))}`
+  )
   const create = inMemoryServers[name as BuiltinMcpServerName]
   if (!create) {
     throw new Error(`Unknown in-memory MCP server: ${name}`)
