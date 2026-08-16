@@ -147,6 +147,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
+      setCaptureOpen(false)
+
       try {
         const title = extractHtmlTitle(html)
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
@@ -168,8 +170,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         }
       } catch (error) {
         logger.error('Failed to capture HTML artifact preview', error as Error)
-      } finally {
-        setCaptureOpen(false)
       }
     },
     [html, t]
@@ -311,7 +311,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                 <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                   <Tooltip content={t('html_artifacts.capture.label')}>
                     <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('html_artifacts.capture.label')}
+                        className="[-webkit-app-region:no-drag]">
                         <Camera className="size-3.5" />
                       </Button>
                     </PopoverTrigger>
