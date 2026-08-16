@@ -104,6 +104,7 @@ const MAX_DELTA_CALC_SIZE = 10_000
 const MAX_WORKFLOW_SNAPSHOT_BYTES = 1_048_576
 const MAX_AGENT_TRANSCRIPT_READ_BYTES = 256 * 1024
 const TERMINAL_TASK_RECONCILE_DELAY_MS = 1000
+const TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS = 5
 const BACKGROUND_BASH_HEAD_BYTES = 32 * 1024
 const BACKGROUND_BASH_TAIL_BYTES = 32 * 1024
 const BACKGROUND_BASH_POLL_INTERVAL_MS = 1000
@@ -235,6 +236,8 @@ type AgentTranscriptStatsCacheEntry = AgentUsageStats & {
 type PendingTerminalWorkflowState = {
   eventData: AgentTaskEventPartData
   timer: NodeJS.Timeout
+  /** Attempts made while the snapshot/transcript is still catching up with the terminal event. */
+  attempts: number
 }
 
 type PendingTerminalAgentState = PendingTerminalWorkflowState & {
@@ -2454,13 +2457,28 @@ export class ClaudeCodeStreamAdapter {
       TERMINAL_TASK_RECONCILE_DELAY_MS
     )
     timer.unref?.()
-    this.pendingTerminalWorkflowEvents.set(eventData.taskId, { eventData, timer })
+    this.pendingTerminalWorkflowEvents.set(eventData.taskId, { eventData, timer, attempts: 0 })
   }
 
   private reconcileTerminalWorkflowStats(taskId: string): void {
     const pending = this.pendingTerminalWorkflowEvents.get(taskId)
     if (!pending) return
     const workflow = this.readLocalWorkflowSnapshot(taskId, true)
+    const terminalTotalTokens = pending.eventData.workflow?.totalTokens
+    const snapshotTotalTokens = workflow?.totalTokens
+    if (
+      terminalTotalTokens !== undefined &&
+      snapshotTotalTokens !== terminalTotalTokens &&
+      pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS
+    ) {
+      // The CLI is still writing the snapshot: keep waiting until its context size matches
+      // the terminal event's, then retry after the reconcile delay (bounded by the attempt cap).
+      pending.attempts += 1
+      const timer = setTimeout(() => this.reconcileTerminalWorkflowStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
+      timer.unref?.()
+      pending.timer = timer
+      return
+    }
     if (workflow && hasWorkflowStatsChanged(pending.eventData.workflow, workflow)) {
       this.statusSink.emit({
         type: 'background-task-event',
@@ -2475,7 +2493,7 @@ export class ClaudeCodeStreamAdapter {
     if (existing) clearTimeout(existing.timer)
     const timer = setTimeout(() => this.reconcileTerminalAgentStats(eventData.taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
     timer.unref?.()
-    this.pendingTerminalAgentEvents.set(eventData.taskId, { eventData, sdkSessionId, timer })
+    this.pendingTerminalAgentEvents.set(eventData.taskId, { eventData, sdkSessionId, timer, attempts: 0 })
   }
 
   private reconcileTerminalAgentStats(taskId: string): void {
@@ -2483,6 +2501,21 @@ export class ClaudeCodeStreamAdapter {
     if (!pending) return
     const transcriptStats = this.readAgentTaskTranscriptStats(taskId, pending.sdkSessionId)
     const usage = this.getAgentUsage(transcriptStats, pending.eventData.usage, true)
+    const terminalContextTokens = pending.eventData.usage?.contextTokens
+    const readContextTokens = usage?.contextTokens
+    if (
+      terminalContextTokens !== undefined &&
+      readContextTokens !== terminalContextTokens &&
+      pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS
+    ) {
+      // The transcript is still being written: keep waiting until its context size matches
+      // the terminal event's, then retry after the reconcile delay (bounded by the attempt cap).
+      pending.attempts += 1
+      const timer = setTimeout(() => this.reconcileTerminalAgentStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
+      timer.unref?.()
+      pending.timer = timer
+      return
+    }
     if (usage && hasAgentUsageChanged(pending.eventData.usage, usage)) {
       this.statusSink.emit({
         type: 'background-task-event',
@@ -2558,13 +2591,13 @@ export class ClaudeCodeStreamAdapter {
     }
     const runtimeWorkflowProgress = this.localWorkflowRuntimeProgresses.get(baseEventData.taskId)
     const isTerminal = isTerminalTaskStatus(baseEventData.status)
+    // A terminal transition can arrive as task_notification or as task_updated with a terminal
+    // patch.status; both settle the task, so terminal bookkeeping keys off the status, not the subtype.
     const shouldReconcileTerminalWorkflow =
-      message.subtype === 'task_notification' &&
       baseEventData.status === 'completed' &&
       (this.backgroundTaskTypes.get(baseEventData.taskId) === 'local_workflow' ||
         this.localWorkflowLaunches.has(baseEventData.taskId))
-    const shouldReconcileTerminalAgent =
-      message.subtype === 'task_notification' && baseEventData.status === 'completed' && isAgentTask
+    const shouldReconcileTerminalAgent = baseEventData.status === 'completed' && isAgentTask
     const shouldReconcileTerminalTask = shouldReconcileTerminalWorkflow || shouldReconcileTerminalAgent
     const workflowSnapshot =
       this.readLocalWorkflowSnapshot(baseEventData.taskId, isTerminal) ??
@@ -2618,7 +2651,9 @@ export class ClaudeCodeStreamAdapter {
       this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
     }
 
-    if (message.subtype === 'task_notification') this.publishTerminalBackgroundBashOutput(message)
+    if (isTerminal && (message.subtype === 'task_notification' || message.subtype === 'task_updated')) {
+      this.publishTerminalBackgroundBashOutput(message)
+    }
 
     // Keep a process-scoped per-task surface for status history and stop targets.
     this.statusSink.emit({ type: 'background-task-event', data: eventData })
@@ -2637,7 +2672,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (!this.turnActive) {
-      if (message.subtype === 'task_notification' && isTerminal && !shouldReconcileTerminalTask) {
+      if (isTerminal && !shouldReconcileTerminalTask) {
         this.releaseTerminalTaskState(eventData.taskId)
       }
       return
@@ -2664,7 +2699,7 @@ export class ClaudeCodeStreamAdapter {
       id: `task-${eventData.taskId}-${eventData.event}`,
       data: persistedEventData
     })
-    if (message.subtype === 'task_notification' && isTerminal && !shouldReconcileTerminalTask) {
+    if (isTerminal && !shouldReconcileTerminalTask) {
       this.releaseTerminalTaskState(eventData.taskId)
     }
   }
@@ -2701,19 +2736,21 @@ export class ClaudeCodeStreamAdapter {
     return taskType.includes('bash') || taskType.includes('shell')
   }
 
-  private publishTerminalBackgroundBashOutput(message: SDKTaskNotificationMessage): void {
+  private publishTerminalBackgroundBashOutput(message: SDKTaskNotificationMessage | SDKTaskUpdatedMessage): void {
     if (!this.isBackgroundBashTask(message.task_id)) return
     const state = this.stopBackgroundBashPolling(message.task_id, false)
     const toolCallId = state?.toolCallId ?? this.backgroundTaskToolCallIds.get(message.task_id)
     if (!toolCallId) return
-    const notificationOutputFile = message.output_file
-      ? this.validateTaskOutputPath(message.output_file, message.task_id, message.session_id)
-      : undefined
+    const notificationOutputFile =
+      'output_file' in message && message.output_file
+        ? this.validateTaskOutputPath(message.output_file, message.task_id, message.session_id)
+        : undefined
     const outputState = notificationOutputFile ? { toolCallId, outputFile: notificationOutputFile } : state
     const result = outputState ? this.readBackgroundBashOutput(message.task_id, outputState, true) : undefined
     this.backgroundBashOutputs.delete(message.task_id)
 
-    if (message.status === 'completed') {
+    const terminalStatus = 'patch' in message ? message.patch.status : message.status
+    if (terminalStatus === 'completed') {
       if (!result) return
       this.emitBackgroundToolChunk(toolCallId, {
         type: 'tool-output-available',
@@ -2725,7 +2762,9 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
-    const errorText = [message.summary, result?.text].filter((value): value is string => Boolean(value)).join('\n\n')
+    const errorText = ['summary' in message ? message.summary : undefined, result?.text]
+      .filter((value): value is string => Boolean(value))
+      .join('\n\n')
     this.emitBackgroundToolChunk(toolCallId, {
       type: 'tool-output-error',
       toolCallId,
