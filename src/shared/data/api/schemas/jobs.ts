@@ -74,7 +74,7 @@ export type Trigger = z.infer<typeof TriggerSchema>
  * the schema so a new trigger field is added to both in one place. Callers use
  * it to drop a value-identical trigger from an update patch — the JobManager
  * re-arm decision is field-presence-based by design, and a spurious re-arm
- * resets an interval's phase.
+ * churns the timer for no reason.
  */
 export const triggersEqual = (a: Trigger, b: Trigger): boolean => {
   if (a.kind === 'cron' && b.kind === 'cron') {

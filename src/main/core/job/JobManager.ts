@@ -21,6 +21,7 @@ import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
+import { intervalFirstDelay } from './runtime/intervalPhase'
 import { runStartupRecovery } from './runtime/recovery'
 import {
   type EnqueueOptions,
@@ -2051,6 +2052,9 @@ export class JobManager extends BaseService {
    *
    * A spent `once` schedule (its natural fire already happened) is never
    * re-armed — see the guard below.
+   *
+   * `interval` triggers arm onto their `createdAt`-anchored wall-clock grid
+   * (`intervalFirstDelay`), so re-arming does not restart the cadence.
    */
   private armSchedule(schedule: JobScheduleSnapshot): void {
     if (!schedule.enabled) return
@@ -2079,7 +2083,7 @@ export class JobManager extends BaseService {
     const scheduler = application.get('SchedulerService')
     const scheduleKey = `schedule:${schedule.id}`
     const trigger: Trigger = schedule.trigger
-    const disp = scheduler.registerSchedule(scheduleKey, trigger, async () => {
+    const onFire = async (): Promise<void> => {
       // Autonomy gate (pause hold or post-release barrier) — placed BEFORE
       // the try/finally so the suppressed fire writes neither the enqueue nor
       // markFired. Interval chains re-arm in the scheduler wrapper (gating
@@ -2128,7 +2132,8 @@ export class JobManager extends BaseService {
           })
         }
       }
-    })
+    }
+    const disp = scheduler.registerSchedule(scheduleKey, trigger, onFire, intervalFirstDelay(schedule, Date.now()))
     this.scheduleDisposables.set(schedule.id, disp)
     // Crons registered (or re-armed) while autonomy is suspended (pause hold
     // or post-release barrier) are paused at the croner layer in the same

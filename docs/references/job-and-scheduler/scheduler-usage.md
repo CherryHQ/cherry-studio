@@ -65,6 +65,10 @@ scheduler.registerSchedule('reminder.foo', { kind: 'once', at: Date.now() + 1000
 
 If you need "fire once, then maybe fire again later" semantics this is the path. Note that the schedule id is *also* removed if the callback throws — `once` is always one-shot from SchedulerService's perspective.
 
+### `interval`: first delay vs. cadence
+
+`registerSchedule` takes an optional 4th argument, `firstDelayMs`, that governs only the first fire; every later tick uses `trigger.ms`. Without it the cadence restarts from the moment of registration, which means a schedule re-armed on every app launch never reaches its first fire if its period exceeds the app's uptime. `JobManager.armSchedule` therefore anchors job schedules to a wall-clock grid at `createdAt + k × ms` (`runtime/intervalPhase.ts`): a restart or resume lands on the next grid point, and a grid point that elapsed while the app was closed is skipped, not made up.
+
 ### `interval`: re-arm safety check
 
 After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregisterSchedule(id)` and the loop will stop cleanly, without a final stray tick.

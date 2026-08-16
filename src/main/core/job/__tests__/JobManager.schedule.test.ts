@@ -390,6 +390,29 @@ describe('JobManager schedule control APIs', () => {
       expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
     })
 
+    it('re-arms an interval onto its createdAt grid instead of restarting the period', async () => {
+      const t0 = Date.now()
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(t0)
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'interval-grid',
+        trigger: baseTrigger, // every 60s
+        jobInputTemplate: {} as Record<string, unknown>,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      await jobManager.pauseJobScheduleById(snap.id)
+
+      // Resumed 90s after creation: the 60s grid point is gone, the 120s one is
+      // 30s away. Restarting the period here would push the next fire to 60s.
+      nowSpy.mockReturnValue(t0 + 90_000)
+      const timeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      jobManager.resumeJobScheduleById(snap.id)
+
+      expect(timeoutSpy.mock.calls.map((call) => call[1])).toEqual([30_000])
+      timeoutSpy.mockRestore()
+      nowSpy.mockRestore()
+    })
+
     it('(f) trigger update onto a spent once: disposes the stale registration and does not re-arm', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
