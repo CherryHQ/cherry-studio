@@ -289,6 +289,11 @@ function insertComposerTokenAtCursor(
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
+  // The shortcut branches only compare modifiers, so a caller that skipped the key check would
+  // read every unmodified keypress as a send.
+  if (event.key !== 'Enter' && event.key !== 'NumpadEnter') return false
+  if (event.isComposing) return false
+
   switch (shortcut) {
     case 'Enter':
       return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
@@ -1514,7 +1519,7 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
-        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
+        if (isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
           event.preventDefault()
           if (event.repeat) return true
 

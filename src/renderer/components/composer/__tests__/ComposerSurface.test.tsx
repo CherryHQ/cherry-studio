@@ -4531,6 +4531,19 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
+  it.each(['a', ' ', 'Backspace', 'ArrowLeft'])('never reads %s as the send shortcut', async (key) => {
+    const onSendDraft = vi.fn()
+    render(<ComposerSurface {...baseProps} text="draft" onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key, cancelable: true })
+    mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
   it.each(['Enter', 'NumpadEnter'])('does not swallow composing %s while the QuickPanel is visible', async (key) => {
     const onSendDraft = vi.fn()
     mocks.quickPanelIsVisible = true
