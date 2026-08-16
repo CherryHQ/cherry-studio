@@ -54,7 +54,12 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  resolveNewlineShortcut,
+  resolveSendShortcut,
+  resolveSteerShortcut
+} from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -751,7 +756,10 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx } = useChatLayoutMode()
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
+  const [steerShortcut] = usePreference('chat.input.steer_shortcut')
+  const [newlineShortcut] = usePreference('chat.input.newline_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const {
     pinnedIds: pinnedToolIds,
@@ -1344,9 +1352,18 @@ const AgentComposerInner = ({
     [availableSkills, reconcileTokens]
   )
 
+  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
+  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+
   const placeholderText = useMemo(
-    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
-    [sendMessageShortcut, t]
+    () =>
+      isStreaming
+        ? t('agent.input.placeholder_streaming', {
+            sendKey: getComposerShortcutLabel(sendMessageShortcut),
+            steerKey: getComposerShortcutLabel(resolvedSteerShortcut)
+          })
+        : t('agent.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) }),
+    [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
   )
 
   const buildQueuedPayload = useCallback(
@@ -1475,7 +1492,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    async (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1489,8 +1506,9 @@ const AgentComposerInner = ({
       if (!payload) return
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
-      // the dock lets the user steer/edit/remove items.
-      if (isStreaming) {
+      // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
+      // falls through to the direct send below, mirroring the dock's "insert" action.
+      if (isStreaming && !options?.steer) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1696,6 +1714,7 @@ const AgentComposerInner = ({
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
           sendMessageShortcut={sendMessageShortcut}
+          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
@@ -1787,7 +1806,8 @@ const MissingAgentHomeComposerInner = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx } = useChatLayoutMode()
@@ -1812,7 +1832,7 @@ const MissingAgentHomeComposerInner = ({
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
-    key: getSendMessageShortcutLabel(sendMessageShortcut)
+    key: getComposerShortcutLabel(sendMessageShortcut)
   })
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
