@@ -1,7 +1,8 @@
+import i18n from '@renderer/i18n/resolver'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
 import { HealthStatus } from '../../types/healthCheck'
@@ -18,6 +19,17 @@ const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequestMock }
 }))
+
+let previousLanguage: string
+
+beforeAll(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 const entries: ApiKeyEntry[] = [
   { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
@@ -58,7 +70,7 @@ describe('checkModelWithMultipleKeys', () => {
 })
 
 describe('summarizeHealthResults', () => {
-  it('includes skipped models alongside passed, partial, and failed outcomes', () => {
+  it('summarizes every outcome with singular English labels', () => {
     const model: Model = {
       id: 'openai::model',
       providerId: 'openai',
@@ -108,7 +120,9 @@ describe('summarizeHealthResults', () => {
       }
     ]
 
-    expect(summarizeHealthResults(results, 'OpenAI')).toMatch(/skipped|跳过/i)
+    expect(summarizeHealthResults(results, 'OpenAI')).toBe(
+      'OpenAI: 1 model passed model checks, 1 model had inaccessible keys, 1 model completely inaccessible, 1 model skipped'
+    )
   })
 })
 

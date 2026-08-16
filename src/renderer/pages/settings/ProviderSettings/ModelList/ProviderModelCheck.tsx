@@ -21,7 +21,7 @@ export default function ProviderModelCheck() {
           disabled={health.models.length === 0 || health.isModelChecking}
           onClick={health.openModelCheck}>
           {health.isModelChecking ? (
-            <Loader2 className={`${modelListClasses.toolbarDesignIcon} animate-spin`} />
+            <Loader2 className={`${modelListClasses.toolbarDesignIcon} motion-safe:animate-spin`} />
           ) : (
             <Activity className={modelListClasses.toolbarDesignIcon} />
           )}

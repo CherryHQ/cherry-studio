@@ -39,7 +39,7 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
       <span
         className="inline-flex h-7 items-center gap-1 px-2 text-muted-foreground text-xs"
         aria-label={`${result.model.name}: ${t('settings.models.check.status_checking')}`}>
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Loader2 className="size-4 text-muted-foreground motion-safe:animate-spin" />
         <span>{t('settings.models.check.status_checking')}</span>
       </span>
     )
