@@ -133,7 +133,7 @@ const SECRET_KEY_VALUE_PATTERN =
   /(["']?(?:api[_-]?key|apikey|token|secret|password|passphrase|auth|credential|cookie|session)\w*["']?\s*[:=]\s*)("""[\s\S]*?"""|'''[\s\S]*?'''|[^\r\n]*)/gi
 
 // Bearer/Basic must run before the key=value pass — see the tests for why.
-const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi
+const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s"',;}\]]+)/gi
 
 /**
  * Redact likely-secret fragments embedded in free text: `key = value`,

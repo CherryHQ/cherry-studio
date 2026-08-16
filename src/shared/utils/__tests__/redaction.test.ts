@@ -212,6 +212,9 @@ describe('redactUrlParams', () => {
 // - Bearer/Basic is redacted before the key=value pass, which would otherwise consume
 //   the literal word "Bearer" as the "value" for a preceding "Authorization:" key and
 //   leave the real token intact.
+// - Bearer/Basic tokens may be wrapped in literal quotes (OAuth error bodies echo the
+//   header back as `Bearer "sk-..."`), so the quoted alternatives — including escaped
+//   quotes inside — must match before the bare-token fallback, which excludes quotes.
 describe('redactSecretText', () => {
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
@@ -258,6 +261,16 @@ describe('redactSecretText', () => {
       'sk-ant-real-secret'
     )
     expect(redactSecretText('proxy auth: Basic dXNlcjpwYXNz')).not.toContain('dXNlcjpwYXNz')
+  })
+
+  it('redacts quoted Bearer/Basic tokens, including escaped quotes inside', () => {
+    // Regression (#18656 review): pre-consolidation call sites used Bearer\s+\S+, which
+    // matched quoted tokens; the bare-token fallback alone excludes quotes and leaks them.
+    expect(redactSecretText('detail: Bearer "sk-ant-quoted-secret"')).not.toContain('sk-ant-quoted-secret')
+    expect(redactSecretText('detail: Bearer "sk-ant-quoted-secret"')).toBe('detail: Bearer <redacted>')
+    expect(redactSecretText('err: Basic "dXNlcjpwYXNz"')).not.toContain('dXNlcjpwYXNz')
+    expect(redactSecretText("err: Bearer 'sk-ant-single-quoted'")).not.toContain('sk-ant-single-quoted')
+    expect(redactSecretText('Bearer "sk-with\\"escape"')).not.toContain('escape')
   })
 
   it('redacts scope-limited extras like OAuth "code=" only when passed', () => {
