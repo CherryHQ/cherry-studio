@@ -3201,6 +3201,20 @@
       }
     },
     {
+      "apiModelId": "x-ai/grok-4-1-fast-reasoning",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "grok-4-1-fast",
+      "providerId": "cherryin",
+      "reason": "CherryIN advertises openai-response but its relay answers /v1/responses with a 400"
+    },
+    {
+      "apiModelId": "x-ai/grok-4-1-fast-non-reasoning",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "grok-4-1-fast-non-reasoning",
+      "providerId": "cherryin",
+      "reason": "CherryIN advertises openai-response but its relay answers /v1/responses with a 400"
+    },
+    {
       "apiModelId": "qwen/qwen3.5-122b-a10b",
       "capabilities": {
         "remove": ["audio-recognition"]

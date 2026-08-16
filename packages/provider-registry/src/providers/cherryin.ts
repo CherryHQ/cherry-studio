@@ -35,6 +35,23 @@ const deepSeekModelOverrides = [
   }
 ] satisfies Array<Partial<ProviderModelOverride>>
 
+// Chat Completions leads because `endpointTypes[0]` routes in-app chat; Messages keeps the Claude Code
+// driver on its direct route. See the vendor evidence in `provider-endpoint-matrix.test.ts`.
+const grokEndpointCompatibilityOverrides = [
+  {
+    apiModelId: 'x-ai/grok-4-1-fast-reasoning',
+    modelId: 'grok-4-1-fast',
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    reason: 'CherryIN advertises openai-response but its relay answers /v1/responses with a 400'
+  },
+  {
+    apiModelId: 'x-ai/grok-4-1-fast-non-reasoning',
+    modelId: 'grok-4-1-fast-non-reasoning',
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    reason: 'CherryIN advertises openai-response but its relay answers /v1/responses with a 400'
+  }
+] satisfies Array<Partial<ProviderModelOverride>>
+
 const qwenAudioCompatibilityOverrides = [
   {
     apiModelId: 'qwen/qwen3.5-122b-a10b',
@@ -142,5 +159,5 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
+  overrides: [...deepSeekModelOverrides, ...grokEndpointCompatibilityOverrides, ...qwenAudioCompatibilityOverrides]
 })

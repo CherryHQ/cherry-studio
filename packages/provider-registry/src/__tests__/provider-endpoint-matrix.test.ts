@@ -112,6 +112,23 @@ describe('deepseek endpoint matrix', () => {
 })
 
 /**
+ * CherryIN's `/v1/models` advertises `openai-response` for both Grok 4.1 Fast SKUs, but its relay
+ * answers `/v1/responses` with `400 Model grok-4-1-fast-reasoning does not support
+ * apiType:***.responses parameter` (a `bad_response_status_code` relayed from upstream, so it is not
+ * an account-level gate — `openai/gpt-5-codex` serves `/v1/responses` on the same key). Both
+ * `/v1/chat/completions` and `/v1/messages` serve these models, so the pin drops Responses only.
+ * See CherryHQ/cherry-studio#18696.
+ */
+describe('cherryin endpoint matrix', () => {
+  it.each(['grok-4-1-fast', 'grok-4-1-fast-non-reasoning'])(
+    'keeps %s off the Responses endpoint CherryIN advertises but cannot serve',
+    (modelId) => {
+      expect(endpointsOf('cherryin', modelId)).toEqual(['openai-chat-completions', 'anthropic-messages'])
+    }
+  )
+})
+
+/**
  * OpenCode Go multiplexes three wire protocols over one base URL, and the protocol per model is
  * published as models.dev's per-model `provider.npm` (`@ai-sdk/openai` → Responses, `@ai-sdk/anthropic`
  * → Messages, inherited `@ai-sdk/openai-compatible` → Chat) — which is what the OpenCode client itself
