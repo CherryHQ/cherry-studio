@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -2893,7 +2893,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
-    it('stops polling a background Bash file on terminal task updates', () => {
+    it('publishes the final Bash output once on terminal task updates and stops polling', () => {
       vi.useFakeTimers()
       const fixture = createBackgroundBashFixture()
       try {
@@ -2914,7 +2914,10 @@ describe('ClaudeCodeStreamAdapter', () => {
         fixture.appendOutput('late output\n')
         vi.advanceTimersByTime(2000)
 
-        expect(statusEvents.filter((event) => event.type === 'background-flow-chunk')).toEqual([])
+        // The terminal update publishes the final output once and stops polling.
+        const chunks = statusEvents.filter((event) => event.type === 'background-flow-chunk')
+        expect(chunks).toHaveLength(1)
+        expect(chunks[0].chunk).toMatchObject({ output: 'initial output\n', toolCallId: 'bash-tool-use' })
         adapter.dispose()
       } finally {
         fixture.cleanup()
@@ -3876,6 +3879,123 @@ describe('ClaudeCodeStreamAdapter', () => {
             ])
           }
         })
+      } finally {
+        fixture.cleanup()
+        vi.useRealTimers()
+      }
+    })
+
+    it('retries the terminal workflow reconciliation while the snapshot lags the terminal context size', () => {
+      vi.useFakeTimers()
+      const fixture = createWorkflowFixture()
+      try {
+        const { adapter, statusEvents } = createAdapter()
+        launchWorkflow(adapter, fixture)
+        adapter.handleMessage(successResult({ session_id: 'sdk-1' }))
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          task_type: 'local_workflow',
+          workflow_name: 'review-pr',
+          prompt: fixture.script
+        } as any)
+
+        // The snapshot lags the terminal event: the file only carries the stale total.
+        fixture.writeSnapshot({ totalTokens: 120, totalCumulativeTokens: 120, totalToolCalls: 0 })
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_notification',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          status: 'completed',
+          output_file: '/tmp/workflow-task-1.output',
+          summary: 'Review complete',
+          usage: { total_tokens: 500, tool_uses: 2, duration_ms: 1000 }
+        } as any)
+
+        // The terminal event reports the final context size (500) the snapshot has not caught up to.
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({
+          totalTokens: 500,
+          totalCumulativeTokens: 120
+        })
+
+        // First reconcile attempt: snapshot still stale — keep waiting, no final event yet.
+        vi.advanceTimersByTime(1000)
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({
+          totalTokens: 500,
+          totalCumulativeTokens: 120
+        })
+        expect((adapter as any).pendingTerminalWorkflowEvents.size).toBe(1)
+
+        // The CLI finishes writing the snapshot; the retry matches and settles the statistics.
+        fixture.writeSnapshot({ totalTokens: 500, totalCumulativeTokens: 500, totalToolCalls: 2 })
+        // Force an mtime bump so the adapter re-reads the file even though the byte size is identical.
+        const bumpedMtime = new Date(Date.now() + 60_000)
+        utimesSync(fixture.snapshotPath, bumpedMtime, bumpedMtime)
+        vi.advanceTimersByTime(1000)
+
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({
+          totalTokens: 500,
+          totalCumulativeTokens: 500
+        })
+        expect((adapter as any).pendingTerminalWorkflowEvents.size).toBe(0)
+      } finally {
+        fixture.cleanup()
+        vi.useRealTimers()
+      }
+    })
+
+    it('gives up the terminal workflow reconciliation after the bounded retry budget', () => {
+      vi.useFakeTimers()
+      const fixture = createWorkflowFixture()
+      try {
+        const { adapter, statusEvents } = createAdapter()
+        launchWorkflow(adapter, fixture)
+        adapter.handleMessage(successResult({ session_id: 'sdk-1' }))
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          task_type: 'local_workflow',
+          workflow_name: 'review-pr',
+          prompt: fixture.script
+        } as any)
+
+        // An oversized snapshot is never readable: every attempt yields no stats.
+        fixture.writeSnapshot({ totalTokens: 500, totalCumulativeTokens: 500, totalToolCalls: 2 })
+        writeFileSync(fixture.snapshotPath, `{${'x'.repeat(1_100_000)}}`)
+
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_notification',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          status: 'completed',
+          output_file: '/tmp/workflow-task-1.output',
+          summary: 'Review complete',
+          usage: { total_tokens: 500, tool_uses: 2, duration_ms: 1000 }
+        } as any)
+
+        const eventsBeforeRetries = statusEvents.length
+        // The retry budget is bounded: five one-second attempts, then the state is released.
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          vi.advanceTimersByTime(1000)
+          expect((adapter as any).pendingTerminalWorkflowEvents.size).toBe(1)
+        }
+        expect(statusEvents.length).toBe(eventsBeforeRetries)
+        vi.advanceTimersByTime(1000)
+        expect((adapter as any).pendingTerminalWorkflowEvents.size).toBe(0)
       } finally {
         fixture.cleanup()
         vi.useRealTimers()
