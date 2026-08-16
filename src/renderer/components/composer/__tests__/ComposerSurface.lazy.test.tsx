@@ -240,6 +240,26 @@ describe('deferred ComposerSurface', () => {
     expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
   })
 
+  it('matches the runtime ArrowUp history boundary for a non-empty draft', async () => {
+    const text = 'draft'
+    const onInputHistoryNavigate = vi.fn(() => true)
+    render(<Harness text={text} onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' })
+    input.setSelectionRange(0, 0)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(1, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(text.length, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+    await screen.findByTestId('composer-runtime')
+  })
+
   it('hands the end selection to the runtime for history recalled before it loads', async () => {
     const historyText = 'previous chat prompt'
     let actions: ComposerSurfaceActions | undefined

@@ -196,7 +196,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
     const isAtBoundary =
-      event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
+      event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
     if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
