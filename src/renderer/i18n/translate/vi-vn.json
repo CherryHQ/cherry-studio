@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "description_pi": "Hoạt động độc lập. Sẽ hỏi khi nhận diện được một hành động rủi ro.",
             "title": "Phê duyệt thay tôi",
-            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi.",
+            "warning_pi": "Việc nhận diện là dựa trên nỗ lực tốt nhất; một lệnh không phổ biến vẫn có thể bị bỏ sót."
           },
           "bypassPermissions": {
             "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
             "title": "Toàn quyền truy cập",
-            "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
+            "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt.",
+            "warning_pi": "Nguy hiểm — không có gì được hỏi ngoại trừ các công cụ bị vô hiệu hóa, bao gồm xóa tệp và truy cập mạng."
           },
           "confirmChange": {
             "description": "Chuyển đổi chế độ sẽ cập nhật các công cụ được phê duyệt tự động.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Mã Kimi",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Terminal này yêu cầu đường dẫn tùy chỉnh",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Chế độ Agent mặc định",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Kết hợp công việc công cụ đa bước thông qua SDK PTC Code Mode cho các tác vụ mã hóa phức tạp.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Giữ preset mặc định hiện có trong cài đặt chia sẻ ~/.dsh.",
+          "label": "Mặc định Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Chỉ sử dụng shell bền vững và trình soạn thảo văn bản để có diện tích công cụ nhỏ nhất.",
+          "label": "Tối giản"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agent mã hóa đầy đủ với tệp, shell, tìm kiếm, kỹ năng, lập kế hoạch và Agent con.",
+          "label": "Tiêu chuẩn"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Chế độ truy cập đầy đủ cho phép Agent tiếp cận các tệp bên ngoài không gian làm việc và bỏ qua xác nhận thao tác. Chỉ sử dụng cho các nhiệm vụ bạn tin tưởng.",
+      "permission_mode": "Quyền mặc định",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Cho phép truy cập không hạn chế mà không cần xác nhận thao tác.",
+          "label": "Truy cập đầy đủ"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Hạn chế ghi tệp và hỏi trước các thao tác rủi ro.",
+          "label": "Chỉ đọc"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Cho phép ghi trong không gian làm việc DSH hiện tại và hỏi trước các thao tác rủi ro.",
+          "label": "Ghi vào không gian làm việc"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Không có công cụ nào khả dụng",
     "not_installed": "Chưa cài đặt",
     "open_provider_settings": "Mở cài đặt nhà cung cấp",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Mở Giao diện Web",
     "own_login": {
       "title": "{{toolName}} Chính thức"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Tìm kiếm nhà cung cấp…",
     "select_folder": "Chọn thư mục",
     "select_provider_before_launch": "Chọn một nhà cung cấp trước khi khởi chạy {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Vui lòng chọn Provider và mô hình trước",
     "select_tool_to_start": "Chọn một công cụ CLI từ bên trái để bắt đầu cấu hình",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
-    "stop": "[to be translated]:Stop",
+    "stop": "Dừng",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
@@ -2642,7 +2645,6 @@
       "503": "Dịch vụ không khả dụng. Vui lòng thử lại sau.",
       "504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau."
     },
-    "image_unreadable_for_non_vision_model": "Mô hình đã chọn không hỗ trợ hình ảnh, và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy chọn mô hình có khả năng xử lý hình ảnh hoặc xóa hình ảnh rồi thử lại.",
     "lastError": "Lỗi Cuối Cùng",
     "maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
     "message": "Thông báo lỗi",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Xóa các Nguồn Dữ liệu Đã Chọn?",
         "loaded_only_hint": "Chỉ áp dụng cho các mục đã tải (tổng cộng {{total}})",
         "reindex": "Lập chỉ mục lại",
+        "reindex_none_eligible": "Tất cả nguồn dữ liệu được chọn vẫn đang xử lý và chưa thể lập chỉ mục lại",
+        "reindex_skipped": "Đã bỏ qua {{count}} nguồn dữ liệu vẫn đang xử lý",
         "selected_count": "{{count}} đã chọn"
       },
       "chunks_count": "{{count}} phần",
@@ -3528,9 +3532,9 @@
               "claude_code": "Nâng cao: Claude Agent",
               "pi": "Nhanh: Pi"
             },
-            "selected": {
-              "claude_code": "Nâng cao",
-              "pi": "Nhanh"
+            "option_description": {
+              "claude_code": "Có khả năng hơn — chế độ lập kế hoạch và các mô hình theo tầng",
+              "pi": "Phản hồi nhanh hơn, chi phí thấp hơn"
             }
           },
           "small_model": {

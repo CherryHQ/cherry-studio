@@ -662,13 +662,16 @@
           },
           "auto": {
             "description": "Работает без обычных запросов. Проверка безопасности блокирует рискованные действия.",
+            "description_pi": "Работает самостоятельно. О запросе разрешения при распознавании рискованного действия.",
             "title": "Одобрять за меня",
-            "warning": "Требуется модель с поддержкой этого режима; другие могут игнорировать его или продолжать спрашивать."
+            "warning": "Требуется модель с поддержкой этого режима; другие могут игнорировать его или продолжать спрашивать.",
+            "warning_pi": "Распознавание работает по мере возможностей; нестандартная команда всё равно может пройти."
           },
           "bypassPermissions": {
             "description": "Пропускает проверки разрешений. Может удалять файлы и использовать сеть.",
             "title": "Полный доступ",
-            "warning": "Использовать с осторожностью — все инструменты будут запущены без запроса подтверждения."
+            "warning": "Использовать с осторожностью — все инструменты будут запущены без запроса подтверждения.",
+            "warning_pi": "Опасно — кроме отключённых инструментов, запросов не будет, включая удаление файлов и доступ к сети."
           },
           "confirmChange": {
             "description": "Переключение режимов обновляет автоматически одобренные инструменты.",
@@ -2203,7 +2206,7 @@
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
     "cli_tools": {
       "claude_code": "Клод Код",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2230,39 @@
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
     "custom_path_set": "Пользовательский путь терминала успешно установлен",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Режим агента по умолчанию",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Объединяет многошаговую работу с инструментами через SDK PTC Code Mode для сложных задач по программированию.",
+          "label": "PTC код"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Сохраняет существующий пресет по умолчанию в общих настройках ~/.dsh.",
+          "label": "По умолчанию для Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Использует только постоянную оболочку и текстовый редактор для минимального набора инструментов.",
+          "label": "Минимальный"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Полноценный агент для программирования с файлами, оболочкой, поиском, навыками, планированием и под-агентами.",
+          "label": "Стандартный"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Полный доступ позволяет агенту добраться до файлов вне рабочего пространства и пропускать подтверждения операций. Используйте его только для задач, которым вы доверяете.",
+      "permission_mode": "Права по умолчанию",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Разрешает неограниченный доступ без подтверждения операций.",
+          "label": "Полный доступ"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Ограничивает запись в файлы и запрашивает подтверждение перед рискованными операциями.",
+          "label": "Только чтение"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Разрешает запись в текущее рабочее пространство DSH и запрашивает подтверждение перед рискованными операциями.",
+          "label": "Запись в рабочее пространство"
         }
       }
     },
@@ -2313,7 +2316,7 @@
     "no_tools": "Нет доступных инструментов",
     "not_installed": "Не установлено",
     "open_provider_settings": "Открыть настройки провайдера",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Открыть веб-интерфейс",
     "own_login": {
       "title": "Официальный вход {{toolName}}"
     },
@@ -2323,10 +2326,10 @@
     "search_provider_placeholder": "Поиск провайдеров…",
     "select_folder": "Выберите папку",
     "select_provider_before_launch": "Выберите провайдер перед запуском {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Сначала выберите провайдера и модель",
     "select_tool_to_start": "Выберите инструмент CLI слева, чтобы начать настройку",
     "set_custom_path": "Настройка пользовательского пути терминала",
-    "stop": "[to be translated]:Stop",
+    "stop": "Остановить",
     "supported_providers": "Поддерживаемые провайдеры",
     "terminal": "терминал",
     "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
@@ -2642,7 +2645,6 @@
       "503": "Серверная ошибка. Пожалуйста, попробуйте позже",
       "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
     },
-    "image_unreadable_for_non_vision_model": "Выбранная модель не поддерживает изображения, а Cherry Studio не удалось извлечь читаемый текст из вложения. Выберите модель с поддержкой зрения или удалите изображение и повторите попытку.",
     "lastError": "Последняя ошибка",
     "maxEmbeddingsPerCall": "Максимум эмбеддингов за вызов",
     "message": "Сообщение об ошибке",
@@ -3193,6 +3195,8 @@
         "delete_confirm_title": "Удалить выбранные источники данных?",
         "loaded_only_hint": "Применяется только к загруженным элементам (всего {{total}})",
         "reindex": "Переиндексация",
+        "reindex_none_eligible": "Все выбранные источники данных всё ещё обрабатываются и пока не могут быть переиндексированы",
+        "reindex_skipped": "Пропущено {{count}} источников данных, которые всё ещё обрабатываются",
         "selected_count": "{{count}} выбрано"
       },
       "chunks_count": "{{count}} частей",
@@ -3528,9 +3532,9 @@
               "claude_code": "Расширенный: Claude Agent",
               "pi": "Быстрый: Pi"
             },
-            "selected": {
-              "claude_code": "Расширенный",
-              "pi": "Быстрый"
+            "option_description": {
+              "claude_code": "Более способный — режим планирования и модели по уровням",
+              "pi": "Более быстрые ответы, меньшие накладные расходы"
             }
           },
           "small_model": {
