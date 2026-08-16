@@ -7412,6 +7412,8 @@
         "confirm_delete_message": "Confirmar antes de eliminar mensaje",
         "confirm_regenerate_message": "confirmar antes de regenerar el mensaje",
         "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
+        "paste_long_text_as_file": "[to be translated]:Paste long text as file",
+        "paste_long_text_threshold": "[to be translated]:Paste long text length",
         "send_shortcuts": "Atajos de teclado para enviar",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"
