@@ -224,7 +224,7 @@ export default function ModelCheckDialog() {
 
   return (
     <Dialog open={health.modelCheckOpen} onOpenChange={(open) => !open && health.closeModelCheck()}>
-      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-145">
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-4 sm:max-w-145">
         <DialogHeader id={modeLabelId} className="shrink-0">
           <DialogTitle>{t('settings.models.check.title')}</DialogTitle>
         </DialogHeader>

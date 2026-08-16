@@ -240,12 +240,13 @@ describe('ModelCheckDialog', () => {
     })
   })
 
-  it('keeps the dialog chrome fixed around a bounded scrolling body', () => {
+  it('keeps the dialog body bounded without clipping portaled dropdowns', () => {
     render(<ModelCheckDialog />)
 
-    // These classes are the bounded-dialog layout contract that prevents the footer from scrolling away.
+    // DialogContent is the dropdown portal container, so clipping belongs on the inner scrolling body.
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveClass('flex', 'max-h-[calc(100vh-2rem)]', 'flex-col', 'overflow-hidden')
+    expect(dialog).toHaveClass('flex', 'max-h-[calc(100vh-2rem)]', 'flex-col')
+    expect(dialog).not.toHaveClass('overflow-hidden')
     expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveClass('shrink-0')
     expect(dialog.querySelector('[data-slot="dialog-footer"]')).toHaveClass('shrink-0')
     expect(dialog.querySelector('.min-h-0.flex-1.overflow-y-auto')).toHaveClass('space-y-4', 'pr-1')
