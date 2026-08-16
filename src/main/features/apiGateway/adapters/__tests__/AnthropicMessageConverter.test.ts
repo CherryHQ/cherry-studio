@@ -29,6 +29,42 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
   })
 
+  // The Claude Agent SDK ships its harness context (agent/skill catalogs, deferred-tool
+  // notices) as `system` messages inside `messages`. Mapping them by position turns them
+  // into words the model believes it said.
+  it('folds an inline system message into the leading system message', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        system: 'Be terse.',
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'system', content: 'Available agent types: ...' },
+          { role: 'assistant', content: 'On it.' }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'assistant'])
+    expect(msgs[0]).toMatchObject({ parts: [{ type: 'text', text: 'Be terse.\n\nAvailable agent types: ...' }] })
+    expect(msgs[2]).toMatchObject({ parts: [{ type: 'text', text: 'On it.' }] })
+  })
+
+  // A trailing inline system message left as an assistant turn makes the request look like an
+  // assistant prefill, which `appendInternalAgentContinuation` answers by injecting a synthetic
+  // "continue with the original user request" turn on every first sample of a session.
+  it('leaves a trailing inline system message out of the assistant tail', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: 'list the files' },
+          { role: 'system', content: [{ type: 'text', text: 'Available agent types: ...' }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+  })
+
   it('converts text + base64 image blocks into text and file parts', () => {
     const msgs = converter.toUIMessages(
       params({

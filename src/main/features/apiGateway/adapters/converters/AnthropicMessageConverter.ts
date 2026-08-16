@@ -11,6 +11,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
   MessageCreateParams,
+  MessageParam,
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
@@ -112,6 +113,21 @@ function toolResultToOutput(
   return { output: lines.join('\n'), relocatedParts }
 }
 
+/** Anthropic text content (`string` or content blocks) flattened to one string. */
+function textContentToString(content: MessageCreateParams['system'] | MessageParam['content']): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n')
+}
+
+/**
+ * The Claude Agent SDK puts `system` messages inside `messages` (agent/skill catalogs,
+ * deferred-tool notices), which `MessageParam` does not model.
+ */
+function isSystemMessage(message: MessageParam): boolean {
+  return (message.role as string) === 'system'
+}
+
 /**
  * Reasoning cache interface for storing provider-specific reasoning state
  */
@@ -144,23 +160,23 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * `convertToModelMessages` (run by main) lifts that to the SDK `system`.
    * Tool calls become `dynamic-tool` parts; a matching tool_result in a later
    * message upgrades the part to `output-available` so history stays coherent.
+   *
+   * Inline `system` messages fold into that same leading message rather than
+   * staying in place: mapping them by position would attribute the Agent SDK's
+   * harness context to the model (every other role maps to `assistant`), and
+   * `@ai-sdk/google` rejects a system message that is not the first one.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
     // System message
-    if (params.system) {
-      const systemText =
-        typeof params.system === 'string'
-          ? params.system
-          : params.system
-              .filter((block) => block.type === 'text')
-              .map((block) => block.text)
-              .join('\n')
-      if (systemText) {
-        messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
-      }
+    const systemText = [params.system, ...params.messages.filter(isSystemMessage).map((msg) => msg.content)]
+      .map(textContentToString)
+      .filter(Boolean)
+      .join('\n\n')
+    if (systemText) {
+      messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
 
     // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
@@ -181,6 +197,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
 
     for (const msg of params.messages) {
+      if (isSystemMessage(msg)) continue
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {
