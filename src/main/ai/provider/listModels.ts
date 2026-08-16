@@ -701,6 +701,31 @@ const jinaFetcher: ModelFetcher = {
   }
 }
 
+/**
+ * The router lists chat models only and serves each of them over both `/v1/chat/completions` and
+ * `/v1/messages`, but its listing carries no endpoint field. Declare both, because routing asks the
+ * MODEL for a dialect: with Chat Completions alone a Claude Code Agent is pushed onto the API
+ * gateway, which translates every turn instead of speaking Anthropic Messages to the router.
+ */
+const huggingFaceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.huggingface),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        ownedBy: m.owned_by,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+    )
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -753,6 +778,7 @@ const fetchers: ModelFetcher[] = [
   gatewayFetcher,
   anthropicFetcher,
   jinaFetcher,
+  huggingFaceFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

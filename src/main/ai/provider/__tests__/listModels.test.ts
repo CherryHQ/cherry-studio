@@ -1048,3 +1048,52 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
   })
 })
+
+describe('listModels — huggingFaceFetcher (router dialects)', () => {
+  // The listing carries no endpoint field, so without this the models fall back to the provider
+  // default and a Claude Code Agent can only reach the router through the translating gateway.
+  it('declares both router dialects on every model, Chat Completions leading', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'deepseek-ai/DeepSeek-V4-Pro-0813', owned_by: 'deepseek-ai' },
+          { id: 'zai-org/GLM-5.1', owned_by: 'zai-org' }
+        ]
+      }
+    })
+
+    const models = await listModels(
+      makeProvider({
+        id: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    )
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://router.huggingface.co/v1/models')
+    expect(models.map((model) => model.apiModelId)).toEqual(['deepseek-ai/DeepSeek-V4-Pro-0813', 'zai-org/GLM-5.1'])
+    for (const model of models) {
+      expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    }
+  })
+
+  it('routes a copied Hugging Face provider (uuid id + presetProviderId) through the same fetcher', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'zai-org/GLM-5.1' }] } })
+
+    const models = await listModels(
+      makeProvider({
+        id: 'a4f1e6c0-0d2b-4f0e-9d1a-2b3c4d5e6f70',
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    )
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+})

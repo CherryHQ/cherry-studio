@@ -186,3 +186,36 @@ describe('new-api single-host endpoints', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
   })
 })
+
+/**
+ * The Hugging Face router serves each of its models over three surfaces. Chat Completions is the
+ * documented general one (huggingface.co/docs/inference-providers/en/index) and Anthropic Messages
+ * is what HF documents for Claude Code (…/integrations/claude-code) — an Agent reaches it only if
+ * the provider configures a base URL for it, otherwise every turn takes the translating gateway hop.
+ * The Responses API is still labelled beta (…/guides/responses-api) and `@ai-sdk/huggingface` gets
+ * there through a converter that drops assistant `tool-call` parts and every `tool` message, so it
+ * must not lead: an Agent on it cannot see its own tool calls or their results (#18676).
+ */
+describe('huggingface (router) endpoint matrix', () => {
+  it('defaults to Chat Completions rather than the beta Responses API', () => {
+    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
+  it('configures a base URL for Anthropic Messages so Claude Code Agents can address the router', () => {
+    expect(provider('huggingface').endpointConfigs?.['anthropic-messages']).toEqual({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1'
+    })
+  })
+
+  it('keeps all three router surfaces on the same host', () => {
+    expect(provider('huggingface').endpointConfigs).toEqual({
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://router.huggingface.co/v1' },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://router.huggingface.co/v1'
+      },
+      'openai-responses': { adapterFamily: 'huggingface', baseUrl: 'https://router.huggingface.co/v1/' }
+    })
+  })
+})

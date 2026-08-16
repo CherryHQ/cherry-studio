@@ -1910,9 +1910,17 @@
       "name": "LongCat"
     },
     {
-      "defaultChatEndpoint": "openai-responses",
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "huggingface",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2073,5 +2081,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "cde3bb6539c1f8fa"
+  "version": "ba4b37746549df9a"
 }
