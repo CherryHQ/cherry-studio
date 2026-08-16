@@ -765,6 +765,54 @@ describe('redactServerKey (issue #18648)', () => {
   })
 })
 
+describe('McpRuntimeService logging notification redaction', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  // Regression: `message` was serialized from the RAW notification data while `data` was
+  // redacted, so the secret still reached the debug log, the serverLogs buffer, and the
+  // mcp.server.log broadcast the renderer displays.
+  it('redacts secrets in both message and data of the emitted log entry', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as unknown as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    const loggingSchema = { sentinel: 'logging' }
+    const sdkStub = {
+      ToolListChangedNotificationSchema: {},
+      ResourceListChangedNotificationSchema: {},
+      PromptListChangedNotificationSchema: {},
+      ResourceUpdatedNotificationSchema: {},
+      CancelledNotificationSchema: {},
+      LoggingMessageNotificationSchema: loggingSchema
+    }
+    const client = { setNotificationHandler: vi.fn() }
+    ;(service as any).setupNotificationHandlers(client, server, sdkStub)
+
+    const handler = client.setNotificationHandler.mock.calls.find(([schema]) => schema === loggingSchema)?.[1]
+    expect(handler).toBeDefined()
+    await handler({
+      method: 'notifications/message',
+      params: {
+        level: 'info',
+        logger: 'server',
+        data: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret', note: 'visible' }
+      }
+    })
+
+    const logs = await service.getServerLogs('server-1')
+    expect(logs).toHaveLength(1)
+    const [entry] = logs
+    expect(entry.message).not.toContain('github_pat_secret')
+    expect(entry.message).toContain('<redacted>')
+    expect(entry.message).toContain('visible')
+    expect(entry.data).toMatchObject({ GITHUB_PERSONAL_ACCESS_TOKEN: '<redacted>', note: 'visible' })
+  })
+})
+
 describe('McpRuntimeService.restartServer (issue #16242)', () => {
   beforeEach(() => {
     BaseService.resetInstances()

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -43,24 +43,6 @@ function loadRuntime() {
   return runtimePromise
 }
 
-function isSendShortcut(event: ReactKeyboardEvent<HTMLTextAreaElement>, shortcut: SendMessageShortcut) {
-  if (event.key !== 'Enter' && event.key !== 'NumpadEnter') return false
-  if (event.nativeEvent.isComposing) return false
-
-  switch (shortcut) {
-    case 'Enter':
-      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-    case 'Ctrl+Enter':
-      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
-    case 'Command+Enter':
-      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
-    case 'Alt+Enter':
-      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
-    case 'Shift+Enter':
-      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-  }
-}
-
 /** Clipboard/drag payloads are only readable during their own event, so keep an owned copy. */
 function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
   if (!source) return undefined
@@ -78,7 +60,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
   const intentRef = useRef<ComposerDeferredIntent>({})
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const sendMessageShortcut = props.sendMessageShortcut ?? preferredSendMessageShortcut
+  const sendMessageShortcut = props.sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
+  const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
+  const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
@@ -147,6 +131,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       },
       onTextChange: updateText,
       replaceDraft: (draft) => {
+        selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
       },
@@ -180,6 +165,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     if (input) selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
   }
 
+  const insertFallbackNewline = (input: HTMLTextAreaElement) => {
+    input.setRangeText('\n', input.selectionStart, input.selectionEnd, 'end')
+    selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+    props.onTextChange(input.value)
+  }
+
   const captureTransfer = (kind: 'paste' | 'drop', data: DataTransfer | null) => {
     const transfer = cloneTransfer(data)
     if (transfer) intentRef.current.transfer = { kind, data: transfer }
@@ -187,7 +178,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }
 
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (!props.isInputHistoryActive || !props.onInputHistoryNavigate) return false
+    if (!props.onInputHistoryNavigate) return false
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
 
@@ -195,7 +186,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
     const isAtBoundary =
-      event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
+      event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
     if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
@@ -290,14 +281,29 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               event.preventDefault()
               return
             }
-            if (!isSendShortcut(event, sendMessageShortcut)) return
+            // Same priority order as the runtime surface, so the two never drift: steer wins over
+            // send, and every other Enter combination is swallowed rather than inserting a break.
+            const isEnterPressed =
+              (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.nativeEvent.isComposing
+            if (!isEnterPressed) return
+
             event.preventDefault()
-            if (event.repeat) return
-            if (props.sendDisabled) {
-              showBlockedSendReason()
-            } else {
-              void props.onSendDraft(getFallbackDraft())
+
+            const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
+            if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
+              // Holding the key must not send twice; holding the newline key still repeats.
+              if (event.repeat) return
+              if (props.sendDisabled) {
+                showBlockedSendReason()
+              } else if (isSteerPressed) {
+                void props.onSendDraft(getFallbackDraft(), { steer: true })
+              } else {
+                void props.onSendDraft(getFallbackDraft())
+              }
+              return
             }
+
+            if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
           }}
         />
       </div>

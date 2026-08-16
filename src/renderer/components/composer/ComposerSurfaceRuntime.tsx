@@ -16,6 +16,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -23,7 +24,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
@@ -144,11 +145,13 @@ export interface ComposerSurfaceProps {
   managedTokenKinds: readonly ComposerDraftToken['kind'][]
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
-  sendMessageShortcut?: SendMessageShortcut
+  sendMessageShortcut?: ComposerShortcut
+  /** Only set by the agent composer while streaming: sends the draft into the running turn. */
+  steerShortcut?: ComposerShortcut
   sendDisabled: boolean
   sendBlockedReason?: string
   isLoading: boolean
-  onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
+  onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
@@ -286,21 +289,6 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
-}
-
-function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
-  switch (shortcut) {
-    case 'Enter':
-      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-    case 'Ctrl+Enter':
-      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
-    case 'Command+Enter':
-      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
-    case 'Alt+Enter':
-      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
-    case 'Shift+Enter':
-      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-  }
 }
 
 function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
@@ -534,6 +522,7 @@ export default function ComposerSurfaceRuntime({
   onTokensChange,
   placeholder,
   sendMessageShortcut: _sendMessageShortcut,
+  steerShortcut,
   sendDisabled,
   sendBlockedReason,
   isLoading,
@@ -581,7 +570,9 @@ export default function ComposerSurfaceRuntime({
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const sendMessageShortcut = _sendMessageShortcut ?? preferredSendMessageShortcut
+  const sendMessageShortcut = _sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
+  const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
+  const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const composerOverridden = useActiveComposerOverride() !== null
@@ -602,6 +593,8 @@ export default function ComposerSurfaceRuntime({
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const newlineShortcutRef = useRef(newlineShortcut)
+  const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
@@ -623,14 +616,18 @@ export default function ComposerSurfaceRuntime({
     sendDisabledRef.current = sendDisabled
     sendBlockedReasonRef.current = sendBlockedReason
     sendMessageShortcutRef.current = sendMessageShortcut
+    newlineShortcutRef.current = newlineShortcut
+    steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
+    steerShortcut,
     isExpanded,
     isInputHistoryActive,
+    newlineShortcut,
     onInputHistoryNavigate,
     onSendDraft,
     quickPanel,
@@ -798,6 +795,23 @@ export default function ComposerSurfaceRuntime({
     },
     [frameRef]
   )
+  const submitDraft = useCallback(
+    (steer: boolean) => {
+      if (sendDisabledRef.current || !editorRef.current) {
+        showBlockedSendReason()
+        return
+      }
+
+      const draft = serializeComposerDocument(editorRef.current)
+      const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+      const sent = steer ? onSendDraftRef.current(draft, { steer: true }) : onSendDraftRef.current(draft)
+      void Promise.resolve(sent).finally(() => {
+        if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+      })
+    },
+    [createEditorFocusRestoreSnapshot, focusEditor, shouldRestoreEditorFocus, showBlockedSendReason]
+  )
+
   const compactMeasurementInputsRef = useRef({
     draftTokens,
     fontSize,
@@ -1454,18 +1468,15 @@ export default function ComposerSurfaceRuntime({
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
-        const isShiftEnterPressed =
-          isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+        const isNewlinePressed = isEnterPressed && matchesComposerShortcut(event, newlineShortcutRef.current)
         const qp = quickPanelRef.current
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
           const handled = qp.dispatchKeyDown(event)
           if (handled) return true
-          if (qp.isVisible && isShiftEnterPressed) {
-            return false
-          }
-          if (qp.isVisible && isEnterPressed) {
+          // The line-break key falls through to the newline branch below even with the panel open.
+          if (qp.isVisible && isEnterPressed && !isNewlinePressed) {
             event.preventDefault()
             event.stopPropagation()
             return true
@@ -1514,29 +1525,29 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
-        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
+        // Every Enter combination is resolved here, in priority order, and never falls through to
+        // the base keymap: the composer is a single block that must not be split.
+        if (isEnterPressed) {
           event.preventDefault()
-          if (event.repeat) return true
 
-          if (!sendDisabledRef.current && editorRef.current) {
-            const draft = serializeComposerDocument(editorRef.current)
-            const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
-            void Promise.resolve(onSendDraftRef.current(draft)).finally(() => {
-              if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
-            })
-          } else {
-            showBlockedSendReason()
-          }
-          return true
-        }
-
-        if (isEnterPressed && view) {
-          const { from, to } = view.state.selection
-          const replacedText = getComposerReplacementText(view, from, to)
-          if (exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
-            event.preventDefault()
+          // Steer wins over send: only the agent composer passes a steer shortcut, and only while
+          // streaming, so binding both to the same key means "steer the turn, don't queue".
+          const steerShortcut = steerShortcutRef.current
+          const isSteerPressed = !!steerShortcut && matchesComposerShortcut(event, steerShortcut)
+          if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcutRef.current)) {
+            // Holding the key must not send twice; holding the newline key still repeats.
+            if (!event.repeat) submitDraft(isSteerPressed)
             return true
           }
+
+          if (isNewlinePressed) {
+            const selection = view?.state.selection
+            const replacedText = selection ? getComposerReplacementText(view, selection.from, selection.to) : ''
+            if (!exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
+              editorRef.current?.commands.setHardBreak()
+            }
+          }
+          return true
         }
 
         if (
@@ -1651,14 +1662,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [
-      createEditorFocusRestoreSnapshot,
-      editorElementStyle,
-      focusEditor,
-      hasCustomHeight,
-      shouldRestoreEditorFocus,
-      showBlockedSendReason
-    ]
+    [editorElementStyle, hasCustomHeight, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(

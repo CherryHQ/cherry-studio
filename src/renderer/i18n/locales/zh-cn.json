@@ -209,7 +209,8 @@
       "type": "智能体图标"
     },
     "input": {
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话"
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话",
+      "placeholder_streaming": "Agent 运行中 — {{sendKey}} 排队发送，{{steerKey}} 立即引导"
     },
     "list": {
       "error": {
@@ -7416,8 +7417,11 @@
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 触发输入快捷面板",
+        "newline_shortcuts": "换行快捷键",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
+        "steer_shortcuts": "引导快捷键",
+        "steer_shortcuts_hint": "Agent 运行中时，用这个快捷键把消息立刻发进当前回合来引导它；用发送快捷键则排队，等这一轮结束后再发出。",
         "title": "输入设置"
       },
       "layout": {
