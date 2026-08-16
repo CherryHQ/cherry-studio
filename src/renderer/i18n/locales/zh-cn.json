@@ -1156,6 +1156,14 @@
           "description": "管理任务列表",
           "label": "管理任务列表"
         },
+        "tool_exec": {
+          "description": "执行 JavaScript 来编排已发现的工具",
+          "label": "执行工具代码"
+        },
+        "tool_search": {
+          "description": "搜索可用工具并读取其 TypeScript 签名",
+          "label": "搜索工具"
+        },
         "update_goal": {
           "description": "更新会话目标的状态或内容",
           "label": "更新目标"

@@ -13,6 +13,7 @@ const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']
+const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__cron',
   'mcp__cherry-tools__notify',
@@ -60,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   buildAgentMcpServers: vi.fn(),
   warmMcpToolCatalogs: vi.fn(),
   buildMcpToolDefinitions: vi.fn(),
+  createPiCodeModeTools: vi.fn(),
   closeMcpBridge: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
@@ -130,6 +132,7 @@ vi.mock('./piMcpToolAdapter', () => ({
   buildMcpToolDefinitions: mocks.buildMcpToolDefinitions,
   buildPiMcpToolName: (serverName: string, toolName: string) => `mcp__${serverName}__${toolName}`
 }))
+vi.mock('./piCodeMode', () => ({ createPiCodeModeTools: mocks.createPiCodeModeTools }))
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionFromSnapshot: mocks.resolveInjection,
   materializePiProviderStream: async (injection: any) => ({
@@ -327,6 +330,7 @@ beforeEach(() => {
     tools: AUTONOMY_TOOL_NAMES.map((name) => ({ name })),
     close: mocks.closeMcpBridge
   })
+  mocks.createPiCodeModeTools.mockReturnValue(CODE_MODE_TOOL_NAMES.map((name) => ({ name })))
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.resolveInjection.mockReturnValue({
@@ -1153,7 +1157,7 @@ describe('PiRuntimeConnection', () => {
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
-    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES])
+    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
@@ -1319,9 +1323,16 @@ describe('PiRuntimeConnection', () => {
         { name: 'mcp__cherry-tools__notify' },
         { name: 'mcp__cherry-tools__config' },
         { name: 'mcp__agent-memory__memory' },
-        { name: 'mcp__srv__do', label: 'do' }
+        { name: 'mcp__srv__do', label: 'do' },
+        { name: 'tool_search' },
+        { name: 'tool_exec' }
       ])
-      expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, 'mcp__srv__do'])
+      expect(mocks.createOpts?.tools).toEqual([
+        ...PI_BUILTIN_TOOL_NAMES,
+        ...AUTONOMY_TOOL_NAMES,
+        'mcp__srv__do',
+        ...CODE_MODE_TOOL_NAMES
+      ])
     })
 
     it('passes the turn knowledge selection to the complete MCP set and rebuilds when its scope changes', async () => {
@@ -1385,6 +1396,29 @@ describe('PiRuntimeConnection', () => {
       expect(toolApprovalRegistry.size()).toBe(1)
       await conn.close()
     })
+
+    it('always prompts before running tool_exec, including in auto mode', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        configuration: { permission_mode: 'auto' }
+      })
+      const conn = await new PiRuntimeConnection(input).start()
+
+      void gateHandler()(
+        {
+          type: 'tool_call',
+          toolName: 'tool_exec',
+          toolCallId: 't-code-mode',
+          input: { code: 'return 1' }
+        },
+        { signal: undefined }
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(toolApprovalRegistry.size()).toBe(1)
+      await conn.close()
+    })
   })
 
   describe('agent MCP context', () => {
@@ -1419,7 +1453,9 @@ describe('PiRuntimeConnection', () => {
         { name: 'mcp__cherry-tools__cron' },
         { name: 'mcp__cherry-tools__notify' },
         { name: 'mcp__cherry-tools__config' },
-        { name: 'mcp__agent-memory__memory' }
+        { name: 'mcp__agent-memory__memory' },
+        { name: 'tool_search' },
+        { name: 'tool_exec' }
       ])
     })
 
@@ -1523,7 +1559,7 @@ describe('PiRuntimeConnection', () => {
     it('uses the always-on persona and autonomy tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(4)
+      expect(mocks.createOpts?.customTools).toHaveLength(6)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
