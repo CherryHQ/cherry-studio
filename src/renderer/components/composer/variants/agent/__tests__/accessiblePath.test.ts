@@ -1,7 +1,9 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import type { MockInstance } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getAccessiblePathRelativePath, isPathWithinAccessiblePath } from '../accessiblePath'
+import { getAccessiblePathRelativePath, isPathWithinAccessiblePath, toAccessiblePaths } from '../accessiblePath'
 
 /**
  * `getPathComparisonKey` is the only export here that reads the platform, so it
@@ -22,6 +24,38 @@ afterEach(() => {
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const p = (value: string) => value as AbsoluteFilePath
 const ps = (...values: string[]) => values as AbsoluteFilePath[]
+
+describe('toAccessiblePaths', () => {
+  let warnSpy: MockInstance
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+  })
+
+  it('accepts a workspace path the containment helpers can actually use', () => {
+    expect(toAccessiblePaths('/workspace')).toEqual(['/workspace'])
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('yields no bases and stays silent when there is no workspace at all', () => {
+    expect(toAccessiblePaths(undefined)).toEqual([])
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects and reports a path that is not absolute', () => {
+    expect(toAccessiblePaths('workspace/docs')).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(expect.any(String), { path: 'workspace/docs' })
+  })
+
+  // A UNC path passes `AbsoluteFilePathSchema` but has no canonical form, so
+  // every containment test against it returns `false`. Accepting it produces a
+  // base that silently matches nothing — the entry point must apply the same
+  // bar the helpers do, and say so.
+  it('rejects and reports a UNC workspace, which no containment test can match', () => {
+    expect(toAccessiblePaths('\\\\server\\share\\project')).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(expect.any(String), { path: '\\\\server\\share\\project' })
+  })
+})
 
 describe('accessiblePath', () => {
   it('treats the base path itself and its descendants as within', () => {
@@ -136,10 +170,15 @@ describe('getPathComparisonKey', () => {
     expect(getPathComparisonKey('/workspace/a\\b.txt')).not.toBe(getPathComparisonKey('/workspace/a/b.txt'))
   })
 
-  it('leaves an un-canonicalizable UNC path spelled as it came in', async () => {
+  // The two spellings of one UNC share reach this function from different token
+  // sources: the listing side is separator-normalized upstream
+  // (`useAgentResourceMentionSource`), drag-and-drop carries the OS spelling.
+  // Neither has a canonical form, so dedup can only fall back to matching them
+  // as strings — which requires folding the fallback.
+  it('dedups the two spellings of an un-canonicalizable UNC path', async () => {
     const { getPathComparisonKey } = await loadWithPlatform(LINUX)
 
-    expect(getPathComparisonKey('\\\\server\\share\\a.txt')).toBe('\\\\server\\share\\a.txt')
+    expect(getPathComparisonKey('\\\\server\\share\\docs')).toBe(getPathComparisonKey('//server/share/docs'))
   })
 
   it('falls back to the raw value for input that is not an absolute path', async () => {
