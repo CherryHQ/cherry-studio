@@ -130,10 +130,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     // overwriting with the prettified id. Matched rows (presetModelId set) own the curated name.
     const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
 
+    // A resolved row carries `endpointTypes` only from a hand-authored provider-model override, so it
+    // wins — that override is how the registry drops an endpoint an aggregator advertises but rejects.
     for (const field of REGISTRY_FIELDS) {
-      if (field === 'endpointTypes' && base.endpointTypes?.length) {
-        continue
-      }
       if (field === 'name' && keepFetchedName) {
         continue
       }

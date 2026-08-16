@@ -41,7 +41,7 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
-  it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
+  it('keeps endpoint types returned by the provider when the registry declares none', async () => {
     listModelsMock.mockResolvedValueOnce([
       {
         id: 'new-api::agent/deepseek-v3.2',
@@ -56,8 +56,7 @@ describe('fetchResolvedProviderModels', () => {
         id: 'new-api::agent/deepseek-v3.2',
         providerId: 'new-api',
         apiModelId: 'agent/deepseek-v3.2',
-        name: 'DeepSeek V3.2',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        name: 'DeepSeek V3.2'
       }
     ])
 
@@ -67,6 +66,35 @@ describe('fetchResolvedProviderModels', () => {
       name: 'DeepSeek V3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
+  })
+
+  // CherryIN advertises `openai-response` for Grok 4.1 Fast and then rejects `/v1/responses` with
+  // `400 ... does not support apiType:***.responses`; the registry override is the only way to keep
+  // the model off that endpoint.
+  it('lets a registry endpoint-type override replace the endpoints the provider advertises', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'cherryin::x-ai/grok-4-1-fast-reasoning',
+        providerId: 'cherryin',
+        apiModelId: 'x-ai/grok-4-1-fast-reasoning',
+        name: 'x-ai/grok-4-1-fast-reasoning',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'cherryin::x-ai/grok-4-1-fast-reasoning',
+        providerId: 'cherryin',
+        apiModelId: 'x-ai/grok-4-1-fast-reasoning',
+        presetModelId: 'grok-4-1-fast',
+        name: 'Grok 4.1 Fast Reasoning',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('cherryin')
+
+    expect(models[0]?.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 
   it('uses registry reasoning controls while preserving discovered thinking support', async () => {
