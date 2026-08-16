@@ -1544,10 +1544,18 @@
       "file_not_supported": "Model does not support this file type",
       "file_not_supported_count": "{{count}} files are not supported",
       "followup_queue": {
+        "abort": "Abort remaining",
+        "clear_all": "Clear queue",
+        "collapse": "Show less",
         "edit": "Edit",
+        "expand_more": "Expand {{count}} more…",
+        "failure_title": "Send failed",
+        "limit_reached": "Queue full (max {{count}} messages)",
         "pause": "Pause auto-send",
         "remove": "Remove",
         "resume": "Resume auto-send",
+        "retry": "Retry",
+        "skip": "Skip",
         "steer": "steer",
         "title": "Queued ({{count}})"
       },

@@ -1541,10 +1541,18 @@
       "file_not_supported": "O modelo não suporta este tipo de ficheiro",
       "file_not_supported_count": "{{count}} ficheiros não suportados",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Editar",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Pausar envio automático",
         "remove": "Remover",
         "resume": "Retomar envio automático",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "Enviar para o turno atual",
         "title": "Na fila ({{count}})"
       },

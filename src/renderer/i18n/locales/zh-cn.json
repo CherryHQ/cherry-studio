@@ -1544,10 +1544,18 @@
       "file_not_supported": "模型不支持此文件类型",
       "file_not_supported_count": "{{count}} 个文件不被支持",
       "followup_queue": {
+        "abort": "中止剩余消息",
+        "clear_all": "清空队列",
+        "collapse": "收起",
         "edit": "编辑",
+        "expand_more": "展开 {{count}} 条更多…",
+        "failure_title": "发送失败",
+        "limit_reached": "队列已满（最多 {{count}} 条消息）",
         "pause": "暂停自动发送",
         "remove": "移除",
         "resume": "恢复自动发送",
+        "retry": "重试",
+        "skip": "跳过",
         "steer": "插入消息",
         "title": "排队中 ({{count}})"
       },

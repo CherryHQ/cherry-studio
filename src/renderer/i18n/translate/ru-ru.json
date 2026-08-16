@@ -1541,10 +1541,18 @@
       "file_not_supported": "Модель не поддерживает этот тип файла",
       "file_not_supported_count": "{{count}} файлов не поддерживаются",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Редактировать",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Приостановить автоматическую отправку",
         "remove": "Удалить",
         "resume": "Возобновить автоматическую отправку",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "Отправить в текущий ход",
         "title": "В очереди ({{count}})"
       },

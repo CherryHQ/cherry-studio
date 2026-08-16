@@ -15,6 +15,16 @@ vi.mock('lucide-react', async (importOriginal) => ({
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 
+const baseProps = () => ({
+  paused: false,
+  onTogglePause: vi.fn(),
+  onSteer: vi.fn(),
+  onEdit: vi.fn(),
+  onRemove: vi.fn(),
+  onReorder: vi.fn(),
+  onClearAll: vi.fn()
+})
+
 const items = [
   {
     id: '1',
@@ -64,6 +74,7 @@ describe('QueuedFollowupsDock', () => {
     const onRemove = vi.fn()
     const onTogglePause = vi.fn()
     const onReorder = vi.fn()
+    const onClearAll = vi.fn()
 
     const { container } = render(
       <QueuedFollowupsDock
@@ -74,6 +85,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={onEdit}
         onRemove={onRemove}
         onReorder={onReorder}
+        onClearAll={onClearAll}
       />
     )
 
@@ -98,6 +110,9 @@ describe('QueuedFollowupsDock', () => {
 
     fireEvent.click(screen.getByLabelText('chat.input.followup_queue.pause'))
     expect(onTogglePause).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByLabelText('chat.input.followup_queue.clear_all'))
+    expect(onClearAll).toHaveBeenCalled()
   })
 
   it('disables manual steer for a reserved branch while its caller reports the stream as live', () => {
@@ -119,6 +134,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
         isSteerDisabled={(item) => item.payload.chatTarget?.mode === 'reserved-branch'}
         steerDisabledReason="wait for current"
       />
@@ -159,6 +175,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -197,6 +214,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -214,6 +232,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
     expect(container).toBeEmptyDOMElement()
@@ -229,6 +248,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -236,5 +256,66 @@ describe('QueuedFollowupsDock', () => {
     expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveTextContent('Notes')
     expect(container).not.toHaveTextContent(knowledgePrompt)
     expect(container).not.toHaveTextContent('kb-1')
+  })
+
+  it('collapses past the visible limit behind an expand toggle that reveals the rest', () => {
+    const many = Array.from({ length: 7 }, (_unused, index) => ({
+      id: `${index}`,
+      draft: { text: `message ${index}`, tokens: [] },
+      payload: { text: `message ${index}`, userMessageParts: [] }
+    })) as any
+
+    render(<QueuedFollowupsDock items={many} {...baseProps()} />)
+
+    // Only the first 3 rows render; the 4 hidden ones sit behind the toggle.
+    for (let index = 0; index < 3; index += 1) {
+      expect(screen.getByText(`message ${index}`)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('message 4')).not.toBeInTheDocument()
+    expect(screen.getByText('chat.input.followup_queue.expand_more')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('chat.input.followup_queue.expand_more'))
+    expect(screen.getByText('message 6')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('chat.input.followup_queue.collapse'))
+    expect(screen.queryByText('message 6')).not.toBeInTheDocument()
+  })
+
+  it('does not offer the expand toggle within the visible limit', () => {
+    render(<QueuedFollowupsDock items={items} {...baseProps()} />)
+    expect(screen.queryByText('chat.input.followup_queue.expand_more')).not.toBeInTheDocument()
+  })
+
+  it('shows the failure banner with Skip / Retry / Abort actions for the failed head', () => {
+    const onRetryFailed = vi.fn()
+    const onSkipFailed = vi.fn()
+    const onAbortQueue = vi.fn()
+
+    render(
+      <QueuedFollowupsDock
+        items={items}
+        {...baseProps()}
+        failedItemId="2"
+        onRetryFailed={onRetryFailed}
+        onSkipFailed={onSkipFailed}
+        onAbortQueue={onAbortQueue}
+      />
+    )
+
+    expect(screen.getByText('chat.input.followup_queue.failure_title')).toBeInTheDocument()
+    // The failed item's preview appears in both the banner and its own queued row.
+    expect(screen.getAllByText('second').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByText('chat.input.followup_queue.skip'))
+    expect(onSkipFailed).toHaveBeenCalled()
+    fireEvent.click(screen.getByText('chat.input.followup_queue.retry'))
+    expect(onRetryFailed).toHaveBeenCalled()
+    fireEvent.click(screen.getByText('chat.input.followup_queue.abort'))
+    expect(onAbortQueue).toHaveBeenCalled()
+  })
+
+  it('shows no failure banner without a failed head', () => {
+    render(<QueuedFollowupsDock items={items} {...baseProps()} />)
+    expect(screen.queryByText('chat.input.followup_queue.failure_title')).not.toBeInTheDocument()
   })
 })

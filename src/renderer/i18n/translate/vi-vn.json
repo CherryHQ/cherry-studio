@@ -1541,10 +1541,18 @@
       "file_not_supported": "Mô hình không hỗ trợ loại tệp này",
       "file_not_supported_count": "{{count}} tệp không được hỗ trợ",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Chỉnh sửa",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Tạm dừng gửi tự động",
         "remove": "Xóa",
         "resume": "Tiếp tục gửi tự động",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "Gửi vào lượt hiện tại",
         "title": "Đã xếp hàng ({{count}})"
       },

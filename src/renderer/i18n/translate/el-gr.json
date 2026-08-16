@@ -1541,10 +1541,18 @@
       "file_not_supported": "Το μοντέλο δεν υποστηρίζει αυτό το είδος αρχείων",
       "file_not_supported_count": "{{count}} αρχεία δεν υποστηρίζονται",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "Επεξεργασία",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "Παύση αυτόματης αποστολής",
         "remove": "Αφαίρεση",
         "resume": "Συνέχιση αυτόματης αποστολής",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "Στείλε στην τρέχουσα σειρά",
         "title": "Σε ουρά ({{count}})"
       },

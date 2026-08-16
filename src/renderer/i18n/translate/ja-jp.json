@@ -1541,10 +1541,18 @@
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
       "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
       "followup_queue": {
+        "abort": "[to be translated]:Abort remaining",
+        "clear_all": "[to be translated]:Clear queue",
+        "collapse": "[to be translated]:Show less",
         "edit": "編集",
+        "expand_more": "[to be translated]:Expand {{count}} more…",
+        "failure_title": "[to be translated]:Send failed",
+        "limit_reached": "[to be translated]:Queue full (max {{count}} messages)",
         "pause": "自動送信を一時停止",
         "remove": "削除",
         "resume": "自動送信を再開",
+        "retry": "[to be translated]:Retry",
+        "skip": "[to be translated]:Skip",
         "steer": "現在のターンに送る",
         "title": "キューに追加済み（{{count}}）"
       },

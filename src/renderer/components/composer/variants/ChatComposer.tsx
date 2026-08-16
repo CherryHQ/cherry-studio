@@ -64,7 +64,7 @@ import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } f
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
@@ -1403,14 +1403,17 @@ const ChatComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
     markSeen,
-    onDrain: sendQueuedPayload,
-    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
+    onDrain: sendQueuedPayload
   })
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
@@ -1616,7 +1619,10 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
+        if (!enqueueFollowup(draft, payload)) {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1826,6 +1832,11 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                onClearAll={clearFollowups}
+                failedItemId={failedFollowupId}
+                onRetryFailed={retryFailedFollowup}
+                onSkipFailed={skipFailedFollowup}
+                onAbortQueue={clearFollowups}
                 isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined
