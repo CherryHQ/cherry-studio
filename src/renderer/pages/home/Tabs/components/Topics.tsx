@@ -74,7 +74,7 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { findLatestUpdated, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -607,8 +607,22 @@ export function Topics({
         return
       }
 
+      // The unlinked assistant group is a display fallback for orphaned topics, not a real assistant:
+      // deleting its last topic must not seed a fresh unlinked topic (which would keep the group alive
+      // forever). Fall back to the latest remaining topic of any assistant; when none remain, let the
+      // replacement resolve to a real assistant instead.
+      if (!topic.assistantId) {
+        const fallback = findLatestUpdated(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+        if (fallback) {
+          setActiveTopic(fallback)
+          return
+        }
+        await onNewTopic?.({ excludeReuseTopicId: topic.id })
+        return
+      }
+
       // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
-      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
+      await onNewTopic?.({ assistantId: topic.assistantId, excludeReuseTopicId: topic.id })
     },
     [onNewTopic, removeTopic, setActiveTopic, t]
   )

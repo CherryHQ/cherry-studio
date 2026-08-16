@@ -135,9 +135,8 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, redactSensitive, redactServerKey, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -707,6 +706,110 @@ describe('redactSensitive (mcp-services-3)', () => {
     a.b = b // a -> b -> a cycle
     expect(() => redactSensitive(a)).not.toThrow()
     expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
+  })
+
+  it('redacts sensitive substrings in key names, case-insensitively', () => {
+    const out = redactSensitive({
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_x', MEMORY_FILE_PATH: '/tmp/mem' },
+      headers: { 'X-Api-Key': 'k', Accept: 'application/json' }
+    })
+    expect(out.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
+    expect(out.env.MEMORY_FILE_PATH).toBe('/tmp/mem')
+    expect(out.headers['X-Api-Key']).toBe('<redacted>')
+    expect(out.headers.Accept).toBe('application/json')
+  })
+})
+
+describe('redactServerKey (issue #18648)', () => {
+  it('redacts env and headers values from a serialized server key', () => {
+    const key = JSON.stringify({
+      baseUrl: '',
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-github'],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret' },
+      headers: { Authorization: 'Bearer secret' }
+    })
+    const out = redactServerKey(key)
+    expect(out).not.toContain('github_pat_secret')
+    expect(out).not.toContain('Bearer secret')
+    expect(out).toContain('<redacted>')
+    // non-sensitive fields stay visible for debugging
+    expect(out).toContain('@modelcontextprotocol/server-github')
+    expect(JSON.parse(out).env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
+  })
+
+  it('fails closed: redacts credential-bearing values whose names match no sensitive pattern', () => {
+    // Review regression: DATABASE_URL carries credentials in the VALUE — key-name
+    // heuristics must not decide secrecy at this boundary.
+    const key = JSON.stringify({
+      command: 'npx',
+      env: { DATABASE_URL: 'postgresql://user:password@host/db', DEBUG: '1' },
+      headers: { 'X-Custom-Trace': 'secret-trace-value' }
+    })
+    const out = redactServerKey(key)
+    expect(out).not.toContain('password')
+    expect(out).not.toContain('secret-trace-value')
+    const parsed = JSON.parse(out)
+    expect(parsed.env.DATABASE_URL).toBe('<redacted>')
+    expect(parsed.env.DEBUG).toBe('<redacted>')
+    expect(parsed.headers['X-Custom-Trace']).toBe('<redacted>')
+  })
+
+  it('returns a placeholder for an unparseable server key', () => {
+    expect(redactServerKey('not-json')).toBe('<unparseable-serverKey>')
+  })
+
+  it('leaves a key without env or headers untouched', () => {
+    const key = JSON.stringify({ baseUrl: 'https://example.com', id: 'a1' })
+    expect(redactServerKey(key)).toBe(key)
+  })
+})
+
+describe('McpRuntimeService logging notification redaction', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  // Regression: `message` was serialized from the RAW notification data while `data` was
+  // redacted, so the secret still reached the debug log, the serverLogs buffer, and the
+  // mcp.server.log broadcast the renderer displays.
+  it('redacts secrets in both message and data of the emitted log entry', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as unknown as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    const loggingSchema = { sentinel: 'logging' }
+    const sdkStub = {
+      ToolListChangedNotificationSchema: {},
+      ResourceListChangedNotificationSchema: {},
+      PromptListChangedNotificationSchema: {},
+      ResourceUpdatedNotificationSchema: {},
+      CancelledNotificationSchema: {},
+      LoggingMessageNotificationSchema: loggingSchema
+    }
+    const client = { setNotificationHandler: vi.fn() }
+    ;(service as any).setupNotificationHandlers(client, server, sdkStub)
+
+    const handler = client.setNotificationHandler.mock.calls.find(([schema]) => schema === loggingSchema)?.[1]
+    expect(handler).toBeDefined()
+    await handler({
+      method: 'notifications/message',
+      params: {
+        level: 'info',
+        logger: 'server',
+        data: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret', note: 'visible' }
+      }
+    })
+
+    const logs = await service.getServerLogs('server-1')
+    expect(logs).toHaveLength(1)
+    const [entry] = logs
+    expect(entry.message).not.toContain('github_pat_secret')
+    expect(entry.message).toContain('<redacted>')
+    expect(entry.message).toContain('visible')
+    expect(entry.data).toMatchObject({ GITHUB_PERSONAL_ACCESS_TOKEN: '<redacted>', note: 'visible' })
   })
 })
 

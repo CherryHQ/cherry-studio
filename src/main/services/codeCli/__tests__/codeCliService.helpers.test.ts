@@ -1,7 +1,7 @@
+import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import { describe, expect, it } from 'vitest'
 
 import { escapeBatchText } from '../CodeCliService'
-import { sanitizeEnvForLogging } from '../envRedaction'
 
 describe('escapeBatchText', () => {
   it('preserves normal text without special characters', () => {
@@ -241,5 +241,44 @@ describe('sanitizeEnvForLogging - Sensitive Data Redaction', () => {
     const result = sanitizeEnvForLogging(env)
     expect(result.API_KEY_PATH).toBe('<redacted>')
     expect(result.MODEL_PATH).toBe('/path/to/model')
+  })
+
+  it('should redact credential keys outside the API_KEY pattern (e.g. DIFY_KEY)', () => {
+    const env = { DIFY_KEY: 'app-secret', MEMORY_FILE_PATH: '/tmp/memory' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.DIFY_KEY).toBe('<redacted>')
+    expect(result.MEMORY_FILE_PATH).toBe('/tmp/memory')
+  })
+
+  it('should redact auth/credential/pass/session/cookie stems', () => {
+    const env = {
+      BASIC_AUTH: 'dXNlcjpwYXNz',
+      ANTHROPIC_AUTH_TOKEN: 'sk-ant-x',
+      GOOGLE_APPLICATION_CREDENTIALS: '/svc.json',
+      SSHPASS: 'pw',
+      SSH_PASSPHRASE: 'pw',
+      SESSION_COOKIE: 'sid',
+      NEXTAUTH_SESSION: 'sid',
+      MODEL: 'gpt-4'
+    }
+    const result = sanitizeEnvForLogging(env)
+    for (const key of [
+      'BASIC_AUTH',
+      'ANTHROPIC_AUTH_TOKEN',
+      'GOOGLE_APPLICATION_CREDENTIALS',
+      'SSHPASS',
+      'SSH_PASSPHRASE',
+      'SESSION_COOKIE',
+      'NEXTAUTH_SESSION'
+    ]) {
+      expect(result[key]).toBe('<redacted>')
+    }
+    expect(result.MODEL).toBe('gpt-4')
+  })
+
+  it('over-redacts benign names containing a stem (accepted log-readability tradeoff)', () => {
+    const result = sanitizeEnvForLogging({ GIT_AUTHOR_NAME: 'lee', XDG_SESSION_TYPE: 'x11' })
+    expect(result.GIT_AUTHOR_NAME).toBe('<redacted>')
+    expect(result.XDG_SESSION_TYPE).toBe('<redacted>')
   })
 })

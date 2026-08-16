@@ -2284,6 +2284,165 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
   })
 
+  it('switches to the neighbour before deleting the active session so the by-id 404 never binds the route', async () => {
+    // Regression: deleting the active session used to switch to the neighbour only AFTER awaiting
+    // deleteSession, so the just-deleted id was still the URL-bound active session when its by-id
+    // revalidation returned 404. That tripped AgentPage's route-recovery effect, which cleared the
+    // route bare and re-created a stray empty session. The switch must precede the delete.
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'A session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'B session', agentId: 'agent-a', orderKey: 'b' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+    sessionDataMocks.deleteSession.mockResolvedValue(true)
+
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('B session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-b'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+    )
+    // The neighbour switch (session-a) must land before the delete (session-b); the inverse order
+    // is exactly what let the route-recovery race create a stray session.
+    const switchOrder = setActiveSessionId.mock.invocationCallOrder.at(-1)!
+    const deleteOrder = sessionDataMocks.deleteSession.mock.invocationCallOrder.at(-1)!
+    expect(switchOrder).toBeLessThan(deleteOrder)
+  })
+
+  it('defers the whole switch+delete transition behind the dirty-file guard instead of deleting while the neighbour switch is pending', async () => {
+    // Regression: the neighbour switch used to be submitted through the file-navigation guard alone,
+    // so with a dirty editor in another workspace the delete raced the URL while the doomed id was
+    // still active, re-triggering the route-recovery stray-session bug. The delete must not start
+    // while the guard holds the transition.
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'A session',
+          agentId: 'agent-a',
+          orderKey: 'a',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A' })
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'B session',
+          agentId: 'agent-a',
+          orderKey: 'b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B' })
+        })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+    let pendingTransition: (() => void) | undefined
+    fileNavigationMocks.request = vi.fn((transition) => {
+      pendingTransition = transition
+    })
+
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('A session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    // The guard is holding the transition: neither the switch nor the delete may have happened.
+    await vi.waitFor(() => expect(fileNavigationMocks.request).toHaveBeenCalledOnce())
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+
+    // User confirms discarding the dirty editor: the switch lands before the delete runs.
+    act(() => {
+      pendingTransition?.()
+    })
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-b', expect.objectContaining({ id: 'session-b' }))
+    )
+    const switchOrder = setActiveSessionId.mock.invocationCallOrder.at(-1)!
+    const deleteOrder = sessionDataMocks.deleteSession.mock.invocationCallOrder.at(-1)!
+    expect(switchOrder).toBeLessThan(deleteOrder)
+  })
+
+  it('does not roll back to the deleted session when the user selected a different session during a failed delete', async () => {
+    // Regression: the delete-failure rollback used to unconditionally switch back to the deleted id,
+    // stomping a newer user selection made while the delete was in flight. The rollback must only fire
+    // while the optimistic neighbour is still the active session.
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'A session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'B session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-c', name: 'C session', agentId: 'agent-a', orderKey: 'c' })
+      ]
+    })
+    // In-flight delete that resolves to failure; the hook's real deleteSession swallows errors and
+    // returns false, so the failure must be modelled as a resolution, not a rejection.
+    let resolveDeleteFailure: (() => void) | undefined
+    sessionDataMocks.deleteSession.mockImplementation(
+      () => new Promise<boolean>((resolve) => (resolveDeleteFailure = () => resolve(false)))
+    )
+    const setActiveSessionId = vi.fn()
+
+    const view = render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('A session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+
+    // The optimistic switch already landed on the neighbour via the controlled setter. The user then
+    // picks session-c while the delete is still in flight; the parent re-renders with its new active
+    // id, which is what moves the component's activeSessionIdRef.
+    act(() => {
+      view.rerender(<SessionsForTest activeSessionId="session-c" setActiveSessionId={setActiveSessionId} />)
+    })
+
+    // Let the delete fail now: the ref no longer matches the optimistic neighbour (session-c was
+    // selected), so no rollback back to session-a — the user's newer selection must win.
+    act(() => resolveDeleteFailure?.())
+    await vi.waitFor(() => expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything()))
+  })
+
   it('creates an agent-scoped session, not a cross-agent jump, after deleting an agent last session in the modern sidebar', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
