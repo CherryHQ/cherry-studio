@@ -2,7 +2,7 @@
 title: Model checks now report results in the model list
 category: moved
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18581"
 date: 2026-08-14
 ---
 
