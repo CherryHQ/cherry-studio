@@ -209,7 +209,8 @@
       "type": "エージェントアイコン"
     },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
+      "placeholder_streaming": "エージェント動作中 — {{sendKey}} で後続メッセージをキューイング、{{steerKey}} で即時誘導"
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
+            "description_pi": "自力で動作。リスクのある操作を認識したときに確認を求めます。",
             "title": "自動で承認",
-            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。"
+            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。",
+            "warning_pi": "認識はベストエフォートであり、珍しいコマンドは見逃される可能性があります。"
           },
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
+            "warning_pi": "危険 — 無効化されたツールを除き、ファイル削除やネットワークアクセスを含む全ての操作が確認なしで実行されます。"
           },
           "confirmChange": {
             "description": "モードを切り替えると、自動承認されたツールが更新されます。",
@@ -2203,7 +2207,7 @@
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2231,39 @@
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "デフォルトエージェントモード",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "複雑なコーディングタスク向けに、PTC Code Mode SDK を通じてマルチステップのツール作業を統合します。",
+          "label": "PTC コード"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "共有設定 ~/.dsh にある既存のデフォルトプリセットを維持します。",
+          "label": "Harness デフォルト"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "最小限のツール群として、永続シェルとテキストエディタのみを使用します。",
+          "label": "ミニマル"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "ファイル、シェル、検索、スキル、計画、サブエージェントを備えた完全なコーディングエージェントです。",
+          "label": "スタンダード"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "フルアクセスモードでは、エージェントがワークスペース外のファイルにアクセスでき、操作承認がスキップされます。信頼できるタスクでのみ使用してください。",
+      "permission_mode": "デフォルト権限",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "操作の承認を求めず、無制限のアクセスを許可します。",
+          "label": "フルアクセス"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "ファイル書き込みを制限し、リスクのある操作の前に確認を求めます。",
+          "label": "読み取り専用"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "現在の DSH ワークスペース内での書き込みを許可し、リスクのある操作の前に確認を求めます。",
+          "label": "ワークスペース書き込み"
         }
       }
     },
@@ -2313,7 +2317,7 @@
     "no_tools": "ツールは利用できません",
     "not_installed": "インストールされていません",
     "open_provider_settings": "プロバイダー設定を開く",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Web UI を開く",
     "own_login": {
       "title": "{{toolName}} 公式"
     },
@@ -2323,10 +2327,10 @@
     "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダーを選択",
     "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "プロバイダーとモデルを先に選択してください",
     "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
-    "stop": "[to be translated]:Stop",
+    "stop": "停止",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
@@ -2642,7 +2646,6 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
-    "image_unreadable_for_non_vision_model": "選択されたモデルは画像に対応しておらず、Cherry Studioは添付ファイルから読み取り可能なテキストを抽出できませんでした。画像対応モデルを選択するか、画像を削除して再試行してください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -3193,6 +3196,8 @@
         "delete_confirm_title": "選択したデータソースを削除しますか？",
         "loaded_only_hint": "読み込まれたアイテムのみに適用されます（合計{{total}}件）",
         "reindex": "再インデックス",
+        "reindex_none_eligible": "選択された全てのデータソースがまだ処理中であり、再インデックスはまだできません",
+        "reindex_skipped": "処理中のデータソース {{count}} 件をスキップしました",
         "selected_count": "{{count}} 件選択"
       },
       "chunks_count": "{{count}} チャンク",
@@ -3528,9 +3533,9 @@
               "claude_code": "高度：Claude Agent",
               "pi": "高速：Pi"
             },
-            "selected": {
-              "claude_code": "高度",
-              "pi": "高速"
+            "option_description": {
+              "claude_code": "高機能 — 計画モードと階層別モデルをサポート",
+              "pi": "応答が速く、オーバーヘッドが低い"
             }
           },
           "small_model": {
@@ -7412,8 +7417,11 @@
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
+        "newline_shortcuts": "行の折り返しショートカット",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
+        "steer_shortcuts": "誘導ショートカット",
+        "steer_shortcuts_hint": "エージェントが動作中の場合、このショートカットでメッセージを即時に現在のターンに送信して誘導します。送信ショートカットはターン終了までメッセージをキューイングします。",
         "title": "入力設定"
       },
       "layout": {
