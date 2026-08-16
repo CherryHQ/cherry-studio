@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { redactServerKey } from '@main/ai/mcp/McpRuntimeService'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
@@ -44,6 +45,15 @@ const MCP_TOOL_OUTPUT_SCHEMA = z
   })
   .loose()
 
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
+}
+
 function withCache<T extends unknown[], R>(
   fn: (...args: T) => Promise<R>,
   getCacheKey: (...args: T) => string,
@@ -55,7 +65,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) return cachedData
     }
@@ -63,7 +73,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
