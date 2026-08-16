@@ -1555,6 +1555,7 @@
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectează un model compatibil cu instrumente",
       "locate_editing_message": "Localizați mesajul original",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Șterge contextul"
       },
@@ -1568,6 +1569,7 @@
         "title": "Notă de referință"
       },
       "paste_text_file": "Lipește în intrare",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "text.txt lipit",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",

@@ -1555,6 +1555,7 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Kontext löschen"
       },
@@ -1568,6 +1569,7 @@
         "title": "Referenzhinweis"
       },
       "paste_text_file": "In die Eingabe einfügen",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Eingefügter Text.txt",
       "pause": "Pausieren",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",

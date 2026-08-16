@@ -1555,6 +1555,7 @@
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "清除上下文"
       },
@@ -1568,6 +1569,7 @@
         "title": "引用筆記"
       },
       "paste_text_file": "貼到輸入框",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",

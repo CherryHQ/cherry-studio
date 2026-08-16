@@ -1555,6 +1555,7 @@
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils",
       "locate_editing_message": "Localiser le message original",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Effacer le contexte"
       },
@@ -1568,6 +1569,7 @@
         "title": "Note de référence"
       },
       "paste_text_file": "Coller dans l'entrée",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Texte collé.txt",
       "pause": "Pause",
       "placeholder": "Saisissez un message. Appuyez sur {{key}} pour l’envoyer. Saisissez / pour afficher les outils et les actions, ou @ pour référencer des conversations.",

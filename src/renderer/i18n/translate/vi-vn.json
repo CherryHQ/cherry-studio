@@ -1555,6 +1555,7 @@
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
       "locate_editing_message": "Định vị thông điệp gốc",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Xóa ngữ cảnh"
       },
@@ -1568,6 +1569,7 @@
         "title": "Ghi chú tham khảo"
       },
       "paste_text_file": "Dán vào ô nhập",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Văn bản đã dán.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
