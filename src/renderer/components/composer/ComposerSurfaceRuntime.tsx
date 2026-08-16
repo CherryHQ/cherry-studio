@@ -2131,8 +2131,11 @@ export default function ComposerSurfaceRuntime({
           insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {
+          // Do not bubble: ProseMirror listens on the view element itself, while the document-level
+          // paste handler would route the same payload to this composer a second time whenever the
+          // caret has not made it back into the editor.
           editor.view.dom.dispatchEvent(
-            new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: true, cancelable: true })
+            new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: false, cancelable: true })
           )
         } else if (transfer?.kind === 'drop') {
           editor.view.dom.dispatchEvent(
