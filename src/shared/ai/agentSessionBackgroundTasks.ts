@@ -71,6 +71,28 @@ export function mergeAgentSessionTaskEvent(
     if (value === undefined) continue
     if (field === 'createdAt' && existing.createdAt !== undefined) continue
     if (existingIsTerminal && (field === 'event' || field === 'status' || field === 'completedAt')) continue
+    if (field === 'usage') {
+      const existingUsage = existing.usage
+      const incomingUsage = incoming.usage
+      merged.usage = {
+        ...existingUsage,
+        ...incomingUsage,
+        ...(existingUsage?.totalTokens !== undefined || incomingUsage?.totalTokens !== undefined
+          ? { totalTokens: Math.max(existingUsage?.totalTokens ?? 0, incomingUsage?.totalTokens ?? 0) }
+          : {}),
+        ...(incomingIsTerminal && incomingUsage?.toolUses !== undefined
+          ? { toolUses: incomingUsage.toolUses }
+          : existingUsage?.toolUses !== undefined || incomingUsage?.toolUses !== undefined
+            ? { toolUses: Math.max(existingUsage?.toolUses ?? 0, incomingUsage?.toolUses ?? 0) }
+            : {}),
+        ...(incomingIsTerminal && incomingUsage?.durationMs !== undefined
+          ? { durationMs: incomingUsage.durationMs }
+          : existingUsage?.durationMs !== undefined || incomingUsage?.durationMs !== undefined
+            ? { durationMs: Math.max(existingUsage?.durationMs ?? 0, incomingUsage?.durationMs ?? 0) }
+            : {})
+      }
+      continue
+    }
     ;(merged as Record<keyof AgentTaskEventPartData, unknown>)[field] = value
   }
   return merged

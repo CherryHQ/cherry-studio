@@ -82,4 +82,48 @@ describe('mergeAgentSessionTaskEvent', () => {
       subagentType: 'reviewer'
     })
   })
+
+  it('preserves transcript totals while accepting authoritative final context and tool counts', () => {
+    const progress = {
+      event: 'progress' as const,
+      taskId: 'agent-1',
+      status: 'in_progress' as const,
+      usage: { totalTokens: 5600, contextTokens: 2000, toolUses: 9, durationMs: 16_000 }
+    }
+
+    expect(
+      mergeAgentSessionTaskEvent(progress, {
+        event: 'notification',
+        taskId: 'agent-1',
+        status: 'completed',
+        usage: { contextTokens: 2100, toolUses: 7, durationMs: 15_000 }
+      })
+    ).toEqual({
+      ...progress,
+      event: 'notification',
+      status: 'completed',
+      usage: { totalTokens: 5600, contextTokens: 2100, toolUses: 7, durationMs: 15_000 }
+    })
+  })
+
+  it('keeps cumulative counters monotonic while accepting the latest running context size', () => {
+    const progress = {
+      event: 'progress' as const,
+      taskId: 'agent-1',
+      status: 'in_progress' as const,
+      usage: { totalTokens: 5600, contextTokens: 2000, toolUses: 6, durationMs: 12_000 }
+    }
+
+    expect(
+      mergeAgentSessionTaskEvent(progress, {
+        event: 'progress',
+        taskId: 'agent-1',
+        status: 'in_progress',
+        usage: { totalTokens: 5400, contextTokens: 1800, toolUses: 5, durationMs: 11_000 }
+      })
+    ).toEqual({
+      ...progress,
+      usage: { totalTokens: 5600, contextTokens: 1800, toolUses: 6, durationMs: 12_000 }
+    })
+  })
 })

@@ -46,6 +46,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
@@ -63,9 +64,11 @@ import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentWorkflowAgentProgress } from '@shared/ai/agentWorkflowProgress'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -74,7 +77,6 @@ import {
   Activity,
   CheckCircle,
   ChevronDown,
-  ChevronRight,
   Circle,
   CircleStop,
   FileText,
@@ -185,6 +187,7 @@ interface AgentFlowTab {
   toolCallId: string
   toolName?: string
   title: string
+  agentName?: string
 }
 
 interface AgentRightPaneMeta {
@@ -195,6 +198,7 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
+  backgroundTaskFlows: boolean
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
@@ -246,7 +250,8 @@ interface AgentRightPanelScope {
 
 type AgentConversationState = 'pending' | 'ready' | 'unavailable'
 
-interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
+interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'backgroundTaskFlows' | 'conversationState'> {
+  agentType?: AgentType
   children: ReactNode
   conversationState?: AgentConversationState
   /** Controls effective presentation without clearing panel intent. */
@@ -296,6 +301,7 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  backgroundTaskFlows: boolean
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
@@ -311,6 +317,7 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  backgroundTaskFlows,
   children,
   conversationState,
   sessionId,
@@ -334,13 +341,13 @@ function AgentRightPaneActionsProvider({
       artifactOpenRequestRef.current += 1
     }
   }, [sessionId, workspacePath])
-  const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
+  const canOpenAgentToolFlow = backgroundTaskFlows && conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
       replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true, transition: 'forward' })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
@@ -412,6 +419,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  agentType,
   model,
   conversationState = 'ready',
   present = true,
@@ -434,6 +442,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const backgroundTaskFlows = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].backgroundTaskFlows : false
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -526,7 +535,8 @@ function AgentRightPaneStateProvider({
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
-        title: getFlowTabTitle(input)
+        title: getFlowTabTitle(input),
+        agentName: input.agentName
       }
       setFlowTabState({ sessionId, tab: nextTab })
     },
@@ -589,6 +599,7 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       agentAvatar,
+      backgroundTaskFlows,
       conversationState,
       workspaceId,
       workspacePath,
@@ -599,6 +610,7 @@ function AgentRightPaneStateProvider({
       agentAvatar,
       agentId,
       agentName,
+      backgroundTaskFlows,
       conversationState,
       model,
       sessionId,
@@ -638,6 +650,7 @@ function AgentRightPaneStateProvider({
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                backgroundTaskFlows={backgroundTaskFlows}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
@@ -797,6 +810,49 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   )
 })
 
+function AgentFlowHeaderTitle({ tab }: { tab: AgentFlowTab }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span title={tab.title} className="min-w-0 truncate">
+        {tab.title}
+      </span>
+      {tab.agentName ? (
+        <>
+          <span title={tab.agentName} className="max-w-32 shrink truncate text-muted-foreground text-xs">
+            {tab.agentName}
+          </span>
+          <CopyButton
+            textToCopy={tab.agentName}
+            successFeedback="icon"
+            size={13}
+            aria-label={t('agent.right_pane.status.copy_agent_name', { name: tab.agentName })}
+            className="shrink-0 rounded-sm p-0.5 focus-visible:bg-accent focus-visible:outline-none"
+          />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function AgentFlowReceipt({ content, label }: { content: string; label: string }) {
+  return (
+    <Accordion type="single" collapsible className="shrink-0 border-border-subtle border-t px-3 py-2">
+      <AccordionItem value="receipt" className="border-0 first:border-t-0 last:border-b-0">
+        <AccordionTrigger
+          aria-label={label}
+          className="py-1 font-normal text-muted-foreground text-xs hover:no-underline [&>svg]:rotate-180! [&[data-state=open]>svg]:rotate-0!">
+          {label}
+        </AccordionTrigger>
+        <AccordionContent className="pt-2 pb-0">
+          <TerminalOutput content={content} maxHeight="10rem" />
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
@@ -820,19 +876,25 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
 
   if (!tab) return null
 
-  if (!flow.messages.length) {
-    return (
-      <EmptyState
-        icon={GitBranch}
-        title={tab.title || t('agent.right_pane.flow.no_messages.title')}
-        description={t('agent.right_pane.flow.no_messages.description')}
-      />
-    )
-  }
-
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {flow.messages.length ? (
+          <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+        ) : (
+          <EmptyState
+            icon={GitBranch}
+            title={tab.title || t('agent.right_pane.flow.no_messages.title')}
+            description={t('agent.right_pane.flow.no_messages.description')}
+          />
+        )}
+      </div>
+      {flow.launchReceipt ? (
+        <AgentFlowReceipt content={flow.launchReceipt} label={t('agent.right_pane.flow.launch_receipt')} />
+      ) : null}
+      {flow.completionReceipt ? (
+        <AgentFlowReceipt content={flow.completionReceipt} label={t('agent.right_pane.flow.completion_receipt')} />
+      ) : null}
     </div>
   )
 }
@@ -1108,14 +1170,14 @@ function WorkflowPhaseAccordion({
                           </button>
                         </td>
                         <td className="px-1 text-right tabular-nums">
-                          {agent.cumulativeTokens === undefined ? '—' : formatCompactNumber(agent.cumulativeTokens)}
+                          {agent.cumulativeTokens === undefined ? '-' : formatCompactNumber(agent.cumulativeTokens)}
                         </td>
                         <td className="px-1 text-right tabular-nums">
-                          {agent.tokens === undefined ? '—' : formatCompactNumber(agent.tokens)}
+                          {agent.tokens === undefined ? '-' : formatCompactNumber(agent.tokens)}
                         </td>
-                        <td className="px-1 text-right tabular-nums">{agent.toolCalls ?? '—'}</td>
+                        <td className="px-1 text-right tabular-nums">{agent.toolCalls ?? '-'}</td>
                         <td className="whitespace-nowrap px-1 text-right tabular-nums">
-                          {durationMs === undefined ? '—' : durationFormatter(durationMs)}
+                          {durationMs === undefined ? '-' : durationFormatter(durationMs)}
                         </td>
                       </tr>
                     )
@@ -1130,66 +1192,172 @@ function WorkflowPhaseAccordion({
   )
 }
 
-function RunTaskHeader({ task }: { task: AgentRunTask }) {
+function getRunTaskDurationMs(
+  task: AgentRunTask,
+  reportedDurationMs: number | undefined,
+  nowMs: number
+): number | undefined {
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (task.status === 'in_progress' && nowMs > 0 && Number.isFinite(createdAtMs)) {
+    return Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - createdAtMs) / 1000) * 1000
+  }
+  if (reportedDurationMs !== undefined) return reportedDurationMs
+
+  const completedAtMs = task.completedAt ? Date.parse(task.completedAt) : Number.NaN
+  if (Number.isFinite(createdAtMs) && Number.isFinite(completedAtMs)) {
+    return Math.max(0, completedAtMs - createdAtMs)
+  }
+  return undefined
+}
+
+function RunTaskSummary({
+  status,
+  title,
+  kind,
+  description,
+  executionLabel,
+  durationMs,
+  durationFormatter,
+  totalTokens,
+  contextTokens,
+  toolUses
+}: {
+  status: AgentRunTask['status']
+  title: string
+  kind: string
+  description?: string
+  executionLabel?: string
+  durationMs?: number
+  durationFormatter: DurationFormatter
+  totalTokens?: number
+  contextTokens?: number
+  toolUses?: number
+}) {
+  const { t } = useTranslation()
+  const statusLabel = {
+    pending: t('agent.right_pane.status.workflow_state.pending'),
+    in_progress: t('agent.right_pane.status.workflow_state.running'),
+    completed: t('agent.right_pane.status.workflow_state.completed'),
+    stopped: t('agent.right_pane.status.stopped'),
+    error: t('agent.right_pane.status.workflow_state.error')
+  }[status]
+
   return (
-    <>
-      <TaskStatusIcon status={task.status} />
-      <div className="min-w-0 flex-1">
-        <div data-testid="agent-run-task-title" className="wrap-break-word text-foreground text-xs leading-5">
-          {task.workflowName ?? task.title}
+    <div className="min-w-0 flex-1 text-left">
+      <div className="flex min-w-0 items-start gap-2">
+        <TaskStatusIcon status={status} />
+        <div className="min-w-0 flex-1">
+          <div data-testid="agent-run-task-title" title={title} className="truncate text-foreground text-xs leading-5">
+            {title}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-muted-foreground leading-4">
+            <span>{kind}</span>
+            <span>{statusLabel}</span>
+          </div>
         </div>
-        {task.status === 'in_progress' && task.activeText && task.activeText !== task.title ? (
-          <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
-            {task.activeText}
+        {executionLabel || durationMs !== undefined ? (
+          <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
+            {executionLabel ? <span>{executionLabel}</span> : null}
+            {durationMs !== undefined ? <span className="tabular-nums">{durationFormatter(durationMs)}</span> : null}
           </div>
         ) : null}
       </div>
-    </>
+      {description ? (
+        <div className="wrap-break-word mt-1 line-clamp-2 pl-7 text-[11px] text-foreground-tertiary leading-4">
+          {description}
+        </div>
+      ) : null}
+      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-7 text-[11px] text-muted-foreground">
+        <span className="whitespace-nowrap">
+          {t('agent.right_pane.status.total')}·{totalTokens === undefined ? '-' : formatCompactNumber(totalTokens)}
+        </span>
+        <span className="whitespace-nowrap">
+          {t('agent.right_pane.status.context_size')}·
+          {contextTokens === undefined ? '-' : formatCompactNumber(contextTokens)}
+        </span>
+        <span className="whitespace-nowrap">
+          {t('agent.right_pane.status.tools')}·{toolUses ?? '-'}
+        </span>
+      </div>
+    </div>
   )
 }
 
 function GenericRunTaskCard({
   task,
   sessionId,
-  durationFormatter
+  durationFormatter,
+  nowMs
 }: {
   task: AgentRunTask
   sessionId?: string
   durationFormatter: DurationFormatter
+  nowMs: number
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const toolCallId = actions.canOpenAgentToolFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
-  const content = <RunTaskHeader task={task} />
+  const agentName = task.subagentType ?? task.taskType ?? t('agent.right_pane.status.agent')
+  const description =
+    task.description && task.description !== task.title
+      ? task.description
+      : task.activeText && task.activeText !== task.title
+        ? task.activeText
+        : undefined
+  const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
+  const summary = (
+    <RunTaskSummary
+      status={task.status}
+      title={task.title}
+      kind={agentName}
+      description={description}
+      executionLabel={
+        task.isBackgrounded ? t('agent.right_pane.status.execution_async') : t('agent.right_pane.status.execution_sync')
+      }
+      durationMs={durationMs}
+      durationFormatter={durationFormatter}
+      totalTokens={task.usage?.totalTokens}
+      contextTokens={task.usage?.contextTokens}
+      toolUses={task.usage?.toolUses}
+    />
+  )
 
   return (
-    <div className="rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-      <div className="flex items-start gap-2">
+    <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
+      <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
         {toolCallId ? (
           <button
             type="button"
             aria-label={`${task.title} · ${t('agent.right_pane.status.view_details')}`}
             title={t('agent.right_pane.status.view_details')}
-            className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-            onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
-            {content}
-            <ChevronRight aria-hidden size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+            className="flex min-w-0 items-start px-2.5 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:outline-none"
+            onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title, agentName })}>
+            {summary}
           </button>
         ) : (
-          content
+          <div className="flex min-w-0 items-start px-2.5 py-2">{summary}</div>
         )}
-        {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
-      </div>
-      <div className="mt-0.5 truncate pl-7 text-[11px] text-muted-foreground">
-        {[task.subagentType ?? task.taskType, formatRunTaskUsage(task.usage, durationFormatter)]
-          .filter(Boolean)
-          .join(' · ')}
+        {task.status === 'in_progress' ? (
+          <div className="py-2 pr-2.5">
+            <RunTaskStopButton sessionId={sessionId} taskId={task.id} />
+          </div>
+        ) : null}
       </div>
     </div>
   )
 }
 
-function ShellRunTaskCard({ task, sessionId }: { task: AgentRunTask; sessionId?: string }) {
+function ShellRunTaskCard({
+  task,
+  sessionId,
+  durationFormatter,
+  nowMs
+}: {
+  task: AgentRunTask
+  sessionId?: string
+  durationFormatter: DurationFormatter
+  nowMs: number
+}) {
   const { t } = useTranslation()
   const outputId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -1204,6 +1372,8 @@ function ShellRunTaskCard({ task, sessionId }: { task: AgentRunTask; sessionId?:
   const excerptText = excerpt ? [excerpt.head, '…', excerpt.tail].filter(Boolean).join('\n') : undefined
   const output = resolvedOutputText ?? task.output ?? excerptText
   const command = `> ${task.command ?? task.title}`
+  const terminalContent = output ? `${command}\n\n${output}` : command
+  const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
 
   return (
     <div className="rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
@@ -1214,19 +1384,30 @@ function ShellRunTaskCard({ task, sessionId }: { task: AgentRunTask; sessionId?:
           size="sm"
           aria-expanded={expanded}
           aria-controls={outputId}
-          className="h-5 min-w-0 flex-1 justify-start gap-2 p-0 text-left font-normal hover:bg-transparent"
+          className="h-5 min-w-0 flex-1 justify-start gap-1.5 p-0 text-left font-normal hover:bg-transparent"
           onClick={() => setExpanded((current) => !current)}>
           <TaskStatusIcon status={task.status} />
+          <span className="shrink-0 text-muted-foreground text-xs">
+            {t('agent.right_pane.status.background_command')}
+          </span>
           <code
             data-testid="agent-run-task-title"
             title={command}
             className="min-w-0 flex-1 truncate text-foreground text-xs">
             {command}
           </code>
+          {durationMs !== undefined ? (
+            <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
+              {durationFormatter(durationMs)}
+            </span>
+          ) : null}
           <ChevronDown
             aria-hidden
             size={13}
-            className={cn('shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
+            className={cn(
+              'shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none',
+              expanded && 'rotate-180'
+            )}
           />
           <span className="sr-only">
             {expanded ? t('agent.right_pane.status.hide_output') : t('agent.right_pane.status.show_output')}
@@ -1236,7 +1417,17 @@ function ShellRunTaskCard({ task, sessionId }: { task: AgentRunTask; sessionId?:
       </div>
       <div id={outputId} hidden={!expanded} className="mt-2">
         {expanded ? (
-          <TerminalOutput content={output || t('agent.right_pane.status.no_output')} maxHeight="16rem" />
+          <div className="dark relative">
+            <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
+            <CopyButton
+              textToCopy={terminalContent}
+              tooltip={t('agent.right_pane.status.copy_all')}
+              successFeedback="icon"
+              size={13}
+              aria-label={t('agent.right_pane.status.copy_all')}
+              className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 focus-visible:outline-none"
+            />
+          </div>
         ) : null}
       </div>
     </div>
@@ -1258,64 +1449,25 @@ function WorkflowRunTaskCard({
   const phases = buildWorkflowPhaseViews(task)
   const snapshot = task.workflow
   const reportedDurationMs = snapshot?.durationMs ?? task.usage?.durationMs
-  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
-  const durationMs =
-    task.status === 'in_progress' && Number.isFinite(createdAtMs)
-      ? Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - createdAtMs) / 1000) * 1000
-      : reportedDurationMs
+  const durationMs = getRunTaskDurationMs(task, reportedDurationMs, nowMs)
   const totalCumulativeTokens = snapshot?.totalCumulativeTokens
-  const totalContextTokens = snapshot?.totalTokens ?? task.usage?.totalTokens
+  const totalContextTokens = snapshot?.totalTokens ?? task.usage?.contextTokens
   const totalToolCalls = snapshot?.totalToolCalls ?? task.usage?.toolUses
   const agentCount = phases.reduce((count, phase) => count + phase.agents.length, 0)
   const title = task.workflowName ?? task.title
   const description = task.description && task.description !== title ? task.description : undefined
-  const statusLabel = {
-    pending: t('agent.right_pane.status.workflow_state.pending'),
-    in_progress: t('agent.right_pane.status.workflow_state.running'),
-    completed: t('agent.right_pane.status.workflow_state.completed'),
-    stopped: t('agent.right_pane.status.stopped'),
-    error: t('agent.right_pane.status.workflow_state.error')
-  }[task.status]
   const summary = (
-    <div className="min-w-0 flex-1 text-left">
-      <div className="flex min-w-0 items-start gap-2">
-        <TaskStatusIcon status={task.status} />
-        <div className="min-w-0 flex-1">
-          <div data-testid="agent-run-task-title" title={title} className="truncate text-foreground text-xs leading-5">
-            {title}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-muted-foreground leading-4">
-            <span>
-              {t('agent.right_pane.status.agent_count', { count: agentCount })}·{t('agent.right_pane.status.workflow')}
-            </span>
-            <span>{statusLabel}</span>
-          </div>
-        </div>
-        {durationMs !== undefined ? (
-          <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
-            {durationFormatter(durationMs)}
-          </span>
-        ) : null}
-      </div>
-      {description ? (
-        <div className="wrap-break-word mt-1 line-clamp-2 pl-7 text-[11px] text-foreground-tertiary leading-4">
-          {description}
-        </div>
-      ) : null}
-      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-7 text-[11px] text-muted-foreground">
-        <span className="whitespace-nowrap">
-          {t('agent.right_pane.status.total')}·
-          {totalCumulativeTokens === undefined ? '—' : formatCompactNumber(totalCumulativeTokens)}
-        </span>
-        <span className="whitespace-nowrap">
-          {t('agent.right_pane.status.context_size')}·
-          {totalContextTokens === undefined ? '—' : formatCompactNumber(totalContextTokens)}
-        </span>
-        {totalToolCalls !== undefined ? (
-          <span className="whitespace-nowrap">{t('agent.right_pane.status.tool_uses', { count: totalToolCalls })}</span>
-        ) : null}
-      </div>
-    </div>
+    <RunTaskSummary
+      status={task.status}
+      title={title}
+      kind={`${t('agent.right_pane.status.agent_count', { count: agentCount })}·${t('agent.right_pane.status.workflow')}`}
+      description={description}
+      durationMs={durationMs}
+      durationFormatter={durationFormatter}
+      totalTokens={totalCumulativeTokens}
+      contextTokens={totalContextTokens}
+      toolUses={totalToolCalls}
+    />
   )
 
   return (
@@ -1376,8 +1528,10 @@ const AgentRunTaskCard = memo(function AgentRunTaskCard({
       />
     )
   }
-  if (isShellRunTask(task)) return <ShellRunTaskCard task={task} sessionId={sessionId} />
-  return <GenericRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} />
+  if (isShellRunTask(task)) {
+    return <ShellRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} nowMs={nowMs} />
+  }
+  return <GenericRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} nowMs={nowMs} />
 })
 
 const AgentRunActivitySection = memo(function AgentRunActivitySection({
@@ -1411,7 +1565,7 @@ const AgentRunActivitySection = memo(function AgentRunActivitySection({
             sessionId={sessionId}
             durationFormatter={durationFormatter}
             workflowDurationFormatter={workflowDurationFormatter}
-            nowMs={isLocalWorkflowRunTask(task) ? nowMs : 0}
+            nowMs={nowMs}
           />
         ))}
       </AccordionContent>
@@ -1426,10 +1580,10 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
   const workflowDurationFormatter = useMemo(() => createWholeSecondDurationFormatter(language), [language])
   const runningTasks = useMemo(() => getRunningRunTasks(tasks), [tasks])
   const completedTasks = useMemo(() => getCompletedRunTasks(tasks), [tasks])
-  const hasLiveWorkflowDuration = runningTasks.some(
+  const hasLiveRunDuration = runningTasks.some(
     (task) =>
-      isLocalWorkflowRunTask(task) &&
-      (task.createdAt !== undefined ||
+      task.createdAt !== undefined ||
+      (isLocalWorkflowRunTask(task) &&
         task.workflow?.workflowProgress.some(
           (progress) =>
             progress.type === 'workflow_agent' &&
@@ -1439,11 +1593,11 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
   )
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
-    if (!hasLiveWorkflowDuration) return
+    if (!hasLiveRunDuration) return
     setNowMs(Date.now())
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
-  }, [hasLiveWorkflowDuration])
+  }, [hasLiveRunDuration])
   if (runningTasks.length === 0 && completedTasks.length === 0) return null
 
   return (
@@ -1474,19 +1628,6 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
   )
 }
 
-function formatRunTaskUsage(
-  usage: AgentRunTask['usage'],
-  durationFormatter: DurationFormatter,
-  formatToolUses?: (count: number) => string
-): string | undefined {
-  if (!usage) return undefined
-  const parts: string[] = []
-  if (typeof usage.totalTokens === 'number') parts.push(formatCompactNumber(usage.totalTokens))
-  if (typeof usage.toolUses === 'number' && formatToolUses) parts.push(formatToolUses(usage.toolUses))
-  if (typeof usage.durationMs === 'number') parts.push(durationFormatter(usage.durationMs))
-  return parts.length > 0 ? parts.join(' · ') : undefined
-}
-
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
   let icon: ReactNode
 
@@ -1495,7 +1636,7 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
       icon = <CheckCircle size={14} className="text-success" />
       break
     case 'in_progress':
-      icon = <Loader2 size={14} className="animate-spin text-info" />
+      icon = <Loader2 size={14} className="text-info motion-safe:animate-spin" />
       break
     case 'error':
       icon = <Circle size={14} className="text-destructive" />
@@ -1526,9 +1667,10 @@ function useAgentRunLiveness(messages: CherryUIMessage[]): AgentRunLiveness {
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
+  const backgroundTaskSessionId = meta.backgroundTaskFlows ? meta.sessionId : undefined
   // Current-process per-task lifecycle edges.
-  const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
+  const lateTaskEvents = useAgentSessionTaskEvents(backgroundTaskSessionId)
+  const backgroundTasks = useAgentSessionBackgroundTasks(backgroundTaskSessionId)
   const liveness = useAgentRunLiveness(runtime.messages)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
@@ -1732,8 +1874,9 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: tab.title,
-        readiness: scope.meta.conversationState
+        title: <AgentFlowHeaderTitle tab={tab} />,
+        readiness: scope.meta.conversationState,
+        backPanelId: 'status'
       }
     }
   }

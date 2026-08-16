@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Completion information",
+        "empty": {
+          "description": "Select an agent tool call to inspect its child message flow.",
+          "title": "No tool selected"
+        },
+        "launch_receipt": "Launch information",
         "no_messages": {
           "description": "This tool call has no captured child message flow.",
           "title": "No messages"
@@ -235,10 +241,14 @@
         "agent": "Agent",
         "agent_count_one": "{{count}} agent",
         "agent_count_other": "{{count}} agents",
+        "background_command": "Background command",
         "completed": "Completed",
         "context": "Context",
         "context_size": "Context size",
         "copy_agent_name": "Copy agent name: {{name}}",
+        "copy_all": "Copy all",
+        "execution_async": "Async",
+        "execution_sync": "Sync",
         "hide_output": "Collapse output",
         "no_output": "No output yet",
         "no_tasks": "No active tasks",

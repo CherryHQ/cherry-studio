@@ -541,7 +541,10 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en-US', resolvedLanguage: 'en-US' }
+  })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
@@ -643,7 +646,9 @@ describe('AgentChat artifact pane', () => {
     sessionLoading,
     sessionSource,
     resources: {
-      agent: session?.agentId ? ({ id: session.agentId, model: 'provider::model-1' } as any) : undefined,
+      agent: session?.agentId
+        ? ({ id: session.agentId, type: 'claude-code', model: 'provider::model-1' } as any)
+        : undefined,
       agentLoading: false,
       model: session?.agentId ? ({ id: 'provider::model-1', name: 'Model 1' } as any) : undefined,
       modelLoading: false

@@ -413,7 +413,7 @@ export function updateLocalWorkflowSnapshot(
     status: string
     description?: string
     lastToolName?: string
-    usage?: { totalTokens?: number; toolUses?: number; durationMs?: number }
+    usage?: { contextTokens?: number; toolUses?: number; durationMs?: number }
     workflowProgress?: unknown
   },
   previous?: AgentWorkflowSnapshot
@@ -519,7 +519,7 @@ export function updateLocalWorkflowSnapshot(
   const totalTokens =
     update.status === 'in_progress' && hasAgentTokens
       ? agentTotalTokens
-      : (usage?.totalTokens ?? (hasAgentTokens ? agentTotalTokens : previous?.totalTokens))
+      : (usage?.contextTokens ?? (hasAgentTokens ? agentTotalTokens : previous?.totalTokens))
   const totalCumulativeTokens =
     agentTotalCumulativeTokens > 0 || previous?.totalCumulativeTokens !== undefined
       ? Math.max(agentTotalCumulativeTokens, previous?.totalCumulativeTokens ?? 0)

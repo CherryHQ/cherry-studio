@@ -6,7 +6,7 @@ import { application } from '@application'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { readUIMessageStream } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loggerMocks = vi.hoisted(() => ({
   silly: vi.fn(),
@@ -24,11 +24,17 @@ vi.mock('@logger', () => ({
 
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
+const adapters = new Set<InstanceType<typeof ClaudeCodeStreamAdapter>>()
 
 beforeEach(() => {
   vi.clearAllMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   vi.mocked(application.getPath).mockReturnValue(tmpdir())
+})
+
+afterEach(() => {
+  for (const adapter of adapters) adapter.dispose()
+  adapters.clear()
 })
 
 /**
@@ -52,8 +58,13 @@ function createAdapter(
     onSessionId: (sessionId) => sessionIds.push(sessionId),
     ...overrides
   })
+  adapters.add(adapter)
   if (openTurn) adapter.beginTurn()
   return { adapter, parts, sessionIds, statusEvents }
+}
+
+function getLastBackgroundTaskEvent(statusEvents: any[]) {
+  return statusEvents.filter((event) => event.type === 'background-task-event').at(-1)
 }
 
 function streamEvent(event: Record<string, unknown>) {
@@ -175,6 +186,259 @@ function createBackgroundBashFixture(taskId = 'bash-1', sessionId = 'sdk-1') {
     appendOutput: (output: string) => appendFileSync(outputFile, output),
     cleanup: () => rmSync(cwdDir, { recursive: true, force: true })
   }
+}
+
+function createAgentFixture(agentId = 'agent-1', sessionId = 'sdk-agent') {
+  return {
+    agentId,
+    sessionId,
+    outputFile: path.join(tmpdir(), 'claude', sessionId, 'tasks', `${agentId}.output`)
+  }
+}
+
+function appendAssistantTranscriptStep(
+  transcriptPath: string,
+  messageId: string,
+  inputTokens: number,
+  outputTokens: number,
+  toolUses: Array<{ id: string; type?: 'tool_use' | 'server_tool_use' | 'mcp_tool_use' }> = []
+) {
+  appendFileSync(
+    transcriptPath,
+    `${JSON.stringify({
+      type: 'assistant',
+      uuid: crypto.randomUUID(),
+      parentUuid: crypto.randomUUID(),
+      message: {
+        id: messageId,
+        usage: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0
+        },
+        content: toolUses.map((tool) => ({
+          type: tool.type ?? 'tool_use',
+          id: tool.id,
+          name: 'Read',
+          input: {}
+        }))
+      }
+    })}\n`
+  )
+}
+
+function createAgentTranscriptFixture(agentId = 'agent-1', sessionId = 'sdk-agent') {
+  const claudeConfigDir = mkdtempSync(path.join(tmpdir(), 'cherry-agent-transcript-'))
+  const projectDir = path.join(claudeConfigDir, 'projects', 'D--workspace')
+  const transcriptDir = path.join(projectDir, sessionId, 'subagents')
+  const transcriptPath = path.join(transcriptDir, `agent-${agentId}.jsonl`)
+  mkdirSync(transcriptDir, { recursive: true })
+  writeFileSync(path.join(projectDir, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'queue-operation' })}\n`)
+  writeFileSync(transcriptPath, '')
+
+  return {
+    ...createAgentFixture(agentId, sessionId),
+    claudeConfigDir,
+    transcriptPath,
+    appendAssistantStep: (
+      messageId: string,
+      inputTokens: number,
+      outputTokens: number,
+      toolUses: Array<{ id: string; type?: 'tool_use' | 'server_tool_use' | 'mcp_tool_use' }> = []
+    ) => appendAssistantTranscriptStep(transcriptPath, messageId, inputTokens, outputTokens, toolUses),
+    cleanup: () => rmSync(claudeConfigDir, { recursive: true, force: true })
+  }
+}
+
+function emitAgentToolCall(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  toolCallId = 'agent-tool-use'
+) {
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    message: {
+      content: [
+        {
+          type: 'tool_use',
+          id: toolCallId,
+          name: 'Agent',
+          input: { description: 'Inspect task state', prompt: 'Inspect the task projection' }
+        }
+      ]
+    }
+  } as any)
+}
+
+function launchAgent(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  toolCallId = 'agent-tool-use'
+) {
+  emitAgentToolCall(adapter, fixture, toolCallId)
+  adapter.handleMessage({
+    type: 'user',
+    parent_tool_use_id: null,
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    message: {
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: toolCallId,
+          content: 'Async agent launched successfully.',
+          is_error: false
+        }
+      ]
+    },
+    tool_use_result: {
+      status: 'async_launched',
+      agentId: fixture.agentId,
+      description: 'Inspect task state',
+      prompt: 'Inspect the task projection',
+      outputFile: fixture.outputFile
+    }
+  } as any)
+}
+
+function startAgentTask(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  { backgrounded = false, toolCallId = 'agent-tool-use' }: { backgrounded?: boolean; toolCallId?: string } = {}
+) {
+  if (backgrounded) launchAgent(adapter, fixture, toolCallId)
+  else emitAgentToolCall(adapter, fixture, toolCallId)
+  adapter.handleMessage({
+    type: 'system',
+    subtype: 'task_started',
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    task_id: fixture.agentId,
+    tool_use_id: toolCallId,
+    description: 'Inspect task state',
+    subagent_type: 'general-purpose',
+    task_type: 'local_agent'
+  } as any)
+}
+
+function emitForwardedAgentStep(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  {
+    messageId,
+    inputTokens,
+    outputTokens,
+    toolIds = [],
+    toolCallId = 'agent-tool-use'
+  }: {
+    messageId: string
+    inputTokens: number
+    outputTokens: number
+    toolIds?: string[]
+    toolCallId?: string
+  }
+) {
+  adapter.handleMessage({
+    type: 'assistant',
+    parent_tool_use_id: toolCallId,
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    message: {
+      id: messageId,
+      usage: {
+        input_tokens: inputTokens,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: outputTokens
+      },
+      content: toolIds.map((id) => ({ type: 'tool_use', id, name: 'Read', input: {} }))
+    }
+  } as any)
+}
+
+function emitAgentProgress(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  {
+    description,
+    durationMs,
+    toolUses = 0,
+    totalTokens = 0,
+    toolCallId = 'agent-tool-use'
+  }: {
+    description: string
+    durationMs: number
+    toolUses?: number
+    totalTokens?: number
+    toolCallId?: string
+  }
+) {
+  adapter.handleMessage({
+    type: 'system',
+    subtype: 'task_progress',
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    task_id: fixture.agentId,
+    tool_use_id: toolCallId,
+    description,
+    usage: { total_tokens: totalTokens, tool_uses: toolUses, duration_ms: durationMs }
+  } as any)
+}
+
+function completeForegroundAgent(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  {
+    contextTokens,
+    durationMs,
+    toolUses,
+    toolCallId = 'agent-tool-use'
+  }: { contextTokens: number; durationMs: number; toolUses: number; toolCallId?: string }
+) {
+  adapter.handleMessage({
+    type: 'user',
+    parent_tool_use_id: null,
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    message: {
+      content: [{ type: 'tool_result', tool_use_id: toolCallId, content: 'Inspection complete', is_error: false }]
+    },
+    tool_use_result: {
+      status: 'completed',
+      agentId: fixture.agentId,
+      totalTokens: contextTokens,
+      totalToolUseCount: toolUses,
+      totalDurationMs: durationMs
+    }
+  } as any)
+}
+
+function completeBackgroundAgent(
+  adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+  fixture: ReturnType<typeof createAgentFixture>,
+  {
+    contextTokens,
+    durationMs,
+    toolUses,
+    toolCallId = 'agent-tool-use'
+  }: { contextTokens: number; durationMs: number; toolUses: number; toolCallId?: string }
+) {
+  adapter.handleMessage({
+    type: 'system',
+    subtype: 'task_notification',
+    session_id: fixture.sessionId,
+    uuid: crypto.randomUUID(),
+    task_id: fixture.agentId,
+    tool_use_id: toolCallId,
+    status: 'completed',
+    output_file: fixture.outputFile,
+    summary: 'Inspection complete',
+    usage: { total_tokens: contextTokens, tool_uses: toolUses, duration_ms: durationMs }
+  } as any)
 }
 
 function launchBackgroundBash(
@@ -611,11 +875,292 @@ describe('ClaudeCodeStreamAdapter', () => {
           // started-event title for the row.
           summary: 'Build launch deck',
           outputFile: '/tmp/task.out',
-          usage: { totalTokens: 120, toolUses: 3, durationMs: 4500 }
+          usage: { contextTokens: 120, toolUses: 3, durationMs: 4500 }
         })
       }
     ])
     expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('updates a foreground Agent from forwarded messages and maps completed totalTokens to context size', () => {
+    const fixture = createAgentFixture()
+    const { adapter, statusEvents } = createAdapter()
+    startAgentTask(adapter, fixture)
+
+    const firstStep = { messageId: 'message-1', inputTokens: 100, outputTokens: 20, toolIds: ['tool-1'] }
+    emitForwardedAgentStep(adapter, fixture, firstStep)
+    emitForwardedAgentStep(adapter, fixture, firstStep)
+    expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage).toEqual({
+      totalTokens: 120,
+      contextTokens: 120,
+      toolUses: 1
+    })
+
+    emitForwardedAgentStep(adapter, fixture, {
+      messageId: 'message-2',
+      inputTokens: 200,
+      outputTokens: 30,
+      toolIds: ['tool-2', 'tool-3', 'tool-4', 'tool-5']
+    })
+    emitAgentProgress(adapter, fixture, {
+      description: 'Checking the projection',
+      totalTokens: 1000,
+      toolUses: 3,
+      durationMs: 2000
+    })
+    expect(statusEvents.at(-1)?.data.usage).toEqual({
+      totalTokens: 350,
+      contextTokens: 230,
+      toolUses: 5,
+      durationMs: 2000
+    })
+
+    completeForegroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 4, durationMs: 3000 })
+    expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
+      taskId: fixture.agentId,
+      event: 'notification',
+      status: 'completed',
+      usage: { totalTokens: 350, contextTokens: 240, toolUses: 4, durationMs: 3000 }
+    })
+  })
+
+  it('updates a background Agent from forwarded messages and final task notification', () => {
+    const fixture = createAgentFixture('agent-background')
+    const { adapter, statusEvents } = createAdapter()
+    startAgentTask(adapter, fixture, { backgrounded: true })
+    emitForwardedAgentStep(adapter, fixture, {
+      messageId: 'message-background-1',
+      inputTokens: 100,
+      outputTokens: 20,
+      toolIds: ['tool-background-1', 'tool-background-2', 'tool-background-3', 'tool-background-4']
+    })
+    completeBackgroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 3, durationMs: 3000 })
+
+    expect(statusEvents.at(-1)?.data.usage).toEqual({
+      totalTokens: 120,
+      contextTokens: 240,
+      toolUses: 3,
+      durationMs: 3000
+    })
+  })
+
+  it('reads running foreground Agent usage from its standard subagent transcript', () => {
+    const fixture = createAgentTranscriptFixture()
+    try {
+      const { adapter, statusEvents } = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      startAgentTask(adapter, fixture)
+
+      fixture.appendAssistantStep('message-1', 100, 20, [{ id: 'tool-1' }])
+      emitAgentProgress(adapter, fixture, { description: 'Reading the implementation', durationMs: 1000 })
+      expect(statusEvents.at(-1)?.data.usage).toEqual({
+        totalTokens: 120,
+        contextTokens: 120,
+        toolUses: 1,
+        durationMs: 1000
+      })
+
+      fixture.appendAssistantStep('message-2', 200, 30, [
+        { id: 'tool-2' },
+        { id: 'tool-3' },
+        { id: 'tool-4' },
+        { id: 'tool-5' }
+      ])
+      emitAgentProgress(adapter, fixture, { description: 'Checking the projection', durationMs: 2000 })
+      expect(statusEvents.at(-1)?.data.usage).toEqual({
+        totalTokens: 350,
+        contextTokens: 230,
+        toolUses: 5,
+        durationMs: 2000
+      })
+
+      completeForegroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 4, durationMs: 3000 })
+      expect(statusEvents.at(-1)?.data.usage).toEqual({
+        totalTokens: 350,
+        contextTokens: 240,
+        toolUses: 4,
+        durationMs: 3000
+      })
+    } finally {
+      fixture.cleanup()
+    }
+  })
+
+  it('reconciles the final foreground Agent step after completion races its transcript write', () => {
+    vi.useFakeTimers()
+    const fixture = createAgentTranscriptFixture('agent-foreground-terminal-race')
+    let adapter: InstanceType<typeof ClaudeCodeStreamAdapter> | undefined
+    try {
+      const created = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      adapter = created.adapter
+      const { statusEvents } = created
+      startAgentTask(adapter, fixture)
+
+      fixture.appendAssistantStep('message-1', 100, 20, [{ id: 'tool-1' }])
+      emitAgentProgress(adapter, fixture, { description: 'Reading the implementation', durationMs: 1000 })
+      completeForegroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 2, durationMs: 3000 })
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage).toEqual({
+        totalTokens: 120,
+        contextTokens: 240,
+        toolUses: 2,
+        durationMs: 3000
+      })
+
+      fixture.appendAssistantStep('message-2', 200, 30, [{ id: 'tool-2' }])
+      adapter.handleMessage(successResult({ session_id: fixture.sessionId }))
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: fixture.sessionId,
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      vi.advanceTimersByTime(999)
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage?.totalTokens).toBe(120)
+
+      vi.advanceTimersByTime(1)
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
+        event: 'notification',
+        taskId: fixture.agentId,
+        status: 'completed',
+        usage: { totalTokens: 350, contextTokens: 240, toolUses: 2, durationMs: 3000 }
+      })
+    } finally {
+      adapter?.dispose()
+      fixture.cleanup()
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes foreground Agent usage from its transcript when progress races the JSONL write', () => {
+    const fixture = createAgentTranscriptFixture('agent-racing-progress')
+    try {
+      const { adapter, parts, statusEvents } = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      startAgentTask(adapter, fixture)
+      emitAgentProgress(adapter, fixture, { description: 'Reading the implementation', durationMs: 1000 })
+
+      fixture.appendAssistantStep('message-after-progress', 100, 20, [{ id: 'tool-after-progress' }])
+      emitForwardedAgentStep(adapter, fixture, {
+        messageId: 'message-after-progress',
+        inputTokens: 0,
+        outputTokens: 0
+      })
+
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage).toEqual({
+        totalTokens: 120,
+        contextTokens: 120,
+        toolUses: 1
+      })
+      expect(
+        parts.filter((part) => part.type === 'data-agent-task-event' && part.data.event === 'progress').at(-1)
+      ).toMatchObject({
+        data: {
+          taskId: fixture.agentId,
+          usage: { totalTokens: 120, contextTokens: 120, toolUses: 1 }
+        }
+      })
+    } finally {
+      fixture.cleanup()
+    }
+  })
+
+  it('reads running and completed background Agent usage from its standard subagent transcript', () => {
+    const fixture = createAgentTranscriptFixture('agent-background')
+    try {
+      const { adapter, statusEvents } = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      startAgentTask(adapter, fixture, { backgrounded: true })
+
+      fixture.appendAssistantStep('message-background-1', 100, 20, [{ id: 'tool-background-1' }])
+      fixture.appendAssistantStep('message-background-2', 200, 30, [
+        { id: 'tool-background-2' },
+        { id: 'tool-background-3' },
+        { id: 'tool-background-4' }
+      ])
+      emitAgentProgress(adapter, fixture, { description: 'Checking the projection', durationMs: 2000 })
+      expect(statusEvents.at(-1)?.data.usage).toEqual({
+        totalTokens: 350,
+        contextTokens: 230,
+        toolUses: 4,
+        durationMs: 2000
+      })
+
+      adapter.handleMessage(successResult({ session_id: fixture.sessionId }))
+      completeBackgroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 3, durationMs: 3000 })
+      expect(statusEvents.at(-1)?.data.usage).toEqual({
+        totalTokens: 350,
+        contextTokens: 240,
+        toolUses: 3,
+        durationMs: 3000
+      })
+    } finally {
+      fixture.cleanup()
+    }
+  })
+
+  it('reconciles the final background Agent step after its terminal notification races the transcript write', () => {
+    vi.useFakeTimers()
+    const fixture = createAgentTranscriptFixture('agent-background-terminal-race')
+    let adapter: InstanceType<typeof ClaudeCodeStreamAdapter> | undefined
+    try {
+      const created = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      adapter = created.adapter
+      const { statusEvents } = created
+      startAgentTask(adapter, fixture, { backgrounded: true })
+
+      fixture.appendAssistantStep('message-1', 100, 20, [{ id: 'tool-1' }])
+      emitAgentProgress(adapter, fixture, { description: 'Reading the implementation', durationMs: 1000 })
+      adapter.handleMessage(successResult({ session_id: fixture.sessionId }))
+      completeBackgroundAgent(adapter, fixture, { contextTokens: 240, toolUses: 2, durationMs: 3000 })
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage).toEqual({
+        totalTokens: 120,
+        contextTokens: 240,
+        toolUses: 2,
+        durationMs: 3000
+      })
+
+      fixture.appendAssistantStep('message-2', 200, 30, [{ id: 'tool-2' }])
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: fixture.sessionId,
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      vi.advanceTimersByTime(999)
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data.usage?.totalTokens).toBe(120)
+
+      vi.advanceTimersByTime(1)
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
+        event: 'notification',
+        taskId: fixture.agentId,
+        status: 'completed',
+        isBackgrounded: true,
+        usage: { totalTokens: 350, contextTokens: 240, toolUses: 2, durationMs: 3000 }
+      })
+    } finally {
+      adapter?.dispose()
+      fixture.cleanup()
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes detached background Agent usage from its transcript on forwarded Agent messages', () => {
+    const fixture = createAgentTranscriptFixture('agent-detached')
+    try {
+      const { adapter, statusEvents } = createAdapter({ claudeConfigDir: fixture.claudeConfigDir })
+      startAgentTask(adapter, fixture, { backgrounded: true })
+      adapter.handleMessage(successResult({ session_id: fixture.sessionId }))
+
+      fixture.appendAssistantStep('message-detached', 200, 30, [{ id: 'tool-detached-1' }, { id: 'tool-detached-2' }])
+      emitForwardedAgentStep(adapter, fixture, { messageId: 'message-detached', inputTokens: 0, outputTokens: 0 })
+
+      expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
+        taskId: fixture.agentId,
+        status: 'in_progress',
+        usage: { totalTokens: 230, contextTokens: 230, toolUses: 2 }
+      })
+    } finally {
+      fixture.cleanup()
+    }
   })
 
   it('reconciles repeated task progress into one message part per lifecycle event', async () => {
@@ -666,7 +1211,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         data: expect.objectContaining({
           event: 'progress',
           activeText: 'Slide 100',
-          usage: { totalTokens: 100, toolUses: 100, durationMs: 100_000 }
+          usage: { toolUses: 100, durationMs: 100_000 }
         })
       })
     ])
@@ -3209,6 +3754,131 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
+    it('reconciles the final workflow Agent step after the terminal notification races its transcript write', () => {
+      vi.useFakeTimers()
+      const fixture = createWorkflowFixture()
+      const agentId = 'agent-terminal-race'
+      const transcriptPath = path.join(fixture.transcriptDir, `agent-${agentId}.jsonl`)
+
+      try {
+        const { adapter, statusEvents } = createAdapter()
+        launchWorkflow(adapter, fixture)
+        adapter.handleMessage(successResult({ session_id: 'sdk-1' }))
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          task_type: 'local_workflow',
+          workflow_name: 'review-pr',
+          prompt: fixture.script
+        } as any)
+
+        appendAssistantTranscriptStep(transcriptPath, 'message-1', 100, 20)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_progress',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          workflow_progress: [
+            { type: 'workflow_phase', index: 1, title: 'Review' },
+            {
+              type: 'workflow_agent',
+              index: 1,
+              label: 'reviewer:main',
+              phaseIndex: 1,
+              phaseTitle: 'Review',
+              agentId,
+              state: 'progress',
+              tokens: 120,
+              cumulativeTokens: 120,
+              toolCalls: 0
+            }
+          ]
+        } as any)
+
+        fixture.writeSnapshot({
+          workflowProgress: [
+            { type: 'workflow_phase', index: 1, title: 'Review' },
+            {
+              type: 'workflow_agent',
+              index: 1,
+              label: 'reviewer:main',
+              phaseIndex: 1,
+              phaseTitle: 'Review',
+              agentId,
+              state: 'done',
+              tokens: 120,
+              cumulativeTokens: 120,
+              toolCalls: 0
+            }
+          ],
+          totalTokens: 120,
+          totalCumulativeTokens: 120,
+          totalToolCalls: 0
+        })
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'background_tasks_changed',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          tasks: []
+        } as any)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_notification',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          status: 'completed',
+          output_file: '/tmp/workflow-task-1.output',
+          summary: 'Review complete'
+        } as any)
+
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({ totalCumulativeTokens: 120 })
+
+        appendAssistantTranscriptStep(transcriptPath, 'message-2', 200, 30)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'session_state_changed',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          state: 'idle'
+        } as any)
+        vi.advanceTimersByTime(999)
+
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({ totalCumulativeTokens: 120 })
+
+        vi.advanceTimersByTime(1)
+
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
+          event: 'notification',
+          status: 'completed',
+          workflow: {
+            totalTokens: 120,
+            totalCumulativeTokens: 350,
+            totalToolCalls: 0,
+            workflowProgress: expect.arrayContaining([
+              expect.objectContaining({
+                label: 'reviewer:main',
+                tokens: 120,
+                cumulativeTokens: 350,
+                toolCalls: 0
+              })
+            ])
+          }
+        })
+      } finally {
+        fixture.cleanup()
+        vi.useRealTimers()
+      }
+    })
+
     it('reads a workflow Agent transcript line larger than one chunk in the same update', () => {
       const fixture = createWorkflowFixture()
       const agentId = 'agent-large-line'
@@ -3391,7 +4061,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         const persistedTaskEvents = parts.flatMap((part) =>
           part.type === 'data-agent-task-event' && part.data.workflow ? [part] : []
         )
-        expect(statusEvents.filter((event) => event.type === 'background-task-event').at(-1)?.data).toMatchObject({
+        expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
           toolUseId: 'workflow-tool-use'
         })
         expect(persistedTaskEvents).toHaveLength(2)

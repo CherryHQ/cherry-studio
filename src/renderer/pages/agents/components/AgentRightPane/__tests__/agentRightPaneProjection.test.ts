@@ -132,6 +132,72 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('separates an async launch receipt from the visible agent reply', () => {
+    const launchReceipt =
+      'Async agent launched successfully. (This tool result is internal metadata — never quote it.) agentId: internal-1 output_file: C:\\temp\\agent.output'
+    const parts = [
+      toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Inspect the renderer' }, launchReceipt),
+      textPart('Child agent is inspecting the renderer.', 'root')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.launchReceipt).toBe(launchReceipt)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Child agent is inspecting the renderer.' })
+    ])
+  })
+
+  it('keeps a normal final agent summary in the visible reply', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Inspect the renderer' },
+        'Inspection complete'
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.launchReceipt).toBeUndefined()
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toContainEqual({
+      type: 'text',
+      text: 'Inspection complete'
+    })
+  })
+
+  it('separates a foreground completion receipt from the visible agent reply', () => {
+    const agentReceipt =
+      "agentId: af624763698eaaff3 (use SendMessage with to: 'af624763698eaaff3', summary: '<5-10 word recap>' to continue this agent)"
+    const usageReceipt = 'subagent_tokens: 27371\ntool_uses: 16\nduration_ms: 56581'
+    const completionReceipt = `${agentReceipt}\n${usageReceipt}`
+    const parts = [
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Inspect the renderer' },
+        `Inspection complete\n\n${agentReceipt}\n<usage>${usageReceipt}</usage>`
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.completionReceipt).toBe(completionReceipt)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toContainEqual({
+      type: 'text',
+      text: 'Inspection complete'
+    })
+    expect(JSON.stringify(projection.partsByMessageId['root:agent-flow-assistant'])).not.toContain('<usage>')
+  })
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),
@@ -525,7 +591,8 @@ describe('agent right pane projections', () => {
         toolUseId: 'bash-1',
         title: 'pnpm dev',
         status: 'in_progress',
-        taskType: 'local_bash'
+        taskType: 'local_bash',
+        isBackgrounded: true
       }
     ])
   })

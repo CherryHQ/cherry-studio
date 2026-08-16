@@ -30,7 +30,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: {
+    get: mocks.applicationGet,
+    getPath: vi.fn((_key: string, filename?: string) => (filename ? `C:\\mock\\${filename}` : 'C:\\mock'))
+  }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -451,6 +454,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       false,
       undefined
     )
+    expect(mocks.adapterInstances[0].options.claudeConfigDir).toBe('C:\\mock\\.claude')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -480,7 +484,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
         live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
       },
       key: 'warm-key',
-      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn },
+      options: {
+        model: 'sonnet',
+        env: { CLAUDE_CONFIG_DIR: 'D:\\claude-profile' },
+        spawnClaudeCodeProcess: ignoredSpawn
+      },
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
@@ -493,6 +501,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
+    expect(mocks.adapterInstances[0].options.claudeConfigDir).toBe('D:\\claude-profile')
     void connection.close()
   })
 

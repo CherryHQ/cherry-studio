@@ -784,9 +784,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
+    const configuredClaudeConfigDir = this.spawnOptions?.env?.CLAUDE_CONFIG_DIR
     return new ClaudeCodeStreamAdapter({
       modelId,
       sessionId: this.input.sessionId,
+      claudeConfigDir:
+        typeof configuredClaudeConfigDir === 'string' && configuredClaudeConfigDir.trim()
+          ? configuredClaudeConfigDir
+          : application.getPath('sys.home', '.claude'),
       streamOptions: {} as never,
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })

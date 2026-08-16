@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "完成信息",
+        "empty": {
+          "description": "选择一个智能体工具调用来查看它的子消息流。",
+          "title": "未选择工具"
+        },
+        "launch_receipt": "启动信息",
         "no_messages": {
           "description": "这个工具调用没有捕获到子消息流。",
           "title": "暂无消息"
@@ -235,10 +241,14 @@
         "agent": "智能体",
         "agent_count_one": "{{count}} 个智能体",
         "agent_count_other": "{{count}} 个智能体",
+        "background_command": "后台命令",
         "completed": "已完成",
         "context": "上下文",
         "context_size": "上下文规模",
         "copy_agent_name": "复制智能体名称：{{name}}",
+        "copy_all": "复制全部",
+        "execution_async": "异步",
+        "execution_sync": "同步",
         "hide_output": "收起输出",
         "no_output": "暂无输出",
         "no_tasks": "暂无活动任务",

@@ -28,6 +28,7 @@ export interface AgentToolFlowOpenInput {
   toolCallId: string
   toolName?: string
   title?: string
+  agentName?: string
 }
 
 export interface AgentToolFlowNode {
@@ -43,6 +44,8 @@ export interface AgentToolFlowProjection {
   selectedTool?: AgentToolFlowNode
   toolNodes: AgentToolFlowNode[]
   selectedToolCallIds: Set<string>
+  launchReceipt?: string
+  completionReceipt?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
@@ -74,6 +77,7 @@ export interface AgentRunTask {
   activeText?: string
   /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
   taskType?: string
+  isBackgrounded?: boolean
   subagentType?: string
   workflowName?: string
   description?: string
@@ -263,6 +267,26 @@ function isTerminalToolState(state: string | undefined): boolean {
   return state === 'output-available' || state === 'output-error' || state === 'output-denied' || state === 'cancelled'
 }
 
+const INTERNAL_AGENT_LAUNCH_RECEIPT_PREFIXES = [
+  'Async agent launched successfully. (This tool result is internal metadata',
+  'Remote agent launched successfully. (This tool result is internal metadata'
+] as const
+
+function isInternalAgentLaunchReceipt(text: string): boolean {
+  return INTERNAL_AGENT_LAUNCH_RECEIPT_PREFIXES.some((prefix) => text.startsWith(prefix))
+}
+
+function splitAgentCompletionReceipt(text: string): { text: string; receipt?: string } {
+  const match = text.match(
+    /(?:^|\r?\n)[ \t]*(?:<usage>\s*)?(agentId:\s+\S+[\s\S]*?)(?:\s*<usage>\s*)?(subagent_tokens:\s+\d+\s+tool_uses:\s+\d+\s+duration_ms:\s+\d+)\s*(?:<\/usage>)?\s*$/
+  )
+  if (!match || match.index === undefined) return { text }
+  return {
+    text: text.slice(0, match.index).trimEnd(),
+    receipt: `${match[1].trimEnd()}\n${match[2].trim()}`
+  }
+}
+
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
@@ -315,6 +339,8 @@ export function buildAgentToolFlowProjection(
 
   const flowMessages: CherryUIMessage[] = []
   const flowPartsByMessageId: Record<string, CherryMessagePart[]> = {}
+  let launchReceipt: string | undefined
+  let completionReceipt: string | undefined
 
   if (selectedToolCallIds.size) {
     const selectedTool = toolNodes.find((node) => node.toolCallId === selectedToolCallId)
@@ -349,7 +375,15 @@ export function buildAgentToolFlowProjection(
     }
 
     const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    if (outputText) {
+      if (isInternalAgentLaunchReceipt(outputText)) {
+        launchReceipt = outputText
+      } else {
+        const separated = splitAgentCompletionReceipt(outputText)
+        if (separated.text) assistantParts.push({ type: 'text', text: separated.text } as CherryMessagePart)
+        completionReceipt = separated.receipt
+      }
+    }
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -372,6 +406,8 @@ export function buildAgentToolFlowProjection(
     selectedTool: selectedToolCallId ? toolNodes.find((node) => node.toolCallId === selectedToolCallId) : undefined,
     toolNodes,
     selectedToolCallIds,
+    ...(launchReceipt ? { launchReceipt } : {}),
+    ...(completionReceipt ? { completionReceipt } : {}),
     messages: flowMessages,
     partsByMessageId: flowPartsByMessageId
   }
@@ -522,6 +558,7 @@ function applyAgentTaskEvent(
   const status = mergedData.status ?? existing?.status ?? 'pending'
   const createdAt = mergedData.createdAt ?? existing?.createdAt
   const completedAt = mergedData.completedAt ?? existing?.completedAt
+  const isBackgrounded = mergedData.isBackgrounded ?? existing?.isBackgrounded
   const workflowSnapshot = mergedData.workflow ?? existing?.workflow
   const workflow =
     workflowSnapshot && RUN_TASK_TERMINAL_STATUSES.has(status)
@@ -537,6 +574,7 @@ function applyAgentTaskEvent(
     activeText: mergedData.activeText ?? mergedData.description ?? existing?.activeText,
     status,
     taskType: mergedData.taskType ?? existing?.taskType,
+    ...(isBackgrounded !== undefined ? { isBackgrounded } : {}),
     subagentType: mergedData.subagentType ?? existing?.subagentType,
     workflowName: mergedData.workflowName ?? existing?.workflowName,
     description: existing?.description ?? mergedData.description,
@@ -626,9 +664,10 @@ export function buildAgentRightPaneStatus(
     aggregateTaskIds.add(task.id)
     const existing = runTaskMap.get(task.id)
     if (existing) {
-      if ((!existing.toolUseId && task.toolCallId) || !existing.taskType) {
+      if ((!existing.toolUseId && task.toolCallId) || !existing.taskType || existing.isBackgrounded !== true) {
         runTaskMap.set(task.id, {
           ...existing,
+          isBackgrounded: true,
           ...(!existing.toolUseId && task.toolCallId ? { toolUseId: task.toolCallId } : {}),
           ...(!existing.taskType ? { taskType: task.type } : {})
         })
@@ -640,7 +679,8 @@ export function buildAgentRightPaneStatus(
       ...(task.toolCallId ? { toolUseId: task.toolCallId } : {}),
       title: task.description,
       status: 'in_progress',
-      taskType: task.type
+      taskType: task.type,
+      isBackgrounded: true
     })
   }
 

@@ -617,11 +617,11 @@ describe('AgentSessionMessageService', () => {
 
       agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(20, 30))
       const firstCheckpoint = agentSessionMessageService
-        .findPendingAssistantMessages()[0]
+        .findCrashOrphanedAssistantMessages()[0]
         .data.parts?.find((part) => part.type === 'data-agent-task-event' && part.data.workflow !== undefined)
       agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(40, 70))
 
-      const pending = agentSessionMessageService.findPendingAssistantMessages()
+      const pending = agentSessionMessageService.findCrashOrphanedAssistantMessages()
       const beforeCrashParts = pending[0].data.parts ?? []
       expect(beforeCrashParts.filter((part) => part.type === 'data-agent-task-event')).toHaveLength(2)
       const latestCheckpoint = beforeCrashParts.find(

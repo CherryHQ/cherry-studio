@@ -480,6 +480,7 @@ function TestAgentRightPane({
     <SWRConfig value={TEST_SWR_CONFIG}>
       <AgentRightPane.Scope
         {...scopeProps}
+        agentType={scopeProps.agentType ?? 'claude-code'}
         defaultOpen={defaultOpen}
         onOpenChange={onOpenChange}
         resourcePane={resourcePane}>
@@ -492,16 +493,18 @@ function TestAgentRightPane({
 function OpenFlowButton({
   label = 'open flow',
   title = 'Inspect flow',
-  toolCallId = 'flow-1'
+  toolCallId = 'flow-1',
+  agentName
 }: {
   label?: string
   title?: string
   toolCallId?: string
+  agentName?: string
 }) {
   const { openAgentToolFlow } = useAgentRightPaneActions()
 
   return (
-    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title })}>
+    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title, agentName })}>
       {label}
     </button>
   )
@@ -531,9 +534,14 @@ type StatusTaskFixture = {
   status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title: string
   taskType?: string
+  subagentType?: string
   toolUseId?: string
   description?: string
   workflowName?: string
+  isBackgrounded?: boolean
+  createdAt?: string
+  completedAt?: string
+  usage?: { totalTokens?: number; contextTokens?: number; toolUses?: number; durationMs?: number }
 }
 
 function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
@@ -547,9 +555,14 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
           status: task.status,
           title: task.title,
           taskType: task.taskType,
+          subagentType: task.subagentType,
           toolUseId: task.toolUseId,
           description: task.description,
-          workflowName: task.workflowName
+          workflowName: task.workflowName,
+          isBackgrounded: task.isBackgrounded,
+          createdAt: task.createdAt,
+          completedAt: task.completedAt,
+          usage: task.usage
         }
       }) as unknown as CherryMessagePart
   )
@@ -580,6 +593,10 @@ describe('AgentRightPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     uiMockState.useRealHoverCard = false
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
     toolResultState.output = 'Loaded flow result'
     ipcRequestMock.mockImplementation((channel: string) => {
       if (channel === 'ai.tool.get_result') {
@@ -1169,15 +1186,19 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
-  it('opens a subagent flow from the shortcut environment context', () => {
+  it('opens a subagent flow from the shortcut environment context', async () => {
+    const user = userEvent.setup()
     renderStatusTasks(
       [
         {
           id: 'subagent-1',
           status: 'completed',
           title: 'Inspect task state',
+          description: 'Inspect the task projection and event merge path',
           taskType: 'local_agent',
-          toolUseId: 'tool-use-1'
+          subagentType: 'general-purpose',
+          toolUseId: 'tool-use-1',
+          usage: { totalTokens: 2400, contextTokens: 800, toolUses: 7, durationMs: 5000 }
         }
       ],
       { openPanel: false }
@@ -1191,10 +1212,146 @@ describe('AgentRightPane', () => {
     expect(contextUsage.compareDocumentPosition(taskButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
-    fireEvent.click(taskButton)
+    expect(within(taskButton).getByText('general-purpose')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.total·2.4K')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.context_size·800')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.tools·7')).toBeInTheDocument()
+    const syncLabel = within(taskButton).getByText('agent.right_pane.status.execution_sync')
+    const duration = within(taskButton).getByText('5s')
+    expect(syncLabel.compareDocumentPosition(duration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(within(taskButton).getByText('agent.right_pane.status.total·2.4K'))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+    const flowHeader = screen.getByTestId('shell-tab-title')
+    expect(flowHeader).toHaveTextContent('Inspect task state')
+    expect(flowHeader).toHaveTextContent('general-purpose')
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    await user.click(within(flowHeader).getByRole('button', { name: 'agent.right_pane.status.copy_agent_name' }))
+    expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith('general-purpose')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    clipboardWriteText.mockRestore()
+  })
+
+  it('labels a detached single Agent as asynchronous before its duration', () => {
+    renderStatusTasks([
+      {
+        id: 'subagent-async',
+        status: 'in_progress',
+        title: 'Inspect asynchronously',
+        taskType: 'local_agent',
+        subagentType: 'general-purpose',
+        toolUseId: 'tool-use-async',
+        isBackgrounded: true,
+        usage: { durationMs: 5000 }
+      }
+    ])
+
+    const taskButton = screen.getByRole('button', {
+      name: 'Inspect asynchronously · agent.right_pane.status.view_details'
+    })
+    const asyncLabel = within(taskButton).getByText('agent.right_pane.status.execution_async')
+    const duration = within(taskButton).getByText('5s')
+    expect(asyncLabel.compareDocumentPosition(duration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows ASCII hyphens when single-Agent statistics are unavailable', () => {
+    renderStatusTasks([
+      {
+        id: 'subagent-empty-stats',
+        status: 'in_progress',
+        title: 'Inspect without statistics',
+        taskType: 'local_agent',
+        subagentType: 'general-purpose',
+        toolUseId: 'tool-use-empty-stats'
+      }
+    ])
+
+    const taskButton = screen.getByRole('button', {
+      name: 'Inspect without statistics · agent.right_pane.status.view_details'
+    })
+    expect(within(taskButton).getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
+  })
+
+  it('does not open a Claude-only agent flow for a pi runtime', async () => {
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane agentType="pi" sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps the internal launch receipt collapsed below the child message flow', async () => {
+    const user = userEvent.setup()
+    const launchReceipt =
+      'Async agent launched successfully. (This tool result is internal metadata — never quote it.) agentId: internal-1 output_file: C:\\temp\\agent.output'
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'flow-1',
+        toolName: 'Agent',
+        state: 'output-available',
+        input: { prompt: 'Inspect the renderer' },
+        output: launchReceipt
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <OpenFlowButton agentName="general-purpose" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+    const receiptTrigger = screen.getByRole('button', { name: 'agent.right_pane.flow.launch_receipt' })
+    expect(receiptTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(launchReceipt)).not.toBeInTheDocument()
+
+    await user.click(receiptTrigger)
+    expect(screen.getByText(launchReceipt)).toBeInTheDocument()
+  })
+
+  it('keeps the foreground completion receipt collapsed below the child message flow', async () => {
+    const user = userEvent.setup()
+    const completionReceipt =
+      "agentId: af624763698eaaff3 (use SendMessage with to: 'af624763698eaaff3', summary: '<5-10 word recap>' to continue this agent) subagent_tokens: 27371 tool_uses: 16 duration_ms: 56581"
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'flow-1',
+        toolName: 'Agent',
+        state: 'output-available',
+        input: { prompt: 'Inspect the renderer' },
+        output: `Inspection complete\n\n${completionReceipt}`
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <OpenFlowButton agentName="general-purpose" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+    const receiptTrigger = screen.getByRole('button', { name: 'agent.right_pane.flow.completion_receipt' })
+    expect(receiptTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(completionReceipt)).not.toBeInTheDocument()
+
+    await user.click(receiptTrigger)
+    expect(screen.getByText(completionReceipt)).toBeInTheDocument()
   })
 
   it('shows a dsh todo_write snapshot in the floating task capsule', () => {
@@ -1244,6 +1401,9 @@ describe('AgentRightPane', () => {
     expect(screen.getByText('agent.right_pane.status.agent_count·agent.right_pane.status.workflow')).toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.workflow_state.running')).toBeInTheDocument()
     expect(screen.getByText('Coordinate specialist agents')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
   })
 
   it('renders every Workflow phase separately without a root FlowTab fallback and keeps details after completion', async () => {
@@ -1318,7 +1478,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByText('review-pr')).toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.total·5.6K')).toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.context_size·2K')).toBeInTheDocument()
-    expect(screen.getByText(/agent\.right_pane\.status\.tool_uses/)).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.tools·7')).toBeInTheDocument()
     const workflowButton = screen.getByRole('button', {
       name: 'agent.right_pane.status.toggle_workflow'
     })
@@ -1711,6 +1871,66 @@ describe('AgentRightPane', () => {
     await user.click(completedToggle)
     expect(completedToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(completed).queryByTestId('agent-run-task-title')).not.toBeInTheDocument()
+  })
+
+  it('shows a live background command duration and copies the command with all output', async () => {
+    vi.useFakeTimers()
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    try {
+      vi.setSystemTime('2026-08-12T01:00:10.000Z')
+      const parts = [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'bash-live',
+          toolName: 'Bash',
+          state: 'output-available',
+          input: { command: 'pnpm dev' },
+          output: 'ready on http://localhost:5173'
+        },
+        {
+          type: 'data-agent-task-event',
+          data: {
+            event: 'started',
+            taskId: 'shell-live',
+            toolUseId: 'bash-live',
+            taskType: 'local_bash',
+            status: 'in_progress',
+            title: 'Start development server',
+            createdAt: '2026-08-12T01:00:00.000Z'
+          }
+        }
+      ] as unknown as CherryMessagePart[]
+      const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+          <AgentRightPane.Shortcuts />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      // userEvent timer advancement loops on the live interval; keep this fake-clock test deterministic.
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+      const commandButton = screen.getByRole('button', {
+        name: /agent\.right_pane\.status\.background_command.*pnpm dev/
+      })
+      expect(within(commandButton).getByText('10s')).toBeInTheDocument()
+
+      await act(async () => vi.advanceTimersByTime(2000))
+      expect(within(commandButton).getByText('12s')).toBeInTheDocument()
+
+      fireEvent.click(commandButton)
+      expect(screen.getByText('ready on http://localhost:5173')).toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.status.copy_all' }))
+        await Promise.resolve()
+      })
+      expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith('> pnpm dev\n\nready on http://localhost:5173')
+    } finally {
+      clipboardWriteText.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a background command collapsed and refreshes deferred output from Flow part versions', async () => {
