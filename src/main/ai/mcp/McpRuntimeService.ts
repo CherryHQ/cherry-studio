@@ -379,6 +379,12 @@ export class McpRuntimeService extends BaseService {
   }
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+    // A late writer racing removal (e.g. a connectivity check's error path) must not
+    // resurrect the status entry doRemoveServer deleted for a removed server.
+    if (this.removedServerIds.has(serverId)) {
+      return
+    }
+
     const lastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
 
@@ -1160,8 +1166,8 @@ export class McpRuntimeService extends BaseService {
   }
 
   async removeServer(serverId: string): Promise<void> {
-    // Concurrent removals of one server (e.g. two windows) must share one flow: the
-    // loser's row delete would fail NOT_FOUND and wrongly revoke the winner's tombstone.
+    // Concurrent removals of one server (e.g. two windows) share one flow: the loser's
+    // row delete would fail NOT_FOUND and surface a spurious "delete failed" toast.
     const inFlight = this.pendingRemovals.get(serverId)
     if (inFlight) return inFlight
     const removal = this.doRemoveServer(serverId).finally(() => {
@@ -1176,7 +1182,11 @@ export class McpRuntimeService extends BaseService {
   private serverRowMayExist(serverId: string): boolean {
     try {
       return mcpServerService.list({ id: serverId }).items.length > 0
-    } catch {
+    } catch (error) {
+      logger.warn(
+        `Row-existence check failed for server ${serverId}; treating the row as still present`,
+        error as Error
+      )
       return true
     }
   }
@@ -1184,9 +1194,11 @@ export class McpRuntimeService extends BaseService {
   private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
     this.removedServerIds.add(serverId)
+    let rowDeleted = false
     try {
       await this.closeClientsForServer(server.id)
       mcpServerService.delete(serverId)
+      rowDeleted = true
     } catch (error) {
       // Roll back unless the row is confirmed gone; once it is gone the tombstone
       // must survive, else the server would dead-lock until app restart.
@@ -1196,16 +1208,22 @@ export class McpRuntimeService extends BaseService {
       throw error
     } finally {
       // Best-effort, isolated per step: after the row delete committed neither hiccup
-      // may fail the removal, and a cache failure must not skip the status reset.
+      // may fail the removal, and a cache failure must not skip the status step.
       try {
         application.get('McpCatalogService').clearSharedToolsCache(server.id)
       } catch (error) {
         getServerLogger(server).error(`Post-removal tools cache cleanup failed`, error as Error)
       }
       try {
-        this.setServerStatus(server.id, 'disabled')
+        if (rowDeleted) {
+          // Writing 'disabled' here would orphan a status entry for a row that no
+          // longer exists; a rolled-back removal keeps its row, so it keeps a status.
+          application.get('CacheService').deleteShared(mcpStatusCacheKey(server.id))
+        } else {
+          this.setServerStatus(server.id, 'disabled')
+        }
       } catch (error) {
-        getServerLogger(server).error(`Post-removal status reset failed`, error as Error)
+        getServerLogger(server).error(`Post-removal status cleanup failed`, error as Error)
       }
     }
 

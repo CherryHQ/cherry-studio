@@ -940,6 +940,10 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
 
     await expect(service.removeServer('server-1')).rejects.toThrow('close failed')
     expect(deleteServerMock).not.toHaveBeenCalled()
+    // A rolled-back removal keeps its row, so the status entry survives as a reset.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toEqual(
+      expect.objectContaining({ state: 'disabled' })
+    )
 
     await expect(service.withClient('server-1', async () => 'ok')).resolves.toBe('ok')
   })
@@ -1000,15 +1004,27 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
     await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
   })
 
-  it('resolves the removal and still resets status when post-delete cache cleanup fails', async () => {
+  it('drops the status cache entry on removal even when post-delete cache cleanup fails', async () => {
     const service = new McpRuntimeService()
-    const statusSpy = vi.spyOn(service, 'setServerStatus')
+    service.setServerStatus('server-1', 'connected')
     mcpCatalogMock.clearSharedToolsCache.mockImplementation(() => {
       throw new Error('cache backend down')
     })
 
     await expect(service.removeServer('server-1')).resolves.toBeUndefined()
     expect(deleteServerMock).toHaveBeenCalledWith('server-1')
-    expect(statusSpy).toHaveBeenCalledWith('server-1', 'disabled')
+    // Deleted row → deleted entry; writing 'disabled' would orphan it forever.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toBeUndefined()
+  })
+
+  it('ignores a status write that lands after removal instead of resurrecting the entry', async () => {
+    const service = new McpRuntimeService()
+    await service.removeServer('server-1')
+
+    // Simulates a connectivity check / restart error path whose setServerStatus
+    // call loses the race against removeServer's deleteShared.
+    service.setServerStatus('server-1', 'error', new Error('late writer'))
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toBeUndefined()
   })
 })
