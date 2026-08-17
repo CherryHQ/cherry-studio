@@ -529,6 +529,10 @@ function RenameField<T extends ResourceListItemBase>({
         event.stopPropagation()
       }}
       onKeyDown={(event) => {
+        // IME candidate confirmation still emits keydown; committing there would save the raw pinyin
+        // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
+        // oxlint-disable-next-line no-deprecated
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return
         if (event.key === 'Enter') {
           event.preventDefault()
           event.stopPropagation()

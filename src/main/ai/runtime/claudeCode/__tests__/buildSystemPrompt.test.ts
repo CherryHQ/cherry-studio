@@ -6,7 +6,7 @@
 
 import type * as NodeFs from 'node:fs'
 
-import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
+import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,7 +35,7 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' }),
+  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, context: 'SOUL_PROMPT' }),
   mockReplacePromptVariables: vi.fn(async (prompt: string) => prompt)
 }))
 
@@ -108,7 +108,7 @@ beforeEach(() => {
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
-  mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' })
+  mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'native' }, context: 'SOUL_PROMPT' })
   mockReplacePromptVariables.mockReset().mockImplementation(async (prompt: string) => prompt)
   mockGetAppLanguage.mockReturnValue('en-US')
 })
@@ -249,7 +249,7 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     'keeps legacy persona role guidance when Agent System Prompt is blank: $instructions',
     async ({ instructions }) => {
       mockBuildPrompt.mockResolvedValueOnce({
-        base: { kind: 'claude_code' },
+        base: { kind: 'native' },
         context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
       })
 
@@ -399,18 +399,35 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(result).not.toContain('Non-negotiable Cherry Assistant contract')
   })
 
-  it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
-    mockLoadBuiltinAgentDefinition
-      .mockReturnValueOnce({ instructions: 'English bundled instructions' })
-      .mockReturnValueOnce({ instructions: '中文内置指令' })
-    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+  it.each(['', '   '])(
+    'uses the bundled template when DB instructions are blank and resolves it on every build: %j',
+    async (instructions) => {
+      mockLoadBuiltinAgentDefinition
+        .mockReturnValueOnce({ instructions: 'English bundled instructions' })
+        .mockReturnValueOnce({ instructions: '中文内置指令' })
+      const agent = makeAgent({ instructions, configuration: { builtin_role: 'assistant' } as never })
 
-    const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+      const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+      const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(promptText(en)).toContain('English bundled instructions')
-    expect(promptText(zh)).toContain('中文内置指令')
-    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+      expect(promptText(en)).toContain('English bundled instructions')
+      expect(promptText(zh)).toContain('中文内置指令')
+      expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('loads the bundled product feedback role for Cherry Support', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({
+      instructions: 'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+    })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(promptText(result)).toContain(
+      'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+    )
+    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledWith('support')
   })
 
   it('initializes persona and memory resources in agent data on every build', async () => {
@@ -529,7 +546,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const role = 'Within Cherry Studio, you serve as Cherry Assistant, its built-in general-purpose Agent'
     mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: role })
     mockBuildPrompt.mockResolvedValue({
-      base: { kind: 'claude_code' },
+      base: { kind: 'native' },
       context: '## Personality\n\nFriendly and concise.'
     })
     const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })

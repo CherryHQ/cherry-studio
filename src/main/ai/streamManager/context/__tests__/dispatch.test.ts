@@ -14,7 +14,12 @@ const mocks = vi.hoisted(() => ({
   agentCanHandle: vi.fn<(topicId: string) => boolean>(),
   agentPrepare: vi.fn(),
   persistentPrepare: vi.fn(),
-  isWorkspaceErr: vi.fn<(error: unknown) => boolean>()
+  isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
+  setActiveNode: vi.fn()
+}))
+
+vi.mock('@main/data/services/TopicService', () => ({
+  topicService: { setActiveNode: mocks.setActiveNode }
 }))
 
 vi.mock('../AgentChatContextProvider', () => ({
@@ -34,7 +39,7 @@ vi.mock('../PersistentChatContextProvider', () => ({
     prepareDispatch: mocks.persistentPrepare
   }
 }))
-vi.mock('../../../runtime/claudeCode/settingsBuilder', () => ({
+vi.mock('../../../runtime/agentSessionWorkspace', () => ({
   isAgentSessionWorkspaceError: mocks.isWorkspaceErr
 }))
 
@@ -47,10 +52,11 @@ function makeSubscriber(): StreamListener {
 function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
+    inspect: vi.fn(() => undefined),
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
-      return { mode: live ? ('injected' as const) : ('started' as const), executionIds: [] }
+      return { mode: live ? ('injected' as const) : ('started' as const), activeExecutions: [] }
     })
   } as unknown as AiStreamManager
 }
@@ -68,8 +74,6 @@ function wirePrepare(
       topicId,
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
-      isMultiModel: false,
-      userMessageId: 'u1',
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
       pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
@@ -179,13 +183,44 @@ describe('dispatchStreamRequest — steer', () => {
         { modelId: 'p::m2', request: {} }
       ],
       listeners: [] as StreamListener[],
-      isMultiModel: true
+      reservedMessages: [{ id: 'assistant-1', role: 'assistant', parts: [] }]
     })
     const manager = makeManager(false)
 
     await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-3'))).rejects.toThrow(
-      'Multi-model dispatch produced 1 placeholderIds for 2 models'
+      'Multi-model dispatch produced 1 assistant reservations for 2 models'
     )
     expect(manager.send).not.toHaveBeenCalled()
+  })
+
+  it('activates the reserved assistant when a live-group append settles during preparation', async () => {
+    mocks.persistentPrepare.mockResolvedValue({
+      topicId: 'topic-append',
+      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
+      listeners: [] as StreamListener[],
+      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'assistant-1',
+        parentAnchorId: 'user-1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
+      preserveActiveNode: true
+    })
+    const manager = makeManager(true)
+    vi.mocked(manager.hasLiveStream).mockReturnValueOnce(true).mockReturnValueOnce(false)
+
+    const result = await dispatchStreamRequest(manager, makeSubscriber(), {
+      topicId: 'topic-append',
+      trigger: 'regenerate-message',
+      parentAnchorId: 'user-1',
+      appendToLiveGroupMessageId: 'assistant-1',
+      mentionedModelIds: ['p::m2']
+    })
+
+    expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
+    expect(result).toMatchObject({ preserveActiveNode: false })
   })
 })

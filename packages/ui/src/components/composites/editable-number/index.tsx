@@ -26,6 +26,18 @@ export interface EditableNumberProps {
    * stacked form layouts. Defaults to `false` to preserve existing call sites.
    */
   block?: boolean
+  /**
+   * Forwarded to the inner `<input>` so the field can be named. `FormControl`
+   * supplies `id` (matching `FormLabel`'s `htmlFor`); standalone call sites
+   * outside a `FormItem` pass `aria-label` instead. Without these the input has
+   * no accessible name — the props are a closed set, so anything not listed
+   * here never reaches the DOM.
+   */
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 const sizeClasses: Record<NonNullable<EditableNumberProps['size']>, string> = {
@@ -94,7 +106,12 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   suffix,
   prefix,
   formatter,
-  block = false
+  block = false,
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid
 }) => {
   const [isEditing, setIsEditing] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(() => toInputValue(value, precision))
@@ -167,21 +184,24 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
     sizeClasses[size],
     inputAlignClass,
-    shouldRenderDisplayValue && !isEditing && 'hidden',
+    // See-through rather than `hidden`: hiding it moved the tab stop onto the
+    // nameless overlay, which `FormLabel`'s `htmlFor` could never reach.
+    shouldRenderDisplayValue && !isEditing && 'text-transparent caret-transparent',
     className
   )
-
-  const handleDisplayKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      handleFocus()
-    }
-  }
 
   return (
     <div className={cn('relative', block ? 'block w-full' : 'inline-block')}>
       <input
         ref={inputRef}
+        id={id}
+        // Only reached the overlay before, so a plain field's placeholder
+        // was silently dropped.
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         type="number"
         value={inputValue}
         min={min}
@@ -198,16 +218,15 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
       {shouldRenderDisplayValue && !isEditing && (
         <div
           className={cn(
-            'border-input bg-background flex w-full cursor-text items-center rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow]',
-            'focus-visible:border-primary',
-            disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+            // Click-through: the input keeps the layout box and every interaction.
+            'absolute inset-0 pointer-events-none',
+            'border-input bg-background flex w-full items-center rounded-md border px-3 text-sm shadow-xs',
+            disabled && 'cursor-not-allowed opacity-50',
             alignClasses[align],
             sizeClasses[size],
             className
           )}
-          onClick={handleFocus}
-          onKeyDown={handleDisplayKeyDown}
-          tabIndex={disabled ? -1 : 0}
+          aria-hidden="true"
           style={style}>
           <span className="truncate">
             {prefix}

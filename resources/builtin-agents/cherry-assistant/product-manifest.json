@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.3",
+    "version": "2.0.5",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -56,6 +56,7 @@
       "/app/knowledge",
       "/app/launchpad",
       "/app/notes",
+      "/app/release-notes",
       "/app/translate",
       "/settings/about",
       "/settings/api-gateway",
@@ -746,6 +747,7 @@
         "openai-codex",
         "opencode",
         "openclaw",
+        "deepseek-harness",
         "gemini-cli",
         "qwen-code",
         "kimi-code",

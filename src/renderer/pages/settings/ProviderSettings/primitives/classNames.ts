@@ -236,10 +236,8 @@ export const modelListClasses = {
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
-  virtualGroupRow: '',
-  virtualGroupRowCollapsed: 'mb-2.5',
   virtualModelRow: 'border-x border-border-subtle bg-transparent',
-  virtualModelRowLast: 'mb-2.5 rounded-b-lg border-b border-border-subtle pb-1',
+  virtualModelRowLast: 'rounded-b-lg border-b border-border-subtle pb-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -269,7 +267,7 @@ export const modelListClasses = {
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard: 'group/modelGroup min-w-0 w-full overflow-hidden rounded-lg border border-border-subtle bg-transparent',
-  groupCardOpen: 'rounded-b-none border-b-0',
+  groupCardOpen: 'rounded-b-none border-b-transparent',
   groupHeader:
     'group/groupRow flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-4 text-left outline-none focus-visible:outline-none',
   groupHeaderOpen: '[border-bottom:0.5px_solid_var(--border-subtle)]',
