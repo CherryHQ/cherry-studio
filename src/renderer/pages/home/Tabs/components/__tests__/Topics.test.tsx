@@ -684,6 +684,14 @@ function renderTopicList({
   }
 }
 
+async function renameTopicInline(user: ReturnType<typeof userEvent.setup>, currentName: string, nextName: string) {
+  await user.dblClick(screen.getByText(currentName))
+  const input = screen.getByLabelText('Edit conversation name')
+  await user.clear(input)
+  await user.type(input, nextName)
+  await user.keyboard('{Enter}')
+}
+
 function getTopicRow(topicName: string) {
   const row = screen.getByText(topicName).closest('[data-testid="topic-list-row"]')
   expect(row).toBeInTheDocument()
@@ -1720,21 +1728,6 @@ describe('Topics', () => {
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('shows the submitted topic name while the rename request is pending', async () => {
-    const user = userEvent.setup()
-    topicDataMocks.updateTopic.mockReturnValueOnce(new Promise(() => {}))
-    renderTopicList()
-
-    await user.dblClick(screen.getByText('Alpha topic'))
-    const input = screen.getByLabelText('Edit conversation name')
-    await user.clear(input)
-    await user.type(input, 'Renamed topic')
-    await user.keyboard('{Enter}')
-
-    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-  })
-
   it('restores the persisted topic name when rename fails', async () => {
     const user = userEvent.setup()
     let rejectRename!: (reason: unknown) => void
@@ -1745,13 +1738,10 @@ describe('Topics', () => {
     )
     renderTopicList()
 
-    await user.dblClick(screen.getByText('Alpha topic'))
-    const input = screen.getByLabelText('Edit conversation name')
-    await user.clear(input)
-    await user.type(input, 'Renamed topic')
-    await user.keyboard('{Enter}')
+    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
 
     expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     await act(async () => rejectRename(new Error('rename failed')))
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
@@ -1774,17 +1764,8 @@ describe('Topics', () => {
       )
     const { rerenderTopicList } = renderTopicList({ assistantTopicsSource })
 
-    await user.dblClick(screen.getByText('Alpha topic'))
-    let input = screen.getByLabelText('Edit conversation name')
-    await user.clear(input)
-    await user.type(input, 'Renamed topic')
-    await user.keyboard('{Enter}')
-
-    await user.dblClick(screen.getByText('Renamed topic'))
-    input = screen.getByLabelText('Edit conversation name')
-    await user.clear(input)
-    await user.type(input, 'Alpha topic')
-    await user.keyboard('{Enter}')
+    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
+    await renameTopicInline(user, 'Renamed topic', 'Alpha topic')
     expect(topicDataMocks.updateTopic).toHaveBeenCalledTimes(1)
 
     const unrelatedRefreshTopics = assistantTopicsSource.topics.map((topic) =>
@@ -1833,11 +1814,7 @@ describe('Topics', () => {
     )
     const { rerenderTopicList } = renderTopicList({ assistantTopicsSource })
 
-    await user.dblClick(screen.getByText('Alpha topic'))
-    const input = screen.getByLabelText('Edit conversation name')
-    await user.clear(input)
-    await user.type(input, 'Renamed topic')
-    await user.keyboard('{Enter}')
+    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
     await act(async () => resolveRename())
     expect(screen.getByText('Renamed topic')).toBeInTheDocument()
 
