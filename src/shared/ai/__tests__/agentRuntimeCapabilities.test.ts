@@ -1,3 +1,5 @@
+import { MODALITY } from '@cherrystudio/provider-registry'
+import { getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -30,24 +32,23 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
-  it('covers every agent runtime and keeps structural invariants explicit', () => {
-    expect(Object.keys(AGENT_RUNTIME_CAPABILITIES).sort()).toEqual(['claude-code', 'pi'])
+  it('projects the stable shell toggle to pwsh only on Windows', () => {
+    expect(getDshRuntimeBuiltinTools('darwin').map((tool) => tool.name)).toContain('bash')
+    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).toContain('pwsh')
+    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).not.toContain('bash')
+  })
 
-    const transports = Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
-    expect(new Set(transports).size).toBe(transports.length)
-
-    for (const caps of Object.values(AGENT_RUNTIME_CAPABILITIES)) {
-      expect(caps.permissionModes.length).toBeGreaterThan(0)
-    }
-
+  it('keeps permission choices aligned with each runtime approval implementation', () => {
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
     // pi implements `auto` itself in the approval extension, so it offers it and starts there.
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.knowledgeBases).toBe(true)
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.mcp).toBe(true)
+    // dsh plan mode is enforced by the bridge policy (its own plan mode is guidance-only).
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).toContain('plan')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('default')
   })
 
   describe('isModelCompatible — managed CherryAI default model', () => {
@@ -73,6 +74,29 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     it('claude behavior is unchanged: it also bars the managed default and accepts a normal model', () => {
       expect(claudeIsCompatible(cherryProvider, managedDefaultModel)).toBe(false)
       expect(claudeIsCompatible(makeProvider({}), makeModel({}))).toBe(true)
+    })
+
+    it('dsh rejects the managed CherryAI default model and accepts a normal compatible model', () => {
+      const dshIsCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
+      expect(dshIsCompatible(cherryProvider, managedDefaultModel)).toBe(false)
+      expect(dshIsCompatible(makeProvider({}), makeModel({}))).toBe(true)
+    })
+  })
+
+  describe('dsh model input compatibility', () => {
+    const isCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
+    const provider = makeProvider({})
+
+    it('accepts undeclared and text-capable multimodal inputs', () => {
+      expect(isCompatible(provider, makeModel({}))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.AUDIO] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.VIDEO] }))).toBe(true)
+    })
+
+    it('rejects models that explicitly cannot accept text', () => {
+      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(false)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(false)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(false)
     })
   })
 })

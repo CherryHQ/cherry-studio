@@ -81,7 +81,7 @@ function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
     managedTokenKinds: [],
     onTokensChange: vi.fn(),
     placeholder: 'Message',
-    sendMessageShortcut: 'Enter',
+    sendMessageShortcut: ['Enter'],
     sendDisabled: false,
     isLoading: false,
     onSendDraft: mocks.onSendDraft,
@@ -143,19 +143,39 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('swaps in the rich runtime while idle, before the user can type into the fallback', async () => {
+    const idleCallbacks: Array<() => void> = []
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => idleCallbacks.push(callback))
+    vi.stubGlobal('cancelIdleCallback', () => {})
+
+    render(<Harness text="" />)
+    expect(mocks.runtimeLoads).toBe(0)
+
+    act(() => idleCallbacks.forEach((callback) => callback()))
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
+    render(<Harness text="" />)
+
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('')
+    expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
     expect(input).toHaveValue('')
-    expect(mocks.runtimeLoads).toBe(0)
 
+    // Focus starts the runtime load; a composition begun before the swap commits keeps the
+    // textarea mounted, so the committed characters survive into the runtime.
     fireEvent.focus(input)
-    expect(mocks.runtimeLoads).toBe(0)
-
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'draft text', selectionStart: 10, selectionEnd: 10 } })
-    await waitFor(() => expect(mocks.runtimeLoads).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('draft text')
 
     fireEvent.compositionEnd(input, { currentTarget: { selectionStart: 10, selectionEnd: 10 } })
@@ -263,12 +283,78 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('routes the steer shortcut to onSendDraft with { steer: true } in the deferred textarea', () => {
+    render(<Harness steerShortcut={['CommandOrControl', 'Enter']} />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
+    expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
+  })
+
+  it('ignores the steer shortcut in the deferred textarea when the caller does not pass one', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', ctrlKey: true })
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
+  })
+
   it('navigates input history on the first arrow key', () => {
     const onInputHistoryNavigate = vi.fn(() => true)
-    render(<Harness text="" isInputHistoryActive onInputHistoryNavigate={onInputHistoryNavigate} />)
+    render(<Harness text="" onInputHistoryNavigate={onInputHistoryNavigate} />)
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
     expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+  })
+
+  it('matches the runtime ArrowUp history boundary for a non-empty draft', async () => {
+    const text = 'draft'
+    const onInputHistoryNavigate = vi.fn(() => true)
+    render(<Harness text={text} onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' })
+    input.setSelectionRange(0, 0)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(1, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(text.length, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+    await screen.findByTestId('composer-runtime')
+  })
+
+  it('hands the end selection to the runtime for history recalled before it loads', async () => {
+    const historyText = 'previous chat prompt'
+    let actions: ComposerSurfaceActions | undefined
+
+    function InputHistoryHarness() {
+      const [text, setText] = useState('')
+      return (
+        <Harness
+          text={text}
+          onTextChange={setText}
+          onActionsChange={(nextActions) => {
+            actions = nextActions
+          }}
+          onInputHistoryNavigate={() => {
+            actions?.replaceDraft({ text: historyText, tokens: [] })
+            return true
+          }}
+        />
+      )
+    }
+
+    render(<InputHistoryHarness />)
+    await waitFor(() => expect(actions).toBeDefined())
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveAttribute('data-selection', `${historyText.length}:${historyText.length}`)
   })
 
   it('replays a programmatic first token insertion through the runtime', async () => {

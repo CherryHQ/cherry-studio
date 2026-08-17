@@ -68,6 +68,8 @@ describe('normalizeShortcutToken', () => {
     expect(normalizeShortcutToken('a')).toBe('A')
     expect(normalizeShortcutToken('f3')).toBe('F3')
     expect(normalizeShortcutToken('f12')).toBe('F12')
+    expect(normalizeShortcutToken('F13')).toBe('F13')
+    expect(normalizeShortcutToken('f24')).toBe('F24')
   })
 
   it('covers the lowercase fallback branch for special tokens', () => {
@@ -79,7 +81,7 @@ describe('normalizeShortcutToken', () => {
 
   it('returns undefined for unrecognized input', () => {
     expect(normalizeShortcutToken('NotAKey')).toBeUndefined()
-    expect(normalizeShortcutToken('F13')).toBeUndefined()
+    expect(normalizeShortcutToken('F25')).toBeUndefined()
     expect(normalizeShortcutToken('Key1')).toBeUndefined()
   })
 })
