@@ -895,7 +895,7 @@ interface PreparedDispatch {
   liveExecutionChange?:
     | { mode: 'replace'; parentAnchorId: string; siblingsGroupId?: number }
     | { mode: 'append'; groupAnchorMessageId: string; parentAnchorId: string; siblingsGroupId: number }
-  ticket?: DispatchTicket // immutable intent + admission + active-node decision
+  receipt?: DispatchCommandReceipt // immutable intent + admission + active-node decision
   lifecycle?: StreamLifecycle
 }
 
