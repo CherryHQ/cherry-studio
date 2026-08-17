@@ -348,6 +348,16 @@ describe('withToolCitationTags', () => {
     expect(content).toContain('2</sup>](https://b.com/y)')
   })
 
+  it('resolves the comma-list marker form models write instead of chaining', () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const { content, cited } = withToolCitationTags('Fact. [cite:abc-1, abc-2]', mc)
+
+    expect(content).toContain('1</sup>](https://a.com/x)')
+    expect(content).toContain('2</sup>](https://b.com/y)')
+    expect(content).not.toContain('[cite:')
+    expect(cited.map((c) => c.number)).toEqual([1, 2])
+  })
+
   it('leaves unknown ids literal', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
     const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9]', mc)
@@ -491,7 +501,7 @@ describe('stripCitationMarkers', () => {
   })
 
   it('preserves canonical markers in inline and fenced code', () => {
-    const input = '`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside [cite:abc-1]'
-    expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside')
+    const input = '`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside [cite:abc-1, abc-2]'
+    expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside')
   })
 })

@@ -361,8 +361,26 @@ function createCitationLookup(citations: MessageCitations): {
   return { lookup, markerNumberMap }
 }
 
+/**
+ * Rewrite the comma-list form models keep producing — `[cite:a, b, c]` — into the chained
+ * `[cite:a][cite:b][cite:c]` the prompt asks for, so every consumer sees one marker shape.
+ */
+function expandMarkerLists(content: string): string {
+  return mapMarkdownOutsideCode(content, (text) =>
+    text.replace(/\[cite:([\w-]+(?:[ \t]*,[ \t]*[\w-]+)+)\]/g, (_match, ids: string) =>
+      ids
+        .split(',')
+        .map((id) => `[cite:${id.trim()}]`)
+        .join('')
+    )
+  )
+}
+
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
-  return markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+  const expanded = expandMarkerLists(content)
+  return markerNumberMap.size > 0
+    ? normalizeCitationMarks(expanded, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
+    : expanded
 }
 
 function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
@@ -385,7 +403,7 @@ export function resolveCitationMarkerParts(
   citations: MessageCitations
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
-    return contents.map((content) => ({ content, byMarker: new Map(), cited: [] }))
+    return contents.map((content) => ({ content: expandMarkerLists(content), byMarker: new Map(), cited: [] }))
   }
 
   const { lookup, markerNumberMap } = createCitationLookup(citations)
@@ -475,7 +493,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(expandMarkerLists(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**
