@@ -174,6 +174,7 @@ export class AgentSessionService {
     limit: number
     updatedAtFrom?: number
     agentId?: string
+    addressableOnly?: boolean
   }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -181,6 +182,7 @@ export class AgentSessionService {
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    if (query.addressableOnly) filters.push(isNotNull(agentsTable.id))
     if (query.updatedAtFrom !== undefined) {
       filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
     }
@@ -195,7 +197,7 @@ export class AgentSessionService {
         lastActivityAt: sessionsTable.lastActivityAt
       })
       .from(sessionsTable)
-      .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(limit)

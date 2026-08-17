@@ -518,7 +518,12 @@ export class CherryAutonomyTools {
       candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
       sessions.set(match.sessionId, candidate)
     }
-    for (const result of agentSessionService.searchWithMetadataEvidence({ q: query, limit, agentId })) {
+    for (const result of agentSessionService.searchWithMetadataEvidence({
+      q: query,
+      limit,
+      agentId,
+      addressableOnly: true
+    })) {
       const match = result.item
       const existing = sessions.get(match.id)
       if (existing) {

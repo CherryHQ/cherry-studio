@@ -329,7 +329,12 @@ describe('CherryAutonomyTools', () => {
         agentId: 'agent_b',
         addressableOnly: true
       })
-      expect(mockSearchSessions).toHaveBeenCalledWith({ q: 'auth', limit: 3, agentId: 'agent_b' })
+      expect(mockSearchSessions).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 3,
+        agentId: 'agent_b',
+        addressableOnly: true
+      })
     })
 
     it('places metadata-only Session hits after ranked message evidence', async () => {

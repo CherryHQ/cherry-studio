@@ -122,6 +122,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const shouldAutoNameInitialTurn = deliveryMessage
+      ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
+      : !agentSessionMessageService.hasSessionMessages(sessionId)
     return {
       sessionId,
       topicId: req.topicId,
@@ -143,7 +146,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
       ...(deliveryMessage ? { deliveryMessage } : {}),
-      shouldAutoNameInitialTurn: !agentSessionMessageService.hasSessionMessages(sessionId)
+      shouldAutoNameInitialTurn
     }
   }
 

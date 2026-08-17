@@ -580,6 +580,24 @@ describe('AgentSessionDeliveryService', () => {
     }
   })
 
+  it('reinstalls its retry sweep when the service restarts', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionDeliveryService()
+      await service._doInit()
+      await service._doAllReady()
+      expect(vi.getTimerCount()).toBe(1)
+
+      await service._doStop()
+      expect(vi.getTimerCount()).toBe(0)
+
+      await service._doInit()
+      expect(vi.getTimerCount()).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('commits deletion, closes target runtimes, then schedules the exact durable results', async () => {
     const result = { ...accepted, id: 'result-1', sessionId: 'sender' }
     const order: string[] = []

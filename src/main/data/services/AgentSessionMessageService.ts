@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -407,13 +407,18 @@ export class AgentSessionMessageService {
    * Lightweight existence check used to distinguish an untouched session's
    * initial turn without loading a potentially large message payload.
    */
-  hasSessionMessages(sessionId: string): boolean {
+  hasSessionMessages(sessionId: string, excludingMessageId?: string): boolean {
     const database = application.get('DbService').getDb()
     return (
       database
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
-        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            excludingMessageId ? ne(sessionMessagesTable.id, excludingMessageId) : undefined
+          )
+        )
         .limit(1)
         .all().length > 0
     )

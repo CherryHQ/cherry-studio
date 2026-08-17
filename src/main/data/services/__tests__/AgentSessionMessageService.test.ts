@@ -83,6 +83,7 @@ describe('AgentSessionMessageService', () => {
     })
 
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 

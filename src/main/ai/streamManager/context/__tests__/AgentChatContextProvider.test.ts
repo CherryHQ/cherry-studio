@@ -358,6 +358,21 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
   })
 
+  it('ignores a new Session delivery row when deciding whether to auto-name its first turn', async () => {
+    const deliveryMessage = {
+      id: 'delivery-1',
+      sessionId: 'session-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'delegated work' }] },
+      delivery: { status: 'accepted' }
+    }
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
+
+    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1', 'delivery-1')
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
+  })
+
   it('does not auto-name a busy follow-up turn', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(true)

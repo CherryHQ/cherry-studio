@@ -78,9 +78,6 @@ export class AgentSessionDeliveryService extends BaseService {
     )
     this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
     this.recoverDeliveries()
-  }
-
-  protected override onAllReady(): void {
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }

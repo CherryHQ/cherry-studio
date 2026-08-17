@@ -232,6 +232,27 @@ describe('AgentSessionService', () => {
     ])
   })
 
+  it('keeps orphaned Sessions globally searchable but excludes them from addressable search', async () => {
+    const workspace = await createWorkspace('search-orphan')
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'orphan-search-result',
+      name: 'Preserved orphan evidence',
+      workspaceId: workspace.id,
+      orderKey: 'orphan-search'
+    })
+
+    expect(agentSessionService.search({ q: 'orphan evidence', limit: 5 })).toEqual([
+      expect.objectContaining({
+        id: 'orphan-search-result',
+        subtitle: undefined,
+        target: { sessionId: 'orphan-search-result', agentId: null }
+      })
+    ])
+    expect(
+      agentSessionService.searchWithMetadataEvidence({ q: 'orphan evidence', limit: 5, addressableOnly: true })
+    ).toEqual([])
+  })
+
   it('pages only Sessions whose active Agent can receive a delivery', async () => {
     const workspace = await createWorkspace('addressable')
     await dbh.db.insert(agentTable).values({
