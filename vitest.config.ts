@@ -16,6 +16,7 @@ process.stdout.setMaxListeners(64)
 process.stderr.setMaxListeners(64)
 
 const mainConfig = (electronViteConfig as any).main
+const preloadConfig = (electronViteConfig as any).preload
 const rendererConfig = (electronViteConfig as any).renderer
 
 export default defineConfig({
@@ -70,6 +71,20 @@ export default defineConfig({
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      // Isolated webview preload DOM tests. Keep Electron out of this project:
+      // controller tests exercise the pure DOM runtime under jsdom.
+      {
+        extends: true,
+        plugins: preloadConfig.plugins,
+        resolve: {
+          alias: preloadConfig.resolve.alias
+        },
+        test: {
+          name: 'preload',
+          environment: 'jsdom',
+          include: ['src/preload/**/*.{test,spec}.{ts,tsx}', 'src/preload/**/__tests__/**/*.{test,spec}.{ts,tsx}']
         }
       },
       // 脚本单元测试配置
