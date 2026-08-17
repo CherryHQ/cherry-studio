@@ -25,8 +25,10 @@ export interface AgentRuntimeCapabilities {
   knowledgeBases: boolean
   mcp: boolean
   skills: boolean
-  /** Claude-style subagent, workflow and detached background-task presentation. */
+  /** Subagent, workflow and detached background-task presentation. */
   backgroundTaskFlows: boolean
+  /** Runtime task events provide token, context and tool-use metrics for status cards. */
+  runTaskUsageMetrics: boolean
   /** Runtime's built-in tools are surfaced in the agent-tools access list (`useAgentTools`) through
    *  the Claude tool-registry pipeline. claude-only today — pi's built-ins come from `builtinTools`
    *  and are not access-controlled ClaudeToolDescriptors, so pi sets this false. */
@@ -101,6 +103,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     mcp: true,
     skills: true,
     backgroundTaskFlows: true,
+    runTaskUsageMetrics: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'auto' },
@@ -131,6 +134,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     mcp: true,
     skills: true,
     backgroundTaskFlows: false,
+    runTaskUsageMetrics: false,
     claudeRegistryTools: false,
     slashCommands: PI_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'auto' },
@@ -163,7 +167,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     mcp: true,
     // Enabled Cherry-managed skills mount as the composition's only skill roots (customSkillDirs).
     skills: true,
-    backgroundTaskFlows: false,
+    backgroundTaskFlows: true,
+    runTaskUsageMetrics: false,
     claudeRegistryTools: false,
     slashCommands: DSH_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'acceptEdits' },

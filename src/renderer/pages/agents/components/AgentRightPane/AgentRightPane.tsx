@@ -200,6 +200,7 @@ interface AgentRightPaneMeta {
   agentName?: string
   agentAvatar?: string
   backgroundTaskFlows: boolean
+  runTaskUsageMetrics: boolean
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
@@ -251,7 +252,8 @@ interface AgentRightPanelScope {
 
 type AgentConversationState = 'pending' | 'ready' | 'unavailable'
 
-interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'backgroundTaskFlows' | 'conversationState'> {
+interface AgentRightPaneScopeProps
+  extends Omit<AgentRightPaneMeta, 'backgroundTaskFlows' | 'runTaskUsageMetrics' | 'conversationState'> {
   agentType?: AgentType
   children: ReactNode
   conversationState?: AgentConversationState
@@ -443,7 +445,9 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
-  const backgroundTaskFlows = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].backgroundTaskFlows : false
+  const runtimeCapabilities = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
+  const backgroundTaskFlows = runtimeCapabilities?.backgroundTaskFlows ?? false
+  const runTaskUsageMetrics = runtimeCapabilities?.runTaskUsageMetrics ?? false
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -601,6 +605,7 @@ function AgentRightPaneStateProvider({
       agentName,
       agentAvatar,
       backgroundTaskFlows,
+      runTaskUsageMetrics,
       conversationState,
       workspaceId,
       workspacePath,
@@ -612,6 +617,7 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       backgroundTaskFlows,
+      runTaskUsageMetrics,
       conversationState,
       model,
       sessionId,
@@ -1233,6 +1239,7 @@ function RunTaskSummary({
   toolUses?: number
 }) {
   const { t } = useTranslation()
+  const { runTaskUsageMetrics } = useAgentRightPaneMeta()
   const statusLabel = {
     pending: t('agent.right_pane.status.workflow_state.pending'),
     in_progress: t('agent.right_pane.status.workflow_state.running'),
@@ -1266,18 +1273,20 @@ function RunTaskSummary({
           {description}
         </div>
       ) : null}
-      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-7 text-[11px] text-muted-foreground">
-        <span className="whitespace-nowrap">
-          {t('agent.right_pane.status.total')}·{totalTokens === undefined ? '-' : formatCompactNumber(totalTokens)}
-        </span>
-        <span className="whitespace-nowrap">
-          {t('agent.right_pane.status.context_size')}·
-          {contextTokens === undefined ? '-' : formatCompactNumber(contextTokens)}
-        </span>
-        <span className="whitespace-nowrap">
-          {t('agent.right_pane.status.tools')}·{toolUses ?? '-'}
-        </span>
-      </div>
+      {runTaskUsageMetrics ? (
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-7 text-[11px] text-muted-foreground">
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.total')}·{totalTokens === undefined ? '-' : formatCompactNumber(totalTokens)}
+          </span>
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.context_size')}·
+            {contextTokens === undefined ? '-' : formatCompactNumber(contextTokens)}
+          </span>
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.tools')}·{toolUses ?? '-'}
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }
