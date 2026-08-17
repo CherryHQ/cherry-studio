@@ -58,9 +58,12 @@ reference for that Main-side design.
 │  AiStreamManager                                             │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │ activeStreams: Map<topicId, ActiveStream>              │  │
+│  │   aggregate: TopicStreamAggregate (cycle + attempts)   │  │
+│  │   persistencePorts: Map<portId, StreamPersistencePort> │  │
 │  │   listeners:  Map<listenerId, StreamListener>          │  │
+│  │   cleanupPorts: Map<portId, StreamCleanupPort>         │  │
 │  │   executions: Map<modelId, StreamExecution>            │  │
-│  │     ├─ abortController / status                        │  │
+│  │     ├─ abortController / attempt state                 │  │
 │  │     └─ buffer (ring) + droppedChunks                   │  │
 │  │   lifecycle: StreamLifecycle  (chat or prompt)         │  │
 │  └────────────────────────────────────────────────────────┘  │
@@ -68,15 +71,18 @@ reference for that Main-side design.
 │  AiService.streamText(request) → ReadableStream<UIMessageChunk> │
 │         ↓ pipeStreamLoop (tees: broadcast + readUIMessageStream) │
 │                                                              │
-│  terminal → dispatchToListeners (awaited phase order):       │
-│    1. PersistenceListener → PersistenceBackend.persistAssistant
+│  terminal → three awaited port funnels, in order:            │
+│    1. dispatchToPersistencePorts → PersistenceListener       │
+│       → PersistenceBackend.persistAssistant                  │
 │       • MessageServiceBackend  (SQLite tree)                 │
 │       • TemporaryChatBackend   (in-memory)                   │
 │       • AgentSessionMessageBackend (agent-session DB)        │
 │       • TranslationBackend     (translate row)               │
-│    2. WebContentsListener → wc.send(Ai_StreamDone/Error)     │
-│       other notification listeners (channel / SSE)          │
-│    3. TraceFlushListener → TraceStorageService.saveSpans    │
+│    2. dispatchToListeners (after durable settlement)         │
+│       → WebContentsListener → wc.send(Ai_StreamDone/Error)   │
+│       → other notification listeners (channel / SSE)         │
+│    3. dispatchCleanupPorts (only once the topic is quiescent)│
+│       → TraceFlushListener → TraceStorageService.saveSpans   │
 │    Persistence failure → emit correction error and suppress  │
 │      the original notification phase; cleanup still runs     │
 └──────────────────────────────────────────────────────────────┘
@@ -101,8 +107,8 @@ volume × audience width**.
 | Consumer | Events | Subscription |
 |---|---|---|
 | `WebContentsListener` | chunk + terminal | explicit `attach` → `ActiveStream.listeners` |
-| `PersistenceListener` | terminal | built by the provider and added in `send()` |
-| `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
+| `PersistenceListener` | terminal (durable write, gates settlement) | built by the provider / agent runtime, passed in `send()`'s `persistencePorts` → `ActiveStream.persistencePorts` |
+| `TraceFlushListener` | topic quiescence | built by chat / agent-session turn owners, passed in `send()`'s `cleanupPorts` → `ActiveStream.cleanupPorts` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
 | UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
 
@@ -147,14 +153,16 @@ Choose by **consumer / producer fanout**:
   `done`) compared against `topic.stream.last_seen_completion.${topicId}`
   (cross-window shared cache, written when the user acknowledges).
   Memory tier — both reset on app restart.
-- **`PersistenceListener` placement.** Terminal-only consumer — doesn't
-  need chunk bandwidth → not added via `attach`; the provider includes
-  it in the `listeners` array passed to `send()`.
-- **`TraceFlushListener` placement.** Terminal-only consumer that flushes
-  `TraceStorageService.saveSpans(topicId)` after a chat / agent turn completes.
-  It belongs with the turn owner (`PersistentChatContextProvider` or
-  `AgentSessionRuntimeService`), not inside `AiStreamManager` and not in
-  trace viewer UI.
+- **`PersistenceListener` placement.** Durable-write port, not a
+  notification listener — it doesn't need chunk bandwidth and it gates
+  settlement, so it is not added via `attach`; the provider includes it
+  in the `persistencePorts` array passed to `send()`.
+- **`TraceFlushListener` placement.** Cleanup port that flushes
+  `TraceStorageService.saveSpans(topicId)` once the whole topic is
+  quiescent; the turn owner (`PersistentChatContextProvider` or
+  `AgentSessionRuntimeService`) includes it in the `cleanupPorts` array
+  passed to `send()` — it lives with the turn owner, not inside
+  `AiStreamManager` and not in trace viewer UI.
 
 ## File layout
 
@@ -317,10 +325,13 @@ committed. Per-chunk delivery is unaffected.
 ```typescript
 interface ActiveStream {
   topicId: string
+  aggregate: TopicStreamAggregate                   // topic cycle + attempt state machine + control revisions
+  persistencePorts: Map<string, StreamPersistencePort> // durable attempt projection; settlement waits on them
+  cleanupPorts: Map<string, StreamCleanupPort>      // post-quiescence work (e.g. trace flush)
   executions: Map<UniqueModelId, StreamExecution>   // 1 entry single-model, N multi-model
-  listeners: Map<string, StreamListener>            // shared across executions
+  listeners: Map<string, StreamListener>            // notification consumers, shared across executions
   // 'pending' on creation; flips to 'streaming' on first chunk; derived
-  // from executions on terminal (done / aborted / error /
+  // from the aggregate on terminal (done / aborted / error /
   // awaiting-approval).
   status: TopicStreamStatus
   isMultiModel: boolean                             // fixed at create; tags onChunk's sourceModelId
@@ -331,9 +342,12 @@ interface ActiveStream {
 
 interface StreamExecution {
   modelId: UniqueModelId
+  attemptId: AttemptId      // unique per run, monotonic within the Main-process lifetime
   anchorMessageId?: string  // placeholder id for submit/regen, anchor id for continue
+  seedFromEmpty?: boolean   // renderer readers start from an empty anchor row
   abortController: AbortController
-  status: 'streaming' | 'done' | 'error' | 'aborted'
+  attempt: TopicAttempt     // attempt state record owned by the topic aggregate;
+                            // holds `pendingApprovalToolCallIds` for awaiting-approval
 
   // Per-execution ring buffer for reconnect replay. Hitting
   // `maxBufferChunks` drops the oldest entry and bumps `droppedChunks`.
@@ -341,14 +355,10 @@ interface StreamExecution {
   // Independent buffers prevent a chatty model from evicting a slower
   // model's replay (a shared buffer would).
   buffer: StreamChunkPayload[]
+  nextChunkSeq: number
   droppedChunks: number
 
   finalMessage?: CherryUIMessage
-
-  // Set the moment a `tool-approval-request` chunk arrives, cleared on
-  // response. Read by `resolveTerminalStatus` to surface
-  // `awaiting-approval` on the topic.
-  pendingApprovalToolCallIds?: Set<string>
 
   error?: SerializedError
   siblingsGroupId?: number
@@ -356,6 +366,7 @@ interface StreamExecution {
 
   // Transport-side timings owned by the execution loop — chunk-shape-agnostic.
   timings: TransportTimings
+  runtimeTiming: MessageRuntimeTimingCollector
 
   // OTel root span set as active context around runExecutionLoop so
   // AI SDK spans become children. Created by the context provider.
