@@ -27,19 +27,6 @@ export type ResourceListGroupReorderPayload = {
   targetIndex: number
 }
 
-/**
- * Preserve the owner's pre-removal display order, then try owners below it
- * before walking back upward. The caller still performs authoritative scoped
- * latest lookups because a candidate may have become empty concurrently.
- */
-export function buildResourceOwnerFallbackIds(orderedOwnerIds: readonly string[], removedOwnerId: string): string[] {
-  const uniqueOwnerIds = [...new Set(orderedOwnerIds)]
-  const removedIndex = uniqueOwnerIds.indexOf(removedOwnerId)
-  if (removedIndex < 0) return uniqueOwnerIds.filter((ownerId) => ownerId !== removedOwnerId)
-
-  return [...uniqueOwnerIds.slice(removedIndex + 1), ...uniqueOwnerIds.slice(0, removedIndex).reverse()]
-}
-
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
 ): ResourceListGroupResolver<T> {

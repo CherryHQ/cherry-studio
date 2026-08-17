@@ -72,8 +72,7 @@ describe('ResourceViewSourceProvider', () => {
       refetchStats: vi.fn(),
       loadSession: vi.fn(),
       loadLatestSession: vi.fn(),
-      reuseOrCreateSession: vi.fn(),
-      loadSessionIds: vi.fn()
+      reuseOrCreateSession: vi.fn()
     }
   })
 

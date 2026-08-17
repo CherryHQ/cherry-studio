@@ -1,9 +1,6 @@
 import type * as CherrystudioUIModule from '@cherrystudio/ui'
-import { cacheService } from '@renderer/data/CacheService'
-import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +13,8 @@ const hookMocks = vi.hoisted(() => ({
   loadMore: vi.fn(),
   reload: vi.fn(),
   promptShow: vi.fn(),
-  togglePin: vi.fn(),
+  pinSession: vi.fn(),
+  unpinSession: vi.fn(),
   updateSession: vi.fn(),
   openConversationTab: vi.fn(),
   useAgents: vi.fn(),
@@ -36,20 +34,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherrystudioUIModule>()
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return { ...MockCherrystudioUI, EmptyState: actual.EmptyState }
-})
-
-vi.mock('@renderer/data/CacheService', async () => {
-  const { MockCacheService } = await import('@test-mocks/renderer/CacheService')
-  return MockCacheService
-})
-
-vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
-  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
-  const actual = await importOriginal<typeof UseCacheModule>()
-  return {
-    ...MockUseCache,
-    useSharedCacheSelector: actual.useSharedCacheSelector
-  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -268,10 +252,6 @@ vi.mock('react-i18next', () => {
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
         'history.records.filter.statusLabel': 'Status',
-        'history.records.filter.statusPlaceholder': 'Select status',
-        'history.records.status.completed': 'Completed',
-        'history.records.status.failed': 'Failed',
-        'history.records.status.running': 'Running',
         'history.records.table.actions': 'Actions',
         'history.records.table.session': 'Task',
         'history.records.table.time': 'Time',
@@ -394,8 +374,6 @@ function setupAgentHistory({
     })
   hookMocks.useSessions.mockImplementation((ownerScope?: string, options?: any) => ({
     sessions: filterSessions(ownerScope, options?.pinned),
-    pages: [{ items: filterSessions(ownerScope, options?.pinned) }],
-    pinIdBySessionId,
     error: sourceError,
     hasMore: options?.pinned ? false : hasMore,
     isLoading: false,
@@ -403,8 +381,7 @@ function setupAgentHistory({
     loadMore: hookMocks.loadMore,
     reload: hookMocks.reload,
     deleteSession: hookMocks.deleteSession,
-    deleteSessions: hookMocks.deleteSessions,
-    togglePin: hookMocks.togglePin
+    deleteSessions: hookMocks.deleteSessions
   }))
   hookMocks.useAgentSessionStats.mockReturnValue({
     stats: {
@@ -441,7 +418,6 @@ let agentHistoryLoaded = false
 describe('HistoryRecordsView agent mode', () => {
   beforeEach(async () => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
-    MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
@@ -451,8 +427,10 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.reload.mockReset()
     hookMocks.reload.mockResolvedValue(undefined)
     hookMocks.promptShow.mockReset()
-    hookMocks.togglePin.mockReset()
-    hookMocks.togglePin.mockResolvedValue(undefined)
+    hookMocks.pinSession.mockReset()
+    hookMocks.pinSession.mockResolvedValue(undefined)
+    hookMocks.unpinSession.mockReset()
+    hookMocks.unpinSession.mockResolvedValue(undefined)
     hookMocks.updateSession.mockReset()
     hookMocks.updateSession.mockResolvedValue(createSession({ name: 'Renamed session' }))
     hookMocks.useAgents.mockReset()
@@ -481,7 +459,12 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.usePins.mockReset()
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: vi.fn() })
     hookMocks.usePinMutations.mockReset()
-    hookMocks.usePinMutations.mockReturnValue({ pin: vi.fn(), unpin: vi.fn(), isMutating: false, error: undefined })
+    hookMocks.usePinMutations.mockReturnValue({
+      pin: hookMocks.pinSession,
+      unpin: hookMocks.unpinSession,
+      isMutating: false,
+      error: undefined
+    })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
@@ -492,12 +475,10 @@ describe('HistoryRecordsView agent mode', () => {
       hookMocks.useAgents.mockReturnValue({ agents: [], error: undefined, isLoading: false })
       hookMocks.useSessions.mockReturnValue({
         sessions: [],
-        pinIdBySessionId: new Map(),
         error: undefined,
         isLoading: false,
         deleteSession: hookMocks.deleteSession,
-        deleteSessions: hookMocks.deleteSessions,
-        togglePin: hookMocks.togglePin
+        deleteSessions: hookMocks.deleteSessions
       })
       const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
 
@@ -520,7 +501,7 @@ describe('HistoryRecordsView agent mode', () => {
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
     expect(pinButton).toHaveAccessibleName('Unpin')
     fireEvent.click(pinButton)
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', 'pin-session-alpha')
+    expect(hookMocks.unpinSession).toHaveBeenCalledWith('pin-session-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
@@ -561,12 +542,11 @@ describe('HistoryRecordsView agent mode', () => {
 
     const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
     const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
-    const statusFilter = screen.getByRole('button', { name: 'Status' })
     const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Delete' })
 
+    expect(screen.queryByRole('button', { name: 'Status' })).not.toBeInTheDocument()
     expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(statusFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(sourceFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('filters sessions by selected agent source', () => {
@@ -624,50 +604,6 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha A')).toBeInTheDocument()
     expect(screen.getByText('Alpha B')).toBeInTheDocument()
-  })
-
-  it('restores the agent status selector and filters by existing stream status', () => {
-    MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'streaming', activeExecutions: [] }]]
-    })
-
-    setupAgentHistory()
-
-    fireEvent.click(screen.getByRole('button', { name: /^Running$/ }))
-
-    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.getByText('Beta session')).toBeInTheDocument()
-  })
-
-  it('filters completed and failed sessions by stream status', () => {
-    MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'error', activeExecutions: [] }]]
-    })
-
-    setupAgentHistory()
-
-    fireEvent.click(screen.getByRole('button', { name: /^Failed$/ }))
-    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.getByText('Beta session')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /^Completed$/ }))
-    expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
-  })
-
-  it('keeps the virtual row renderer stable across stream status updates', () => {
-    setupAgentHistory()
-    const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
-
-    act(() => {
-      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
-        status: 'streaming',
-        activeExecutions: [],
-        awaitingApprovalAnchors: []
-      })
-    })
-
-    expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
   it('renders list errors with a retry action', () => {
@@ -898,36 +834,14 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('No tasks for the current filters.')).toBeInTheDocument()
   })
 
-  it('keeps the loading state until the shared full-session source commits', () => {
-    hookMocks.useAgents.mockReturnValue({ agents: [createAgent()], error: undefined, isLoading: false })
-    hookMocks.useSessions.mockReturnValue({
-      sessions: [],
-      pinIdBySessionId: new Map(),
-      error: undefined,
-      isLoading: false,
-      isLoadingAll: true,
-      isFullyLoaded: false,
-      deleteSession: hookMocks.deleteSession,
-      deleteSessions: hookMocks.deleteSessions,
-      togglePin: hookMocks.togglePin
-    })
-
-    render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
-
-    expect(screen.getByText('Loading tasks')).toBeInTheDocument()
-    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
-  })
-
   it('unmounts the overlay immediately when closed', () => {
     hookMocks.useAgents.mockReturnValue({ agents: [createAgent()], error: undefined, isLoading: false })
     hookMocks.useSessions.mockReturnValue({
       sessions: [createSession()],
-      pinIdBySessionId: new Map(),
       error: undefined,
       isLoading: false,
       deleteSession: hookMocks.deleteSession,
-      deleteSessions: hookMocks.deleteSessions,
-      togglePin: hookMocks.togglePin
+      deleteSessions: hookMocks.deleteSessions
     })
     hookMocks.useAgentSessionStats.mockReturnValue({
       stats: { total: 1, pinnedCount: 0, byAgent: [] },
@@ -1032,7 +946,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
+    await vi.waitFor(() => expect(hookMocks.pinSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -1050,12 +964,12 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
+    await vi.waitFor(() => expect(hookMocks.pinSession).toHaveBeenCalledWith('session-alpha'))
     await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
   })
 
   it('keeps a selected session when pinning it from history fails', async () => {
-    hookMocks.togglePin.mockResolvedValueOnce(false)
+    hookMocks.pinSession.mockRejectedValueOnce(new Error('pin failed'))
     setupAgentHistory()
 
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
@@ -1068,7 +982,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
+    await vi.waitFor(() => expect(hookMocks.pinSession).toHaveBeenCalledWith('session-alpha'))
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 

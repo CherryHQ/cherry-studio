@@ -5,7 +5,6 @@ import { useResourceListPinnedItems } from '@renderer/components/chat/resourceLi
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -25,9 +24,7 @@ import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecord
 import {
   ALL_SOURCE_ID,
   buildAgentSources,
-  buildAgentStatusItems,
   findAdjacentHistoryRecordAfterBulkDelete,
-  getAgentHistoryStatus,
   toServerOwnerScope
 } from './historyRecordsHelpers'
 import { useHistoryRecordsController, useHistoryRecordsFilters } from './useHistoryRecordsController'
@@ -164,8 +161,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   const isSessionPinned = useCallback((sessionId: string) => sessionById.get(sessionId)?.pinned === true, [sessionById])
   const sessionItems = useMemo<SessionListItem[]>(() => [...sessions], [sessions])
-  const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
-  const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
   const loadMoreSessions = useCallback(() => {
     if (isSessionsLoading || isSessionsLoadingMore || sessionError) return
     loadMoreBandSessions()
@@ -185,7 +180,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   )
 
   const unlinkedAgentLabel = t('agent.session.group.unknown_agent')
-  const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
   const hasUnlinkedAgent = useMemo(
     () => sessionStats?.byAgent.some((entry) => entry.agentId === null || !agentById.has(entry.agentId)) ?? false,
     [agentById, sessionStats]
@@ -388,10 +382,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
 
   const getId = useCallback((session: SessionListItem) => session.id, [])
-  const statusOf = useCallback(
-    (session: SessionListItem) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)),
-    [streamStatusBySessionId]
-  )
   const onActiveRecordChange = useCallback(
     (session: SessionListItem | null) => selectActiveSession(session?.id ?? null),
     [selectActiveSession]
@@ -441,7 +431,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     mode: 'agent',
     getId,
     isPinned: isSessionPinned,
-    statusOf,
     onBulkDelete: handleBulkDeleteSessions,
     onActiveRecordChange,
     ...rowDescriptor,
@@ -482,7 +471,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
         />
       )
     },
-    statusOptions: statusItems,
     onRename: handleRenameSession,
     strings: {
       sourceLabel: t('common.agent'),
@@ -505,29 +493,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     filters,
     activeRecordId
   })
-
-  useEffect(() => {
-    if (
-      filters.selectedStatus === ALL_SOURCE_ID ||
-      controller.visibleItems.length > 0 ||
-      !hasMoreSessions ||
-      isSessionsLoading ||
-      isSessionsLoadingMore ||
-      sessionError
-    ) {
-      return
-    }
-
-    loadMoreSessions()
-  }, [
-    controller.visibleItems.length,
-    filters.selectedStatus,
-    hasMoreSessions,
-    isSessionsLoading,
-    isSessionsLoadingMore,
-    loadMoreSessions,
-    sessionError
-  ])
 
   const handleEndReached = useCallback(() => {
     if (!hasMoreSessions || isSessionsLoading || isSessionsLoadingMore || sessionError) return

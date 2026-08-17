@@ -377,7 +377,6 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
     statsError: undefined,
     refetchStats: vi.fn().mockResolvedValue(undefined),
     loadSession: vi.fn().mockResolvedValue(null),
-    loadSessionIds: vi.fn().mockResolvedValue([]),
     loadLatestSession: vi.fn().mockResolvedValue(null),
     reuseOrCreateSession: vi.fn(),
     ...overrides

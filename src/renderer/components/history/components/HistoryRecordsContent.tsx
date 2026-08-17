@@ -32,14 +32,10 @@ export function HistoryRecordsContent<T>({
   onRetry
 }: HistoryRecordsContentProps<T>) {
   const { t } = useTranslation()
-  const hasActiveFilters =
-    controller.searchText.trim().length > 0 ||
-    controller.selectedSourceId !== ALL_SOURCE_ID ||
-    controller.selectedStatus !== ALL_SOURCE_ID
+  const hasActiveFilters = controller.searchText.trim().length > 0 || controller.selectedSourceId !== ALL_SOURCE_ID
   const clearFilters = () => {
     controller.setSearchText('')
     controller.setSelectedSourceId(ALL_SOURCE_ID)
-    controller.setSelectedStatus(ALL_SOURCE_ID)
   }
 
   return (
@@ -55,11 +51,6 @@ export function HistoryRecordsContent<T>({
         selectedSourceId={controller.selectedSourceId}
         onSourceSelect={controller.setSelectedSourceId}
         renderSourceFilter={descriptor.renderSourceFilter}
-        statusOptions={descriptor.statusOptions}
-        statusLabel={t('history.records.filter.statusLabel')}
-        statusPlaceholder={t('history.records.filter.statusPlaceholder')}
-        selectedStatus={controller.selectedStatus}
-        onStatusSelect={controller.setSelectedStatus}
         selectedCount={controller.selectedCount}
         bulkDeleteCount={controller.bulkDeleteCount}
         bulkMoveTargets={descriptor.bulkMoveTargets}
@@ -69,7 +60,7 @@ export function HistoryRecordsContent<T>({
 
       <HistoryRecordList
         descriptor={descriptor}
-        items={controller.visibleItems}
+        items={controller.items}
         error={error}
         isLoading={isLoading}
         isLoadingMore={isLoadingMore}

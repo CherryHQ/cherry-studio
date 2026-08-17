@@ -205,7 +205,7 @@ export interface ReusableAgentSessionPlaceholdersResponse {
   deletedDuplicateSessionIds: string[]
 }
 
-export const AGENT_SESSION_DELETE_MAX_IDS = 200
+const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 const DeleteAgentSessionsIdsQueryValueSchema = z
   .string()

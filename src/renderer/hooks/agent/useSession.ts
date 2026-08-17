@@ -7,8 +7,6 @@
  * with `session.agentId`.
  */
 
-import { loggerService } from '@logger'
-import { dataApiService } from '@renderer/data/DataApiService'
 import { createInfiniteQueryRetentionMiddleware } from '@renderer/data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
@@ -18,9 +16,7 @@ import {
   useMutation,
   useQuery
 } from '@renderer/data/hooks/useDataApi'
-import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { usePinMutations } from '@renderer/hooks/usePins'
 import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -34,7 +30,6 @@ import type {
   AgentSessionSortBy,
   AgentSessionStatsQuery,
   AgentSessionWorkspaceScope,
-  CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
@@ -43,8 +38,6 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const logger = loggerService.withContext('useSession')
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 
@@ -74,7 +67,6 @@ const sessionGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
   releaseDelayMs: 1_000
 })
 
-export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
 /**
@@ -302,18 +294,9 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   useDataChange('/agent-sessions', () => {
     if (enabled !== false) void refresh()
   })
-  // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions')
 
   const flatSessions = useInfiniteFlatItems(pages)
   const sessions = useStructurallySharedSessions(flatSessions)
-  const pinIdBySessionId = useMemo(
-    () => new Map(sessions.flatMap((session) => (session.pinId ? [[session.id, session.pinId] as const] : []))),
-    [sessions]
-  )
-  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
-  pinIdBySessionIdRef.current = pinIdBySessionId
-  const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
 
@@ -324,35 +307,6 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
       loadNext()
     }
   }, [hasMore, isLoadingMore, loadNext])
-
-  const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: [...SESSION_LIST_REFRESH, '/agent-workspaces']
-  })
-  const createSession = useCallback(
-    async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
-      if (!agentId) {
-        toast.error(t('agent.session.create.error.failed'))
-        return null
-      }
-      let result: AgentSessionEntity
-      try {
-        result = await createTrigger({
-          body: {
-            agentId,
-            name: form.name,
-            description: form.description,
-            workspace: form.workspace
-          }
-        })
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
-        return null
-      }
-
-      return result
-    },
-    [agentId, createTrigger, t]
-  )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
     refresh: SESSION_LIST_REFRESH
@@ -388,17 +342,6 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     [closeConversationTabs, deleteManyTrigger, t]
   )
 
-  const reorderSessions = useCallback(
-    async (reorderedList: AgentSessionEntity[]) => {
-      try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
-      }
-    },
-    [applyReorderedList, t]
-  )
-
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
     refresh: ['/agent-sessions']
   })
@@ -415,30 +358,8 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     [reorderTrigger, t]
   )
 
-  const { pin: pinTrigger, unpin: unpinTrigger } = usePinMutations('session')
-  const togglePin = useCallback(
-    async (sessionId: string, projectedPinId?: string | null) => {
-      const pinId = projectedPinId === undefined ? pinIdBySessionIdRef.current.get(sessionId) : projectedPinId
-      try {
-        if (pinId) {
-          await unpinTrigger(pinId)
-        } else {
-          await pinTrigger(sessionId)
-        }
-        return true
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
-        return false
-      }
-    },
-    [pinTrigger, unpinTrigger, t]
-  )
-
   return {
     sessions,
-    pages,
-    pinIdBySessionId,
-    total,
     hasMore,
     error,
     isLoading,
@@ -446,53 +367,10 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     isValidating: isRefreshing,
     reload,
     loadMore,
-    createSession,
     deleteSession,
     deleteSessions,
-    reorderSession,
-    reorderSessions,
-    togglePin
+    reorderSession
   }
-}
-
-/**
- * Raw session create/delete for surfaces that don't mount a session list
- * (e.g. AgentPage's create/reuse flows). Owns the cache-refresh contract so
- * callers never hand-roll invalidation; activation, toasts and error UX stay
- * with the caller.
- */
-export function useSessionMutations() {
-  const invalidate = useInvalidateCache()
-  const closeConversationTabs = useCloseConversationTabs()
-
-  // Refresh is fired without awaiting so callers can activate the created
-  // session immediately; a failed refresh only delays list freshness.
-  const createSession = useCallback(
-    async (body: CreateAgentSessionDto): Promise<AgentSessionEntity> => {
-      const session = await dataApiService.post('/agent-sessions', { body })
-      void invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
-        logger.warn('Failed to refresh session caches after create', err as Error, { sessionId: session.id })
-      })
-      return session
-    },
-    [invalidate]
-  )
-
-  const deleteSessions = useCallback(
-    async (sessionIds: string[]): Promise<void> => {
-      if (sessionIds.length === 0) return
-      await dataApiService.delete('/agent-sessions', { query: { ids: sessionIds.join(',') } })
-      closeConversationTabs('agents', sessionIds)
-      await invalidate([
-        ...SESSION_LIST_REFRESH,
-        '/agent-workspaces',
-        ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
-      ])
-    },
-    [closeConversationTabs, invalidate]
-  )
-
-  return { createSession, deleteSessions }
 }
 
 /**

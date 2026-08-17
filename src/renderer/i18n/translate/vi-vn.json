@@ -3027,8 +3027,6 @@
       "filter": {
         "selectAgent": "Chọn Agent",
         "selectAssistant": "Chọn trợ lý",
-        "statusLabel": "Trạng thái",
-        "statusPlaceholder": "Chọn trạng thái",
         "unlinkedAssistant": "Trợ lý không liên kết"
       },
       "loading": {
@@ -3040,11 +3038,6 @@
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
       "shortTitle": "Lịch sử",
-      "status": {
-        "completed": "Hoàn thành",
-        "failed": "Thất bại",
-        "running": "Chạy"
-      },
       "table": {
         "actions": "Hành động",
         "conversation": "Cuộc trò chuyện",

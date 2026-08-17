@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  AGENT_SESSION_DELETE_MAX_IDS,
   AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
@@ -15,6 +14,7 @@ import {
 const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
 const MIGRATED_AGENT_ID = '018f6ed6-73b8-5f40-8d0d-9bb2f8f1d001'
 const WORKSPACE_ID = 'workspace-1'
+const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 describe('ListAgentSessionsQuerySchema', () => {
   it('accepts agentId/cursor/limit without sortBy when the ordinary stream is explicit', () => {

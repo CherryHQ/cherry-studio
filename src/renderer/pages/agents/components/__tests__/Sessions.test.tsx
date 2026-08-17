@@ -282,7 +282,6 @@ vi.mock('@dnd-kit/utilities', () => ({
 }))
 
 const sessionDataMocks = vi.hoisted(() => ({
-  createSession: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteSession: vi.fn().mockResolvedValue(true),
   listSource: null as unknown as Record<string, unknown>,
   deleteSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -295,7 +294,6 @@ const sessionDataMocks = vi.hoisted(() => ({
     byAgent: Array<{ agentId: string | null; count: number; pinnedCount: number }>
     byWorkspace: Array<{ workspaceId: string; count: number; pinnedCount: number }>
   },
-  togglePin: vi.fn().mockResolvedValue(undefined),
   updateSession: vi.fn(async (form: unknown) => form),
   useUpdateSession: vi.fn(),
   useSessions: vi.fn()
@@ -868,13 +866,21 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   const listOverrides = { ...overrides }
   delete listOverrides.loadLatestSession
   delete listOverrides.reuseOrCreateSession
+  const pinIdBySessionId = listOverrides.pinIdBySessionId as ReadonlyMap<string, string> | undefined
+  delete listOverrides.pinIdBySessionId
+  const rawSessions = (listOverrides.sessions as AgentSessionListItem[] | undefined) ?? [
+    createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+    createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
+  ]
+  delete listOverrides.sessions
+  const sessions = pinIdBySessionId
+    ? rawSessions.map((session) => {
+        const pinId = pinIdBySessionId.get(session.id) ?? null
+        return { ...session, pinId, pinned: pinId !== null }
+      })
+    : rawSessions
   const listSource = {
-    sessions: [
-      createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
-      createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
-    ],
-    createSession: sessionDataMocks.createSession,
-    pinIdBySessionId: new Map(),
+    sessions,
     isLoading: false,
     error: undefined,
     deleteSession: sessionDataMocks.deleteSession,
@@ -884,11 +890,9 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isValidating: false,
     reload: sessionDataMocks.reload,
     reorderSession: sessionDataMocks.reorderSession,
-    togglePin: sessionDataMocks.togglePin,
     ...listOverrides
   }
   sessionDataMocks.listSource = listSource
-  const sessions = listSource.sessions as AgentSessionListItem[]
   const pinnedListSource = { ...listSource, sessions: sessions.filter((session) => session.pinned) }
   const ordinaryListSource = { ...listSource, sessions: sessions.filter((session) => !session.pinned) }
   sessionDataMocks.useSessions.mockImplementation((_agentId, options: { pinned?: boolean }) =>
@@ -2007,7 +2011,6 @@ describe('Sessions', () => {
 
     fireEvent.click(getHeaderNewTaskButton())
 
-    expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onCreateSession).toHaveBeenCalledWith({
       agentId: 'agent-b',
       workspace: { type: 'user', workspaceId: 'ws-b' }

@@ -48,9 +48,9 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 
-import { AGENT_SESSION_DELETE_MAX_IDS } from '@shared/data/api/schemas/agentSessions'
-
 import { agentSessionHandlers } from '../agentSessions'
+
+const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 describe('agentSessionHandlers', () => {
   beforeEach(() => {

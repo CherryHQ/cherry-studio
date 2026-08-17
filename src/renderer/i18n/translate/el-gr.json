@@ -3026,8 +3026,6 @@
       "filter": {
         "selectAgent": "Επιλέξτε πράκτορα",
         "selectAssistant": "Επιλέξτε βοηθό",
-        "statusLabel": "Κατάσταση",
-        "statusPlaceholder": "Επιλέξτε κατάσταση",
         "unlinkedAssistant": "Ασύνδετος βοηθός"
       },
       "loading": {
@@ -3039,11 +3037,6 @@
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
       "shortTitle": "Ιστορία",
-      "status": {
-        "completed": "Ολοκληρώθηκε",
-        "failed": "Απέτυχε",
-        "running": "Τρέξιμο"
-      },
       "table": {
         "actions": "Ενέργειες",
         "conversation": "Συνομιλία",
