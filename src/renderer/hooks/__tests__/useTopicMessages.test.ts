@@ -179,18 +179,6 @@ describe('useTopicMessages', () => {
       MockUseDataApiUtils.emitDataChange([
         {
           endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
-    expect(mutate).not.toHaveBeenCalled()
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
           kind: 'membership',
           routeParams: { topicId: 'topic-1' },
           entityIds: ['new-user-1', 'new-placeholder-1']

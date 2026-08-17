@@ -538,7 +538,13 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    topicBusy: mocks.topicPending || mocks.awaitingApproval,
+    canSteer: mocks.topicPending && !mocks.awaitingApproval,
+    isFulfilled: false,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({

@@ -277,13 +277,17 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
     overlay: {},
     liveAssistants: [],
+    optimisticMessages: [],
+    projectedExecutions: [],
+    activeNodeOverride: null,
+    seedReservations: vi.fn(),
     disposeOverlay: vi.fn(),
     reset: vi.fn()
   })
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicStreamStatus: () => ({ isPending: false, topicBusy: false }),
   useTopicOverlayHandoffOnTerminal: () => {}
 }))
 

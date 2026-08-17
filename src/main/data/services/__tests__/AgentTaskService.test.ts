@@ -19,7 +19,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn(), listAll: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
   jobService: { list: vi.fn() }
@@ -96,6 +96,7 @@ describe('AgentTaskService (read side)', () => {
     vi.mocked(agentSessionService.getTaskSessionIdsByScheduleIds).mockReset()
     vi.mocked(agentSessionService.getTaskSessionIdsByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobScheduleService.getById).mockReset()
+    vi.mocked(jobScheduleService.getByIdTx).mockReset()
     vi.mocked(jobScheduleService.listAll).mockReset()
     vi.mocked(jobService.list).mockReset()
   })
@@ -105,7 +106,7 @@ describe('AgentTaskService (read side)', () => {
   })
 
   it('owns and publishes every task read-model projection', () => {
-    vi.mocked(jobScheduleService.getById).mockReturnValue(makeSnapshot())
+    vi.mocked(jobScheduleService.getByIdTx).mockReturnValue(makeSnapshot())
     agentTaskService.notifyReadModelChange([TASK_ID, TASK_ID])
     agentTaskService.notifyReadModelChange([])
 

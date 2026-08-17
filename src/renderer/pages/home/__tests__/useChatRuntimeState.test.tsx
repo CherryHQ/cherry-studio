@@ -140,7 +140,7 @@ vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicStreamStatus: () => ({ isPending: false, topicBusy: false }),
   useTopicAwaitingApproval: () => false,
   useTopicOverlayHandoffOnTerminal: vi.fn()
 }))
@@ -239,9 +239,10 @@ describe('useChatRuntimeState', () => {
 
     // Same topic hidden→visible: effects re-run with an unchanged topic id, and
     // the branch-live surface must survive instead of collapsing to null.
+    const callsBeforeHide = mocks.onBranchLiveStateChange.mock.calls.length
     view.rerender(<ActivityHarness mode="hidden" topicId="topic-1" />)
     view.rerender(<ActivityHarness mode="visible" topicId="topic-1" />)
-    expect(mocks.onBranchLiveStateChange).not.toHaveBeenCalledWith(null)
+    expect(mocks.onBranchLiveStateChange.mock.calls.slice(callsBeforeHide).map(([state]) => state)).not.toContain(null)
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ topicId: 'topic-1', messageIds: ['reserved-1'] })
     )

@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -79,7 +80,7 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: false })
+  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: false, topicBusy: false })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -184,7 +185,7 @@ describe('HomeWindow', () => {
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
   })
 
-  it('keeps one assistant record across active → settled and consecutive turns', () => {
+  it('keeps one assistant record across active → settled and consecutive turns', async () => {
     state.messages = [{ id: 'user-1', role: 'user', parts: [] }] as never[]
     state.activeExecutions = [{ attemptId: 1 }] as never[]
     state.attempts = [
@@ -197,8 +198,9 @@ describe('HomeWindow', () => {
       }
     ]
     const view = render(<HomeWindow draggable={false} />)
-    fireEvent.click(screen.getByTestId('feature-menus'))
-    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('feature-menus'))
+    expect(await screen.findByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
 
     state.activeExecutions = []
     view.rerender(<HomeWindow draggable={false} />)

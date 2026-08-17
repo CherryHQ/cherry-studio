@@ -508,7 +508,7 @@ describe('ChatContent', () => {
     })
   })
 
-  it('resend opens a regenerate stream and seeds reserved messages without waiting for stream terminal', async () => {
+  it('resend opens a regenerate stream without waiting for stream terminal', async () => {
     const historyUser = createUiMessage('history-user', 'user')
     const historyAssistant = {
       ...createUiMessage('history-assistant', 'assistant'),
@@ -530,7 +530,7 @@ describe('ChatContent', () => {
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedAssistant],
-      activeExecutions: [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }]
+      activeExecutions: [{ executionId: 'provider::model-a', attemptId: 1, anchorMessageId: 'reserved-assistant' }]
     })
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [historyUser, historyAssistant],
@@ -566,14 +566,6 @@ describe('ChatContent', () => {
       })
     )
     expect(regenerate).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }],
-        expect.any(Array),
-        expect.any(Object)
-      )
-    })
   })
 
   it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
@@ -840,7 +832,7 @@ describe('ChatContent', () => {
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedUser, reservedAssistant],
-      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
+      activeExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'reserved-assistant' }]
     })
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -851,14 +843,6 @@ describe('ChatContent', () => {
       })
     })
 
-    await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }],
-        expect.any(Array),
-        expect.any(Object)
-      )
-    })
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -994,21 +978,18 @@ describe('ChatContent', () => {
       createdAt: '2026-01-01T00:00:03.000Z',
       updatedAt: '2026-01-01T00:00:03.000Z'
     })
-    const refresh = vi.fn().mockResolvedValue([
-      historyUser,
-      historyAssistant,
-      {
-        id: 'forked-user',
-        role: 'user',
-        parts: editedParts,
-        metadata: {
-          parentId: 'branch-a',
-          siblingsGroupId: 17,
-          status: 'success',
-          createdAt: '2026-01-01T00:00:03.000Z'
-        }
-      } as CherryUIMessage
-    ])
+    const forkedUser = {
+      id: 'forked-user',
+      role: 'user',
+      parts: editedParts,
+      metadata: {
+        parentId: 'branch-a',
+        siblingsGroupId: 17,
+        status: 'success',
+        createdAt: '2026-01-01T00:00:03.000Z'
+      }
+    } as CherryUIMessage
+    const refresh = vi.fn().mockResolvedValue([historyUser, historyAssistant, forkedUser])
     const reservedAssistant = {
       id: 'forked-assistant',
       role: 'assistant',
@@ -1058,7 +1039,7 @@ describe('ChatContent', () => {
       ] as never
     })
 
-    render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+    const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await act(async () => {
       await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
@@ -1078,6 +1059,17 @@ describe('ChatContent', () => {
       })
     )
     expect(regenerate).not.toHaveBeenCalled()
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, historyAssistant, forkedUser],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'forked-user',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1512,11 +1504,14 @@ describe('ChatContent', () => {
       })
     })
 
-    await waitFor(() =>
-      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(
-        expect.objectContaining({ messageIds: ['reserved-user', 'reserved-assistant-a', 'reserved-assistant-b'] })
-      )
-    )
+    await waitFor(() => {
+      const liveState = onBranchLiveStateChange.mock.calls.at(-1)?.[0]
+      expect(liveState?.nodes.map((node: { id: string }) => node.id)).toEqual([
+        'reserved-user',
+        'reserved-assistant-a',
+        'reserved-assistant-b'
+      ])
+    })
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()

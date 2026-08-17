@@ -3037,7 +3037,8 @@ describe('AiStreamManager', () => {
       expect(listener.pausedResults).toHaveLength(0)
 
       releaseTerminal()
-      await flushUntil(() => mgr.inspect(topicId)?.status === 'aborted')
+      await terminalReady
+      await flush()
       expect(mgr.inspect(topicId)?.status).toBe('aborted')
       expect(listener.pausedResults).toEqual([expect.objectContaining({ isTopicDone: true })])
     })
@@ -3088,13 +3089,16 @@ describe('AiStreamManager', () => {
         releaseOldRecovery = resolve
       })
       mgr.failTopicContinuationWhenReady(topicId, 'provider-a::model-a', error('old handoff failed'), oldRecovery)
+      const terminalReady = Promise.resolve()
       mockAbortPendingTurn.mockReturnValueOnce({
         handled: true,
-        terminalReady: Promise.resolve(),
+        terminalReady,
         terminalOutcome: { outcome: 'error', error: error('old handoff failed') }
       })
       mgr.abort(topicId, 'user-requested')
-      await flushUntil(() => mgr.inspect(topicId)?.status === 'error')
+      await terminalReady
+      await flush()
+      expect(mgr.inspect(topicId)?.status).toBe('error')
 
       const nextListener = new FakeListener(`l:new:${topicId}`)
       const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
@@ -3108,7 +3112,8 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
 
       releaseOldRecovery()
-      await new Promise((resolve) => setImmediate(resolve))
+      await oldRecovery
+      await flush()
 
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
       expect(nextListener.errorResults).toEqual([])

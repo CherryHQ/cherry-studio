@@ -272,8 +272,12 @@ async function makeHistory(
   vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => ({ ...makeModel(id), ...modelPatch })))
   // Mock createUserMessageWithPlaceholders so prepareDispatch doesn't need a real DB.
   const { messageService } = await import('@main/data/services/MessageService')
+  const userMessage = fakeMsg('anchor', 'user', 'q') as any
+  const getPath = mockGetPathToNode.getMockImplementation()
+  const path = (getPath?.('anchor') ?? []) as Array<Record<string, unknown>>
+  mockGetPathToNode.mockReturnValueOnce([...path, userMessage])
   vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
-    userMessage: fakeMsg('anchor', 'user', 'q') as any,
+    userMessage,
     placeholders: models.map((_, i) => fakeMsg(`ph${i}`, 'assistant', '') as any)
   })
 
@@ -344,8 +348,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
-    // The submission rides as a planned tail row with a generated id; the last-3
-    // window over path+tail opens on a user row, extending back to u2.
+    // The reserved current user row occupies the final slot; the last-3 window
+    // opens on a user row, extending back to u2.
     expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3', expect.any(String)])
   })
 
@@ -360,7 +364,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const { messages } = await makeHistory('u2')
 
-    // The current user message is the planned tail row, not a persisted anchor.
+    // The current user message is reserved before history is resolved.
     expect(messages.map((m) => m.role)).toEqual(['user'])
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
@@ -412,7 +416,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
     })
     mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'older'), fakeMsg('a1', 'assistant', 'ok'), attachedMsg])
-    // The planned tail occupies one window slot, so last-2 keeps the attachment row.
+    // The reserved current user row occupies one window slot, so last-2 keeps the attachment row.
     maxMessagesOn(2)
 
     const { messages, prepared } = await makeHistory('u2')
@@ -641,7 +645,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
-    // Nothing folded — the whole path (plus the planned tail row) is still served.
+    // Nothing folded — the whole path (plus the reserved current user row) is still served.
     expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', expect.any(String)])
   })
 
