@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createMock, updateAgentMock, getAgentMock } = vi.hoisted(() => ({
+const { createMock, deleteMock, updateAgentMock, getAgentMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
+  deleteMock: vi.fn(),
   updateAgentMock: vi.fn(),
   getAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
-  mcpServerService: { create: createMock }
+  mcpServerService: { create: createMock, delete: deleteMock }
 }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: getAgentMock, updateAgent: updateAgentMock }
@@ -151,12 +152,38 @@ describe('McpManagerServer', () => {
       expect(result.content[0].text).toContain('db write failed')
     })
 
-    it('does not bind when the agent is missing', async () => {
+    it('does not create when the agent is missing', async () => {
       getAgentMock.mockReturnValue(null)
-      mockCreatedServer()
       const result = await callTool(createServer('ghost'), 'install_mcp_server', { name: 'x', command: 'npx' })
       expect(result.isError).toBe(true)
+      expect(createMock).not.toHaveBeenCalled()
       expect(updateAgentMock).not.toHaveBeenCalled()
+    })
+
+    it('rolls back the created server when the bind fails', async () => {
+      mockAgent()
+      mockCreatedServer()
+      updateAgentMock.mockImplementation(() => {
+        throw new Error('bind write failed')
+      })
+      const result = await callTool(createServer(), 'install_mcp_server', { name: 'x', command: 'npx' })
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('bind write failed')
+      expect(deleteMock).toHaveBeenCalledWith('server-1')
+    })
+
+    it('still surfaces the bind error when the rollback delete also fails', async () => {
+      mockAgent()
+      mockCreatedServer()
+      updateAgentMock.mockImplementation(() => {
+        throw new Error('bind write failed')
+      })
+      deleteMock.mockImplementation(() => {
+        throw new Error('delete failed')
+      })
+      const result = await callTool(createServer(), 'install_mcp_server', { name: 'x', command: 'npx' })
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('bind write failed')
     })
   })
 

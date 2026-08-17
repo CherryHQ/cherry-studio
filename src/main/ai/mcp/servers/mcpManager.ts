@@ -12,11 +12,15 @@ const INSTALL_TOOL: Tool = {
   name: 'install_mcp_server',
   description:
     'Register a new MCP server from its connection config and enable it for the current agent. ' +
+    'Call this only when the user explicitly asks to install an MCP server. ' +
     'This is the one-tool equivalent of manually adding a server in Settings → MCP: you supply the ' +
     'launch config (command/args/env for stdio, baseUrl/headers for remote) as plain JSON, Cherry ' +
     'writes it to the server registry, binds it to the current agent, and activates it so its tools ' +
     'become available (live sessions pick the tools up on the next tool re-list, not a restart). ' +
-    'For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required.',
+    'For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
+    'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
+    '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
+    'config the user provided or explicitly confirmed.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -73,6 +77,11 @@ const INSTALL_TOOL: Tool = {
  * Mirror of `SkillsServer`: one tool call in the main process instead of a correct multi-step shell or
  * SQL sequence, and validation is delegated to the shared `CreateMcpServerSchema` so the data-layer
  * guarantees (name required, unknown fields rejected) are the same here as in the renderer.
+ * create+updateAgent are not one transaction (the junction write only exists inside
+ * `AgentService.updateAgent`'s own tx), so a bind failure deletes the created row as a
+ * best-effort rollback instead of leaving an active, unbound orphan. Concurrent installs
+ * read-modify-write the full mcps set, so the last writer wins; SQLite serializes the
+ * writes and installs are rare and human-paced, so no locking is added here.
  */
 class McpManagerServer {
   public mcpServer: McpServer
@@ -134,6 +143,13 @@ class McpManagerServer {
       throw new McpError(ErrorCode.InvalidParams, '`baseUrl` is required for an sse/streamableHttp MCP server')
     }
 
+    // Fail before creating anything when the agent is gone — otherwise the row would
+    // need a rollback delete below.
+    const agent = agentService.getAgent(this.agentId)
+    if (!agent) {
+      throw new McpError(ErrorCode.InvalidParams, `Agent not found: ${this.agentId}`)
+    }
+
     const now = Date.now()
     const server = mcpServerService.create({
       ...parsed,
@@ -147,14 +163,23 @@ class McpManagerServer {
 
     // Bind to the current agent. updateAgent replaces the full mcps set, so append the new id to the
     // live list; it fires `onAgentUpdated({ mcps })` which reconciles live session connections.
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) {
-      throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    }
+    // If the bind fails, roll back the created row so no active, unbound orphan server is left behind.
     const nextMcps = [...(agent.mcps ?? []), server.id]
-    const updated = agentService.updateAgent(this.agentId, { mcps: nextMcps })
-    if (!updated) {
-      throw new McpError(ErrorCode.InternalError, `Failed to bind MCP server to agent: ${this.agentId}`)
+    try {
+      const updated = agentService.updateAgent(this.agentId, { mcps: nextMcps })
+      if (!updated) {
+        throw new McpError(ErrorCode.InternalError, `Failed to bind MCP server to agent: ${this.agentId}`)
+      }
+    } catch (error) {
+      try {
+        mcpServerService.delete(server.id)
+      } catch (rollbackError) {
+        logger.error('Rollback failed: orphaned MCP server left after bind failure', {
+          serverId: server.id,
+          error: rollbackError
+        })
+      }
+      throw error
     }
 
     logger.info('MCP server installed via tool', {
