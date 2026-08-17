@@ -1089,8 +1089,8 @@
           "label": "Выполнять команды shell"
         },
         "create_goal": {
-          "description": "[to be translated]:Create a session goal to work toward",
-          "label": "[to be translated]:Create goal"
+          "description": "Создать цель для работы в рамках сеанса",
+          "label": "Создать цель"
         },
         "edit": {
           "description": "Редактировать файлы",
@@ -1101,8 +1101,8 @@
           "label": "Искать файлы"
         },
         "get_goal": {
-          "description": "[to be translated]:Read the current session goal",
-          "label": "[to be translated]:Read goal"
+          "description": "Прочитать цель текущего сеанса",
+          "label": "Прочитать цель"
         },
         "grep": {
           "description": "Искать содержимое файлов",
@@ -1121,16 +1121,16 @@
           "label": "Прочитать изображение"
         },
         "skill": {
-          "description": "[to be translated]:Load the full instructions of an enabled skill",
-          "label": "[to be translated]:Load skill instructions"
+          "description": "Загрузить полные инструкции включённого навыка",
+          "label": "Загрузить инструкции навыка"
         },
         "todo_write": {
-          "description": "[to be translated]:Manage the task list",
-          "label": "[to be translated]:Manage the task list"
+          "description": "Управлять списком задач",
+          "label": "Управлять списком задач"
         },
         "update_goal": {
-          "description": "[to be translated]:Update the session goal status or objective",
-          "label": "[to be translated]:Update goal"
+          "description": "Обновить состояние или содержание цели сеанса",
+          "label": "Обновить цель"
         },
         "write": {
           "description": "Записывать файлы",
@@ -2227,7 +2227,7 @@
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
     "cli_tools": {
       "claude_code": "Клод Код",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2251,39 +2251,39 @@
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
     "custom_path_set": "Пользовательский путь терминала успешно установлен",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Режим агента по умолчанию",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Объединяет многоэтапную работу с инструментами через SDK PTC Code Mode для сложных задач программирования.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Сохраняет существующий набор параметров по умолчанию в общих настройках ~/.dsh.",
+          "label": "Настройки Harness по умолчанию"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Использует только постоянную оболочку и текстовый редактор, чтобы свести набор инструментов к минимуму.",
+          "label": "Минимальный"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Полнофункциональный агент программирования с файлами, оболочкой, поиском, навыками, планированием и субагентами.",
+          "label": "Стандартный"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Полный доступ позволяет агенту обращаться к файлам за пределами рабочей области и пропускает подтверждение операций. Используйте его только для задач, которым доверяете.",
+      "permission_mode": "Разрешение по умолчанию",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Предоставляет неограниченный доступ без подтверждения операций.",
+          "label": "Полный доступ"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Запрещает запись в файлы и запрашивает подтверждение перед рискованными операциями.",
+          "label": "Только чтение"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Разрешает запись в текущую рабочую область DSH и запрашивает подтверждение перед рискованными операциями.",
+          "label": "Запись в рабочую область"
         }
       }
     },
@@ -2337,7 +2337,7 @@
     "no_tools": "Нет доступных инструментов",
     "not_installed": "Не установлено",
     "open_provider_settings": "Открыть настройки провайдера",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Открыть веб-интерфейс",
     "own_login": {
       "title": "Официальный вход {{toolName}}"
     },
@@ -2347,10 +2347,10 @@
     "search_provider_placeholder": "Поиск провайдеров…",
     "select_folder": "Выберите папку",
     "select_provider_before_launch": "Выберите провайдер перед запуском {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Сначала выберите провайдера и модель",
     "select_tool_to_start": "Выберите инструмент CLI слева, чтобы начать настройку",
     "set_custom_path": "Настройка пользовательского пути терминала",
-    "stop": "[to be translated]:Stop",
+    "stop": "Остановить",
     "supported_providers": "Поддерживаемые провайдеры",
     "terminal": "терминал",
     "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
@@ -3550,7 +3550,7 @@
             "label": "Режим выполнения",
             "option": {
               "claude_code": "Расширенный: Claude Agent",
-              "dsh": "[to be translated]:DeepSeek Harness",
+              "dsh": "DeepSeek Harness",
               "pi": "Быстрый: Pi"
             }
           },
@@ -7184,6 +7184,7 @@
         "no": "без описания",
         "nowledge_mem": "Требуется запущенное локально приложение Nowledge Mem. Хранит чаты ИИ, инструменты, заметки, агентов и файлы в приватной памяти на вашем компьютере. Скачать можно на https://mem.nowledge.co/",
         "python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",
+        "qveris": "Подключитесь к QVeris, чтобы находить, просматривать и вызывать возможности ИИ-агентов. Требуется настроить переменную окружения QVERIS_API_KEY.",
         "sequentialthinking": "MCP серверная реализация, предоставляющая инструменты для динамического и рефлексивного решения проблем посредством структурированного мыслительного процесса"
       },
       "command": "Команда",
@@ -7302,6 +7303,10 @@
       "providerNotFound": "Провайдер MCP не найден",
       "providerPlaceholder": "Имя провайдера",
       "providerUrl": "URL провайдера",
+      "qveris": {
+        "get_api_key": "Получить API-ключ",
+        "missing_api_key": "Для QVeris требуется API-ключ. <link>Зарегистрируйтесь или войдите, чтобы получить API-ключ</link>, затем введите его как QVERIS_API_KEY."
+      },
       "providers": "Провайдеры",
       "registry": "Реестр пакетов",
       "registryDefault": "По умолчанию",
@@ -9033,5 +9038,18 @@
     "quit": "Выйти",
     "show_window": "Показать окно",
     "visualization": "Визуализация"
+  },
+  "xlsx_preview": {
+    "chart": "Диаграмма",
+    "chart_unsupported": "Этот тип диаграммы пока не поддерживается",
+    "error": {
+      "description": "Не удалось открыть предварительный просмотр этой таблицы."
+    },
+    "formula_not_evaluated": "Не удалось вычислить формулу",
+    "sheet_tabs_label": "Листы",
+    "too_large": {
+      "description": "Размер файла {{size}} превышает ограничение предварительного просмотра {{limit}}.",
+      "title": "Файл слишком велик для предварительного просмотра"
+    }
   }
 }

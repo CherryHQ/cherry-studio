@@ -62,6 +62,7 @@ export const SHORTCUT_SYMBOLS = ['=', '-', '[', ']', ',', '.', '/', '\\', ';', "
 
 export const SHORTCUT_NAMED_KEYS = [
   'Escape',
+  'CapsLock',
   'Enter',
   'Tab',
   'Space',
@@ -374,7 +375,8 @@ export const isValidShortcut = (binding: ShortcutBinding): boolean => {
 
   const hasModifier = binding.some(isShortcutModifier)
   const hasNonModifier = binding.some((key) => !isShortcutModifier(key))
-  const isSpecialKey = binding.length === 1 && (binding[0] === 'Escape' || isShortcutFunctionKey(binding[0]))
+  const isSpecialKey =
+    binding.length === 1 && (binding[0] === 'Escape' || binding[0] === 'CapsLock' || isShortcutFunctionKey(binding[0]))
 
   return (hasModifier && hasNonModifier) || isSpecialKey
 }

@@ -1089,8 +1089,8 @@
           "label": "シェルコマンドを実行"
         },
         "create_goal": {
-          "description": "[to be translated]:Create a session goal to work toward",
-          "label": "[to be translated]:Create goal"
+          "description": "達成するセッション目標を作成",
+          "label": "目標を作成"
         },
         "edit": {
           "description": "ファイルを編集",
@@ -1101,8 +1101,8 @@
           "label": "ファイルを検索"
         },
         "get_goal": {
-          "description": "[to be translated]:Read the current session goal",
-          "label": "[to be translated]:Read goal"
+          "description": "現在のセッション目標を読み取る",
+          "label": "目標を読み取る"
         },
         "grep": {
           "description": "ファイル内容を検索",
@@ -1121,16 +1121,16 @@
           "label": "画像を読み取る"
         },
         "skill": {
-          "description": "[to be translated]:Load the full instructions of an enabled skill",
-          "label": "[to be translated]:Load skill instructions"
+          "description": "有効なスキルの完全な手順を読み込む",
+          "label": "スキルの手順を読み込む"
         },
         "todo_write": {
-          "description": "[to be translated]:Manage the task list",
-          "label": "[to be translated]:Manage the task list"
+          "description": "タスクリストを管理",
+          "label": "タスクリストを管理"
         },
         "update_goal": {
-          "description": "[to be translated]:Update the session goal status or objective",
-          "label": "[to be translated]:Update goal"
+          "description": "セッション目標の状態または内容を更新",
+          "label": "目標を更新"
         },
         "write": {
           "description": "ファイルを書き込む",
@@ -2227,7 +2227,7 @@
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2251,39 +2251,39 @@
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "デフォルトのエージェントモード",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "PTC Code Mode SDK を介して複数ステップのツール操作を組み合わせ、複雑なコーディングタスクに対応します。",
+          "label": "PTC コード"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "共有の ~/.dsh 設定にある既存のデフォルトプリセットを維持します。",
+          "label": "Harness のデフォルト"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "ツール構成を最小限にするため、永続シェルとテキストエディターのみを使用します。",
+          "label": "最小"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "ファイル、シェル、検索、スキル、計画、サブエージェントを備えた完全なコーディングエージェントです。",
+          "label": "標準"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "フルアクセスでは、エージェントがワークスペース外のファイルにアクセスでき、操作の承認が省略されます。信頼できるタスクにのみ使用してください。",
+      "permission_mode": "デフォルトの権限",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "操作の承認なしで無制限のアクセスを許可します。",
+          "label": "フルアクセス"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "ファイルへの書き込みを制限し、危険な操作の前に確認を求めます。",
+          "label": "読み取り専用"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "現在の DSH ワークスペースへの書き込みを許可し、危険な操作の前に確認を求めます。",
+          "label": "ワークスペースへの書き込み"
         }
       }
     },
@@ -2337,7 +2337,7 @@
     "no_tools": "ツールは利用できません",
     "not_installed": "インストールされていません",
     "open_provider_settings": "プロバイダー設定を開く",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Web UI を開く",
     "own_login": {
       "title": "{{toolName}} 公式"
     },
@@ -2347,10 +2347,10 @@
     "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダーを選択",
     "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "最初にプロバイダーとモデルを選択してください",
     "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
-    "stop": "[to be translated]:Stop",
+    "stop": "停止",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
@@ -3550,7 +3550,7 @@
             "label": "実行モード",
             "option": {
               "claude_code": "高度：Claude Agent",
-              "dsh": "[to be translated]:DeepSeek Harness",
+              "dsh": "DeepSeek Harness",
               "pi": "高速：Pi"
             }
           },
@@ -7184,6 +7184,7 @@
         "no": "説明なし",
         "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
+        "qveris": "QVeris に接続して、AI エージェントの機能を検出、確認、呼び出しできます。環境変数 QVERIS_API_KEY の設定が必要です。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },
       "command": "コマンド",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
       "providers": "プロバイダー",
+      "qveris": {
+        "get_api_key": "API キーを取得",
+        "missing_api_key": "QVeris には API キーが必要です。<link>登録またはログインして API キーを取得</link>し、QVERIS_API_KEY として入力してください。"
+      },
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "終了",
     "show_window": "ウィンドウを表示",
     "visualization": "可視化"
+  },
+  "xlsx_preview": {
+    "chart": "グラフ",
+    "chart_unsupported": "このグラフ形式はまだサポートされていません",
+    "error": {
+      "description": "このスプレッドシートをプレビューできませんでした。"
+    },
+    "formula_not_evaluated": "数式を評価できませんでした",
+    "sheet_tabs_label": "シート",
+    "too_large": {
+      "description": "ファイルサイズ {{size}} はプレビュー上限の {{limit}} を超えています。",
+      "title": "ファイルが大きすぎてプレビューできません"
+    }
   }
 }

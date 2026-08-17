@@ -1089,8 +1089,8 @@
           "label": "Executar comandos do terminal"
         },
         "create_goal": {
-          "description": "[to be translated]:Create a session goal to work toward",
-          "label": "[to be translated]:Create goal"
+          "description": "Criar um objetivo de sessão a alcançar",
+          "label": "Criar objetivo"
         },
         "edit": {
           "description": "Editar ficheiros",
@@ -1101,8 +1101,8 @@
           "label": "Procurar ficheiros"
         },
         "get_goal": {
-          "description": "[to be translated]:Read the current session goal",
-          "label": "[to be translated]:Read goal"
+          "description": "Ler o objetivo atual da sessão",
+          "label": "Ler objetivo"
         },
         "grep": {
           "description": "Pesquisar conteúdos de ficheiros",
@@ -1121,16 +1121,16 @@
           "label": "Ler imagem"
         },
         "skill": {
-          "description": "[to be translated]:Load the full instructions of an enabled skill",
-          "label": "[to be translated]:Load skill instructions"
+          "description": "Carregar as instruções completas de uma competência ativada",
+          "label": "Carregar instruções da competência"
         },
         "todo_write": {
-          "description": "[to be translated]:Manage the task list",
-          "label": "[to be translated]:Manage the task list"
+          "description": "Gerir a lista de tarefas",
+          "label": "Gerir a lista de tarefas"
         },
         "update_goal": {
-          "description": "[to be translated]:Update the session goal status or objective",
-          "label": "[to be translated]:Update goal"
+          "description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
+          "label": "Atualizar objetivo"
         },
         "write": {
           "description": "Escrever ficheiros",
@@ -2227,7 +2227,7 @@
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "CLI do Gemini",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2251,39 +2251,39 @@
     "custom_path_required": "Este terminal requer a definição de um caminho personalizado",
     "custom_path_set": "Configuração personalizada do caminho do terminal bem-sucedida",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Modo de agente predefinido",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combina trabalho de ferramentas em vários passos através do SDK PTC Code Mode para tarefas de programação complexas.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Mantém a predefinição existente nas definições partilhadas de ~/.dsh.",
+          "label": "Predefinição do Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Utiliza apenas uma shell persistente e um editor de texto para disponibilizar o conjunto mínimo de ferramentas.",
+          "label": "Mínimo"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agente de programação completo com ficheiros, shell, pesquisa, competências, planeamento e subagentes.",
+          "label": "Padrão"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "O acesso total permite ao agente aceder a ficheiros fora do espaço de trabalho e ignora a aprovação de operações. Utilize-o apenas para tarefas em que confia.",
+      "permission_mode": "Permissão predefinida",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Permite acesso sem restrições e sem aprovação de operações.",
+          "label": "Acesso total"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Restringe a escrita de ficheiros e pede confirmação antes de operações de risco.",
+          "label": "Apenas leitura"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Permite a escrita no espaço de trabalho DSH atual e pede confirmação antes de operações de risco.",
+          "label": "Escrita no espaço de trabalho"
         }
       }
     },
@@ -2337,7 +2337,7 @@
     "no_tools": "Nenhuma ferramenta disponível",
     "not_installed": "Não instalado",
     "open_provider_settings": "Abrir configurações do fornecedor",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Abrir a interface Web",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2347,10 +2347,10 @@
     "search_provider_placeholder": "Fornecedores de pesquisa…",
     "select_folder": "Selecionar pasta",
     "select_provider_before_launch": "Selecione um fornecedor antes de iniciar {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Selecione primeiro um fornecedor e um modelo",
     "select_tool_to_start": "Selecione uma ferramenta de CLI à esquerda para começar a configurar",
     "set_custom_path": "Definir caminho personalizado do terminal",
-    "stop": "[to be translated]:Stop",
+    "stop": "Parar",
     "supported_providers": "Fornecedores de serviço suportados",
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicação de terminal executar a CLI",
@@ -3550,7 +3550,7 @@
             "label": "Modo de execução",
             "option": {
               "claude_code": "Avançado: Claude Agent",
-              "dsh": "[to be translated]:DeepSeek Harness",
+              "dsh": "DeepSeek Harness",
               "pi": "Rápido: Pi"
             }
           },
@@ -7184,6 +7184,7 @@
         "no": "sem descrição",
         "nowledge_mem": "Requer a aplicação Nowledge Mem em execução localmente. Mantém conversas de IA, ferramentas, notas, agentes e ficheiros numa memória privada no seu computador. Transfira de https://mem.nowledge.co/",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
+        "qveris": "Conecte-se ao QVeris para descobrir, inspecionar e chamar capacidades de agentes de IA. É necessário configurar a variável de ambiente QVERIS_API_KEY.",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
       },
       "command": "Comando",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
+      "qveris": {
+        "get_api_key": "Obter chave de API",
+        "missing_api_key": "O QVeris requer uma chave de API. <link>Registe-se ou inicie sessão para obter uma chave de API</link> e, em seguida, introduza-a como QVERIS_API_KEY."
+      },
       "registry": "Fonte de Gestão de Pacotes",
       "registryDefault": "Padrão",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "Sair",
     "show_window": "Exibir Janela",
     "visualization": "Visualização"
+  },
+  "xlsx_preview": {
+    "chart": "Gráfico",
+    "chart_unsupported": "Este tipo de gráfico ainda não é suportado",
+    "error": {
+      "description": "Não foi possível pré-visualizar esta folha de cálculo."
+    },
+    "formula_not_evaluated": "Não foi possível avaliar a fórmula",
+    "sheet_tabs_label": "Folhas",
+    "too_large": {
+      "description": "O tamanho do ficheiro {{size}} excede o limite de pré-visualização de {{limit}}.",
+      "title": "Ficheiro demasiado grande para pré-visualizar"
+    }
   }
 }

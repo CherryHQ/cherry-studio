@@ -280,7 +280,8 @@ export function apply(ctx: Context): void {
         }
       },
       execute(args, exec) {
-        const sessionId = exec.agent?.id
+        // Delegated agents resolve to their root: sessionTools and the host both key by root session id.
+        const sessionId = exec.agent === undefined ? undefined : rootSessionOf(exec.agent)
         if (!sessionId || !sessionTools.get(sessionId)?.has(tool.name)) {
           return Promise.reject(new Error(`bridge tool "${tool.name}" is unavailable for this session`))
         }
