@@ -497,6 +497,10 @@ export class ChannelMessageHandler {
       return
     }
 
+    if (command.command === 'help' || command.command === 'whoami') {
+      return this.processCommand(adapter, command, () => {})
+    }
+
     // Preserve transport arrival order: messages received before a command must finish before
     // `/new` rotates the session or `/compact` starts another turn for the same conversation.
     for (const [batchKey, batch] of this.pendingBatches) {

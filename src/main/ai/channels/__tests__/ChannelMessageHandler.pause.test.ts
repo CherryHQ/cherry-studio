@@ -306,6 +306,27 @@ describe('ChannelMessageHandler write quiesce', () => {
     hold.dispose()
   })
 
+  it('does not make read-only commands wait for an active conversation turn', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    mockStartAgentSessionRun.mockResolvedValue(undefined)
+
+    const turn = handler.handleIncoming(adapter, msg('Hi'))
+    await vi.advanceTimersByTimeAsync(8500)
+    const help = handler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      conversationKind: 'direct',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'help'
+    })
+
+    await expect(help).resolves.toBeUndefined()
+    expect(adapter.sendMessage).toHaveBeenCalled()
+    expect(pendingAdmissionCount(handler)).toBe(0)
+    void turn
+  })
+
   it('an early-return processIncoming still settles its admission (backstop onAdmitted)', async () => {
     const adapter = createMockAdapter()
     // Orphan session: agentId === null makes processIncoming bail before startAgentSessionRun.

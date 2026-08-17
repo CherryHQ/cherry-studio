@@ -254,6 +254,7 @@ class FeishuAdapter extends ChannelAdapter {
 
   async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
     await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+    this.chatReactions.delete(this.responseKey(chatId, opts))
     const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
     await this.getChannel().send(
       chatId,
@@ -313,17 +314,17 @@ class FeishuAdapter extends ChannelAdapter {
     if (existing && from.includes(existing.emoji)) await this.setChatReaction(chatId, emoji, opts)
   }
 
-  private async clearChatReaction(chatId: string): Promise<void> {
-    const reaction = this.chatReactions.get(chatId)
+  private async clearChatReaction(reactionKey: string): Promise<void> {
+    const reaction = this.chatReactions.get(reactionKey)
     if (!reaction) return
-    this.chatReactions.delete(chatId)
+    this.chatReactions.delete(reactionKey)
     if (!this.channel) return
 
     try {
       await this.channel.removeReaction(reaction.messageId, reaction.reactionId)
     } catch (error) {
       this.log.debug('Failed to remove status reaction', {
-        chatId,
+        reactionKey,
         error: error instanceof Error ? error.message : String(error)
       })
     }
@@ -344,6 +345,7 @@ class FeishuAdapter extends ChannelAdapter {
   override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
     const streamKey = this.responseKey(chatId, opts)
     await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+    this.chatReactions.delete(streamKey)
     const stream = this.streams.get(streamKey)
     if (!stream) return false
     try {
@@ -357,6 +359,7 @@ class FeishuAdapter extends ChannelAdapter {
   override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
     const streamKey = this.responseKey(chatId, opts)
     await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
+    this.chatReactions.delete(streamKey)
     const stream = this.streams.get(streamKey)
     if (stream) {
       try {
@@ -382,7 +385,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     this.latestUserMessageByChat.set(message.chatId, message.messageId)
     const text = message.content.trim()
-    const conversationId = message.threadId ?? message.rootId
+    const conversationId = message.threadId
     const conversation = conversationId
       ? { conversationId: `thread:${conversationId}`, conversationKind: 'thread' as const, replyInThread: true }
       : { conversationKind: message.chatType === 'p2p' ? ('direct' as const) : ('group' as const) }

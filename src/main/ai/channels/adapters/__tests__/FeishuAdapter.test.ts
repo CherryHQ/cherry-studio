@@ -324,6 +324,19 @@ describe('FeishuAdapter', () => {
     })
   })
 
+  it('keeps ordinary quoted replies in the chat conversation', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+
+    await channelHandlers.message(incomingMessage({ chatType: 'group', rootId: 'root-1' }))
+
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'oc_123', conversationKind: 'group' }))
+    expect(onMessage.mock.calls[0][0]).not.toHaveProperty('conversationId')
+    expect(onMessage.mock.calls[0][0]).not.toHaveProperty('replyInThread')
+  })
+
   it('preserves partial output when finalizing a failed stream', async () => {
     const adapter = createAdapter()
     await adapter.connect()
@@ -433,6 +446,7 @@ describe('FeishuAdapter', () => {
     expect(mockAddReaction).toHaveBeenNthCalledWith(1, 'msg-in-1', 'Typing')
     expect(mockRemoveReaction).toHaveBeenCalledWith('msg-in-1', 'rx-thinking')
     expect(mockAddReaction).toHaveBeenNthCalledWith(2, 'msg-in-1', 'OK')
+    expect(adapter.chatReactions.size).toBe(0)
   })
 
   it('keeps notification chat ids from configuration', () => {
