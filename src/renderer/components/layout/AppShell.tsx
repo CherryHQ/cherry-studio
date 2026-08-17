@@ -15,6 +15,7 @@ import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
+import { ApiGatewayRequiredDialog } from './feedback/ApiGatewayRequiredDialog'
 import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
@@ -228,6 +229,7 @@ export const AppShell = () => {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
       {contentArea}
+      <ApiGatewayRequiredDialog />
     </div>
   )
 
