@@ -46,6 +46,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     packageName: '@deepseek-ai/dsh',
     install: 'npm',
     misePrerelease: true,
+    // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
     miseNpmShellOut: true
   }),
   defineCodeCliTool({
