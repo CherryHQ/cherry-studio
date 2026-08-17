@@ -8,6 +8,8 @@ export interface CodeCliToolPreset {
   install: 'registry' | 'npm'
   miseTool: string
   misePrerelease?: boolean
+  /** Use npm CLI when mise's embedded installer cannot install this package. */
+  miseNpmShellOut?: boolean
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
@@ -43,7 +45,8 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'dsh',
     packageName: '@deepseek-ai/dsh',
     install: 'npm',
-    misePrerelease: true
+    misePrerelease: true,
+    miseNpmShellOut: true
   }),
   defineCodeCliTool({
     id: CodeCli.GEMINI_CLI,

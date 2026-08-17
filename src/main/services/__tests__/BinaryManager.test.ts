@@ -1597,7 +1597,8 @@ describe('BinaryManager', () => {
 
       const latestCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'latest')
       expect(latestCall?.[1]).toEqual(['latest', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh'])
-      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
+      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1' })
+      expect(latestCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
     })
 
     it('includes an applied custom tool under its manifest name', async () => {
@@ -2117,9 +2118,17 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
-    it('installs the current DeepSeek Harness prerelease without mise release-age filtering', async () => {
+    it('activates Node before shelling out to npm for the current DeepSeek Harness prerelease', async () => {
       const service = makeService()
       let installed = false
+      let resolveRuntimeStarted!: () => void
+      let resolveRuntimeActivation!: () => void
+      const runtimeStarted = new Promise<void>((resolve) => {
+        resolveRuntimeStarted = resolve
+      })
+      const runtimeActivation = new Promise<void>((resolve) => {
+        resolveRuntimeActivation = resolve
+      })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls' && args.length === 2) {
           return {
@@ -2135,23 +2144,33 @@ describe('BinaryManager', () => {
             stderr: ''
           }
         }
-        if (args[0] === 'use') installed = true
+        if (args[0] === 'use' && args.includes('node@22')) {
+          resolveRuntimeStarted()
+          await runtimeActivation
+        }
+        if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
-      await service.installByName({ name: 'dsh' })
+      const installPromise = service.installByName({ name: 'dsh' })
 
-      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
-      expect(useCall?.[1]).toEqual([
-        'use',
-        '-g',
-        '--minimum-release-age',
-        '0s',
-        'node@22',
-        'npm:@deepseek-ai/dsh@latest'
+      await runtimeStarted
+      await Promise.resolve()
+      expect(mockExecFileAsync.mock.calls.some((call: any[]) => call[1].includes('npm:@deepseek-ai/dsh@latest'))).toBe(
+        false
+      )
+
+      resolveRuntimeActivation()
+      await installPromise
+
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls.map((call: any[]) => call[1])).toEqual([
+        ['use', '-g', 'node@22'],
+        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
       ])
-      expect(useCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
+      expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
+      expect(useCalls[1]?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
     })
   })
 
@@ -2902,6 +2921,23 @@ describe('BinaryManager', () => {
         env: isolatedEnv,
         timeout: 120_000
       })
+    })
+
+    it('keeps prerelease and npm shell-out environment controls independent', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { MISE_DATA_DIR: '/isolated' }
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
+
+      await (service as any).runMise(['latest', 'npm:prerelease-tool'], { includePrerelease: true })
+      await (service as any).runMise(['latest', 'npm:shell-out-tool'], { shellOutNpm: true })
+
+      const prereleaseEnv = mockExecFileAsync.mock.calls[0][2].env
+      const shellOutEnv = mockExecFileAsync.mock.calls[1][2].env
+      expect(prereleaseEnv).toMatchObject({ MISE_DATA_DIR: '/isolated', MISE_PRERELEASES: '1' })
+      expect(prereleaseEnv).not.toHaveProperty('MISE_NPM_SHELL_OUT')
+      expect(shellOutEnv).toMatchObject({ MISE_DATA_DIR: '/isolated', MISE_NPM_SHELL_OUT: '1' })
+      expect(shellOutEnv).not.toHaveProperty('MISE_PRERELEASES')
     })
 
     it('includes mise stderr in the thrown diagnostic', async () => {

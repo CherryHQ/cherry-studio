@@ -88,6 +88,9 @@ const LATEST_VERSIONS_CONCURRENCY = 4
 const MISE_PRERELEASE_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.misePrerelease).map((preset) => preset.miseTool)
 )
+const MISE_NPM_SHELL_OUT_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
+)
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -880,7 +883,7 @@ export class BinaryManager extends BaseService {
 
   private async runMise(
     args: string[],
-    opts?: { timeoutMs?: number; includePrerelease?: boolean }
+    opts?: { timeoutMs?: number; includePrerelease?: boolean; shellOutNpm?: boolean }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
@@ -891,9 +894,12 @@ export class BinaryManager extends BaseService {
       throw new Error('mise binary not available')
     }
     const isolatedEnv = await this.getIsolatedEnv()
-    const env = opts?.includePrerelease
-      ? { ...isolatedEnv, MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' }
-      : isolatedEnv
+    let env = isolatedEnv
+    if (opts?.includePrerelease || opts?.shellOutNpm) {
+      env = { ...isolatedEnv }
+      if (opts.includePrerelease) env['MISE_PRERELEASES'] = '1'
+      if (opts.shellOutNpm) env['MISE_NPM_SHELL_OUT'] = '1'
+    }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
@@ -967,11 +973,19 @@ export class BinaryManager extends BaseService {
     }
     const toolSpec = `${definition.tool}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
+    const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
-    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(runtime ? [runtime] : []), toolSpec], {
+    // npm shell-out needs a ready runtime; a combined use can resolve npm through
+    // a stale fuzzy-version alias while mise upgrades Node in parallel.
+    if (shellOutNpm && runtime) {
+      await this.runMise(['use', '-g', runtime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+    }
+
+    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec], {
       timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-      includePrerelease
+      includePrerelease,
+      shellOutNpm
     })
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
