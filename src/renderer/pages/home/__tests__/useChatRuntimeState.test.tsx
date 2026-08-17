@@ -3,7 +3,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, render } from '@testing-library/react'
-import { Activity, useEffect, useMemo, useState } from 'react'
+import { Activity, useEffect, useMemo, useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -95,6 +95,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
       refreshOnQuiesced?: () => Promise<unknown>
     }
   ) => {
+    const topicIdRef = useRef(topicId)
     const [projection, setProjection] = useState<{
       topicId: string
       optimisticMessages: CherryUIMessage[]
@@ -102,6 +103,8 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
       activeNodeOverride: { previousActiveNodeId: string | null; activeNodeId: string } | null
     }>({ topicId, optimisticMessages: [], optimisticExecutions: [], activeNodeOverride: null })
     useEffect(() => {
+      if (topicIdRef.current === topicId) return
+      topicIdRef.current = topicId
       setProjection({ topicId, optimisticMessages: [], optimisticExecutions: [], activeNodeOverride: null })
     }, [topicId])
     mocks.overlayExecutions = executions
@@ -239,10 +242,9 @@ describe('useChatRuntimeState', () => {
 
     // Same topic hidden→visible: effects re-run with an unchanged topic id, and
     // the branch-live surface must survive instead of collapsing to null.
-    const callsBeforeHide = mocks.onBranchLiveStateChange.mock.calls.length
     view.rerender(<ActivityHarness mode="hidden" topicId="topic-1" />)
     view.rerender(<ActivityHarness mode="visible" topicId="topic-1" />)
-    expect(mocks.onBranchLiveStateChange.mock.calls.slice(callsBeforeHide).map(([state]) => state)).not.toContain(null)
+    expect(mocks.onBranchLiveStateChange).not.toHaveBeenCalledWith(null)
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ topicId: 'topic-1', messageIds: ['reserved-1'] })
     )
