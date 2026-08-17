@@ -64,8 +64,10 @@ interface ChildState {
   rootCallId?: string
   /** Spawn `description` (task title); carried by the binding anchor. */
   title?: string
+  isBackgrounded?: boolean
   /** Live residency epoch (one Activation at a time per child). */
   activeRunId?: string
+  activeStartedAt?: string
   projection?: DshChildProjection
   buffered: SessionEvent[]
   bufferOverflow: boolean
@@ -74,7 +76,12 @@ interface ChildState {
 export class DshSubagentCoordinator {
   private readonly children = new Map<string, ChildState>()
   /** Spawn/wake tool calls awaiting their child epoch; send_message anchors carry their target session. */
-  private readonly pendingAnchors: Array<{ callId: string; title?: string; target?: string }> = []
+  private readonly pendingAnchors: Array<{
+    callId: string
+    title?: string
+    target?: string
+    isBackgrounded: boolean
+  }> = []
   private workStateActive = false
 
   constructor(
@@ -92,18 +99,24 @@ export class DshSubagentCoordinator {
       return
     }
     if (chunk.type !== 'tool-input-available' || !CHILD_ANCHOR_TOOLS.has(chunk.toolName)) return
-    const input = chunk.input as { description?: unknown; subagent_id?: unknown } | null | undefined
+    const input = chunk.input as
+      | { description?: unknown; run_in_background?: unknown; subagent_id?: unknown }
+      | null
+      | undefined
     if (chunk.toolName === 'send_message') {
       // Queued only for unbound targets: a warm wake reuses the persistent
       // binding, so its anchor would sit unconsumed in the queue forever.
       const target = typeof input?.subagent_id === 'string' ? input.subagent_id : undefined
       if (!target || this.children.get(target)?.rootCallId !== undefined) return
-      this.pendingAnchors.push({ callId: chunk.toolCallId, target })
+      this.pendingAnchors.push({ callId: chunk.toolCallId, target, isBackgrounded: true })
       return
     }
     const description = input?.description
+    const requestedBackgroundMode = input?.run_in_background
     this.pendingAnchors.push({
       callId: chunk.toolCallId,
+      isBackgrounded:
+        typeof requestedBackgroundMode === 'boolean' ? requestedBackgroundMode : chunk.toolName !== 'subagent_fork',
       ...(typeof description === 'string' && description ? { title: description } : {})
     })
   }
@@ -116,14 +129,28 @@ export class DshSubagentCoordinator {
   /** Bridge `subagent/lifecycle` — authoritative per-epoch edges (cold resumes included). */
   handleLifecycle(edge: SubagentLifecycleEdge): void {
     const child = this.bindChild(edge.childSessionId, edge.parentSessionId)
+    const eventAt = new Date().toISOString()
     if (edge.phase === 'start') {
       child.activeRunId = edge.runId
-      this.publishTaskEdge(edge.childSessionId, child, 'started', edge.runId)
+      child.activeStartedAt = eventAt
+      this.publishTaskEdge(child, 'started', edge.runId, eventAt)
     } else {
-      if (child.activeRunId === edge.runId || child.activeRunId === undefined) child.activeRunId = undefined
-      this.publishTaskEdge(edge.childSessionId, child, 'ended', edge.runId, edge.stopReason)
+      const startedAt = child.activeRunId === edge.runId ? child.activeStartedAt : undefined
+      if (child.activeRunId === edge.runId || child.activeRunId === undefined) {
+        child.activeRunId = undefined
+        child.activeStartedAt = undefined
+      }
+      this.publishTaskEdge(child, 'ended', edge.runId, startedAt, eventAt, edge.stopReason)
     }
     this.publishTasks()
+  }
+
+  /** Resolve the live DSH child behind an app-facing residency-run task id. */
+  resolveActiveChildSessionId(taskId: string): string | undefined {
+    for (const [childSessionId, child] of this.children) {
+      if (child.activeRunId === taskId) return childSessionId
+    }
+    return undefined
   }
 
   /** Whether this session id belongs to (or plausibly races) a descendant. */
@@ -187,12 +214,14 @@ export class DshSubagentCoordinator {
       if (index === -1) return
       const [anchor] = this.pendingAnchors.splice(index, 1)
       child.rootCallId = anchor.callId
+      child.isBackgrounded = anchor.isBackgrounded
       if (anchor.title !== undefined) child.title = anchor.title
     } else {
       const parent = this.children.get(child.parentSessionId)
       if (parent?.rootCallId === undefined) return
       child.rootCallId = parent.rootCallId
       child.title = parent.title
+      child.isBackgrounded = parent.isBackgrounded
     }
     this.activateProjection(childSessionId, child)
     // A newly bound ancestor may unblock buffered grandchildren.
@@ -213,10 +242,11 @@ export class DshSubagentCoordinator {
   }
 
   private publishTaskEdge(
-    childSessionId: string,
     child: ChildState,
     phase: 'started' | 'ended',
     runId: string,
+    createdAt?: string,
+    completedAt?: string,
     stopReason?: string
   ): void {
     // Task rows exist for direct children only; deeper descendants fold into their ancestor's flow.
@@ -231,10 +261,13 @@ export class DshSubagentCoordinator {
             : 'error'
     const data: AgentTaskEventPartData = {
       event: phase === 'started' ? 'started' : 'updated',
-      taskId: childSessionId,
+      taskId: runId,
       ...(child.rootCallId !== undefined ? { toolUseId: child.rootCallId } : {}),
       status,
+      ...(createdAt !== undefined ? { createdAt } : {}),
+      ...(completedAt !== undefined ? { completedAt } : {}),
       taskType: 'subagent',
+      ...(child.isBackgrounded !== undefined ? { isBackgrounded: child.isBackgrounded } : {}),
       ...(child.title !== undefined ? { title: child.title } : {}),
       ...(status === 'error' && stopReason !== undefined ? { error: `subagent run ended: ${stopReason}` } : {})
     }
@@ -244,14 +277,14 @@ export class DshSubagentCoordinator {
   private publishTasks(): void {
     const tasks: AgentSessionBackgroundTasks = []
     let activeEpochs = 0
-    for (const [sessionId, child] of this.children) {
+    for (const child of this.children.values()) {
       if (child.activeRunId === undefined) continue
       activeEpochs += 1
-      if (child.parentSessionId !== this.mainSessionId) continue
+      if (child.parentSessionId !== this.mainSessionId || child.isBackgrounded !== true) continue
       tasks.push({
-        id: sessionId,
+        id: child.activeRunId,
         type: 'subagent',
-        description: child.title ?? sessionId,
+        description: child.title ?? child.activeRunId,
         ...(child.rootCallId !== undefined ? { toolCallId: child.rootCallId } : {})
       })
     }

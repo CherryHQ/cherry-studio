@@ -24,12 +24,21 @@ const assistantUsage = (turn: number, usage: Record<string, number>, model = 'de
     message: { role: 'assistant', content: [], source: { kind: 'assistant', model } }
   })
 
-function spawnAnchor(callId: string, description: string, toolName = 'subagent'): CherryUIMessageChunk {
+function spawnAnchor(
+  callId: string,
+  description: string,
+  toolName = 'subagent',
+  runInBackground?: boolean
+): CherryUIMessageChunk {
   return {
     type: 'tool-input-available',
     toolCallId: callId,
     toolName,
-    input: { description, prompt: 'go' }
+    input: {
+      description,
+      prompt: 'go',
+      ...(runInBackground !== undefined ? { run_in_background: runInBackground } : {})
+    }
   } as CherryUIMessageChunk
 }
 
@@ -203,32 +212,90 @@ describe('DshSubagentCoordinator binding', () => {
 
 describe('DshSubagentCoordinator task surface', () => {
   it('publishes task edges and the REPLACE list across an epoch lifecycle', () => {
-    coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-17T01:00:00.000Z')
+      coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
+      coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+
+      expect(sink.emitTaskEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'started',
+          taskId: 'run-1',
+          toolUseId: 'call-1',
+          status: 'in_progress',
+          createdAt: '2026-08-17T01:00:00.000Z',
+          taskType: 'subagent',
+          isBackgrounded: true,
+          title: 'research task'
+        }),
+        'run-1-started'
+      )
+      expect(sink.emitTasks).toHaveBeenLastCalledWith([
+        { id: 'run-1', type: 'subagent', description: 'research task', toolCallId: 'call-1' }
+      ])
+      expect(sink.emitWorkState).toHaveBeenLastCalledWith(true)
+
+      vi.setSystemTime('2026-08-17T01:00:05.000Z')
+      coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+      expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          event: 'updated',
+          taskId: 'run-1',
+          status: 'completed',
+          createdAt: '2026-08-17T01:00:00.000Z',
+          completedAt: '2026-08-17T01:00:05.000Z',
+          isBackgrounded: true
+        }),
+        'run-1-ended'
+      )
+      expect(sink.emitTasks).toHaveBeenLastCalledWith([])
+      expect(sink.emitWorkState).toHaveBeenLastCalledWith(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ['subagent', undefined, true],
+    ['subagent', false, false],
+    ['subagent_fork', undefined, false],
+    ['send_message', undefined, true]
+  ] as const)('maps %s run_in_background=%s to background state %s', (toolName, runInBackground, isBackgrounded) => {
+    const isSendMessage = toolName === 'send_message'
+    coordinator.noteMainChunk(
+      isSendMessage ? sendAnchor('call-1', 'child-1') : spawnAnchor('call-1', 'task', toolName, runInBackground)
+    )
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
 
-    expect(sink.emitTaskEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'started',
-        taskId: 'child-1',
-        toolUseId: 'call-1',
-        status: 'in_progress',
-        taskType: 'subagent',
-        title: 'research task'
-      }),
+    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskId: 'run-1', isBackgrounded }),
       'run-1-started'
     )
-    expect(sink.emitTasks).toHaveBeenLastCalledWith([
-      { id: 'child-1', type: 'subagent', description: 'research task', toolCallId: 'call-1' }
-    ])
-    expect(sink.emitWorkState).toHaveBeenLastCalledWith(true)
-
-    coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
-    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
-      expect.objectContaining({ event: 'updated', taskId: 'child-1', status: 'completed' }),
-      'run-1-ended'
+    expect(sink.emitTasks).toHaveBeenLastCalledWith(
+      isBackgrounded
+        ? [{ id: 'run-1', type: 'subagent', description: isSendMessage ? 'run-1' : 'task', toolCallId: 'call-1' }]
+        : []
     )
-    expect(sink.emitTasks).toHaveBeenLastCalledWith([])
-    expect(sink.emitWorkState).toHaveBeenLastCalledWith(false)
+  })
+
+  it('uses a new task identity when a continuable child starts another residency epoch', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+    coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+    coordinator.handleLifecycle(startEdge('child-1', 'run-2'))
+
+    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskId: 'run-2', status: 'in_progress' }),
+      'run-2-started'
+    )
+    expect(sink.emitTasks).toHaveBeenLastCalledWith([
+      { id: 'run-2', type: 'subagent', description: 'task', toolCallId: 'call-1' }
+    ])
+    expect(coordinator.resolveActiveChildSessionId('run-2')).toBe('child-1')
+
+    coordinator.handleLifecycle(endEdge('child-1', 'run-2'))
+    expect(coordinator.resolveActiveChildSessionId('run-2')).toBeUndefined()
   })
 
   it.each([

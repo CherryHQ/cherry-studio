@@ -550,7 +550,13 @@ type StatusTaskFixture = {
   usage?: { totalTokens?: number; contextTokens?: number; toolUses?: number; durationMs?: number }
 }
 
-function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
+function renderStatusTasks(
+  tasks: StatusTaskFixture[],
+  {
+    openPanel = true,
+    agentType = 'claude-code'
+  }: { openPanel?: boolean; agentType?: TestAgentRightPaneProps['agentType'] } = {}
+) {
   const parts = tasks.map(
     (task) =>
       ({
@@ -575,7 +581,11 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
   const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
   render(
-    <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+    <TestAgentRightPane
+      agentType={agentType}
+      sessionId="session-a"
+      messages={messages}
+      partsByMessageId={{ m1: parts }}>
       <AgentRightPane.Shortcuts />
       <AgentRightPane.Viewport />
     </TestAgentRightPane>
@@ -1277,6 +1287,61 @@ describe('AgentRightPane', () => {
     expect(within(taskButton).getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
     expect(within(taskButton).getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
     expect(within(taskButton).getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
+  })
+
+  it('shows DSH scheduling mode and local duration without unavailable usage metrics', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-17T01:00:05.000Z')
+      backgroundTasksState.tasks = [
+        {
+          id: 'dsh-background',
+          type: 'subagent',
+          description: 'Async DSH task',
+          toolCallId: 'dsh-tool-background'
+        }
+      ]
+      renderStatusTasks(
+        [
+          {
+            id: 'dsh-background',
+            status: 'in_progress',
+            title: 'Async DSH task',
+            taskType: 'subagent',
+            toolUseId: 'dsh-tool-background',
+            isBackgrounded: true,
+            createdAt: '2026-08-17T01:00:00.000Z'
+          },
+          {
+            id: 'dsh-foreground',
+            status: 'completed',
+            title: 'Sync DSH task',
+            taskType: 'subagent',
+            toolUseId: 'dsh-tool-foreground',
+            isBackgrounded: false,
+            createdAt: '2026-08-17T01:00:00.000Z',
+            completedAt: '2026-08-17T01:00:03.000Z'
+          }
+        ],
+        { agentType: 'dsh' }
+      )
+
+      const asyncTask = screen.getByRole('button', { name: /Async DSH task/ })
+      expect(within(asyncTask).getByText('agent.right_pane.status.execution_async')).toBeInTheDocument()
+      expect(within(asyncTask).getByText('5s')).toBeInTheDocument()
+
+      const syncTask = screen.getByRole('button', { name: /Sync DSH task/ })
+      expect(within(syncTask).getByText('agent.right_pane.status.execution_sync')).toBeInTheDocument()
+      expect(within(syncTask).getByText('3s')).toBeInTheDocument()
+
+      expect(screen.queryByText(/agent\.right_pane\.status\.(total|context_size|tools)·/)).not.toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTime(1000))
+      expect(within(asyncTask).getByText('6s')).toBeInTheDocument()
+      expect(within(syncTask).getByText('3s')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not open a Claude-only agent flow for a pi runtime', async () => {
