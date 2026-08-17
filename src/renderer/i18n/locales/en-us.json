@@ -6058,6 +6058,7 @@
         "keys_failed_count": "{{failed}}/{{total}} keys failed",
         "latency": "{{latency}} ms",
         "model": "Model",
+        "model_button_caption": "Check all models",
         "model_scope": "Models to check",
         "model_status_failed_one": "{{count}} model completely inaccessible",
         "model_status_failed_other": "{{count}} models completely inaccessible",

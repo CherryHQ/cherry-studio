@@ -6058,6 +6058,7 @@
         "keys_failed_count": "{{failed}}/{{total}} 个密钥失败",
         "latency": "{{latency}} 毫秒",
         "model": "模型",
+        "model_button_caption": "检测所有模型",
         "model_scope": "检测模型范围",
         "model_status_failed_one": "{{count}} 个模型完全无法访问",
         "model_status_failed_other": "{{count}} 个模型完全无法访问",

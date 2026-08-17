@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -33,6 +34,7 @@ const aliasModel: Model = {
   isEnabled: true,
   isHidden: false
 }
+const { showErrorDetailPopup } = vi.hoisted(() => ({ showErrorDetailPopup: vi.fn() }))
 const startSingleModelCheck = vi.fn()
 const startHealthCheck = vi.fn()
 const health = {
@@ -43,7 +45,7 @@ const health = {
   requiresApiKey: true,
   isSingleModelChecking: false,
   isModelChecking: false,
-  singleModelResult: null,
+  singleModelResult: null as ModelWithStatus | null,
   savingKeyId: null,
   closeModelCheck: vi.fn(),
   resetSingleModelResult: vi.fn(),
@@ -54,6 +56,7 @@ const health = {
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+vi.mock('@renderer/components/ErrorDetailModal', () => ({ showErrorDetailPopup }))
 vi.mock('../modelListHealthContext', () => ({ useModelListHealthRun: () => health }))
 
 beforeAll(() => {
@@ -80,59 +83,72 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    expect(screen.getByText('settings.models.check.no_api_keys')).toBeInTheDocument()
+    expect(screen.getByText('settings.provider.api_key.label')).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeDisabled()
   })
 
-  it('opens in single-model mode with unsupported models excluded from the default selection', async () => {
+  it('opens with the main connection-check content and checks one concrete key', async () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
 
-    expect(screen.getByRole('radiogroup', { name: 'settings.models.check.model_scope' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'settings.models.check.single_model' })).toBeChecked()
-    expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^settings\.models\.check\.model Chat$/ })).toHaveTextContent('Chat')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'message.api.check.model.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /button\.select_model.*Chat$/ })).toHaveTextContent('Chat')
+    expect(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' })).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'settings.models.check.model_scope' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.models.check.disclaimer')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.models.check.all_models_disclaimer')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+
     await waitFor(() =>
       expect(startSingleModelCheck).toHaveBeenCalledWith({
         model: chatModel,
-        keySelection: { mode: 'all' }
+        keySelection: { mode: 'single', keyId: 'key-1' }
       })
     )
     expect(screen.queryByLabelText('settings.models.check.timeout')).not.toBeInTheDocument()
   })
 
-  it('uses the stronger cost warning only for all-model checks', async () => {
+  it('replaces the same dialog with the current all-model form and arguments', async () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
 
-    expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
-    expect(screen.queryByText('settings.models.check.all_models_disclaimer')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
 
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
-
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'settings.models.check.title' })).toBeInTheDocument()
     expect(screen.getByText('settings.models.check.all_models_disclaimer')).toBeInTheDocument()
     expect(screen.queryByText('settings.models.check.disclaimer')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.models.check.model_button_caption' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch')).toBeChecked()
+
+    const timeout = screen.getByLabelText('settings.models.check.timeout')
+    await user.clear(timeout)
+    await user.type(timeout, '2')
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+
+    await waitFor(() =>
+      expect(startHealthCheck).toHaveBeenCalledWith({
+        keySelection: { mode: 'all' },
+        isConcurrent: true,
+        timeout: 5000
+      })
+    )
   })
 
-  it('separates the single-model key scope from concrete key choices', async () => {
+  it('selects one enabled key for a single-model check', async () => {
     const user = userEvent.setup()
     health.apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
-      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+      { id: 'key-2', key: 'sk-alternative', label: 'Secondary', isEnabled: true }
     ]
 
     render(<ModelCheckDialog />)
 
-    expect(screen.getByRole('radio', { name: 'settings.models.check.all' })).toBeChecked()
-    expect(screen.queryByRole('option', { name: 'settings.models.check.all_enabled_keys' })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
-    await user.click(
-      screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key Primary · sk\*{4}ry$/ })
-    )
-    await user.click(screen.getByRole('option', { name: /Secondary/ }))
+    await user.click(screen.getByRole('button', { name: /settings\.models\.check\.select_api_key sk\*+ry/ }))
+    await user.click(screen.getByRole('option', { name: /sk\*+ve/ }))
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
 
     await waitFor(() =>
@@ -143,13 +159,14 @@ describe('ModelCheckDialog', () => {
     )
   })
 
-  it('derives key selection from enabled keys without discarding the stored choice', async () => {
+  it('derives the all-model key selection without discarding the stored choice', async () => {
     const user = userEvent.setup()
     health.apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
       { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
     ]
     const { rerender } = render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
 
     await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
     await user.click(
@@ -165,9 +182,10 @@ describe('ModelCheckDialog', () => {
     expect(screen.getByRole('radio', { name: 'settings.models.check.all' })).toBeChecked()
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
     await waitFor(() =>
-      expect(startSingleModelCheck).toHaveBeenLastCalledWith({
-        model: chatModel,
-        keySelection: { mode: 'all' }
+      expect(startHealthCheck).toHaveBeenLastCalledWith({
+        keySelection: { mode: 'all' },
+        isConcurrent: true,
+        timeout: 15000
       })
     )
 
@@ -180,39 +198,12 @@ describe('ModelCheckDialog', () => {
     expect(
       screen.getByRole('button', { name: /settings\.models\.check\.select_api_key Secondary/ })
     ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
-    await waitFor(() =>
-      expect(startSingleModelCheck).toHaveBeenLastCalledWith({
-        model: chatModel,
-        keySelection: { mode: 'single', keyId: 'key-2' }
-      })
-    )
   })
 
-  it('switches to the all-model form with concurrency and a clamped timeout', async () => {
-    const user = userEvent.setup()
-    render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
-
-    expect(screen.getByRole('switch')).toBeChecked()
-    const timeout = screen.getByLabelText('settings.models.check.timeout')
-    await user.clear(timeout)
-    await user.type(timeout, '2')
-    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
-
-    await waitFor(() =>
-      expect(startHealthCheck).toHaveBeenCalledWith({
-        keySelection: { mode: 'all' },
-        isConcurrent: true,
-        timeout: 5000
-      })
-    )
-  })
-
-  it('keeps the selected mode and all-model settings when the model list changes', async () => {
+  it('keeps the all-model form and settings when the model list changes', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
     const timeout = screen.getByLabelText('settings.models.check.timeout')
     await user.clear(timeout)
     await user.type(timeout, '27')
@@ -220,7 +211,7 @@ describe('ModelCheckDialog', () => {
     health.models = [imageModel, chatModel, aliasModel]
     rerender(<ModelCheckDialog />)
 
-    await waitFor(() => expect(screen.getByRole('radio', { name: 'settings.models.check.all_models' })).toBeChecked())
+    expect(screen.getByRole('heading', { name: 'settings.models.check.title' })).toBeInTheDocument()
     expect(screen.getByLabelText('settings.models.check.timeout')).toHaveValue(27)
   })
 
@@ -234,7 +225,7 @@ describe('ModelCheckDialog', () => {
     }))
 
     render(<ModelCheckDialog />)
-
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
     await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
     await user.click(screen.getByRole('button', { name: /settings.models.check.select_api_key/ }))
 
@@ -250,27 +241,31 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    await user.click(screen.getByRole('button', { name: /settings.models.check.model/ }))
+    await user.click(screen.getByRole('button', { name: /button.select_model/ }))
     await user.type(screen.getByPlaceholderText('common.search'), 'Friendly Alias')
 
     expect(screen.getByRole('option', { name: /Friendly Alias/ })).toBeInTheDocument()
   })
 
-  it('shows selectable keys only for credential policies that permit them', () => {
+  it('shows single-model key controls only when the credential policy permits selection', () => {
     health.requiresApiKey = false
+    health.apiKeyEntries = [
+      { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
+      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+    ]
     const { unmount } = render(<ModelCheckDialog />)
 
-    expect(screen.getByRole('radiogroup', { name: 'settings.models.check.key_scope' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings.models.check.select_api_key/ })).toBeInTheDocument()
 
     unmount()
     health.canSelectApiKey = false
     render(<ModelCheckDialog />)
 
-    expect(screen.queryByRole('radiogroup', { name: 'settings.models.check.key_scope' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.models.check.select_api_key')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeEnabled()
   })
 
-  it('freezes selection controls while a single-model run is starting', async () => {
+  it('freezes single-model controls while a run is starting', async () => {
     const user = userEvent.setup()
     let finishStart!: (outcome: 'failed') => void
     health.apiKeyEntries = [
@@ -280,38 +275,52 @@ describe('ModelCheckDialog', () => {
     startSingleModelCheck.mockImplementationOnce(() => new Promise<'failed'>((resolve) => (finishStart = resolve)))
 
     render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
 
-    expect(screen.getByRole('radio', { name: 'settings.models.check.single_model' })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'settings.models.check.all_models' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /settings.models.check.model/ })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'settings.models.check.single' })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'settings.models.check.all' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /button.select_model/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /settings.models.check.select_api_key/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'common.cancel' })).toBeEnabled()
 
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
+    expect(screen.queryByText('settings.models.check.all_models_disclaimer')).not.toBeInTheDocument()
     finishStart('failed')
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeEnabled())
-    expect(screen.getByRole('radio', { name: 'settings.models.check.single_model' })).toBeChecked()
+    expect(screen.getByRole('heading', { name: 'message.api.check.model.title' })).toBeInTheDocument()
     expect(startSingleModelCheck).toHaveBeenCalledWith({
       model: chatModel,
       keySelection: { mode: 'single', keyId: 'key-1' }
     })
   })
 
-  it('keeps the dialog body bounded without clipping portaled dropdowns', () => {
+  it('shows the main error card for the selected key failure', async () => {
+    const user = userEvent.setup()
+    const error = { name: 'Error', message: 'Invalid API key', stack: null }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: chatModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        {
+          kind: 'failed',
+          status: HealthStatus.FAILED,
+          checking: false,
+          credential: { kind: 'api-key', entry },
+          error
+        }
+      ],
+      checking: false,
+      error
+    }
+
     render(<ModelCheckDialog />)
 
-    // DialogContent is the dropdown portal container, so clipping belongs on the inner scrolling body.
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveClass('flex', 'max-h-[calc(100vh-2rem)]', 'flex-col')
-    expect(dialog).not.toHaveClass('overflow-hidden')
-    expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveClass('shrink-0')
-    expect(dialog.querySelector('[data-slot="dialog-footer"]')).toHaveClass('shrink-0')
-    expect(dialog.querySelector('.min-h-0.flex-1.overflow-y-auto')).toHaveClass('space-y-4', 'pr-1')
+    expect(screen.getByText('Invalid API key')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+
+    expect(showErrorDetailPopup).toHaveBeenCalledWith({ error })
   })
 
   it('disables a single-model run with an unsupported-only placeholder', async () => {
@@ -320,12 +329,12 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    const modelCombobox = screen.getByRole('button', { name: /settings.models.check.model/ })
+    const modelCombobox = screen.getByRole('button', { name: /button.select_model/ })
     expect(modelCombobox).toBeDisabled()
     expect(modelCombobox).toHaveTextContent('settings.provider.no_models_for_check')
     expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeDisabled()
 
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
     expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeEnabled()
   })
 
@@ -334,8 +343,7 @@ describe('ModelCheckDialog', () => {
     health.models = [imageModel]
 
     render(<ModelCheckDialog />)
-
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
     const startButton = screen.getByRole('button', { name: 'settings.models.check.start' })
     expect(startButton).toBeEnabled()
 

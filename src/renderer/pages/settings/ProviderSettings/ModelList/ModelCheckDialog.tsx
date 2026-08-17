@@ -1,5 +1,7 @@
 import {
   Alert,
+  Avatar,
+  AvatarFallback,
   Button,
   Combobox,
   type ComboboxOption,
@@ -13,20 +15,30 @@ import {
   SegmentedControl,
   Switch
 } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import {
+  getModelHealthCheckSkipReason,
+  healthCheckErrorToDisplayString
+} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
+import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { sortBy } from 'es-toolkit/compat'
+import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ApiKeyCheckResults from './ApiKeyCheckResults'
+import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 
-type CheckMode = 'single' | 'all'
+type DialogView = 'single' | 'all'
 type ModelOption = ComboboxOption<{ model: Model }>
+
+const CONNECTION_ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const CONNECTION_ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 function filterModelCheckOption(option: ComboboxOption, search: string) {
   const haystack = [option.label, option.value, option.description].filter(Boolean).join(' ').toLocaleLowerCase()
@@ -58,9 +70,33 @@ function getSkipReasonDescription(model: Model, t: ReturnType<typeof useTranslat
       : reason.output === 'video'
         ? t('settings.models.check.generation_output_video')
         : t('settings.models.check.generation_output_audio')
-  return t('settings.models.check.skip_reason_generation_cost', {
-    output
-  })
+  return t('settings.models.check.skip_reason_generation_cost', { output })
+}
+
+function ModelOptionIcon({ model, size = 20 }: { model: Model; size?: number }) {
+  const Icon = useIcon(getModelLogoRef(model))
+
+  return Icon ? (
+    <Icon.Avatar size={size} />
+  ) : (
+    <Avatar size="sm">
+      <AvatarFallback>{model.name.trim().charAt(0) || 'M'}</AvatarFallback>
+    </Avatar>
+  )
+}
+
+function renderModelOptionContent(model: Model, description?: string) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <ModelOptionIcon model={model} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate" title={model.name}>
+          {model.name}
+        </div>
+        {description ? <div className="truncate text-muted-foreground text-xs">{description}</div> : null}
+      </div>
+    </div>
+  )
 }
 
 function ApiKeyField({
@@ -99,6 +135,63 @@ function ApiKeyField({
         popoverClassName="w-(--radix-popover-trigger-width)"
         emptyText={t('settings.models.check.no_api_keys')}
       />
+    </div>
+  )
+}
+
+function SingleApiKeyField({
+  entries,
+  value,
+  disabled,
+  onChange
+}: {
+  entries: readonly ApiKeyEntry[]
+  value: string
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  const labelId = useId()
+
+  if (entries.length > 1) {
+    const options: ComboboxOption[] = entries.map((entry) => ({ value: entry.id, label: maskApiKey(entry.key) }))
+
+    return (
+      <div>
+        <Label id={labelId} className="mb-2.5 block text-[13px] text-foreground">
+          {t('settings.models.check.select_api_key')}
+        </Label>
+        <Combobox
+          aria-labelledby={labelId}
+          className="h-9 w-full justify-between px-2.5 text-left font-mono text-[12px]"
+          emptyText={t('common.no_results')}
+          filterOption={filterModelCheckOption}
+          options={options}
+          value={value}
+          disabled={disabled}
+          onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? '') : next)}
+          placeholder={t('settings.models.check.select_api_key')}
+          popoverClassName="w-(--radix-popover-trigger-width)"
+          renderOption={(option) => <span className="truncate font-mono text-[12px]">{option.label}</span>}
+          renderValue={(nextValue, nextOptions) => {
+            const selectedValue = Array.isArray(nextValue) ? nextValue[0] : nextValue
+            const option = nextOptions.find((item) => item.value === selectedValue)
+            return option ? <span className="truncate font-mono text-[12px]">{option.label}</span> : null
+          }}
+          searchable={entries.length > 5}
+          searchPlaceholder={t('common.search')}
+        />
+      </div>
+    )
+  }
+
+  const selectedEntry = entries[0]
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[13px] text-muted-foreground">{t('settings.provider.api_key.label')}</div>
+      <div className="rounded-md border border-border-subtle bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground">
+        {selectedEntry ? maskApiKey(selectedEntry.key) : '—'}
+      </div>
     </div>
   )
 }
@@ -161,19 +254,22 @@ export default function ModelCheckDialog() {
   const { t } = useTranslation()
   const modelLabelId = useId()
   const health = useModelListHealthRun()
-  const [mode, setMode] = useState<CheckMode>('single')
+  const [view, setView] = useState<DialogView>('single')
   const [singleModelId, setSingleModelId] = useState('')
-  const [singleKeySelection, setSingleKeySelection] = useState<ModelCheckKeySelection>({ mode: 'all' })
+  const [singleKeyId, setSingleKeyId] = useState('')
   const [allKeySelection, setAllKeySelection] = useState<ModelCheckKeySelection>({ mode: 'all' })
   const [isConcurrent, setIsConcurrent] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
-  const effectiveSingleKeySelection = getEffectiveKeySelection(singleKeySelection, health.apiKeyEntries)
   const effectiveAllKeySelection = getEffectiveKeySelection(allKeySelection, health.apiKeyEntries)
   const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
   const checkableModels = useMemo(
     () => sortedModels.filter((model) => !getModelHealthCheckSkipReason(model)),
     [sortedModels]
+  )
+  const enabledApiKeyEntries = useMemo(
+    () => health.apiKeyEntries.filter((entry) => entry.isEnabled),
+    [health.apiKeyEntries]
   )
   const modelOptions = useMemo<ModelOption[]>(
     () =>
@@ -186,17 +282,32 @@ export default function ModelCheckDialog() {
       })),
     [sortedModels, t]
   )
-  const selectedModel = sortedModels.find((model) => model.id === singleModelId) ?? checkableModels[0]
-  const hasEnabledApiKeys = health.apiKeyEntries.some((entry) => entry.isEnabled)
+  const selectedModel = checkableModels.find((model) => model.id === singleModelId) ?? checkableModels[0]
+  const selectedKeyEntry = enabledApiKeyEntries.find((entry) => entry.id === singleKeyId) ?? enabledApiKeyEntries[0]
+  const singleKeySelection: ModelCheckKeySelection =
+    health.canSelectApiKey && selectedKeyEntry ? { mode: 'single', keyId: selectedKeyEntry.id } : { mode: 'all' }
+  const hasEnabledApiKeys = enabledApiKeyEntries.length > 0
   const controlsDisabled = isStarting || health.isSingleModelChecking
   const showKeyScope = health.canSelectApiKey && (health.requiresApiKey || hasEnabledApiKeys)
   const singleModelResult = health.singleModelResult
   const showSingleResult =
     singleModelResult != null && selectedModel != null && singleModelResult.model.id === selectedModel.id
+  const singleError = (() => {
+    if (!showSingleResult || singleModelResult?.kind !== 'failed') return undefined
+    if (singleKeySelection.mode === 'single') {
+      const selectedResult = singleModelResult.keyResults.find(
+        (result) => result.credential.kind === 'api-key' && result.credential.entry.id === singleKeySelection.keyId
+      )
+      if (selectedResult?.kind === 'failed') return selectedResult.error
+    }
+    const failedResult = singleModelResult.keyResults.find((result) => result.kind === 'failed')
+    return failedResult?.kind === 'failed' ? failedResult.error : singleModelResult.error
+  })()
+  const singleErrorText = healthCheckErrorToDisplayString(singleError)
 
   useEffect(() => {
     if (!health.modelCheckOpen) return
-    setMode('single')
+    setView('single')
   }, [health.modelCheckOpen])
 
   useEffect(() => {
@@ -206,12 +317,21 @@ export default function ModelCheckDialog() {
     )
   }, [checkableModels, health.modelCheckOpen])
 
+  useEffect(() => {
+    if (!health.modelCheckOpen) return
+    setSingleKeyId((current) =>
+      current && enabledApiKeyEntries.some((entry) => entry.id === current)
+        ? current
+        : (enabledApiKeyEntries[0]?.id ?? '')
+    )
+  }, [enabledApiKeyEntries, health.modelCheckOpen])
+
   const handleStart = async () => {
     setIsStarting(true)
     try {
-      if (mode === 'single') {
+      if (view === 'single') {
         if (!selectedModel) return
-        await health.startSingleModelCheck({ model: selectedModel, keySelection: effectiveSingleKeySelection })
+        await health.startSingleModelCheck({ model: selectedModel, keySelection: singleKeySelection })
         return
       }
 
@@ -227,76 +347,117 @@ export default function ModelCheckDialog() {
     }
   }
 
+  const handleShowConnectionErrorDetail = () => {
+    if (singleError) showErrorDetailPopup({ error: singleError })
+  }
+
+  const startDisabled =
+    isStarting ||
+    health.isModelChecking ||
+    (health.requiresApiKey && !hasEnabledApiKeys) ||
+    (view === 'single' ? !selectedModel : sortedModels.length === 0)
+
   return (
     <Dialog open={health.modelCheckOpen} onOpenChange={(open) => !open && health.closeModelCheck()}>
-      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-4 sm:max-w-145">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t('settings.models.check.title')}</DialogTitle>
+      <DialogContent
+        className={
+          view === 'single' ? 'gap-4 sm:max-w-[520px]' : 'flex max-h-[calc(100vh-2rem)] flex-col gap-4 sm:max-w-145'
+        }>
+        <DialogHeader className={view === 'all' ? 'shrink-0' : undefined}>
+          <DialogTitle className={view === 'single' ? 'text-base leading-5' : undefined}>
+            {t(view === 'single' ? 'message.api.check.model.title' : 'settings.models.check.title')}
+          </DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-          <SegmentedControl<CheckMode>
-            aria-label={t('settings.models.check.model_scope')}
-            className="w-fit"
-            value={mode}
-            disabled={controlsDisabled}
-            options={[
-              { value: 'single', label: t('settings.models.check.single_model') },
-              { value: 'all', label: t('settings.models.check.all_models') }
-            ]}
-            onValueChange={setMode}
-          />
-          <Alert
-            type="warning"
-            showIcon
-            description={t(
-              mode === 'all' ? 'settings.models.check.all_models_disclaimer' : 'settings.models.check.disclaimer'
-            )}
-          />
 
-          {mode === 'single' ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label id={modelLabelId}>{t('settings.models.check.model')}</Label>
-                <Combobox<{ model: Model }>
-                  aria-labelledby={modelLabelId}
-                  options={modelOptions}
-                  value={selectedModel?.id ?? ''}
-                  disabled={controlsDisabled || checkableModels.length === 0}
-                  filterOption={filterModelCheckOption}
-                  onChange={(value) => {
-                    setSingleModelId(Array.isArray(value) ? (value[0] ?? '') : value)
-                    health.resetSingleModelResult()
-                  }}
-                  className="w-full justify-between"
-                  popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-72"
-                  placeholder={checkableModels.length === 0 ? t('settings.provider.no_models_for_check') : undefined}
-                  emptyText={
-                    checkableModels.length === 0 ? t('settings.provider.no_models_for_check') : t('common.no_results')
-                  }
-                  searchPlaceholder={t('common.search')}
-                />
+        {view === 'single' ? (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div>
+                <Label id={modelLabelId} className="mb-2.5 block text-[13px] text-foreground">
+                  {t('button.select_model')}
+                </Label>
+                {sortedModels.length > 0 ? (
+                  <Combobox<{ model: Model }>
+                    aria-labelledby={modelLabelId}
+                    className="h-9 w-full justify-between px-2.5 text-left font-normal"
+                    disabled={controlsDisabled || checkableModels.length === 0}
+                    emptyText={
+                      checkableModels.length === 0 ? t('settings.provider.no_models_for_check') : t('common.no_results')
+                    }
+                    filterOption={filterModelCheckOption}
+                    options={checkableModels.length === 0 ? [] : modelOptions}
+                    value={selectedModel?.id ?? ''}
+                    onChange={(value) => {
+                      setSingleModelId(Array.isArray(value) ? (value[0] ?? '') : value)
+                      health.resetSingleModelResult()
+                    }}
+                    placeholder={
+                      checkableModels.length === 0
+                        ? t('settings.provider.no_models_for_check')
+                        : t('settings.models.empty')
+                    }
+                    popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-[280px]"
+                    renderOption={(option) => renderModelOptionContent(option.model, option.description)}
+                    renderValue={(value, options) => {
+                      const selectedValue = Array.isArray(value) ? value[0] : value
+                      const option = options.find((item) => item.value === selectedValue)
+                      return option
+                        ? renderModelOptionContent(option.model)
+                        : checkableModels.length === 0
+                          ? t('settings.provider.no_models_for_check')
+                          : null
+                    }}
+                    searchPlaceholder={t('common.search')}
+                  />
+                ) : (
+                  <div className={drawerClasses.emptyInline}>{t('settings.provider.no_models_for_check')}</div>
+                )}
               </div>
-              {showKeyScope ? (
-                <ApiKeyScopeField
-                  entries={health.apiKeyEntries}
-                  selection={effectiveSingleKeySelection}
+
+              {health.canSelectApiKey ? (
+                <SingleApiKeyField
+                  entries={enabledApiKeyEntries}
+                  value={selectedKeyEntry?.id ?? ''}
                   disabled={controlsDisabled}
-                  onChange={(selection) => {
-                    setSingleKeySelection(selection)
+                  onChange={(keyId) => {
+                    setSingleKeyId(keyId)
                     health.resetSingleModelResult()
                   }}
-                />
-              ) : null}
-              {showSingleResult ? (
-                <ApiKeyCheckResults
-                  keyResults={singleModelResult.keyResults}
-                  apiKeyEntries={health.apiKeyEntries}
-                  savingKeyId={health.savingKeyId}
-                  onToggleKey={health.toggleApiKey}
                 />
               ) : null}
             </div>
-          ) : (
+
+            {singleErrorText ? (
+              <button
+                type="button"
+                aria-label={`${t('message.api.connection.failed')}: ${singleErrorText}. ${t('common.detail')}`}
+                className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none"
+                onClick={handleShowConnectionErrorDetail}>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <div className="flex shrink-0 items-center justify-center text-error">
+                    <AlertTriangle size={15} className="lucide-custom" />
+                  </div>
+                  <div className="pr-5 text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>
+                </div>
+                <div
+                  className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal"
+                  style={{ color: CONNECTION_ERROR_DESCRIPTION_COLOR }}>
+                  {singleErrorText}
+                </div>
+                <div className="mt-2.5 ml-5.75 flex items-center">
+                  <div
+                    className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
+                    style={{ color: CONNECTION_ERROR_DETAIL_COLOR }}>
+                    {t('common.detail')}
+                    <ChevronRight size={14} />
+                  </div>
+                </div>
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            <Alert type="warning" showIcon description={t('settings.models.check.all_models_disclaimer')} />
             <div className="space-y-4">
               {showKeyScope ? (
                 <ApiKeyScopeField
@@ -330,25 +491,42 @@ export default function ModelCheckDialog() {
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <DialogFooter className="shrink-0">
-          <Button variant="outline" onClick={health.closeModelCheck}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            loading={isStarting || (mode === 'single' && health.isSingleModelChecking)}
-            disabled={
-              isStarting ||
-              health.isModelChecking ||
-              (health.requiresApiKey && !hasEnabledApiKeys) ||
-              (mode === 'single' ? !selectedModel : sortedModels.length === 0)
-            }
-            onClick={() => void handleStart()}>
-            {t('settings.models.check.start')}
-          </Button>
-        </DialogFooter>
+        {view === 'single' ? (
+          <DialogFooter className="mt-1 flex-row items-center justify-between gap-3 sm:justify-between">
+            <div>
+              <Button
+                variant="outline"
+                className="h-9 px-3 text-sm"
+                disabled={controlsDisabled || health.isModelChecking}
+                onClick={() => setView('all')}>
+                {t('settings.models.check.model_button_caption')}
+              </Button>
+            </div>
+            <div className={drawerClasses.footer}>
+              <Button variant="outline" onClick={health.closeModelCheck}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                disabled={startDisabled}
+                loading={isStarting || health.isSingleModelChecking}
+                onClick={() => void handleStart()}>
+                {t('settings.models.check.start')}
+              </Button>
+            </div>
+          </DialogFooter>
+        ) : (
+          <DialogFooter className="shrink-0">
+            <Button variant="outline" onClick={health.closeModelCheck}>
+              {t('common.cancel')}
+            </Button>
+            <Button disabled={startDisabled} loading={isStarting} onClick={() => void handleStart()}>
+              {t('settings.models.check.start')}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )
