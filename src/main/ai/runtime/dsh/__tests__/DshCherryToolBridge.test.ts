@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
+import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -185,7 +187,9 @@ describe('DshCherryToolBridge', () => {
     await expect(readFile(audioPath)).resolves.toEqual(audio)
     await expect(readFile(videoPath)).resolves.toEqual(video)
     await expect(readFile(documentPath)).resolves.toEqual(document)
-    const { detectImage } = await import('@deepseek-ai/dsh-attachment-local')
+    const { detectImage } = await import(
+      pathToFileURL(resolveDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href
+    )
     await expect(detectImage(await readFile(imagePath))).resolves.toEqual({
       mediaType: 'image/png',
       width: 1,
