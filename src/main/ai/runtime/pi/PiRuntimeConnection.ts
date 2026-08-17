@@ -292,10 +292,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.input.knowledgeBaseIds
         )
       )
-      const customTools = [
-        ...this.mcpBridge.tools,
-        ...createPiCodeModeTools(this.mcpBridge.tools, (toolName) => this.disabledTools.has(toolName), authorizeTool)
-      ]
+      const customTools = createPiCodeModeTools(
+        this.mcpBridge.tools,
+        (toolName) => this.disabledTools.has(toolName),
+        authorizeTool
+      )
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,

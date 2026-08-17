@@ -1,5 +1,10 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import {
+  PI_TOOL_CALL_TOOL_NAME,
+  PI_TOOL_DESCRIBE_TOOL_NAME,
+  PI_TOOL_EXEC_TOOL_NAME,
+  PI_TOOL_SEARCH_TOOL_NAME
+} from '@shared/ai/piBuiltinTools'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PiToolAuthorizer } from './approvalExtension'
@@ -55,6 +60,34 @@ describe('createPiCodeModeTools', () => {
     const text = result.content[0].type === 'text' ? result.content[0].text : ''
 
     expect(text).toBe('No tools matched. Broaden the query or omit it.')
+  })
+
+  it('describes and calls a discovered tool through the shared authorization boundary', async () => {
+    const name = 'mcp__github__search_issues'
+    const execute = vi.fn<ToolDefinition['execute']>(async () => ({
+      content: [{ type: 'text' as const, text: 'found' }],
+      details: { total: 1 }
+    }))
+    const authorize = vi.fn<PiToolAuthorizer>(async () => undefined)
+    const tools = codeModeTools([tool({ name, description: 'Find repository issues', execute })], new Set(), authorize)
+    const describe = tools.find((item) => item.name === PI_TOOL_DESCRIBE_TOOL_NAME)!
+    const call = tools.find((item) => item.name === PI_TOOL_CALL_TOOL_NAME)!
+
+    const description = await describe.execute('describe-1', { name }, undefined, undefined, {} as never)
+    await call.execute('call-1', { name, params: { query: 'bug' } }, undefined, undefined, {} as never)
+
+    expect(description.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('Find repository issues')
+    })
+    expect(description.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining(`invoke(name: "${name}"`)
+    })
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: name, toolCallId: 'call-1::call', input: { query: 'bug' } })
+    )
+    expect(execute).toHaveBeenCalledWith('call-1::call', { query: 'bug' }, undefined, undefined, expect.anything())
   })
 
   it('executes a discovered tool through tools.invoke with nested call identity and cancellation', async () => {

@@ -369,11 +369,16 @@ after any applicable live tightening has landed.
 
 ### Pi code mode
 
-Pi exposes its bridged MCP catalog through two native custom tools:
+Pi exposes only `read`, `write`, `edit`, and `bash` directly. Its complete bridged
+MCP catalog, including Cherry autonomy tools, is exposed through four native custom tools:
 
-- `tool_search` matches tool names and descriptions and returns each match as a
+- `tool_search` ranks tool names and descriptions with BM25 and returns each match as a
   TypeScript declaration for `tools.invoke(name, params)`. The declarations are
   model guidance; they are not compiled or type-checked.
+- `tool_describe` returns the complete description and TypeScript declaration for one
+  discovered tool.
+- `tool_call` calls one discovered tool, applying that target tool's live disabled-tool
+  and approval policy before execution.
 - `tool_exec` runs JavaScript in the existing worker-thread executor and routes
   `tools.invoke` calls back to the Pi MCP definitions. The outer `tool_exec` call
   always uses Pi's approval flow (except the explicit `bypassPermissions` mode),
@@ -383,7 +388,8 @@ This executor is an orchestration boundary, not a security sandbox:
 `worker_threads` isolates scheduling but retains the app's Node.js authority.
 Move it to a capability-isolated executor before allowing untrusted code without
 an outer approval prompt. Pi's native file and shell tools are not in the code-mode
-catalog; they remain direct tools with their existing path and command policy.
+catalog; `read`, `write`, `edit`, and `bash` remain direct tools with their existing
+path and command policy.
 
 ## Internal Agent continuation normalization
 

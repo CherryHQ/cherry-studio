@@ -255,7 +255,7 @@ async function isToolPathInsideAllowedRoots(
   allowMissingTarget: boolean
 ): Promise<boolean> {
   const raw = input.path
-  // grep/find/ls default a missing/empty path to "." → the workspace root, which is inside.
+  // read defaults a missing/empty path to "." → the workspace root, which is inside.
   if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
   const resolved = resolveToolPath(raw || '.', workspacePath)

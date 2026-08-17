@@ -12,8 +12,8 @@ const AGENT_DATA_PATH = '/cherry/Data/Agents/agent-1'
 const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
-const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']
-const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_exec']
+const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
+const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_describe', 'tool_call', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__cron',
   'mcp__cherry-tools__notify',
@@ -1157,7 +1157,7 @@ describe('PiRuntimeConnection', () => {
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
-    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...AUTONOMY_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
+    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
@@ -1308,7 +1308,7 @@ describe('PiRuntimeConnection', () => {
       return handler
     }
 
-    it('merges bridged MCP tools after Cherry autonomy tools', async () => {
+    it('keeps bridged MCP tools behind the code-mode interface', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', mcps: ['srv-1', 'srv-2'] })
       mocks.buildMcpToolDefinitions.mockResolvedValue({
         tools: [...AUTONOMY_TOOL_NAMES.map((name) => ({ name })), { name: 'mcp__srv__do', label: 'do' }],
@@ -1319,20 +1319,12 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledWith(['srv-1', 'srv-2'])
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
-        { name: 'mcp__cherry-tools__cron' },
-        { name: 'mcp__cherry-tools__notify' },
-        { name: 'mcp__cherry-tools__config' },
-        { name: 'mcp__agent-memory__memory' },
-        { name: 'mcp__srv__do', label: 'do' },
         { name: 'tool_search' },
+        { name: 'tool_describe' },
+        { name: 'tool_call' },
         { name: 'tool_exec' }
       ])
-      expect(mocks.createOpts?.tools).toEqual([
-        ...PI_BUILTIN_TOOL_NAMES,
-        ...AUTONOMY_TOOL_NAMES,
-        'mcp__srv__do',
-        ...CODE_MODE_TOOL_NAMES
-      ])
+      expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     })
 
     it('passes the turn knowledge selection to the complete MCP set and rebuilds when its scope changes', async () => {
@@ -1429,7 +1421,7 @@ describe('PiRuntimeConnection', () => {
       workspace: { path: WORKSPACE, type: 'user' as const }
     }
 
-    it('uses the PromptBuilder persona and injects the autonomy customTools', async () => {
+    it('uses the PromptBuilder persona and injects the code-mode custom tools', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1450,11 +1442,9 @@ describe('PiRuntimeConnection', () => {
         undefined
       )
       expect(mocks.createOpts?.customTools).toEqual([
-        { name: 'mcp__cherry-tools__cron' },
-        { name: 'mcp__cherry-tools__notify' },
-        { name: 'mcp__cherry-tools__config' },
-        { name: 'mcp__agent-memory__memory' },
         { name: 'tool_search' },
+        { name: 'tool_describe' },
+        { name: 'tool_call' },
         { name: 'tool_exec' }
       ])
     })
@@ -1556,10 +1546,10 @@ describe('PiRuntimeConnection', () => {
       void conn
     })
 
-    it('uses the always-on persona and autonomy tools for a standard agent', async () => {
+    it('uses the always-on persona and code-mode tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(6)
+      expect(mocks.createOpts?.customTools).toHaveLength(4)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')

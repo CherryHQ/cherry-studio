@@ -395,14 +395,6 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted).toHaveLength(0)
     })
 
-    it('still auto-allows grep/find/ls with no path (defaults to the workspace root)', async () => {
-      const { handler, emitted } = buildGate()
-      for (const tool of ['grep', 'find', 'ls']) {
-        await expect(handler(toolEvent(tool, {}), extCtx)).resolves.toBeUndefined()
-      }
-      expect(emitted).toHaveLength(0)
-    })
-
     it('requires approval for a read whose absolute path is outside the workspace', async () => {
       const { handler, emitted } = buildGate()
       void handler(toolEvent('read', { path: join(outside, 'secret.txt') }), extCtx)

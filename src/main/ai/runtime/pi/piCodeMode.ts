@@ -1,22 +1,46 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { runExecCode } from '@main/ai/tools/codeMode/runtime'
 import { toolsToTypeScript, toolToTypeScript } from '@main/ai/tools/codeMode/schemaToTypeScript'
-import { PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import {
+  PI_TOOL_CALL_TOOL_NAME,
+  PI_TOOL_DESCRIBE_TOOL_NAME,
+  PI_TOOL_EXEC_TOOL_NAME,
+  PI_TOOL_SEARCH_TOOL_NAME
+} from '@shared/ai/piBuiltinTools'
 
 import type { PiToolAuthorizer } from './approvalExtension'
 
 type ToolResult = Awaited<ReturnType<ToolDefinition['execute']>>
 
 const SEARCH_RESULT_LIMIT = 20
+const BM25_K1 = 1.2
+const BM25_B = 0.75
 
 const searchParameters = {
   type: 'object',
   properties: {
     query: {
       type: 'string',
-      description: 'Case-insensitive substring matched against tool names and descriptions.'
+      description: 'BM25 query matched against tool names and descriptions.'
     }
   },
+  additionalProperties: false
+} as ToolDefinition['parameters']
+
+const describeParameters = {
+  type: 'object',
+  properties: { name: { type: 'string', description: 'Exact tool name returned by tool_search.' } },
+  required: ['name'],
+  additionalProperties: false
+} as ToolDefinition['parameters']
+
+const callParameters = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', description: 'Exact tool name returned by tool_search.' },
+    params: { type: 'object', description: 'Arguments matching the tool schema.' }
+  },
+  required: ['name', 'params'],
   additionalProperties: false
 } as ToolDefinition['parameters']
 
@@ -39,6 +63,18 @@ export function createPiCodeModeTools(
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
+  const invoke = async (
+    toolCallId: string,
+    name: string,
+    input: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ) => {
+    const tool = catalog.get(name)
+    if (!tool) throw new Error(`Tool not found: ${name}`)
+    const decision = await authorizeTool({ toolName: name, toolCallId, input, signal })
+    if (decision?.block) throw new Error(decision.reason)
+    return tool.execute(toolCallId, input, signal, undefined, {} as never)
+  }
 
   const searchTool: ToolDefinition = {
     name: PI_TOOL_SEARCH_TOOL_NAME,
@@ -49,10 +85,11 @@ export function createPiCodeModeTools(
     parameters: searchParameters,
     async execute(_toolCallId, params) {
       const input = params as Record<string, unknown>
-      const query = typeof input.query === 'string' ? input.query.trim().toLowerCase() : ''
-      const matches = [...catalog.values()]
-        .filter((tool) => !isDisabled(tool.name))
-        .filter((tool) => !query || `${tool.name}\n${tool.description}`.toLowerCase().includes(query))
+      const query = typeof input.query === 'string' ? input.query : ''
+      const matches = rankTools(
+        [...catalog.values()].filter((tool) => !isDisabled(tool.name)),
+        query
+      )
         .slice(0, SEARCH_RESULT_LIMIT)
         .map((tool) => ({
           name: tool.name,
@@ -77,6 +114,43 @@ export function createPiCodeModeTools(
     }
   }
 
+  const describeTool: ToolDefinition = {
+    name: PI_TOOL_DESCRIBE_TOOL_NAME,
+    label: 'Describe tool',
+    description: 'Get the complete description and TypeScript signature for one discovered tool.',
+    promptSnippet: 'Get the full description and TypeScript signature for a tool',
+    parameters: describeParameters,
+    async execute(_toolCallId, params) {
+      const input = params as Record<string, unknown>
+      const name = typeof input.name === 'string' ? input.name : ''
+      const tool = catalog.get(name)
+      if (!tool || isDisabled(name)) throw new Error(`Tool not found: ${name}`)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${tool.description}\n\n${toolToTypeScript(tool.name, tool.description, tool.parameters)}`
+          }
+        ],
+        details: { name: tool.name, description: tool.description, parameters: tool.parameters }
+      }
+    }
+  }
+
+  const callTool: ToolDefinition = {
+    name: PI_TOOL_CALL_TOOL_NAME,
+    label: 'Call tool',
+    description: 'Call one discovered tool with parameters matching its schema.',
+    promptSnippet: 'Call one discovered tool directly',
+    parameters: callParameters,
+    async execute(toolCallId, params, signal) {
+      const input = params as Record<string, unknown>
+      const name = typeof input.name === 'string' ? input.name : ''
+      const toolParams = isRecord(input.params) ? input.params : {}
+      return invoke(`${toolCallId}::call`, name, toolParams, signal)
+    }
+  }
+
   const execTool: ToolDefinition = {
     name: PI_TOOL_EXEC_TOOL_NAME,
     label: 'Execute tool code',
@@ -94,17 +168,8 @@ export function createPiCodeModeTools(
       const result = await runExecCode(code, {
         abortSignal: signal,
         async executeTool(name, input, requestId, childSignal) {
-          const tool = catalog.get(name)
-          if (!tool) throw new Error(`Tool not found: ${name}`)
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
-          const decision = await authorizeTool({
-            toolName: name,
-            toolCallId: nestedToolCallId,
-            input,
-            signal: childSignal
-          })
-          if (decision?.block) throw new Error(decision.reason)
-          return tool.execute(nestedToolCallId, input, childSignal, undefined, {} as never)
+          return invoke(nestedToolCallId, name, input, childSignal)
         }
       })
 
@@ -112,7 +177,41 @@ export function createPiCodeModeTools(
     }
   }
 
-  return [searchTool, execTool]
+  return [searchTool, describeTool, callTool, execTool]
+}
+
+function rankTools(tools: readonly ToolDefinition[], query: string): ToolDefinition[] {
+  const terms = tokenize(query)
+  if (terms.length === 0) return [...tools]
+  const documents = tools.map((tool) => tokenize(`${tool.name} ${tool.description}`))
+  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1
+  return tools
+    .map((tool, index) => {
+      const document = documents[index]
+      const score = terms.reduce((total, term) => {
+        const frequency = document.filter((token) => token === term).length
+        if (frequency === 0) return total
+        const containingDocuments = documents.filter((candidate) => candidate.includes(term)).length
+        const idf = Math.log(1 + (documents.length - containingDocuments + 0.5) / (containingDocuments + 0.5))
+        return (
+          total +
+          (idf * frequency * (BM25_K1 + 1)) /
+            (frequency + BM25_K1 * (1 - BM25_B + BM25_B * (document.length / averageLength)))
+        )
+      }, 0)
+      return { tool, score }
+    })
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.tool.name.localeCompare(right.tool.name))
+    .map(({ tool }) => tool)
+}
+
+function tokenize(value: string): string[] {
+  return value.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? []
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function toPiResult(result: { result: unknown; logs?: string[]; error?: string; isError?: boolean }): ToolResult {

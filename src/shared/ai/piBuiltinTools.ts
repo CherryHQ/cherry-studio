@@ -12,13 +12,12 @@ export type PiBuiltinToolDescriptor = {
 }
 
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
+export const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
+export const PI_TOOL_CALL_TOOL_NAME = 'tool_call'
 export const PI_TOOL_EXEC_TOOL_NAME = 'tool_exec'
 
 export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
-  { name: 'grep', category: 'search', approval: 'auto', permissionClass: 'read' },
-  { name: 'find', category: 'search', approval: 'auto', permissionClass: 'read' },
-  { name: 'ls', category: 'search', approval: 'auto', permissionClass: 'read' },
   { name: 'bash', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
@@ -29,6 +28,8 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
 export const PI_BUILTIN_TOOLS = [
   ...PI_NATIVE_BUILTIN_TOOLS,
   { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: PI_TOOL_DESCRIBE_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: PI_TOOL_CALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
   { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'prompt', permissionClass: 'shell' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 

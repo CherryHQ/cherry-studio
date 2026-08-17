@@ -1156,6 +1156,14 @@
           "description": "管理任务列表",
           "label": "管理任务列表"
         },
+        "tool_call": {
+          "description": "调用一个已发现的工具",
+          "label": "调用工具"
+        },
+        "tool_describe": {
+          "description": "获取工具的完整描述和 TypeScript 签名",
+          "label": "描述工具"
+        },
         "tool_exec": {
           "description": "执行 JavaScript 来编排已发现的工具",
           "label": "执行工具代码"

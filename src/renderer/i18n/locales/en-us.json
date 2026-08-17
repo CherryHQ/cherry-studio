@@ -1156,6 +1156,14 @@
           "description": "Manage the task list",
           "label": "Manage the task list"
         },
+        "tool_call": {
+          "description": "Call one discovered tool",
+          "label": "Call tool"
+        },
+        "tool_describe": {
+          "description": "Get the full description and TypeScript signature for a tool",
+          "label": "Describe tool"
+        },
         "tool_exec": {
           "description": "Execute JavaScript that orchestrates discovered tools",
           "label": "Execute tool code"
