@@ -39,11 +39,6 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     )
   }
 
-  // TodoWrite is globally disabled; old DB messages may still carry it — keep hiding them.
-  if (tool?.name === 'TodoWrite') {
-    return null
-  }
-
   const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {

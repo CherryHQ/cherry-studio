@@ -1088,6 +1088,10 @@
           "description": "シェルコマンドを実行",
           "label": "シェルコマンドを実行"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "ファイルを編集",
           "label": "ファイルを編集"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "ファイルを検索",
           "label": "ファイルを検索"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "ファイル内容を検索",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "ファイルを読み込む",
           "label": "ファイルを読み込む"
+        },
+        "read_image": {
+          "description": "画像認識対応モデルで PNG、JPEG、WebP、GIF ファイルを読み取ります",
+          "label": "画像を読み取る"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "ファイルを書き込む",
@@ -3526,11 +3550,8 @@
             "label": "実行モード",
             "option": {
               "claude_code": "高度：Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "高速：Pi"
-            },
-            "selected": {
-              "claude_code": "高度",
-              "pi": "高速"
             }
           },
           "small_model": {
@@ -7163,6 +7184,7 @@
         "no": "説明なし",
         "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
+        "qveris": "QVeris に接続して、AI エージェントの機能を検出、確認、呼び出しできます。環境変数 QVERIS_API_KEY の設定が必要です。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },
       "command": "コマンド",
@@ -7282,6 +7304,10 @@
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
       "providers": "プロバイダー",
+      "qveris": {
+        "get_api_key": "API キーを取得",
+        "missing_api_key": "QVeris には API キーが必要です。<link>登録またはログインして API キーを取得</link>し、QVERIS_API_KEY として入力してください。"
+      },
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
       "registryOptions": {

@@ -1088,6 +1088,10 @@
           "description": "Chạy lệnh shell",
           "label": "Chạy lệnh shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Sửa tập tin",
           "label": "Sửa tập tin"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "Tìm tập tin",
           "label": "Tìm tập tin"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Tìm kiếm nội dung tập tin",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "Đọc tập tin",
           "label": "Đọc tập tin"
+        },
+        "read_image": {
+          "description": "Đọc tệp PNG, JPEG, WebP hoặc GIF bằng mô hình có khả năng thị giác",
+          "label": "Đọc hình ảnh"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Ghi tập tin",
@@ -3526,11 +3550,8 @@
             "label": "Chế độ chạy",
             "option": {
               "claude_code": "Nâng cao: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Nhanh: Pi"
-            },
-            "selected": {
-              "claude_code": "Nâng cao",
-              "pi": "Nhanh"
             }
           },
           "small_model": {
@@ -7163,6 +7184,7 @@
         "no": "Không có mô tả",
         "nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
         "python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
+        "qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
         "sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc"
       },
       "command": "Lệnh",
@@ -7282,6 +7304,10 @@
       "providerPlaceholder": "Tên nhà cung cấp",
       "providerUrl": "URL của nhà cung cấp",
       "providers": "Nhà cung cấp",
+      "qveris": {
+        "get_api_key": "Lấy khóa API",
+        "missing_api_key": "QVeris yêu cầu khóa API. <link>Đăng ký hoặc đăng nhập để nhận khóa API</link>, sau đó nhập khóa đó vào QVERIS_API_KEY."
+      },
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
       "registryOptions": {

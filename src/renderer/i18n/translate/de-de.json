@@ -1088,6 +1088,10 @@
           "description": "Shell-Befehle ausführen",
           "label": "Shell-Befehle ausführen"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Dateien bearbeiten",
           "label": "Dateien bearbeiten"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "Dateien suchen",
           "label": "Dateien suchen"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Dateiinhalt durchsuchen",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "Dateien lesen",
           "label": "Dateien lesen"
+        },
+        "read_image": {
+          "description": "Liest eine PNG-, JPEG-, WebP- oder GIF-Datei mit einem visionsfähigen Modell",
+          "label": "Bild lesen"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Dateien schreiben",
@@ -3526,11 +3550,8 @@
             "label": "Laufzeitmodus",
             "option": {
               "claude_code": "Erweitert: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Schnell: Pi"
-            },
-            "selected": {
-              "claude_code": "Erweitert",
-              "pi": "Schnell"
             }
           },
           "small_model": {
@@ -7163,6 +7184,7 @@
         "no": "Keine Beschreibung",
         "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
+        "qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },
       "command": "Befehl",
@@ -7282,6 +7304,10 @@
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
+      "qveris": {
+        "get_api_key": "API-Schlüssel erhalten",
+        "missing_api_key": "QVeris benötigt einen API-Schlüssel. <link>Registrieren Sie sich oder melden Sie sich an, um einen API-Schlüssel zu erhalten</link>, und geben Sie ihn anschließend als QVERIS_API_KEY ein."
+      },
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryOptions": {

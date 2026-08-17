@@ -80,13 +80,34 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
+/** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+export const LatestAgentSessionQuerySchema = z.strictObject({
+  agentId: z.string().min(1).optional()
+})
+export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
+
+/** Exact creation target for atomically reusing or creating an empty session. */
+export const ReuseOrCreateAgentSessionSchema = z.strictObject({
+  agentId: z.string().min(1),
+  workspace: AgentSessionWorkspaceSourceSchema,
+  excludeSessionId: z.string().min(1).optional()
+})
+export type ReuseOrCreateAgentSessionDto = z.infer<typeof ReuseOrCreateAgentSessionSchema>
+
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-active session, or `null` when there are none. */
+/** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
+}
+
+/** The reusable empty session selected or created for the exact target. */
+export interface ReusableAgentSessionPlaceholdersResponse {
+  session: AgentSessionEntity
+  created: boolean
+  deletedDuplicateSessionIds: string[]
 }
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
@@ -135,17 +156,29 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-active session across all agents.
+   * Most-recently-active session, globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
    * `lastActivityAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
-   * page.
+   * page. `agentId=unlinked` covers sessions without a live agent.
    */
   '/agent-sessions/latest': {
     GET: {
+      query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /**
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
+   */
+  '/agent-sessions/reusable-placeholders': {
+    POST: {
+      body: ReuseOrCreateAgentSessionDto
+      response: ReusableAgentSessionPlaceholdersResponse
     }
   }
 

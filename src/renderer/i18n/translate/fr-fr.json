@@ -1088,6 +1088,10 @@
           "description": "Exécuter des commandes shell",
           "label": "Exécuter des commandes shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "Lire des fichiers",
           "label": "Lire des fichiers"
+        },
+        "read_image": {
+          "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
+          "label": "Lire une image"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Écrire des fichiers",
@@ -3526,11 +3550,8 @@
             "label": "Mode d’exécution",
             "option": {
               "claude_code": "Avancé : Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rapide : Pi"
-            },
-            "selected": {
-              "claude_code": "Avancé",
-              "pi": "Rapide"
             }
           },
           "small_model": {
@@ -7163,6 +7184,7 @@
         "no": "sans description",
         "nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
+        "qveris": "Connectez-vous à QVeris pour découvrir, inspecter et appeler des capacités d’agents IA. Nécessite de configurer la variable d’environnement QVERIS_API_KEY.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
       "command": "Commande",
@@ -7282,6 +7304,10 @@
       "providerPlaceholder": "Nom du fournisseur",
       "providerUrl": "URL du fournisseur",
       "providers": "Fournisseurs",
+      "qveris": {
+        "get_api_key": "Obtenir une clé API",
+        "missing_api_key": "QVeris nécessite une clé API. <link>Inscrivez-vous ou connectez-vous pour obtenir une clé API</link>, puis saisissez-la comme QVERIS_API_KEY."
+      },
       "registry": "Registre de paquets",
       "registryDefault": "Par défaut",
       "registryOptions": {
