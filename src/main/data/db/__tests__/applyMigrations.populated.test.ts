@@ -52,6 +52,30 @@ function baselineMigrationsFolder(into: string, beforeTag?: string): string {
   return into
 }
 
+function legacyAgentChannelSessionMigrationsFolder(into: string): string {
+  mkdirSync(join(into, 'meta'), { recursive: true })
+  writeFileSync(
+    join(into, 'meta', '_journal.json'),
+    JSON.stringify({
+      dialect: 'sqlite',
+      entries: [{ idx: 8, version: '6', when: 1_786_631_439_394, tag: '0008_same_sauron', breakpoints: true }],
+      version: '7'
+    })
+  )
+  writeFileSync(
+    join(into, '0008_same_sauron.sql'),
+    `CREATE TABLE \`agent_channel_session\` (
+      \`session_id\` text PRIMARY KEY NOT NULL,
+      \`channel_id\` text NOT NULL,
+      \`conversation_id\` text,
+      \`conversation_kind\` text,
+      \`is_active\` integer DEFAULT false NOT NULL,
+      CONSTRAINT "agent_channel_session_conversation_kind_check" CHECK("agent_channel_session"."conversation_kind" IS NULL OR "agent_channel_session"."conversation_kind" IN ('direct', 'group', 'channel'))
+    );`
+  )
+  return into
+}
+
 describe('applyMigrations over a populated database', () => {
   let tempDir: string
   let sqlite: Database.Database
@@ -178,6 +202,19 @@ describe('applyMigrations over a populated database', () => {
       count: 0
     })
     expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
+  })
+
+  it('upgrades databases that applied the earlier branch-local channel migration', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_nice_scalphunter'))
+    applyMigrations(db, legacyAgentChannelSessionMigrationsFolder(join(tempDir, 'legacy-0008')))
+
+    expect(() => applyMigrations(db, resolveMigrationsPath())).not.toThrow()
+    const table = sqlite
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_channel_session'")
+      .get() as {
+      sql: string
+    }
+    expect(table.sql).toContain("'thread'")
   })
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
