@@ -438,8 +438,12 @@ async function primeComposerClipboardSessionCache(plainText: string, fragment: s
 }
 
 describe('ComposerSurface', () => {
+  let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
+
   beforeEach(() => {
     clearMockTimers()
+    // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
+    hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
     mocks.currentView = undefined
@@ -519,6 +523,13 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('renders the editor view synchronously so the fallback swap never drops the input target', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.editorOptions?.immediatelyRender).toBe(true)
+    expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
     const viewDom = mocks.editorViewDom!
     document.body.appendChild(viewDom)
@@ -552,10 +563,25 @@ describe('ComposerSurface', () => {
     vi.unstubAllGlobals()
   })
 
-  it('defers the editor engine so the composer frame can render first', () => {
+  it('restores the caret the fallback left behind instead of collapsing to the end', () => {
+    mocks.docContentSize = 10
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => 'x'.repeat(Math.max(0, to)))
+
+    render(<ComposerSurface {...baseProps} text="draft" initialTextSelection={{ start: 3, end: 3 }} />)
+
+    expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('leaves focus alone when the user moved on to another input while the runtime loaded', () => {
+    const elsewhere = document.createElement('input')
+    document.body.appendChild(elsewhere)
+    elsewhere.focus()
+
     render(<ComposerSurface {...baseProps} />)
 
-    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+    expect(mocks.focus).not.toHaveBeenCalled()
+    elsewhere.remove()
   })
 
   it('uses the card color with a subtle shadow', () => {
@@ -609,6 +635,20 @@ describe('ComposerSurface', () => {
     }
   })
 
+  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('restores mount focus when the fallback textarea held focus', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
+
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
   it('applies the transferred text selection when the editor is created', async () => {
     const text = 'previous chat prompt'
     const textEndPosition = text.length + 1
@@ -637,6 +677,7 @@ describe('ComposerSurface', () => {
 
   afterEach(() => {
     clearMockTimers()
+    hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   })
@@ -4567,6 +4608,19 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
     expect(event.defaultPrevented).toBe(true)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it.each(['a', ' ', 'Backspace', 'ArrowLeft'])('never reads %s as the send shortcut', async (key) => {
+    const onSendDraft = vi.fn()
+    render(<ComposerSurface {...baseProps} text="draft" onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key, cancelable: true })
+    mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(event.defaultPrevented).toBe(false)
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 

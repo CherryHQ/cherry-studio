@@ -211,6 +211,8 @@ export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
+  hadFocus?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -1758,7 +1760,9 @@ export default function ComposerSurfaceRuntime({
     extensions: editorExtensions,
     content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
     editable,
-    immediatelyRender: false,
+    // Render the view synchronously: the fallback textarea unmounts in the same commit this
+    // runtime mounts, so a view that attaches a frame later leaves nothing focused in between.
+    immediatelyRender: true,
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
@@ -1786,36 +1790,44 @@ export default function ComposerSurfaceRuntime({
         trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
-    onCreate: ({ editor: createdEditor }) => {
+    onCreate: () => {
       window.requestAnimationFrame(() => {
         startTransition(() => setEditorReady(true))
       })
-      const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
-      setTimeoutTimer(
-        'composerSurfaceFocus',
-        () => {
-          if (!createdEditor || createdEditor.isDestroyed || !shouldRestoreEditorFocus(focusRestoreSnapshot)) return
-          if (initialTextSelection) {
-            createdEditor
-              .chain()
-              .focus()
-              .setTextSelection({
-                from: getComposerPositionAtTextOffset(createdEditor, initialTextSelection.start),
-                to: getComposerPositionAtTextOffset(createdEditor, initialTextSelection.end)
-              })
-              .run()
-            return
-          }
-          createdEditor.commands.focus('end')
-        },
-        0
-      )
     }
   })
 
   useEffect(() => {
     editorRef.current = editor
   }, [editor])
+
+  // The fallback textarea is removed in the same commit that attaches this view, so focus has to
+  // land on it before paint — a deferred restore would leave a keystroke with nowhere to go.
+  const focusHandoffDoneRef = useRef(false)
+  useLayoutEffect(() => {
+    if (focusHandoffDoneRef.current) return
+    if (!editor || editor.isDestroyed) return
+    focusHandoffDoneRef.current = true
+    const active = document.activeElement
+    if (!document.hasFocus()) return
+    if (active && active !== document.body && !frameRef.current?.contains(active)) return
+    // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal the
+    // focus the fallback never held — hand off only after real fallback interaction.
+    if (deferredIntent && !deferredIntent.hadFocus) return
+
+    if (initialTextSelection) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({
+          from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
+          to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
+        })
+        .run()
+      return
+    }
+    editor.commands.focus('end')
+  }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -2109,7 +2121,7 @@ export default function ComposerSurfaceRuntime({
 
   // Replay what the deferred fallback captured while this runtime was still loading. Both transfers
   // are re-dispatched on the editor DOM so they take the very same paths a live event would; the
-  // timer queues behind onCreate's focus restore so a paste lands on the caret the user left.
+  // timer queues behind the mount-time focus restore so a paste lands on the caret the user left.
   const unifiedPanelOpen = unifiedPanelControl.open
   useEffect(() => {
     if (!deferredIntent || !editor) return

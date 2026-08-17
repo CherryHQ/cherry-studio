@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,7 +73,7 @@ class FakeDataTransfer {
 }
 
 function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
-  const [text, setText] = useState('draft')
+  const [text, setText] = useState('')
   const props: ComposerSurfaceProps = {
     text,
     onTextChange: setText,
@@ -113,6 +113,7 @@ describe('deferred ComposerSurface', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 
@@ -136,19 +137,46 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('keeps a whitespace-only draft on the fallback without loading the runtime', () => {
+    render(<Harness text="   " />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('   ')
+    expect(mocks.runtimeLoads).toBe(0)
+  })
+
+  it('swaps in the rich runtime while idle, before the user can type into the fallback', async () => {
+    const idleCallbacks: Array<() => void> = []
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => idleCallbacks.push(callback))
+    vi.stubGlobal('cancelIdleCallback', () => {})
+
+    render(<Harness text="" />)
+    expect(mocks.runtimeLoads).toBe(0)
+
+    act(() => idleCallbacks.forEach((callback) => callback()))
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
+    render(<Harness text="" />)
+
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('')
+    expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
-    expect(input).toHaveValue('draft')
-    expect(mocks.runtimeLoads).toBe(0)
+    expect(input).toHaveValue('')
 
+    // Focus starts the runtime load; a composition begun before the swap commits keeps the
+    // textarea mounted, so the committed characters survive into the runtime.
     fireEvent.focus(input)
-    expect(mocks.runtimeLoads).toBe(0)
-
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'draft text', selectionStart: 10, selectionEnd: 10 } })
-    await waitFor(() => expect(mocks.runtimeLoads).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('draft text')
 
     fireEvent.compositionEnd(input, { currentTarget: { selectionStart: 10, selectionEnd: 10 } })
@@ -218,6 +246,30 @@ describe('deferred ComposerSurface', () => {
       />
     )
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the runtime for a restored multi-line draft the fixed-height fallback cannot hold', async () => {
+    render(<Harness text={'line one\nline two\nline three'} />)
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('line one line two line three')
+  })
+
+  it('loads the runtime for any non-empty draft, even one line a narrow input may soft-wrap', async () => {
+    render(<Harness text="one long single line" />)
+
+    expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('one long single line')
+  })
+
+  it('marks the deferred intent as focused when the fallback textarea gained focus', async () => {
+    render(<Harness />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'hello' } })
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.hadFocus).toBe(true)
   })
 
   it('follows the send-shortcut preference when the caller does not pass one', () => {
@@ -312,6 +364,7 @@ describe('deferred ComposerSurface', () => {
     const onTokensChange = vi.fn()
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}
@@ -334,6 +387,7 @@ describe('deferred ComposerSurface', () => {
     const quote = { id: 'q2', kind: 'quote', promptText: 'Quoted line' } as ComposerDraftToken
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}

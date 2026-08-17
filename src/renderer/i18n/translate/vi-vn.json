@@ -1088,6 +1088,10 @@
           "description": "Chạy lệnh shell",
           "label": "Chạy lệnh shell"
         },
+        "create_goal": {
+          "description": "Tạo mục tiêu cần đạt được trong phiên",
+          "label": "Tạo mục tiêu"
+        },
         "edit": {
           "description": "Sửa tập tin",
           "label": "Sửa tập tin"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "Tìm tập tin",
           "label": "Tìm tập tin"
+        },
+        "get_goal": {
+          "description": "Đọc mục tiêu của phiên hiện tại",
+          "label": "Đọc mục tiêu"
         },
         "grep": {
           "description": "Tìm kiếm nội dung tập tin",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "Đọc tập tin",
           "label": "Đọc tập tin"
+        },
+        "read_image": {
+          "description": "Đọc tệp PNG, JPEG, WebP hoặc GIF bằng mô hình có khả năng thị giác",
+          "label": "Đọc hình ảnh"
+        },
+        "skill": {
+          "description": "Tải hướng dẫn đầy đủ của một kỹ năng đã bật",
+          "label": "Tải hướng dẫn kỹ năng"
+        },
+        "todo_write": {
+          "description": "Quản lý danh sách tác vụ",
+          "label": "Quản lý danh sách tác vụ"
+        },
+        "update_goal": {
+          "description": "Cập nhật trạng thái hoặc nội dung của mục tiêu phiên",
+          "label": "Cập nhật mục tiêu"
         },
         "write": {
           "description": "Ghi tập tin",
@@ -2203,7 +2227,7 @@
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Mã Kimi",
@@ -2227,39 +2251,39 @@
     "custom_path_required": "Terminal này yêu cầu đường dẫn tùy chỉnh",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Chế độ tác nhân mặc định",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Kết hợp công việc công cụ nhiều bước thông qua SDK PTC Code Mode cho các tác vụ lập trình phức tạp.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Giữ nguyên cấu hình đặt trước mặc định hiện có trong phần cài đặt ~/.dsh dùng chung.",
+          "label": "Mặc định của Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Chỉ sử dụng shell duy trì liên tục và trình soạn thảo văn bản để có phạm vi công cụ nhỏ nhất.",
+          "label": "Tối giản"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Tác nhân lập trình đầy đủ với tệp, shell, tìm kiếm, kỹ năng, lập kế hoạch và tác nhân phụ.",
+          "label": "Tiêu chuẩn"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Toàn quyền truy cập cho phép tác nhân truy cập các tệp bên ngoài không gian làm việc và bỏ qua bước phê duyệt thao tác. Chỉ sử dụng cho những tác vụ bạn tin tưởng.",
+      "permission_mode": "Quyền mặc định",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Cho phép truy cập không hạn chế mà không cần phê duyệt thao tác.",
+          "label": "Toàn quyền truy cập"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Hạn chế ghi tệp và yêu cầu xác nhận trước các thao tác rủi ro.",
+          "label": "Chỉ đọc"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Cho phép ghi trong không gian làm việc DSH hiện tại và yêu cầu xác nhận trước các thao tác rủi ro.",
+          "label": "Ghi trong không gian làm việc"
         }
       }
     },
@@ -2313,7 +2337,7 @@
     "no_tools": "Không có công cụ nào khả dụng",
     "not_installed": "Chưa cài đặt",
     "open_provider_settings": "Mở cài đặt nhà cung cấp",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Mở giao diện web",
     "own_login": {
       "title": "{{toolName}} Chính thức"
     },
@@ -2323,10 +2347,10 @@
     "search_provider_placeholder": "Tìm kiếm nhà cung cấp…",
     "select_folder": "Chọn thư mục",
     "select_provider_before_launch": "Chọn một nhà cung cấp trước khi khởi chạy {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Vui lòng chọn nhà cung cấp và mô hình trước",
     "select_tool_to_start": "Chọn một công cụ CLI từ bên trái để bắt đầu cấu hình",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
-    "stop": "[to be translated]:Stop",
+    "stop": "Dừng",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
@@ -3526,11 +3550,8 @@
             "label": "Chế độ chạy",
             "option": {
               "claude_code": "Nâng cao: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Nhanh: Pi"
-            },
-            "selected": {
-              "claude_code": "Nâng cao",
-              "pi": "Nhanh"
             }
           },
           "small_model": {
@@ -7163,6 +7184,7 @@
         "no": "Không có mô tả",
         "nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
         "python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
+        "qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
         "sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc"
       },
       "command": "Lệnh",
@@ -7282,6 +7304,10 @@
       "providerPlaceholder": "Tên nhà cung cấp",
       "providerUrl": "URL của nhà cung cấp",
       "providers": "Nhà cung cấp",
+      "qveris": {
+        "get_api_key": "Lấy khóa API",
+        "missing_api_key": "QVeris yêu cầu khóa API. <link>Đăng ký hoặc đăng nhập để nhận khóa API</link>, sau đó nhập khóa đó vào QVERIS_API_KEY."
+      },
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
       "registryOptions": {
@@ -9012,5 +9038,18 @@
     "quit": "Thôi",
     "show_window": "Hiển thị Cửa sổ",
     "visualization": "Trực quan hóa"
+  },
+  "xlsx_preview": {
+    "chart": "Biểu đồ",
+    "chart_unsupported": "Loại biểu đồ này chưa được hỗ trợ",
+    "error": {
+      "description": "Không thể xem trước bảng tính này."
+    },
+    "formula_not_evaluated": "Không thể tính giá trị công thức",
+    "sheet_tabs_label": "Trang tính",
+    "too_large": {
+      "description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
+      "title": "Tệp quá lớn để xem trước"
+    }
   }
 }

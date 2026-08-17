@@ -1017,6 +1017,38 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
   })
 
+  it('shows a dsh todo_write snapshot in the status shortcut preview', () => {
+    const todoPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'dsh-todos-1',
+      toolName: 'todo_write',
+      state: 'output-available',
+      input: {
+        todos: [
+          { content: 'Connect the task list', status: 'completed' },
+          { content: 'Verify the right pane', status: 'in_progress' }
+        ]
+      },
+      callProviderMetadata: {
+        cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: 'todo_write' } }
+      }
+    } as unknown as CherryMessagePart
+    const messages = [
+      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'success' } }
+    ] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [todoPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const preview = screen.getByTestId('status-shortcut-preview')
+    expect(within(preview).getByText('Connect the task list')).toHaveClass('line-through')
+    expect(within(preview).getByText('Verify the right pane')).toBeInTheDocument()
+  })
+
   it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
     const parts = [
       {

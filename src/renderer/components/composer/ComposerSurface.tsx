@@ -99,12 +99,21 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     [props.draftTokens, props.text, props.tokens]
   )
 
-  // The fallback cannot rebase token offsets or render the editing header, so hand those states
-  // straight to the runtime instead of serving them badly.
-  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length)
+  // The fallback cannot rebase token offsets, render the editing header, or grow beyond its fixed
+  // two-line box — hand those states to the runtime instead of serving them badly.
+  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length) || props.text.trim().length > 0
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
+
+  // Swap while the app is idle rather than under the user's first keystroke: a swap that lands
+  // between a keydown and its character insertion drops that character, and no hand-off inside
+  // the runtime can recover it. Idle work stays off the first-paint path this fallback protects.
+  useEffect(() => {
+    if (Runtime || !window.requestIdleCallback) return
+    const idleId = window.requestIdleCallback(() => requestRuntime())
+    return () => window.cancelIdleCallback(idleId)
+  }, [Runtime, requestRuntime])
 
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
@@ -257,7 +266,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             requestRuntime()
           }}
           onFocus={() => {
+            intentRef.current.hadFocus = true
             props.onFocus?.()
+            // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+            // would otherwise commit before the keystroke's input event, dropping the character.
+            requestRuntime()
           }}
           onSelect={updateSelection}
           onPaste={(event) => {

@@ -1,5 +1,8 @@
+import crypto from 'node:crypto'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,8 +62,7 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
+      streamableHttpTransports.push({ url, opts })
     }
   }
   const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
@@ -100,6 +102,7 @@ const mcpSdkMock = vi.hoisted(() => {
     }
   }
   const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  const streamableHttpTransports: Array<{ url: unknown; opts?: any }> = []
   class StdioClientTransport {
     kind = 'stdio' as const
     stderr = null
@@ -115,6 +118,7 @@ const mcpSdkMock = vi.hoisted(() => {
     StreamableHTTPError,
     StdioClientTransport,
     stdioTransports,
+    streamableHttpTransports,
     clients,
     state: { failStreamable: false, failStreamableCode: 503 }
   }
@@ -135,19 +139,29 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, redactSensitive, redactServerKey, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
-  await import('../McpRuntimeService')
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
+  '../McpRuntimeService'
+)
 
-/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+/** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        baseUrl: undefined,
+        command: undefined,
+        args: [],
+        registryUrl: undefined,
+        env: undefined,
+        headers: undefined
+      })
+    )
+    .digest('hex')
+
   return JSON.stringify({
-    baseUrl: undefined,
-    command: undefined,
-    args: [],
-    registryUrl: undefined,
-    env: undefined,
-    headers: undefined,
-    id
+    id,
+    fingerprint
   })
 }
 
@@ -208,6 +222,76 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+})
+
+describe('McpRuntimeService QVeris hosted transport', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    mcpSdkMock.streamableHttpTransports.length = 0
+  })
+
+  it('connects to the hosted endpoint with the configured API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: 'qveris-test-key' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transport = mcpSdkMock.streamableHttpTransports.at(-1)
+    expect(String(transport?.url)).toBe('https://mcp.qveris.ai/mcp')
+    expect(transport?.opts).toEqual(
+      expect.objectContaining({
+        requestInit: expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer qveris-test-key' })
+        })
+      })
+    )
+    expect(transport?.opts).not.toHaveProperty('authProvider')
+  })
+
+  it('rejects activation without an API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    )
+  })
+
+  it('uses a distinct secret-free key when the API key changes', () => {
+    const service = new McpRuntimeService()
+    const first = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'first-key' },
+      isActive: true
+    } as McpServer)
+    const second = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'second-key' },
+      isActive: true
+    } as McpServer)
+
+    expect(first).not.toContain('first-key')
+    expect(second).not.toContain('second-key')
+    expect(first).not.toBe(second)
   })
 })
 
@@ -689,79 +773,6 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     expect(service.getServerKey(server)).toBe(keyBefore)
     // A mutation WOULD have changed the key — this documents why the bug surfaced.
     expect(service.getServerKey({ ...server, env: merged } as McpServer)).not.toBe(keyBefore)
-  })
-})
-
-describe('redactSensitive (mcp-services-3)', () => {
-  it('redacts sensitive keys', () => {
-    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
-    expect(out.authorization).toBe('<redacted>')
-    expect(out.apiKey).toBe('<redacted>')
-    expect(out.keep).toBe('ok')
-  })
-
-  it('does not stack-overflow on a circular enumerable graph', () => {
-    const a: Record<string, unknown> = { name: 'a' }
-    const b: Record<string, unknown> = { name: 'b', a }
-    a.b = b // a -> b -> a cycle
-    expect(() => redactSensitive(a)).not.toThrow()
-    expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
-  })
-
-  it('redacts sensitive substrings in key names, case-insensitively', () => {
-    const out = redactSensitive({
-      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_x', MEMORY_FILE_PATH: '/tmp/mem' },
-      headers: { 'X-Api-Key': 'k', Accept: 'application/json' }
-    })
-    expect(out.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
-    expect(out.env.MEMORY_FILE_PATH).toBe('/tmp/mem')
-    expect(out.headers['X-Api-Key']).toBe('<redacted>')
-    expect(out.headers.Accept).toBe('application/json')
-  })
-})
-
-describe('redactServerKey (issue #18648)', () => {
-  it('redacts env and headers values from a serialized server key', () => {
-    const key = JSON.stringify({
-      baseUrl: '',
-      command: 'npx',
-      args: ['@modelcontextprotocol/server-github'],
-      env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret' },
-      headers: { Authorization: 'Bearer secret' }
-    })
-    const out = redactServerKey(key)
-    expect(out).not.toContain('github_pat_secret')
-    expect(out).not.toContain('Bearer secret')
-    expect(out).toContain('<redacted>')
-    // non-sensitive fields stay visible for debugging
-    expect(out).toContain('@modelcontextprotocol/server-github')
-    expect(JSON.parse(out).env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe('<redacted>')
-  })
-
-  it('fails closed: redacts credential-bearing values whose names match no sensitive pattern', () => {
-    // Review regression: DATABASE_URL carries credentials in the VALUE — key-name
-    // heuristics must not decide secrecy at this boundary.
-    const key = JSON.stringify({
-      command: 'npx',
-      env: { DATABASE_URL: 'postgresql://user:password@host/db', DEBUG: '1' },
-      headers: { 'X-Custom-Trace': 'secret-trace-value' }
-    })
-    const out = redactServerKey(key)
-    expect(out).not.toContain('password')
-    expect(out).not.toContain('secret-trace-value')
-    const parsed = JSON.parse(out)
-    expect(parsed.env.DATABASE_URL).toBe('<redacted>')
-    expect(parsed.env.DEBUG).toBe('<redacted>')
-    expect(parsed.headers['X-Custom-Trace']).toBe('<redacted>')
-  })
-
-  it('returns a placeholder for an unparseable server key', () => {
-    expect(redactServerKey('not-json')).toBe('<unparseable-serverKey>')
-  })
-
-  it('leaves a key without env or headers untouched', () => {
-    const key = JSON.stringify({ baseUrl: 'https://example.com', id: 'a1' })
-    expect(redactServerKey(key)).toBe(key)
   })
 })
 
