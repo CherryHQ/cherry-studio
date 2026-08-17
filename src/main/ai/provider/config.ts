@@ -40,6 +40,7 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
+import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -246,7 +247,10 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'zhipu'),
       build: withSelectedApiKey((ctx) => {
         const config = buildOpenAICompatibleConfig(ctx)
-        config.providerSettings.transformRequestBody = transformZhipuRequestBody
+        // Compose: reasoning-model max_tokens conversion runs first, then Zhipu web search injection.
+        const baseTransform = config.providerSettings.transformRequestBody
+        config.providerSettings.transformRequestBody = (body: unknown) =>
+          transformZhipuRequestBody(baseTransform ? baseTransform(body) : body)
         return config
       })
     },
@@ -764,6 +768,10 @@ function buildAzureConfig(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Reasoning-model max_tokens → max_completion_tokens conversion
+// ---------------------------------------------------------------------------
+
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
   const commonOptions = buildCommonOptions(ctx)
 
@@ -774,7 +782,8 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       ...ctx.baseConfig,
       ...commonOptions,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     }
   }
 }

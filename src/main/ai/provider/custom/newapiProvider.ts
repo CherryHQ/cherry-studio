@@ -25,6 +25,8 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
+import { applyReasoningModelMaxTokensConversion } from '../reasoningModelTransform'
+
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
 
 export type NewApiEndpointType =
@@ -112,7 +114,8 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       provider: `${NEWAPI_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
-      fetch: customFetch
+      fetch: customFetch,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {

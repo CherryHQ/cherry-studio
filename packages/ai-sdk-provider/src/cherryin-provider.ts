@@ -139,11 +139,38 @@ const createCustomFetch = (originalFetch?: any) => {
     return originalFetch ? originalFetch(url, options) : fetch(url, options)
   }
 }
+
+/**
+ * Detect OpenAI reasoning models that require `max_completion_tokens` instead
+ * of `max_tokens`. Matches `@ai-sdk/openai`'s internal pattern.
+ */
+function isOpenAIReasoningModelId(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  return (
+    id.startsWith('o1') ||
+    id.startsWith('o3') ||
+    id.startsWith('o4-mini') ||
+    (id.startsWith('gpt-5') && !id.startsWith('gpt-5-chat'))
+  )
+}
+
+/** Rewrite `max_tokens` → `max_completion_tokens` for OpenAI reasoning models. */
+function applyReasoningModelMaxTokensConversion(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null) return body
+  const record = body as Record<string, unknown>
+  if (typeof record.model !== 'string') return body
+  if (!isOpenAIReasoningModelId(record.model)) return body
+  if (record.max_tokens == null) return body
+  const { max_tokens, ...rest } = record
+  return { ...rest, max_completion_tokens: max_tokens }
+}
+
 class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel {
   constructor(modelId: string, settings: any) {
     super(modelId, {
       ...settings,
-      fetch: createCustomFetch(settings.fetch)
+      fetch: createCustomFetch(settings.fetch),
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     })
   }
 }
