@@ -1077,9 +1077,6 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
 
-    // The tool runtime consumes the decision; this manager only clears its UI state.
-    void approved
-
     let changed = false
     let pendingApprovalFlipped = false
     for (const exec of stream.executions.values()) {
@@ -1087,10 +1084,14 @@ export class AiStreamManager extends BaseService {
       if (!pendingApprovals?.delete(toolCallId)) continue
       exec.runtimeTiming.finishApproval({ toolCallId })
       changed = true
-      // AI SDK has no UI-stream approval-response chunk. Replaying the input clears the answered
-      // approval part whether the decision allowed or denied the call.
-      const inputChunk = findBufferedToolInput(exec, toolCallId)
-      if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec)
+      if (approved) {
+        // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part
+        // and lets a parallel batch surface its next approval before the tools execute.
+        const inputChunk = findBufferedToolInput(exec, toolCallId)
+        if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec)
+      } else {
+        this.onChunk(topicId, exec.modelId, { type: 'tool-output-denied', toolCallId }, exec)
+      }
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
     }
     if (pendingApprovalFlipped && isLiveStatus(stream.status)) stream.lifecycle.onApprovalPendingChanged(stream)

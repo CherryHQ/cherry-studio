@@ -161,10 +161,10 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
 
       try {
         const result = await ctx.executeTool(message.name, message.params ?? {}, message.requestId, childAbort.signal)
-        if (finished || timedOut) return
+        if (finished || timedOut || terminating) return
         worker.postMessage({ type: 'toolResult', requestId: message.requestId, result })
       } catch (err) {
-        if (finished || timedOut) return
+        if (finished || timedOut || terminating) return
         const errorMessage = err instanceof Error ? err.message : String(err)
         worker.postMessage({ type: 'toolError', requestId: message.requestId, error: errorMessage })
       } finally {

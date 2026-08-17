@@ -6,7 +6,7 @@ const MAX_LOGS = 1000
 
 const logs = []
 const pendingCalls = new Map()
-const calls = new Set()
+const activeCalls = new Map()
 let isExecuting = false
 
 const stringify = (value) => {
@@ -48,10 +48,13 @@ const invoke = (name, params) => {
     const requestId = crypto.randomUUID()
     call = { requestId, resolve, reject, promise: undefined }
     pendingCalls.set(requestId, call)
+    activeCalls.set(requestId, call)
     parentPort?.postMessage({ type: 'callTool', requestId, name, params })
   })
   call.promise = promise
-  calls.add(call)
+  // A script can throw before observing this promise; drainActiveCalls reports only the script's
+  // own failure after the child settles, so suppress Node's unhandled-rejection side channel.
+  promise.catch(() => undefined)
 
   return promise
 }
@@ -90,6 +93,16 @@ const runCode = async (code, context) => {
   return await fn(...contextValues)
 }
 
+const drainActiveCalls = async () => {
+  while (activeCalls.size > 0) {
+    const batch = [...activeCalls.values()].map((call) => call.promise)
+    await Promise.allSettled(batch)
+    // Settled callbacks can synchronously enqueue follow-up tools. Let them run before deciding
+    // the worker has no remaining work.
+    await Promise.resolve()
+  }
+}
+
 const handleExec = async (code) => {
   if (isExecuting) {
     return
@@ -98,19 +111,22 @@ const handleExec = async (code) => {
 
   try {
     const context = buildContext()
-    const result = await runCode(code, context)
-    const outcomes = await Promise.allSettled([...calls].map((call) => call.promise))
-    const failed = outcomes.find((outcome) => outcome.status === 'rejected')
-    if (failed?.status === 'rejected') {
-      throw failed.reason
+    let result
+    let codeError
+    try {
+      result = await runCode(code, context)
+    } catch (error) {
+      codeError = error
     }
+    await drainActiveCalls()
+    if (codeError) throw codeError
     parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     parentPort?.postMessage({ type: 'error', error: errorMessage, logs: logs.length > 0 ? logs : undefined })
   } finally {
     pendingCalls.clear()
-    calls.clear()
+    activeCalls.clear()
   }
 }
 
@@ -120,6 +136,7 @@ const handleToolResult = (message) => {
     return
   }
   pendingCalls.delete(message.requestId)
+  activeCalls.delete(message.requestId)
   pending.resolve(message.result)
 }
 
@@ -129,6 +146,7 @@ const handleToolError = (message) => {
     return
   }
   pendingCalls.delete(message.requestId)
+  activeCalls.delete(message.requestId)
   pending.reject(new Error(message.error))
 }
 

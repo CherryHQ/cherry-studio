@@ -291,6 +291,59 @@ describe('createPiCodeModeTools', () => {
     await expect(result).resolves.toMatchObject({ details: { result: 'queued' } })
   })
 
+  it('keeps a caught nested failure from failing the completed script', async () => {
+    const failed = tool({
+      name: 'mcp__first__flaky',
+      execute: vi.fn<ToolDefinition['execute']>(async () => {
+        throw new Error('temporary failure')
+      })
+    })
+    const succeeded = tool({ name: 'mcp__second__stable' })
+    const exec = codeModeTools([failed, succeeded]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      {
+        code: `let recovered = false; try { await tools.invoke('mcp__first__flaky', {}) } catch { recovered = true }; await tools.invoke('mcp__second__stable', {}); return { recovered }`
+      },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: { recovered: true }, logs: undefined })
+    expect(succeeded.execute).toHaveBeenCalledOnce()
+  })
+
+  it('drains a follow-up invocation started from a settled callback', async () => {
+    const first = tool({ name: 'mcp__first__lookup' })
+    let resolveSecond!: () => void
+    const second = tool({
+      name: 'mcp__second__write',
+      execute: vi.fn<ToolDefinition['execute']>(
+        () =>
+          new Promise<Awaited<ReturnType<ToolDefinition['execute']>>>((resolve) => {
+            resolveSecond = () => resolve({ content: [{ type: 'text', text: 'done' }], details: undefined })
+          })
+      )
+    })
+    const exec = codeModeTools([first, second]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = exec.execute(
+      'outer-1',
+      {
+        code: `tools.invoke('mcp__first__lookup', {}).then(() => tools.invoke('mcp__second__write', {})); return 'queued'`
+      },
+      undefined,
+      undefined,
+      {} as never
+    )
+    await vi.waitFor(() => expect(second.execute).toHaveBeenCalledOnce())
+    resolveSecond()
+
+    await expect(result).resolves.toMatchObject({ details: { result: 'queued' } })
+  })
+
   it('serializes nested authorization while allowing accepted tools to run in parallel', async () => {
     const resolvers: Array<() => void> = []
     const authorize = vi.fn<PiToolAuthorizer>(

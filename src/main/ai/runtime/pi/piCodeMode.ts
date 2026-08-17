@@ -265,11 +265,11 @@ function createSerializedAuthorizer(authorizer: PiToolAuthorizer): SerializedAut
       release = resolve
     })
     await previous
-    if (request.signal?.aborted) {
-      const reason = request.signal.reason
-      throw reason instanceof Error ? reason : new Error(reason === undefined ? 'tool_exec aborted' : String(reason))
-    }
     try {
+      if (request.signal?.aborted) {
+        const reason = request.signal.reason
+        throw reason instanceof Error ? reason : new Error(reason === undefined ? 'tool_exec aborted' : String(reason))
+      }
       return await authorizer(request)
     } finally {
       release()
@@ -312,6 +312,10 @@ function toPiResult(result: { result: unknown; logs?: string[]; error?: string; 
     throw new Error(withLogs(result.error ?? 'tool_exec failed', result.logs))
   }
 
+  if (result.result === undefined) {
+    throw new Error(withLogs('tool_exec returned no value; add an explicit return', result.logs))
+  }
+
   let output: string
   try {
     output = stringifyOutput(result.result)
@@ -328,7 +332,7 @@ function toPiResult(result: { result: unknown; logs?: string[]; error?: string; 
 function stringifyOutput(value: unknown): string {
   try {
     const output = JSON.stringify(value, (_key, nested) => (typeof nested === 'bigint' ? nested.toString() : nested), 2)
-    if (output === undefined) throw new Error('tool_exec returned no value; add an explicit return')
+    if (output === undefined) throw new Error('result is not JSON-serializable')
     return output
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
