@@ -96,12 +96,46 @@ describe('listOrOutlineKnowledge (outline mode)', () => {
     })
   })
 
-  it('leaves the outline unfiltered when query is omitted', async () => {
-    getOrganizationTreeMock.mockReturnValue({ baseId: 'kb-1', totalItems: 0, truncated: false, nodes: [] })
+  it('maps the full unfiltered outline back when query is omitted', async () => {
+    getOrganizationTreeMock.mockReturnValue({
+      baseId: 'kb-1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'notes.txt', itemType: 'file', status: 'completed', conceptId: 'notes.txt' }
+      ]
+    })
 
-    await listOrOutlineKnowledge({ baseId: 'kb-1', limit: 20 }, [])
+    const output = await listOrOutlineKnowledge({ baseId: 'kb-1', limit: 20 }, [])
 
     expect(getOrganizationTreeMock).toHaveBeenCalledWith('kb-1', { maxDepth: undefined, query: undefined })
+    // A query-less outline passes through unfiltered — the itemType → type rename is what the
+    // model consumes, so the full mapped result is the observable contract, not the call itself.
+    expect(output).toEqual({
+      baseId: 'kb-1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', type: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'notes.txt', type: 'file', status: 'completed', conceptId: 'notes.txt' }
+      ]
+    })
+  })
+
+  it('reports an empty outline with a query as a filter miss, not as an empty base', () => {
+    const output = knowledgeListModelOutput(
+      { baseId: 'kb-1', totalItems: 5, truncated: false, nodes: [] },
+      { query: '第一章', groupId: null, baseId: 'kb-1', cursor: null }
+    )
+
+    expect(output).toEqual({
+      type: 'text',
+      value:
+        'No documents in knowledge base "kb-1" have a title matching "第一章". ' +
+        'Retry with a shorter or more distinctive fragment, call kb_list with only baseId to see the full ' +
+        'outline, or use kb_search to search document contents.'
+    })
   })
 })
 

@@ -90,9 +90,9 @@ export interface KnowledgeTreeNode {
 export interface KnowledgeOrganizationTree {
   baseId: string
   /**
-   * Count of non-deleting items in the base. May exceed `nodes.length` for two reasons: the node
-   * list hit the {@link KNOWLEDGE_TREE_MAX_NODES} cap, or a `maxDepth` filter dropped deeper items
-   * (which are still counted here but not emitted as nodes).
+   * Count of non-deleting items in the base. May exceed `nodes.length` for three reasons: the node
+   * list hit the {@link KNOWLEDGE_TREE_MAX_NODES} cap, a `maxDepth` filter dropped deeper items,
+   * or a `query` filter dropped non-matching items (all still counted here but not emitted as nodes).
    */
   totalItems: number
   /**
@@ -298,7 +298,8 @@ export class KnowledgeConceptService {
    * not exist; available regardless of the base's runtime (search) state.
    *
    * A `query` restricts the tree to nodes whose titles contain it as a
-   * case-insensitive substring, keeping each match's ancestor folders so the
+   * case-insensitive substring (Unicode NFC-folded), keeping each match's ancestor
+   * folders and, when a folder itself matches, that folder's whole contents — so the
    * result still reads as an outline. The cap then bounds the *matched* nodes —
    * `truncated` means "more matches exist" — and `totalItems` keeps counting the
    * whole base.
@@ -322,9 +323,11 @@ export class KnowledgeConceptService {
     }
 
     const maxDepth = options.maxDepth
-    const query = options.query?.trim().toLowerCase() || undefined
+    // Fold case and Unicode form (NFC) on both sides, so a composed query matches a decomposed
+    // on-disk filename (macOS delivers NFD) and vice versa — same folding as SkillService's foldKey.
+    const query = options.query?.trim().normalize('NFC').toLowerCase() || undefined
     const matchesQuery = (item: KnowledgeItem): boolean =>
-      query === undefined || getKnowledgeItemDisplayTitle(item).toLowerCase().includes(query)
+      query === undefined || getKnowledgeItemDisplayTitle(item).normalize('NFC').toLowerCase().includes(query)
 
     const nodes: KnowledgeTreeNode[] = []
     let truncated = false
@@ -352,26 +355,18 @@ export class KnowledgeConceptService {
       markSubtreeMatches(null, 0)
     }
 
-    const emitNode = (item: KnowledgeItem, depth: number): void => {
-      nodes.push({
-        depth,
-        title: getKnowledgeItemDisplayTitle(item),
-        itemType: item.type,
-        status: item.status,
-        // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
-        conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
-      })
-    }
-
-    const walk = (groupId: string | null, depth: number): void => {
+    const walk = (groupId: string | null, depth: number, insideMatch: boolean): void => {
       if (truncated || (maxDepth !== undefined && depth > maxDepth)) {
         return
       }
       for (const item of childrenByGroupId.get(groupId) ?? []) {
-        if (query !== undefined) {
-          const isMatch = matchesQuery(item)
-          const isAncestorOfMatch = item.type === 'directory' && subtreeMatchesByGroupId.get(item.id) === true
-          if (!isMatch && !isAncestorOfMatch) {
+        // `insideMatch` propagates: once a folder itself matched, its whole subtree is part of
+        // the answer — a matched folder must not come back stripped of its contents (that would
+        // leave the model with a folder it cannot read). Non-matching siblings of the match stay
+        // dropped unless they are an ancestor of another match.
+        const isMatch = insideMatch || matchesQuery(item)
+        if (query !== undefined && !isMatch) {
+          if (!(item.type === 'directory' && subtreeMatchesByGroupId.get(item.id) === true)) {
             continue
           }
         }
@@ -381,14 +376,21 @@ export class KnowledgeConceptService {
           truncated = true
           return
         }
-        emitNode(item, depth)
+        nodes.push({
+          depth,
+          title: getKnowledgeItemDisplayTitle(item),
+          itemType: item.type,
+          status: item.status,
+          // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
+          conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
+        })
         if (item.type === 'directory') {
-          walk(item.id, depth + 1)
+          walk(item.id, depth + 1, isMatch)
         }
       }
     }
 
-    walk(null, 0)
+    walk(null, 0, false)
 
     return { baseId, totalItems: items.length, truncated, nodes }
   }

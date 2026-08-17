@@ -73,7 +73,8 @@ export const kbListInputSchema = z.object({
     .describe(
       'Case-insensitive substring filter. Without `baseId`: filters the listed bases by their name or ' +
         'source names such as filenames, URLs, and note titles. With `baseId` (outline mode): narrows the ' +
-        "tree to documents/folders whose titles contain the query, keeping each match's ancestor folders."
+        "tree to documents/folders whose titles contain the query, keeping each match's ancestor folders " +
+        "and a matching folder's contents."
     ),
   groupId: z
     .string()
