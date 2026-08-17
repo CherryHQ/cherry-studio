@@ -6072,7 +6072,7 @@
         "no_results": "No results",
         "passed": "Passed",
         "provider_auth": "Provider authentication",
-        "select_api_key": "Select the API key to use:",
+        "select_api_key": "Select the API key to use",
         "single": "Single",
         "single_model": "Single model",
         "skip_reason_generation_cost": "Checking this model would generate {{output}} and consume quota, so it is skipped by default.",

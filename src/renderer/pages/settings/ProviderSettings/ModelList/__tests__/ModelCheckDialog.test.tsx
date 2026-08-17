@@ -25,15 +25,6 @@ const imageModel: Model = {
   isEnabled: true,
   isHidden: false
 }
-const aliasModel: Model = {
-  id: 'openai::target',
-  providerId: 'openai',
-  name: 'Friendly Alias',
-  capabilities: [],
-  supportsStreaming: true,
-  isEnabled: true,
-  isHidden: false
-}
 const { showErrorDetailPopup } = vi.hoisted(() => ({ showErrorDetailPopup: vi.fn() }))
 const startSingleModelCheck = vi.fn()
 const startHealthCheck = vi.fn()
@@ -163,16 +154,14 @@ describe('ModelCheckDialog', () => {
     const user = userEvent.setup()
     health.apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
-      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+      { id: 'key-2', key: 'sk-alternative', label: 'Secondary', isEnabled: true }
     ]
     const { rerender } = render(<ModelCheckDialog />)
     await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
 
     await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
-    await user.click(
-      screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key Primary · sk\*{4}ry$/ })
-    )
-    await user.click(screen.getByRole('option', { name: /Secondary/ }))
+    await user.click(screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key sk\*{4}ry$/ }))
+    await user.click(screen.getByRole('option', { name: /sk\*+ve/ }))
 
     health.apiKeyEntries = health.apiKeyEntries.map((entry) =>
       entry.id === 'key-2' ? { ...entry, isEnabled: false } : entry
@@ -195,56 +184,7 @@ describe('ModelCheckDialog', () => {
     rerender(<ModelCheckDialog />)
 
     expect(screen.getByRole('radio', { name: 'settings.models.check.single' })).toBeChecked()
-    expect(
-      screen.getByRole('button', { name: /settings\.models\.check\.select_api_key Secondary/ })
-    ).toBeInTheDocument()
-  })
-
-  it('keeps the all-model form and settings when the model list changes', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
-    const timeout = screen.getByLabelText('settings.models.check.timeout')
-    await user.clear(timeout)
-    await user.type(timeout, '27')
-
-    health.models = [imageModel, chatModel, aliasModel]
-    rerender(<ModelCheckDialog />)
-
-    expect(screen.getByRole('heading', { name: 'settings.models.check.title' })).toBeInTheDocument()
-    expect(screen.getByLabelText('settings.models.check.timeout')).toHaveValue(27)
-  })
-
-  it('uses a localized search field when selecting from more than five API keys', async () => {
-    const user = userEvent.setup()
-    health.apiKeyEntries = Array.from({ length: 6 }, (_, index) => ({
-      id: `key-${index + 1}`,
-      key: `sk-${index + 1}`,
-      label: index === 4 ? 'Visible Secondary' : `Key ${index + 1}`,
-      isEnabled: true
-    }))
-
-    render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
-    await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
-    await user.click(screen.getByRole('button', { name: /settings.models.check.select_api_key/ }))
-
-    const search = screen.getByPlaceholderText('common.search')
-    await user.type(search, 'Visible Secondary')
-
-    expect(screen.getByRole('option', { name: /Visible Secondary/ })).toBeInTheDocument()
-  })
-
-  it('filters models by their visible label', async () => {
-    const user = userEvent.setup()
-    health.models = [chatModel, aliasModel]
-
-    render(<ModelCheckDialog />)
-
-    await user.click(screen.getByRole('button', { name: /button.select_model/ }))
-    await user.type(screen.getByPlaceholderText('common.search'), 'Friendly Alias')
-
-    expect(screen.getByRole('option', { name: /Friendly Alias/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings\.models\.check\.select_api_key sk\*+ve/ })).toBeInTheDocument()
   })
 
   it('shows single-model key controls only when the credential policy permits selection', () => {

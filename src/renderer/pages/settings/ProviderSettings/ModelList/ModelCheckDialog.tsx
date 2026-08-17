@@ -99,7 +99,7 @@ function renderModelOptionContent(model: Model, description?: string) {
   )
 }
 
-function ApiKeyField({
+function ApiKeySelectField({
   entries,
   value,
   disabled,
@@ -112,28 +112,32 @@ function ApiKeyField({
 }) {
   const { t } = useTranslation()
   const labelId = useId()
-  const enabledEntries = entries.filter((entry) => entry.isEnabled)
-  const options: ComboboxOption[] = enabledEntries.map((entry) => ({
-    value: entry.id,
-    label: `${entry.label?.trim() || t('settings.provider.api_key.unnamed')} · ${maskApiKey(entry.key)}`
-  }))
+  const options: ComboboxOption[] = entries.map((entry) => ({ value: entry.id, label: maskApiKey(entry.key) }))
 
   return (
-    <div className="space-y-2">
-      <Label id={labelId}>{t('settings.models.check.select_api_key')}</Label>
+    <div>
+      <Label id={labelId} className="mb-2.5 block text-[13px] text-foreground">
+        {t('settings.models.check.select_api_key')}
+      </Label>
       <Combobox
         aria-labelledby={labelId}
+        className="h-9 w-full justify-between px-2.5 text-left font-mono text-[12px]"
+        emptyText={t('common.no_results')}
+        filterOption={filterModelCheckOption}
         options={options}
         value={value}
-        disabled={disabled || enabledEntries.length === 0}
-        filterOption={filterModelCheckOption}
+        disabled={disabled || entries.length === 0}
         onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? '') : next)}
-        placeholder={enabledEntries.length === 0 ? t('settings.models.check.no_api_keys') : undefined}
-        searchable={enabledEntries.length > 5}
-        searchPlaceholder={t('common.search')}
-        className="w-full justify-between"
+        placeholder={t('settings.models.check.select_api_key')}
         popoverClassName="w-(--radix-popover-trigger-width)"
-        emptyText={t('settings.models.check.no_api_keys')}
+        renderOption={(option) => <span className="truncate font-mono text-[12px]">{option.label}</span>}
+        renderValue={(nextValue, nextOptions) => {
+          const selectedValue = Array.isArray(nextValue) ? nextValue[0] : nextValue
+          const option = nextOptions.find((item) => item.value === selectedValue)
+          return option ? <span className="truncate font-mono text-[12px]">{option.label}</span> : null
+        }}
+        searchable={entries.length > 5}
+        searchPlaceholder={t('common.search')}
       />
     </div>
   )
@@ -151,38 +155,9 @@ function SingleApiKeyField({
   onChange: (value: string) => void
 }) {
   const { t } = useTranslation()
-  const labelId = useId()
 
   if (entries.length > 1) {
-    const options: ComboboxOption[] = entries.map((entry) => ({ value: entry.id, label: maskApiKey(entry.key) }))
-
-    return (
-      <div>
-        <Label id={labelId} className="mb-2.5 block text-[13px] text-foreground">
-          {t('settings.models.check.select_api_key')}
-        </Label>
-        <Combobox
-          aria-labelledby={labelId}
-          className="h-9 w-full justify-between px-2.5 text-left font-mono text-[12px]"
-          emptyText={t('common.no_results')}
-          filterOption={filterModelCheckOption}
-          options={options}
-          value={value}
-          disabled={disabled}
-          onChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? '') : next)}
-          placeholder={t('settings.models.check.select_api_key')}
-          popoverClassName="w-(--radix-popover-trigger-width)"
-          renderOption={(option) => <span className="truncate font-mono text-[12px]">{option.label}</span>}
-          renderValue={(nextValue, nextOptions) => {
-            const selectedValue = Array.isArray(nextValue) ? nextValue[0] : nextValue
-            const option = nextOptions.find((item) => item.value === selectedValue)
-            return option ? <span className="truncate font-mono text-[12px]">{option.label}</span> : null
-          }}
-          searchable={entries.length > 5}
-          searchPlaceholder={t('common.search')}
-        />
-      </div>
-    )
+    return <ApiKeySelectField entries={entries} value={value} disabled={disabled} onChange={onChange} />
   }
 
   const selectedEntry = entries[0]
@@ -239,7 +214,7 @@ function ApiKeyScopeField({
         />
       </div>
       {selection.mode === 'single' && enabledEntries.length > 1 ? (
-        <ApiKeyField
+        <ApiKeySelectField
           entries={enabledEntries}
           value={selection.keyId}
           disabled={disabled}
