@@ -1671,6 +1671,38 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenLab - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.tokenlab.sh"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://api.tokenlab.sh"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.tokenlab.sh/v1"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.tokenlab.sh/v1"
+        }
+      },
+      "id": "tokenlab",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokenlab.sh/dashboard",
+          "docs": "https://docs.tokenlab.sh/guides/api-formats",
+          "models": "https://api.tokenlab.sh/v1/models",
+          "official": "https://tokenlab.sh/"
+        }
+      },
+      "name": "TokenLab"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Baidu Cloud - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2073,5 +2105,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "cde3bb6539c1f8fa"
+  "version": "2b2fe1699f3bae92"
 }
