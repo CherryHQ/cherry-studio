@@ -10,10 +10,9 @@
  * an absolute file URL at generation time: the packaged app runs the
  * composition from a foreign config dir where bare names are not resolvable.
  */
-import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
-import type { BridgePermissionMode } from '@cherrystudio/dsh-bridge'
+import { type BridgePermissionMode, resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
@@ -21,11 +20,9 @@ import { stringify } from 'yaml'
 
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
-const require_ = createRequire(import.meta.url)
-
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
 export function resolveDshPluginPath(specifier: string): string {
-  return toAsarUnpackedPath(require_.resolve(specifier))
+  return toAsarUnpackedPath(resolveDshRuntimeEntry(specifier))
 }
 
 /** Convert a plugin entry path into the URL form required by Node's ESM loader. */
