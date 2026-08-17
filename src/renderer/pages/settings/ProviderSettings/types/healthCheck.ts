@@ -21,27 +21,10 @@ export type ModelCheckCredential =
 
 export type ApiKeyConnectivity =
   | {
-      kind: 'idle'
-      status: HealthStatus.NOT_CHECKED
-      checking: false
-      error?: never
-      model?: Model
-      latency?: never
-    }
-  | {
-      kind: 'checking'
-      status: HealthStatus.NOT_CHECKED
-      checking: true
-      error?: never
-      model?: Model
-      latency?: never
-    }
-  | {
       kind: 'failed'
       status: HealthStatus.FAILED
       checking: false
       error: SerializedError
-      model?: Model
       latency?: never
     }
   | {
@@ -49,7 +32,6 @@ export type ApiKeyConnectivity =
       status: HealthStatus.SUCCESS
       checking: false
       error?: never
-      model?: Model
       latency?: number
     }
 
@@ -75,15 +57,6 @@ export type ModelWithStatus =
       status: HealthStatus.NOT_CHECKED
       keyResults: []
       checking: true
-      latency?: never
-      error?: never
-    }
-  | {
-      kind: 'idle'
-      model: Model
-      status: HealthStatus.NOT_CHECKED
-      keyResults: []
-      checking: false
       latency?: never
       error?: never
     }

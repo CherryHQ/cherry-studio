@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type {
   ModelCheckKeySelection,
   ModelWithStatus
@@ -9,62 +9,35 @@ import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/he
 import {
   aggregateApiKeyResults,
   checkModelWithMultipleKeys,
-  getModelCheckCredentialPolicy,
-  ModelCheckCredentialsError,
-  resolveModelCheckCredentials
+  ModelCheckCredentialsError
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
-import type { ApiKeysData } from './types'
-import { useAuthenticationApiKey } from './useAuthenticationApiKey'
+import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from './useModelCheckCredentials'
 import { useProviderEndpoints } from './useProviderEndpoints'
-import { useProviderMeta } from './useProviderMeta'
 
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
-function getRefetchedApiKeyEntries(value: unknown, fallback: readonly ApiKeyEntry[]): readonly ApiKeyEntry[] {
-  if (typeof value !== 'object' || value === null || !('keys' in value) || !Array.isArray(value.keys)) {
-    return fallback
-  }
-
-  return (value as ApiKeysData).keys
-}
-
-function createCredentialFingerprint(entries: readonly ApiKeyEntry[]) {
-  return JSON.stringify(entries.map(({ id, key, label }) => ({ id, key, label: label ?? '' })))
-}
-
 /** Runs one model probe across the selected provider credentials. */
-export function useProviderConnectionCheck(providerId: string) {
+export function useProviderConnectionCheck(providerId: string, credentialsState: ModelCheckCredentialsState) {
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
-  const { data: apiKeysData, refetch: refetchApiKeys } = useProviderApiKeys(providerId)
-  const { commitInputApiKeyNow, hasPendingSync, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
-  const { isApiKeyFieldVisible } = useProviderMeta(providerId)
   const { i18n } = useTranslation()
-  const apiKeyEntries = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
-  const { canSelectApiKey, requiresApiKey } = getModelCheckCredentialPolicy(provider, isApiKeyFieldVisible)
-  const credentialFingerprint = useMemo(() => createCredentialFingerprint(apiKeyEntries), [apiKeyEntries])
+  const { credentialChangeVersion, prepareCredentials } = credentialsState
   const [isSingleModelChecking, setIsSingleModelChecking] = useState(false)
   const [singleModelResult, setSingleModelResult] = useState<ModelWithStatus | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const runIdRef = useRef(0)
-  const preparingCredentialsRef = useRef(false)
-  const acceptedCredentialFingerprintRef = useRef<string | null>(null)
-  const previousCredentialFingerprintRef = useRef(credentialFingerprint)
 
   const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
-    preparingCredentialsRef.current = false
-    acceptedCredentialFingerprintRef.current = null
     runIdRef.current += 1
   }, [])
 
@@ -84,24 +57,11 @@ export function useProviderConnectionCheck(providerId: string) {
       const runId = ++runIdRef.current
       setIsSingleModelChecking(true)
       setSingleModelResult(null)
-      let didCommitApiKey = false
 
       try {
-        preparingCredentialsRef.current = true
-        await commitInputApiKeyNow()
-        didCommitApiKey = true
+        const credentials = await prepareCredentials(keySelection, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
-        const refetched = await refetchApiKeys()
-        if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
-
-        const latestEntries = getRefetchedApiKeyEntries(refetched, apiKeyEntries)
-        acceptedCredentialFingerprintRef.current = createCredentialFingerprint(latestEntries)
-        preparingCredentialsRef.current = false
-        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, {
-          canSelectApiKey,
-          requiresApiKey
-        })
         const keyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
@@ -152,11 +112,11 @@ export function useProviderConnectionCheck(providerId: string) {
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
-        if (!didCommitApiKey) {
+        if (error instanceof ModelCheckCredentialsSaveError) {
           logger.error('Failed to persist pending API key before model check', {
             providerId: provider.id,
             modelId: model.id,
-            error
+            error: error.cause
           })
         } else if (error instanceof ModelCheckCredentialsError) {
           toast.error(i18n.t('message.error.enter.api.label'))
@@ -167,25 +127,13 @@ export function useProviderConnectionCheck(providerId: string) {
 
         return 'failed' as const
       } finally {
-        preparingCredentialsRef.current = false
         if (runId === runIdRef.current) {
           abortControllerRef.current = null
           setIsSingleModelChecking(false)
         }
       }
     },
-    [
-      abortInFlightCheck,
-      apiKeyEntries,
-      canSelectApiKey,
-      commitInputApiKeyNow,
-      enableProvider,
-      i18n,
-      models.length,
-      provider,
-      refetchApiKeys,
-      requiresApiKey
-    ]
+    [abortInFlightCheck, enableProvider, i18n, models.length, prepareCredentials, provider]
   )
 
   useEffect(() => {
@@ -195,38 +143,15 @@ export function useProviderConnectionCheck(providerId: string) {
   }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id])
 
   useEffect(() => {
-    if (!hasPendingSync) return
-
     abortInFlightCheck()
     setIsSingleModelChecking(false)
     setSingleModelResult(null)
-  }, [abortInFlightCheck, hasPendingSync, inputApiKey])
-
-  useEffect(() => {
-    if (previousCredentialFingerprintRef.current === credentialFingerprint) return
-    previousCredentialFingerprintRef.current = credentialFingerprint
-
-    if (preparingCredentialsRef.current) {
-      acceptedCredentialFingerprintRef.current = credentialFingerprint
-      return
-    }
-    if (acceptedCredentialFingerprintRef.current === credentialFingerprint) {
-      acceptedCredentialFingerprintRef.current = null
-      return
-    }
-
-    abortInFlightCheck()
-    setIsSingleModelChecking(false)
-    setSingleModelResult(null)
-  }, [abortInFlightCheck, credentialFingerprint])
+  }, [abortInFlightCheck, credentialChangeVersion])
 
   useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 
   return {
     models,
-    apiKeyEntries,
-    canSelectApiKey,
-    requiresApiKey,
     isSingleModelChecking,
     singleModelResult,
     resetSingleModelResult,

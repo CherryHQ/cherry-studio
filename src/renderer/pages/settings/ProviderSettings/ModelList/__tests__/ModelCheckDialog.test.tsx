@@ -63,6 +63,7 @@ beforeAll(() => {
 describe('ModelCheckDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    health.modelCheckOpen = true
     health.models = [imageModel, chatModel]
     health.apiKeyEntries = [{ id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true }]
     health.canSelectApiKey = true
@@ -87,7 +88,7 @@ describe('ModelCheckDialog', () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
 
-    expect(screen.getByRole('radiogroup', { name: 'settings.models.check.title' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: 'settings.models.check.model_scope' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'settings.models.check.single_model' })).toBeChecked()
     expect(screen.getByText('settings.models.check.disclaimer')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^settings\.models\.check\.model Chat$/ })).toHaveTextContent('Chat')
@@ -160,6 +161,21 @@ describe('ModelCheckDialog', () => {
         timeout: 5000
       })
     )
+  })
+
+  it('keeps the selected mode and all-model settings when the model list changes', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('radio', { name: 'settings.models.check.all_models' }))
+    const timeout = screen.getByLabelText('settings.models.check.timeout')
+    await user.clear(timeout)
+    await user.type(timeout, '27')
+
+    health.models = [imageModel, chatModel, aliasModel]
+    rerender(<ModelCheckDialog />)
+
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'settings.models.check.all_models' })).toBeChecked())
+    expect(screen.getByLabelText('settings.models.check.timeout')).toHaveValue(27)
   })
 
   it('uses a localized search field when selecting from more than five API keys', async () => {

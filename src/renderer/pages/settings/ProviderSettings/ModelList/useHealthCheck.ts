@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n/resolver'
-import type { ApiKeysData } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/types'
-import { useAuthenticationApiKey } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useAuthenticationApiKey'
+import {
+  ModelCheckCredentialsSaveError,
+  type ModelCheckCredentialsState
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useModelCheckCredentials'
 import { useProviderEndpoints } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpoints'
-import { useProviderMeta } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderMeta'
 import type {
   ModelCheckCredential,
   ModelCheckKeySelection,
@@ -13,33 +14,18 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import {
-  getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
   ModelCheckCredentialsError,
-  resolveModelCheckCredentials,
   summarizeHealthResults
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import { checkModelsHealth } from './checkModelsHealth'
 
 const logger = loggerService.withContext('ProviderSettings:ModelCheck')
-
-function getRefetchedApiKeyEntries(value: unknown, fallback: readonly ApiKeyEntry[]): readonly ApiKeyEntry[] {
-  if (typeof value !== 'object' || value === null || !('keys' in value) || !Array.isArray(value.keys)) {
-    return fallback
-  }
-
-  return (value as ApiKeysData).keys
-}
-
-function createCredentialFingerprint(entries: readonly ApiKeyEntry[]) {
-  return JSON.stringify(entries.map(({ id, key, label }) => ({ id, key, label: label ?? '' })))
-}
 
 function createModelCheckFingerprint(model: Model) {
   return JSON.stringify({
@@ -98,25 +84,17 @@ function createInitialStatuses(models: readonly Model[]) {
 }
 
 /** Runs a provider-wide model check in the background and streams row results. */
-export function useHealthCheck(providerId: string) {
+export function useHealthCheck(providerId: string, credentialsState: ModelCheckCredentialsState) {
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
-  const { data: apiKeysData, refetch: refetchApiKeys } = useProviderApiKeys(providerId)
-  const { commitInputApiKeyNow, hasPendingSync, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
-  const { isApiKeyFieldVisible } = useProviderMeta(providerId)
-  const apiKeyEntries = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
-  const { canSelectApiKey, requiresApiKey } = getModelCheckCredentialPolicy(provider, isApiKeyFieldVisible)
-  const credentialFingerprint = useMemo(() => createCredentialFingerprint(apiKeyEntries), [apiKeyEntries])
+  const { credentialChangeVersion, prepareCredentials } = credentialsState
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const isCheckingRef = useRef(false)
   const modelsRef = useRef(models)
   const runIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const preparingCredentialsRef = useRef(false)
-  const acceptedCredentialFingerprintRef = useRef<string | null>(null)
-  const previousCredentialFingerprintRef = useRef(credentialFingerprint)
 
   useLayoutEffect(() => {
     modelsRef.current = models
@@ -125,8 +103,6 @@ export function useHealthCheck(providerId: string) {
   const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
-    preparingCredentialsRef.current = false
-    acceptedCredentialFingerprintRef.current = null
     runIdRef.current += 1
     isCheckingRef.current = false
     setIsChecking(false)
@@ -219,24 +195,11 @@ export function useHealthCheck(providerId: string) {
       isCheckingRef.current = true
       setIsChecking(true)
       let backgroundStarted = false
-      let didCommitApiKey = false
 
       try {
-        preparingCredentialsRef.current = true
-        await commitInputApiKeyNow()
-        didCommitApiKey = true
+        const credentials = await prepareCredentials(keySelection, controller.signal)
         if (runIdRef.current !== runId || controller.signal.aborted) return false
 
-        const refetched = await refetchApiKeys()
-        if (runIdRef.current !== runId || controller.signal.aborted) return false
-
-        const latestEntries = getRefetchedApiKeyEntries(refetched, apiKeyEntries)
-        acceptedCredentialFingerprintRef.current = createCredentialFingerprint(latestEntries)
-        preparingCredentialsRef.current = false
-        const credentials = resolveModelCheckCredentials(latestEntries, keySelection, {
-          canSelectApiKey,
-          requiresApiKey
-        })
         const runModels = modelsRef.current
 
         if (runModels.length === 0) {
@@ -273,8 +236,8 @@ export function useHealthCheck(providerId: string) {
         return true
       } catch (error) {
         if (runIdRef.current !== runId || controller.signal.aborted) return false
-        if (!didCommitApiKey) {
-          logger.error('Failed to save API keys before all-model check', { providerId, error })
+        if (error instanceof ModelCheckCredentialsSaveError) {
+          logger.error('Failed to save API keys before all-model check', { providerId, error: error.cause })
         } else if (error instanceof ModelCheckCredentialsError) {
           toast.error(i18n.t('message.error.enter.api.label'))
         } else {
@@ -283,7 +246,6 @@ export function useHealthCheck(providerId: string) {
         }
         return false
       } finally {
-        preparingCredentialsRef.current = false
         if (!backgroundStarted && runIdRef.current === runId) {
           abortControllerRef.current = null
           isCheckingRef.current = false
@@ -291,22 +253,8 @@ export function useHealthCheck(providerId: string) {
         }
       }
     },
-    [
-      abortInFlightCheck,
-      apiKeyEntries,
-      canSelectApiKey,
-      commitInputApiKeyNow,
-      provider,
-      providerId,
-      refetchApiKeys,
-      requiresApiKey,
-      runHealthCheck
-    ]
+    [abortInFlightCheck, prepareCredentials, provider, providerId, runHealthCheck]
   )
-
-  const resetHealthCheckRun = useCallback(() => {
-    if (!isCheckingRef.current) setModelStatuses([])
-  }, [])
 
   useEffect(() => {
     abortInFlightCheck()
@@ -314,28 +262,9 @@ export function useHealthCheck(providerId: string) {
   }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id, providerId])
 
   useEffect(() => {
-    if (!hasPendingSync) return
-
     abortInFlightCheck()
     setModelStatuses([])
-  }, [abortInFlightCheck, hasPendingSync, inputApiKey])
-
-  useEffect(() => {
-    if (previousCredentialFingerprintRef.current === credentialFingerprint) return
-    previousCredentialFingerprintRef.current = credentialFingerprint
-
-    if (preparingCredentialsRef.current) {
-      acceptedCredentialFingerprintRef.current = credentialFingerprint
-      return
-    }
-    if (acceptedCredentialFingerprintRef.current === credentialFingerprint) {
-      acceptedCredentialFingerprintRef.current = null
-      return
-    }
-
-    abortInFlightCheck()
-    setModelStatuses([])
-  }, [abortInFlightCheck, credentialFingerprint])
+  }, [abortInFlightCheck, credentialChangeVersion])
 
   useEffect(() => {
     if (isChecking) return
@@ -347,9 +276,6 @@ export function useHealthCheck(providerId: string) {
   return {
     isChecking,
     modelStatuses,
-    apiKeyEntries,
-    requiresApiKey,
-    resetHealthCheckRun,
     startHealthCheck
   }
 }

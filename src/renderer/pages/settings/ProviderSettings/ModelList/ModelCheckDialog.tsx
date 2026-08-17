@@ -149,7 +149,6 @@ function ApiKeyScopeField({
 
 export default function ModelCheckDialog() {
   const { t } = useTranslation()
-  const modeLabelId = useId()
   const modelLabelId = useId()
   const health = useModelListHealthRun()
   const [mode, setMode] = useState<CheckMode>('single')
@@ -186,6 +185,10 @@ export default function ModelCheckDialog() {
   useEffect(() => {
     if (!health.modelCheckOpen) return
     setMode('single')
+  }, [health.modelCheckOpen])
+
+  useEffect(() => {
+    if (!health.modelCheckOpen) return
     setSingleModelId((current) =>
       current && checkableModels.some((model) => model.id === current) ? current : (checkableModels[0]?.id ?? '')
     )
@@ -225,12 +228,12 @@ export default function ModelCheckDialog() {
   return (
     <Dialog open={health.modelCheckOpen} onOpenChange={(open) => !open && health.closeModelCheck()}>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-4 sm:max-w-145">
-        <DialogHeader id={modeLabelId} className="shrink-0">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{t('settings.models.check.title')}</DialogTitle>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           <SegmentedControl<CheckMode>
-            aria-labelledby={modeLabelId}
+            aria-label={t('settings.models.check.model_scope')}
             className="w-fit"
             value={mode}
             disabled={controlsDisabled}

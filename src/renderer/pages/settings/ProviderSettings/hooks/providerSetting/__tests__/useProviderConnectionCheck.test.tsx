@@ -2,25 +2,21 @@ import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/setting
 import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from '../useModelCheckCredentials'
 import { useProviderConnectionCheck } from '../useProviderConnectionCheck'
 
 const useProviderMock = vi.fn()
-const useProviderApiKeysMock = vi.fn()
 const useModelsMock = vi.fn()
-const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
-const useProviderMetaMock = vi.fn()
 const checkModelWithMultipleKeysMock = vi.fn()
 const enableProviderMock = vi.fn()
-const commitInputApiKeyNowMock = vi.fn()
-const refetchApiKeysMock = vi.fn()
+const prepareCredentialsMock = vi.fn()
 
-let inputApiKey = 'sk-primary,sk-backup'
-let hasPendingSync = false
 let apiKeyEntries: ApiKeyEntry[]
+let credentialChangeVersion = 0
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -29,24 +25,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
-vi.mock('../useAuthenticationApiKey', () => ({
-  useAuthenticationApiKey: (...args: any[]) => useAuthenticationApiKeyMock(...args)
-}))
-
 vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
-}))
-
-vi.mock('../useProviderMeta', () => ({
-  useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', async () => {
@@ -95,43 +82,41 @@ function failedResult(credential: ModelCheckCredential, message = 'Unauthorized'
 }
 
 describe('useProviderConnectionCheck', () => {
+  const getCredentialsState = (): ModelCheckCredentialsState => ({
+    apiKeyEntries,
+    canSelectApiKey: true,
+    requiresApiKey: true,
+    credentialChangeVersion,
+    prepareCredentials: prepareCredentialsMock
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    inputApiKey = 'sk-primary,sk-backup'
-    hasPendingSync = false
+    credentialChangeVersion = 0
     apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
       { id: 'key-2', key: 'sk-backup', label: 'Backup', isEnabled: true }
     ]
+    prepareCredentialsMock.mockImplementation(async () =>
+      apiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => ({ kind: 'api-key' as const, entry }))
+    )
 
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN', isEnabled: false },
       enableProvider: enableProviderMock
     })
     useModelsMock.mockReturnValue({ models: [model] })
-    useProviderApiKeysMock.mockImplementation(() => ({
-      data: { keys: apiKeyEntries },
-      refetch: refetchApiKeysMock
-    }))
-    refetchApiKeysMock.mockImplementation(async () => ({ keys: apiKeyEntries }))
-    commitInputApiKeyNowMock.mockResolvedValue(undefined)
-    useAuthenticationApiKeyMock.mockImplementation(() => ({
-      inputApiKey,
-      hasPendingSync,
-      commitInputApiKeyNow: commitInputApiKeyNowMock
-    }))
     useProviderEndpointsMock.mockReturnValue({
       apiHost: 'https://open.cherryin.net',
       anthropicApiHost: 'https://open.cherryin.net'
     })
-    useProviderMetaMock.mockReturnValue({ isApiKeyFieldVisible: true })
   })
 
-  it('saves and refetches before checking all enabled API keys concurrently', async () => {
+  it('checks all prepared credentials concurrently', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials) =>
       credentials.map((credential: ModelCheckCredential) => successfulResult(credential))
     )
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     let outcome: string | undefined
     await act(async () => {
@@ -139,10 +124,7 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(outcome).toBe('passed')
-    expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(
-      refetchApiKeysMock.mock.invocationCallOrder[0]
-    )
-    expect(refetchApiKeysMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(prepareCredentialsMock.mock.invocationCallOrder[0]).toBeLessThan(
       checkModelWithMultipleKeysMock.mock.invocationCallOrder[0]
     )
     expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
@@ -160,44 +142,12 @@ describe('useProviderConnectionCheck', () => {
     expect(toast.success).toHaveBeenCalled()
   })
 
-  it('accepts the credential refresh caused by its own preflight save', async () => {
-    let resolveRefetch!: (value: { keys: ApiKeyEntry[] }) => void
-    refetchApiKeysMock.mockReturnValueOnce(
-      new Promise<{ keys: ApiKeyEntry[] }>((resolve) => {
-        resolveRefetch = resolve
-      })
-    )
-    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
-      credentials.map((credential) => successfulResult(credential))
-    )
-    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    let checkTask!: Promise<'passed' | 'failed'>
-    act(() => {
-      checkTask = result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
-    })
-    await waitFor(() => expect(refetchApiKeysMock).toHaveBeenCalled())
-
-    apiKeyEntries = apiKeyEntries.map((entry) =>
-      entry.id === 'key-1' ? { ...entry, label: 'Saved during preflight' } : entry
-    )
-    rerender()
-
-    await act(async () => {
-      resolveRefetch({ keys: apiKeyEntries })
-      await expect(checkTask).resolves.toBe('passed')
-    })
-
-    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(1)
-    expect(result.current.singleModelResult?.kind).toBe('ok')
-  })
-
   it('keeps the complete per-key report when any API key fails', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
       successfulResult(credentials[0]),
       failedResult(credentials[1], 'Quota exceeded')
     ])
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     let outcome: string | undefined
     await act(async () => {
@@ -221,7 +171,7 @@ describe('useProviderConnectionCheck', () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
       credentials.map((credential) => failedResult(credential))
     )
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     await act(async () => {
       await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
@@ -232,8 +182,8 @@ describe('useProviderConnectionCheck', () => {
   })
 
   it('leaves save failure feedback to the API key owner before stopping', async () => {
-    commitInputApiKeyNowMock.mockRejectedValueOnce(new Error('save failed'))
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    prepareCredentialsMock.mockRejectedValueOnce(new ModelCheckCredentialsSaveError(new Error('save failed')))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     let outcome: string | undefined
     await act(async () => {
@@ -241,97 +191,22 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(outcome).toBe('failed')
-    expect(refetchApiKeysMock).not.toHaveBeenCalled()
     expect(checkModelWithMultipleKeysMock).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
   })
-
-  it('checks keyless providers through provider authentication', async () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', isEnabled: false, authOptional: true },
-      enableProvider: enableProviderMock
-    })
-    useProviderMetaMock.mockReturnValue({ isApiKeyFieldVisible: true })
-    inputApiKey = ''
-    apiKeyEntries = []
-    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
-      successfulResult(credentials[0])
-    ])
-    const { result } = renderHook(() => useProviderConnectionCheck('ollama'))
-
-    await act(async () => {
-      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
-    })
-
-    expect(result.current.canSelectApiKey).toBe(true)
-    expect(result.current.requiresApiKey).toBe(false)
-    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
-      model,
-      [{ kind: 'provider-auth', id: 'provider-auth', key: '' }],
-      15000,
-      expect.any(AbortSignal)
-    )
-  })
-
-  it('checks explicit API keys when provider authentication is optional', async () => {
-    useProviderMock.mockReturnValue({
-      provider: {
-        id: 'optional-provider',
-        name: 'Optional Provider',
-        isEnabled: false,
-        authMethods: ['api-key'],
-        authOptional: true
-      },
-      enableProvider: enableProviderMock
-    })
+  it('retains results while the shared credential version is unchanged', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
       credentials.map((credential) => successfulResult(credential))
     )
-    const { result } = renderHook(() => useProviderConnectionCheck('optional-provider'))
-
-    await act(async () => {
-      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
-    })
-
-    expect(result.current.canSelectApiKey).toBe(true)
-    expect(result.current.requiresApiKey).toBe(false)
-    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
-      model,
-      [
-        { kind: 'api-key', entry: apiKeyEntries[0] },
-        { kind: 'api-key', entry: apiKeyEntries[1] }
-      ],
-      15000,
-      expect.any(AbortSignal)
-    )
-  })
-
-  it('retains results across synchronized enable toggles and excludes disabled keys from the next run', async () => {
-    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
-      credentials.map((credential) => successfulResult(credential))
-    )
-    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     await act(async () => {
       await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
     })
     expect(result.current.singleModelResult).not.toBeNull()
 
-    apiKeyEntries = apiKeyEntries.map((entry, index) => (index === 0 ? { ...entry, isEnabled: false } : entry))
-    inputApiKey = 'sk-backup'
     rerender()
     expect(result.current.singleModelResult).not.toBeNull()
-
-    await act(async () => {
-      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
-    })
-
-    expect(checkModelWithMultipleKeysMock).toHaveBeenLastCalledWith(
-      model,
-      [{ kind: 'api-key', entry: apiKeyEntries[1] }],
-      15000,
-      expect.any(AbortSignal)
-    )
   })
 
   it('aborts and clears an active run when the credential draft changes', async () => {
@@ -340,15 +215,14 @@ describe('useProviderConnectionCheck', () => {
       signal = nextSignal
       await new Promise<void>(() => undefined)
     })
-    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     act(() => {
       void result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
     })
     await vi.waitFor(() => expect(signal).toBeDefined())
 
-    inputApiKey = 'sk-edited,sk-backup'
-    hasPendingSync = true
+    credentialChangeVersion += 1
     rerender()
 
     expect(signal?.aborted).toBe(true)
@@ -364,7 +238,7 @@ describe('useProviderConnectionCheck', () => {
       capturedSignal = signal
       await new Promise<void>(() => undefined)
     })
-    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     act(() => {
       void result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })

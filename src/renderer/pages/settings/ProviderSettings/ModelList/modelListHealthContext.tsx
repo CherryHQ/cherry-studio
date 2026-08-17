@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useProviderMutations } from '@renderer/hooks/useProvider'
+import { useModelCheckCredentials } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useModelCheckCredentials'
 import { useProviderConnectionCheck } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderConnectionCheck'
 import type {
   ModelCheckKeySelection,
@@ -31,7 +32,6 @@ interface ModelListHealthRunContextValue {
   openModelCheck: () => void
   closeModelCheck: () => void
   resetSingleModelResult: () => void
-  resetHealthCheckRun: () => void
   startSingleModelCheck: (config: {
     model: Model
     keySelection: ModelCheckKeySelection
@@ -54,18 +54,23 @@ const ModelListHealthResultsContext = createContext<ModelListHealthResultsContex
 
 export function ModelListHealthProvider({ providerId, children }: { providerId: string; children: ReactNode }) {
   const { t } = useTranslation()
-  const single = useProviderConnectionCheck(providerId)
-  const all = useHealthCheck(providerId)
+  const credentials = useModelCheckCredentials(providerId)
+  const single = useProviderConnectionCheck(providerId, credentials)
+  const all = useHealthCheck(providerId, credentials)
   const isHealthChecking = all.isChecking
   const runAllModels = all.startHealthCheck
   const runSingleModel = single.startSingleModelCheck
   const isSingleModelChecking = single.isSingleModelChecking
+  const resetSingleModelResult = single.resetSingleModelResult
   const { updateApiKey } = useProviderMutations(providerId)
   const [modelCheckOpen, setModelCheckOpen] = useState(false)
   const [savingKeyId, setSavingKeyId] = useState<string | null>(null)
   const isModelChecking = isSingleModelChecking || isHealthChecking
 
-  const openModelCheck = useCallback(() => setModelCheckOpen(true), [])
+  const openModelCheck = useCallback(() => {
+    resetSingleModelResult()
+    setModelCheckOpen(true)
+  }, [resetSingleModelResult])
   const closeModelCheck = useCallback(() => setModelCheckOpen(false), [])
 
   const startSingleModelCheck = useCallback(
@@ -109,9 +114,9 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     () => ({
       providerId,
       models: single.models,
-      apiKeyEntries: single.apiKeyEntries,
-      canSelectApiKey: single.canSelectApiKey,
-      requiresApiKey: single.requiresApiKey,
+      apiKeyEntries: credentials.apiKeyEntries,
+      canSelectApiKey: credentials.canSelectApiKey,
+      requiresApiKey: credentials.requiresApiKey,
       modelCheckOpen,
       isHealthChecking,
       isSingleModelChecking,
@@ -120,27 +125,25 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       savingKeyId,
       openModelCheck,
       closeModelCheck,
-      resetSingleModelResult: single.resetSingleModelResult,
-      resetHealthCheckRun: all.resetHealthCheckRun,
+      resetSingleModelResult,
       startSingleModelCheck,
       startHealthCheck,
       toggleApiKey
     }),
     [
+      credentials.apiKeyEntries,
+      credentials.canSelectApiKey,
+      credentials.requiresApiKey,
       isHealthChecking,
-      all.resetHealthCheckRun,
       closeModelCheck,
       isModelChecking,
       modelCheckOpen,
       openModelCheck,
       providerId,
       savingKeyId,
-      single.apiKeyEntries,
-      single.canSelectApiKey,
       isSingleModelChecking,
       single.models,
-      single.requiresApiKey,
-      single.resetSingleModelResult,
+      resetSingleModelResult,
       single.singleModelResult,
       startHealthCheck,
       startSingleModelCheck,
@@ -172,8 +175,4 @@ export function useModelListHealthResults() {
   const context = use(ModelListHealthResultsContext)
   if (!context) throw new Error('useModelListHealthResults must be used within ModelListHealthProvider')
   return context
-}
-
-export function useModelListHealth() {
-  return { ...useModelListHealthRun(), ...useModelListHealthResults() }
 }
