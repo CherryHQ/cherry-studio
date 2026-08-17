@@ -19,6 +19,7 @@ export interface ExecResult {
 export interface ExecCodeContext {
   abortSignal?: AbortSignal
   executeTool(name: string, params: Record<string, unknown>, requestId: string, signal: AbortSignal): Promise<unknown>
+  onExecutionStarted?: (controls: { pauseTimeout: () => void; resumeTimeout: () => void }) => void
 }
 
 interface WorkerCallToolMessage {
@@ -58,6 +59,10 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     let finished = false
     let timedOut = false
     let terminating = false
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let timeoutStartedAt = 0
+    let timeoutRemainingMs = EXECUTION_TIMEOUT_MS
+    let timeoutPauseCount = 0
 
     const addLog = (entry: string) => {
       if (logs.length < MAX_LOGS) logs.push(entry)
@@ -114,10 +119,28 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       void terminateWithError(`tool_exec aborted: ${message}`)
     }
 
-    const timeoutId = setTimeout(() => {
-      timedOut = true
-      void terminateWithError(`tool_exec timed out after ${EXECUTION_TIMEOUT_MS}ms`)
-    }, EXECUTION_TIMEOUT_MS)
+    const scheduleTimeout = () => {
+      if (finished || timeoutPauseCount > 0) return
+      timeoutStartedAt = Date.now()
+      timeoutId = setTimeout(() => {
+        timedOut = true
+        void terminateWithError(`tool_exec timed out after ${EXECUTION_TIMEOUT_MS}ms`)
+      }, timeoutRemainingMs)
+    }
+    const pauseTimeout = () => {
+      if (finished || timeoutPauseCount++ > 0) return
+      if (!timeoutId) return
+      clearTimeout(timeoutId)
+      timeoutId = undefined
+      timeoutRemainingMs -= Date.now() - timeoutStartedAt
+    }
+    const resumeTimeout = () => {
+      if (finished || timeoutPauseCount === 0 || --timeoutPauseCount > 0) return
+      scheduleTimeout()
+    }
+
+    scheduleTimeout()
+    ctx.onExecutionStarted?.({ pauseTimeout, resumeTimeout })
 
     if (parentSignal?.aborted) {
       onParentAbort()

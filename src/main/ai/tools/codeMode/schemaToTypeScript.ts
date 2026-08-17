@@ -19,8 +19,20 @@ function docText(value: string): string {
 }
 
 export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
+  return schemaToTypeScript(schema, schema, depth, new Set())
+}
+
+function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resolvingRefs: ReadonlySet<string>): string {
   if (!schema || typeof schema !== 'object' || depth >= MAX_NESTING_DEPTH) return 'unknown'
   const value = schema as JsonSchema
+
+  if (typeof value.$ref === 'string') {
+    const ref = value.$ref
+    if (resolvingRefs.has(ref)) return 'unknown'
+    const resolved = resolveLocalRef(root, ref)
+    if (!resolved) return 'unknown'
+    return schemaToTypeScript(resolved, root, depth + 1, new Set([...resolvingRefs, ref]))
+  }
 
   if ('const' in value) return literalType(value.const)
   if (Array.isArray(value.enum) && value.enum.length > 0) return value.enum.map(literalType).join(' | ')
@@ -28,17 +40,17 @@ export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
   for (const unionKey of ['anyOf', 'oneOf'] as const) {
     const variants = value[unionKey]
     if (Array.isArray(variants) && variants.length > 0) {
-      return variants.map((variant) => jsonSchemaToTypeScript(variant, depth + 1)).join(' | ')
+      return variants.map((variant) => schemaToTypeScript(variant, root, depth + 1, resolvingRefs)).join(' | ')
     }
   }
 
   if (Array.isArray(value.allOf) && value.allOf.length > 0) {
-    return value.allOf.map((variant) => jsonSchemaToTypeScript(variant, depth + 1)).join(' & ')
+    return value.allOf.map((variant) => schemaToTypeScript(variant, root, depth + 1, resolvingRefs)).join(' & ')
   }
 
   const typeValue = value.type
   if (Array.isArray(typeValue)) {
-    return typeValue.map((type) => jsonSchemaToTypeScript({ ...value, type }, depth + 1)).join(' | ')
+    return typeValue.map((type) => schemaToTypeScript({ ...value, type }, root, depth + 1, resolvingRefs)).join(' | ')
   }
 
   switch (typeValue) {
@@ -52,13 +64,13 @@ export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
     case 'null':
       return 'null'
     case 'array':
-      return `Array<${jsonSchemaToTypeScript(value.items, depth + 1)}>`
+      return `Array<${schemaToTypeScript(value.items, root, depth + 1, resolvingRefs)}>`
     case 'object':
     case undefined: {
       const properties = value.properties
       if (!properties || typeof properties !== 'object') {
         return value.additionalProperties && typeof value.additionalProperties === 'object'
-          ? `Record<string, ${jsonSchemaToTypeScript(value.additionalProperties, depth + 1)}>`
+          ? `Record<string, ${schemaToTypeScript(value.additionalProperties, root, depth + 1, resolvingRefs)}>`
           : 'Record<string, unknown>'
       }
       const required = new Set(Array.isArray(value.required) ? (value.required as string[]) : [])
@@ -69,13 +81,25 @@ export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
             property && typeof property === 'object' && typeof (property as JsonSchema).description === 'string'
               ? `/** ${docText(String((property as JsonSchema).description))} */ `
               : ''
-          return `${description}${quotePropertyName(name)}${required.has(name) ? '' : '?'}: ${jsonSchemaToTypeScript(property, depth + 1)}`
+          return `${description}${quotePropertyName(name)}${required.has(name) ? '' : '?'}: ${schemaToTypeScript(property, root, depth + 1, resolvingRefs)}`
         })
       return fields.length > 0 ? `{ ${fields.join('; ')} }` : 'Record<string, unknown>'
     }
     default:
       return 'unknown'
   }
+}
+
+function resolveLocalRef(root: unknown, ref: string): unknown {
+  if (!ref.startsWith('#/')) return undefined
+  return ref
+    .slice(2)
+    .split('/')
+    .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
+    .reduce<unknown>((value, segment) => {
+      if (!value || typeof value !== 'object' || !(segment in value)) return undefined
+      return (value as Record<string, unknown>)[segment]
+    }, root)
 }
 
 interface ToolTypeScriptInput {

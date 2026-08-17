@@ -1,4 +1,5 @@
 export type PiBuiltinToolCategory = 'file' | 'shell' | 'search'
+export type PiToolPermissionClass = 'read' | 'edit' | 'shell' | 'meta'
 
 export type PiBuiltinToolDescriptor = {
   /** pi's runtime-native lowercase tool name == disabledTools write-back id. Never rename these to
@@ -8,7 +9,7 @@ export type PiBuiltinToolDescriptor = {
   /** Catalog default: read-only tools are auto-approved, mutating/side-effecting tools prompt.
    *  The authoritative per-turn gate is the pi approval extension. */
   approval: 'auto' | 'prompt'
-  permissionClass: 'read' | 'edit' | 'shell'
+  permissionClass: PiToolPermissionClass
 }
 
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
@@ -27,9 +28,9 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
 // custom tools but is user-facing and configurable alongside Pi's native built-ins.
 export const PI_BUILTIN_TOOLS = [
   ...PI_NATIVE_BUILTIN_TOOLS,
-  { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
-  { name: PI_TOOL_DESCRIBE_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
-  { name: PI_TOOL_CALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'read' },
+  { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
+  { name: PI_TOOL_DESCRIBE_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
+  { name: PI_TOOL_CALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
   { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'prompt', permissionClass: 'shell' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 

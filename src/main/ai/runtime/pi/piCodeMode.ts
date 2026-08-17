@@ -66,16 +66,24 @@ export function createPiCodeModeTools(
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
   const invokeTargetTool = async (
-    toolCallId: string,
+    executionToolCallId: string,
+    approvalToolCallId: string,
     name: string,
     input: Record<string, unknown>,
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    onApprovalPending?: () => () => void
   ): Promise<InvokedToolResult> => {
     const tool = catalog.get(name)
     if (!tool) throw new Error(`Tool not found: ${name}`)
-    const decision = await authorizeTool({ toolName: name, toolCallId, input, signal })
+    const decision = await authorizeTool({
+      toolName: name,
+      toolCallId: approvalToolCallId,
+      input,
+      signal,
+      onApprovalPending
+    })
     if (decision?.block) throw new Error(decision.reason)
-    const raw = await tool.execute(toolCallId, input, signal, undefined, {} as never)
+    const raw = await tool.execute(executionToolCallId, input, signal, undefined, {} as never)
     return { raw, value: decodeToolResult(raw, tool.outputSchema, name) }
   }
 
@@ -97,7 +105,12 @@ export function createPiCodeModeTools(
         .map((tool) => ({
           name: tool.name,
           description: tool.description,
-          declaration: toolToTypeScript(tool.name, tool.description, tool.parameters)
+          declaration: toolToTypeScript(
+            tool.name,
+            tool.description,
+            tool.parameters,
+            catalog.get(tool.name)?.outputSchema
+          )
         }))
 
       const text =
@@ -154,7 +167,7 @@ export function createPiCodeModeTools(
       const input = params as Record<string, unknown>
       const name = typeof input.name === 'string' ? input.name : ''
       const toolParams = isRecord(input.params) ? input.params : {}
-      return (await invokeTargetTool(`${toolCallId}::call`, name, toolParams, signal)).raw
+      return (await invokeTargetTool(`${toolCallId}::call`, toolCallId, name, toolParams, signal)).raw
     }
   }
 
@@ -172,11 +185,22 @@ export function createPiCodeModeTools(
     async execute(toolCallId, params, signal) {
       const input = params as Record<string, unknown>
       const code = typeof input.code === 'string' ? input.code : ''
+      let pauseExecutionTimeout: (() => void) | undefined
+      let resumeExecutionTimeout: (() => void) | undefined
       const result = await runExecCode(code, {
         abortSignal: signal,
+        onExecutionStarted({ pauseTimeout, resumeTimeout }) {
+          pauseExecutionTimeout = pauseTimeout
+          resumeExecutionTimeout = resumeTimeout
+        },
         async executeTool(name, input, requestId, childSignal) {
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
-          return (await invokeTargetTool(nestedToolCallId, name, input, childSignal)).value
+          return (
+            await invokeTargetTool(nestedToolCallId, toolCallId, name, input, childSignal, () => {
+              pauseExecutionTimeout?.()
+              return () => resumeExecutionTimeout?.()
+            })
+          ).value
         }
       })
 
@@ -214,7 +238,9 @@ function rankTools(tools: readonly ToolDefinition[], query: string): ToolDefinit
 }
 
 function tokenize(value: string): string[] {
-  return value.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? []
+  const normalized = value.replace(/([\p{Ll}\d])([\p{Lu}])/gu, '$1 $2').toLowerCase()
+  const tokens = normalized.match(/[\p{L}\p{N}]+/gu) ?? []
+  return [...new Set([...tokens, normalized])]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -225,14 +251,14 @@ function decodeToolResult(result: ToolResult, outputSchema: unknown, toolName: s
   if (!outputSchema) return result
   if (result.details !== undefined) return result.details
 
-  const content = result.content
-  if (content.length !== 1 || content[0].type !== 'text') {
+  const textContent = result.content.filter((part) => part.type === 'text')
+  if (textContent.length !== 1) {
     throw new Error(
       `Tool ${toolName} declared an output schema but returned non-text content without structuredContent.`
     )
   }
 
-  const text = content[0].text
+  const text = textContent[0].text
   if (isStringSchema(outputSchema)) return text
 
   try {
@@ -249,20 +275,24 @@ function isStringSchema(schema: unknown): boolean {
 
 function toPiResult(result: { result: unknown; logs?: string[]; error?: string; isError?: boolean }): ToolResult {
   if (result.isError) {
-    throw new Error(result.error ?? 'tool_exec failed')
+    const logs = result.logs?.join('\n')
+    throw new Error([result.error ?? 'tool_exec failed', logs].filter(Boolean).join('\n\nLogs:\n'))
   }
 
   const output = stringifyOutput(result.result)
   return {
-    content: [{ type: 'text', text: output ?? 'undefined' }],
-    details: { result: result.result, logs: result.logs }
+    content: [{ type: 'text', text: output }],
+    details: { result: JSON.parse(output), logs: result.logs }
   }
 }
 
 function stringifyOutput(value: unknown): string {
   try {
-    return JSON.stringify(value, (_key, nested) => (typeof nested === 'bigint' ? nested.toString() : nested), 2)
-  } catch {
-    return String(value)
+    const output = JSON.stringify(value, (_key, nested) => (typeof nested === 'bigint' ? nested.toString() : nested), 2)
+    if (output === undefined) throw new Error('result is not JSON-serializable')
+    return output
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`tool_exec result must be JSON-serializable: ${message}`)
   }
 }

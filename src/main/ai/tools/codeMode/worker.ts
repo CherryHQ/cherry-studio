@@ -91,6 +91,9 @@ const handleExec = async (code) => {
   try {
     const context = buildContext()
     const result = await runCode(code, context)
+    if (pendingCalls.size > 0) {
+      throw new Error('tool_exec returned while tools.invoke calls were still pending. Await every tools.invoke call.')
+    }
     parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

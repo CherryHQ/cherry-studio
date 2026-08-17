@@ -110,12 +110,12 @@ describe('createPiCodeModeTools', () => {
     )
     expect(description.details).not.toHaveProperty('parameters')
     expect(authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ toolName: name, toolCallId: 'call-1::call', input: { query: 'bug' } })
+      expect.objectContaining({ toolName: name, toolCallId: 'call-1', input: { query: 'bug' } })
     )
     expect(execute).toHaveBeenCalledWith('call-1::call', { query: 'bug' }, undefined, undefined, expect.anything())
   })
 
-  it('executes a discovered tool through tools.invoke with nested call identity and cancellation', async () => {
+  it('uses the outer tool call identity for nested approvals and a distinct identity for execution', async () => {
     const execute = vi.fn<ToolDefinition['execute']>(async () => ({
       content: [{ type: 'text' as const, text: 'found' }],
       details: { total: 1 }
@@ -140,7 +140,7 @@ describe('createPiCodeModeTools', () => {
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'mcp__github__search_issues',
-        toolCallId: expect.stringMatching(/^outer-1::exec::/),
+        toolCallId: 'outer-1',
         input: { query: 'bug' },
         signal: expect.any(AbortSignal)
       })
@@ -171,6 +171,82 @@ describe('createPiCodeModeTools', () => {
 
     expect(result.content[0]).toEqual({ type: 'text', text: '{\n  "title": "Example"\n}' })
     expect(result.content[0]).not.toMatchObject({ text: expect.stringContaining('content') })
+  })
+
+  it('decodes the one text result when a structured MCP response also includes an attachment', async () => {
+    const name = 'mcp__browser__open'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [
+          { type: 'text' as const, text: '{"title":"Example"}' },
+          { type: 'image' as const, data: 'abc', mimeType: 'image/png' }
+        ],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([
+      { ...inner, outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
+  })
+
+  it('matches tool name segments when no description is available', async () => {
+    const search = codeModeTools([tool({ name: 'mcp__github__searchIssues', description: '' })]).find(
+      (item) => item.name === PI_TOOL_SEARCH_TOOL_NAME
+    )!
+
+    const result = await search.execute('search-1', { query: 'github issues' }, undefined, undefined, {} as never)
+    expect(result.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('mcp__github__searchIssues')
+    })
+  })
+
+  it('normalizes a BigInt code result before storing it in details', async () => {
+    const exec = codeModeTools([]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute('outer-1', { code: 'return 1n' }, undefined, undefined, {} as never)
+
+    expect(result.details).toEqual({ result: '1', logs: undefined })
+  })
+
+  it('rejects a cyclic code result before Pi attempts to persist it', async () => {
+    const exec = codeModeTools([]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    await expect(
+      exec.execute(
+        'outer-1',
+        { code: 'const result = {}; result.self = result; return result' },
+        undefined,
+        undefined,
+        {} as never
+      )
+    ).rejects.toThrow('tool_exec result must be JSON-serializable')
+  })
+
+  it('rejects a script that returns while an invoke is still pending', async () => {
+    const inner = tool({ name: 'mcp__github__search_issues' })
+    const exec = codeModeTools([inner]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    await expect(
+      exec.execute(
+        'outer-1',
+        { code: "tools.invoke('mcp__github__search_issues', {}); return 'queued'" },
+        undefined,
+        undefined,
+        {} as never
+      )
+    ).rejects.toThrow('Await every tools.invoke call')
   })
 
   it('blocks a tool disabled after the code-mode catalog was created', async () => {

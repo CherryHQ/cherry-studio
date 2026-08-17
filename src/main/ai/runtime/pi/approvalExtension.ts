@@ -50,6 +50,11 @@ const READ_ONLY_TOOLS = new Set<string>(
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 )
+/** Code Mode discovery and dispatch authorize their target separately, so their own calls never
+ * participate in file-path containment or add a redundant prompt. */
+const META_TOOLS = new Set<string>(
+  PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
+)
 
 /** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
  *  containment matches pi's own `resolveToCwd`). */
@@ -99,6 +104,8 @@ export interface PiToolAuthorizationRequest {
   toolCallId: string
   input: Record<string, unknown>
   signal?: AbortSignal
+  /** Pauses outer execution accounting while the user decides this nested call. */
+  onApprovalPending?: () => () => void
 }
 
 export type PiToolAuthorizer = (
@@ -107,7 +114,7 @@ export type PiToolAuthorizer = (
 
 /** Reusable policy boundary for native Pi calls and nested code-mode calls. */
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
-  return async ({ toolName, toolCallId, input, signal }) => {
+  return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
     if (ctx.isDisabled(toolName)) {
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
@@ -162,33 +169,39 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
 
     const approvalId = randomUUID()
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
-    const decision = await new Promise<DispatchDecision>((resolve) => {
-      const pending = toolApprovalRegistry.register({
-        approvalId,
-        sessionId: ctx.sessionId,
-        toolCallId,
-        toolName,
-        originalInput: { ...input },
-        presentation,
-        signal,
-        resolve
-      })
-      // Only surface the approval card when the request is actually pending; a
-      // synchronous resolve (e.g. the turn was aborted as the tool fired) already
-      // settled the promise, and emitting would leave an unanswerable card.
-      if (!pending) return
-      ctx.emit({
-        type: 'tool-approval-request',
-        request: {
+    const resumeExecutionTimeout = onApprovalPending?.()
+    let decision: DispatchDecision
+    try {
+      decision = await new Promise<DispatchDecision>((resolve) => {
+        const pending = toolApprovalRegistry.register({
           approvalId,
+          sessionId: ctx.sessionId,
           toolCallId,
           toolName,
-          input: { ...input },
+          originalInput: { ...input },
           presentation,
-          providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
-        }
+          signal,
+          resolve
+        })
+        // Only surface the approval card when the request is actually pending; a
+        // synchronous resolve (e.g. the turn was aborted as the tool fired) already
+        // settled the promise, and emitting would leave an unanswerable card.
+        if (!pending) return
+        ctx.emit({
+          type: 'tool-approval-request',
+          request: {
+            approvalId,
+            toolCallId,
+            toolName,
+            input: { ...input },
+            presentation,
+            providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
+          }
+        })
       })
-    })
+    } finally {
+      resumeExecutionTimeout?.()
+    }
 
     if (!decision.approved) {
       return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
@@ -208,6 +221,7 @@ async function requiresApproval(
   alwaysPrompt: boolean
 ): Promise<boolean> {
   if (alwaysPrompt) return true
+  if (META_TOOLS.has(toolName)) return false
   // `auto` runs unattended and only stops for the two things a wrong call cannot undo: a file tool
   // reaching outside the allowed roots, and a shell command that looks destructive. Everything else
   // — including every MCP tool — goes through.

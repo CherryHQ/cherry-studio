@@ -41,6 +41,26 @@ describe('jsonSchemaToTypeScript', () => {
     expect(output).toContain('Promise<{ total: number }>')
   })
 
+  it('resolves local $defs references in input and output schemas', () => {
+    const schema = {
+      type: 'object',
+      $defs: {
+        filter: {
+          type: 'object',
+          properties: { label: { type: 'string' } },
+          required: ['label']
+        }
+      },
+      properties: { filter: { $ref: '#/$defs/filter' } },
+      required: ['filter']
+    }
+
+    expect(jsonSchemaToTypeScript(schema)).toBe('{ filter: { label: string } }')
+    expect(toolToTypeScript('search', 'Search', schema, schema)).toContain(
+      'params: { filter: { label: string } }): Promise<{ filter: { label: string } }>'
+    )
+  })
+
   it('combines multiple tools into one valid overload block', () => {
     const output = toolsToTypeScript([
       { name: 'first', description: 'First tool', inputSchema: { type: 'object' } },
