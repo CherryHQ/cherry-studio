@@ -41,7 +41,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
@@ -524,7 +524,8 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const {
     pinnedIds: pinnedToolIds,
@@ -1135,7 +1136,7 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+  const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
