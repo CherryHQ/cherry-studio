@@ -44,16 +44,25 @@ interface Branch {
   executionId: UniqueModelId
   attemptId: AttemptId
   anchorMessageId?: string
+  /** Cycle the subscription believed authoritative when the branch was created;
+   *  undefined until the first attach settles the protocol. */
+  cycleId?: number
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
 }
 
-function createBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: AttemptId): Branch {
+function createBranch(
+  executionId: UniqueModelId,
+  anchorMessageId: string | undefined,
+  attemptId: AttemptId,
+  cycleId: number | undefined
+): Branch {
   const branch: Branch = {
     executionId,
     attemptId,
     anchorMessageId,
+    cycleId,
     stream: undefined as never,
     controller: null,
     closed: false
@@ -242,7 +251,7 @@ export class TopicStreamSubscription {
           })
         }
       }
-      branch = createBranch(executionId, anchorMessageId, id)
+      branch = createBranch(executionId, anchorMessageId, id, this.#cycleId)
       if (!registration.accepted || this.#isBranchSettled(id)) {
         this.#closeBranch(branch)
         return branch
@@ -485,6 +494,9 @@ export class TopicStreamSubscription {
       this.#controlRevision = 0
       this.#lastChunkSeq.clear()
       this.#lastQuiesced = undefined
+      // Main opened a new topic cycle: every branch of an older cycle is dead
+      // authority — its reader/overlay must retire now, not on a later refresh.
+      this.#retireBranches([...this.#branches.values()].filter((branch) => branch.cycleId !== event.cycleId))
     }
     if (event.type === 'chunk') {
       if (source === 'snapshot-replay' && 'synthetic' in event && event.synthetic) {
@@ -537,10 +549,21 @@ export class TopicStreamSubscription {
     }
 
     this.#projection.advanceWatermark(event.throughAttemptId)
+    this.#retireCoveredBranches(event.throughAttemptId)
     const topicStateChanged = this.#topicOpen
     this.#topicOpen = false
     if (topicStateChanged) this.#notifyTopicStateChange()
     this.#notifyTopicQuiesced({ cycleId: event.cycleId, throughAttemptId: event.throughAttemptId })
+  }
+
+  /** The quiesce barrier covers every attempt ≤ `throughAttemptId`; a covered
+   *  branch that never saw its own terminal is stale and must not stay open. */
+  #retireCoveredBranches(throughAttemptId: number): void {
+    this.#retireBranches(
+      [...this.#branches.values()].filter(
+        (branch) => branch.attemptId <= throughAttemptId && !this.#terminalByAttemptId.has(branch.attemptId)
+      )
+    )
   }
 
   #selectV2Protocol(snapshot: StreamAttachSnapshot): void {
@@ -550,6 +573,13 @@ export class TopicStreamSubscription {
     this.#pendingLegacyEvents.length = 0
     this.#topicOpen = snapshot.topicOpen
     this.#lastQuiesced = undefined
+
+    // The snapshot is the authority on which attempts exist in this cycle.
+    // Branches registered from a stale projection (older cycle, replaced slot)
+    // are absent from it and must retire; surviving branches adopt the cycle.
+    const snapshotAttemptIds = new Set(snapshot.attempts.map((attempt) => toAttemptId(attempt.attemptId)))
+    this.#retireBranches([...this.#branches.values()].filter((branch) => !snapshotAttemptIds.has(branch.attemptId)))
+    for (const branch of this.#branches.values()) branch.cycleId = snapshot.cycleId
 
     for (const attempt of snapshot.attempts) {
       for (const event of [...attempt.replayChunks].sort((left, right) => {
@@ -593,10 +623,9 @@ export class TopicStreamSubscription {
     })
     for (const event of pending) this.#applyProtocolEvent(event)
     if (!this.#topicOpen && !this.#lastQuiesced) {
-      this.#notifyTopicQuiesced({
-        cycleId: snapshot.cycleId,
-        throughAttemptId: Math.max(0, ...snapshot.attempts.map((attempt) => attempt.attemptId))
-      })
+      const throughAttemptId = Math.max(0, ...snapshot.attempts.map((attempt) => attempt.attemptId))
+      this.#retireCoveredBranches(throughAttemptId)
+      this.#notifyTopicQuiesced({ cycleId: snapshot.cycleId, throughAttemptId })
     }
   }
 

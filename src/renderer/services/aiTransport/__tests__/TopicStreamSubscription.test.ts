@@ -631,6 +631,151 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('retires a stale-projection branch when attach lands in a newer cycle with zero replay', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 8,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [{ executionId: A, attemptId: 5, phase: 'running', replayChunks: [], throughChunkSeq: 0 }]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onRetired = vi.fn()
+    sub.onBranchesRetired(onRetired)
+    // Registered from a stale SharedCache projection of the previous cycle.
+    const stale = sub.register(A, 'assistant-old', 1)
+    await tick()
+
+    expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 1, anchorMessageId: 'assistant-old' }])
+    expect(sub.hasOpenBranch(A, 'assistant-old', 1)).toBe(false)
+    expect(await readAll(stale)).toEqual([])
+    sub.dispose()
+  })
+
+  it('retires old-cycle branches when a live event opens a newer cycle on a different slot', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            anchorMessageId: 'assistant-a',
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onRetired = vi.fn()
+    sub.onBranchesRetired(onRetired)
+    const old = sub.register(A, 'assistant-a', 1)
+    await tick()
+
+    // Cross-slot replacement: the next cycle streams a different model+anchor,
+    // so slot-level replacement never fires — only cycle reconciliation can
+    // retire the old branch.
+    mock.emitProtocol({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 8,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('next-cycle')
+    })
+
+    expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 1, anchorMessageId: 'assistant-a' }])
+    expect(await readAll(old)).toEqual([])
+
+    const next = sub.register(B, 'assistant-b', 2)
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 1,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      outcome: 'success'
+    })
+    expect(await readAll(next)).toEqual([textChunk('next-cycle')])
+    sub.dispose()
+  })
+
+  it('retires covered branches that never saw their own terminal when the topic quiesces', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            anchorMessageId: 'assistant-a',
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          },
+          {
+            executionId: B,
+            attemptId: 2,
+            anchorMessageId: 'assistant-b',
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onRetired = vi.fn()
+    sub.onBranchesRetired(onRetired)
+    const stale = sub.register(A, 'assistant-a', 1)
+    const settled = sub.register(B, 'assistant-b', 2)
+    await tick()
+
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 7,
+      controlRevision: 2,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      outcome: 'success'
+    })
+    // The barrier covers attempt 1 even though its own terminal never arrived.
+    mock.emitProtocol({
+      type: 'topic-quiesced',
+      topicId: TOPIC,
+      cycleId: 7,
+      controlRevision: 3,
+      throughAttemptId: 2,
+      outcome: 'success'
+    })
+
+    expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 1, anchorMessageId: 'assistant-a' }])
+    expect(await readAll(stale)).toEqual([])
+    expect(await readAll(settled)).toEqual([])
+    expect(sub.hasAnyOpenBranch()).toBe(false)
+    sub.dispose()
+  })
+
   it('applies the topic barrier after the exact attempt terminal at the next control revision', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
