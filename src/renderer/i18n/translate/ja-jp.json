@@ -209,7 +209,8 @@
       "type": "エージェントアイコン"
     },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
+      "placeholder_streaming": "エージェントが作業中 — {{sendKey}} で追って送信、{{steerKey}} で即時誘導"
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
+            "description_pi": "自律的に動作します。危険な操作を検知した場合は確認を求めます。",
             "title": "自動で承認",
-            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。"
+            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。",
+            "warning_pi": "認識は最善を尽くしますが、珍しいコマンドが許可されてしまう場合があります。"
           },
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
+            "warning_pi": "危険 — 無効化されたツールを除き、ファイルの削除やネットワークアクセスを含むすべての操作で確認は行われません。"
           },
           "confirmChange": {
             "description": "モードを切り替えると、自動承認されたツールが更新されます。",
@@ -1096,6 +1100,10 @@
           "description": "ファイルを編集",
           "label": "ファイルを編集"
         },
+        "exit_plan_mode": {
+          "description": "計画を提示してレビューを行い、承認後に計画モードを終了します",
+          "label": "計画モードを終了"
+        },
         "find": {
           "description": "ファイルを検索",
           "label": "ファイルを検索"
@@ -1107,6 +1115,14 @@
         "grep": {
           "description": "ファイル内容を検索",
           "label": "ファイル内容を検索"
+        },
+        "interrupt_agent": {
+          "description": "バックグラウンドのサブエージェントの現在のターンを停止します",
+          "label": "サブエージェントを中断"
+        },
+        "list_agents": {
+          "description": "バックグラウンドのサブエージェントとそのステータスを一覧表示します",
+          "label": "サブエージェントを一覧表示"
         },
         "ls": {
           "description": "ディレクトリ内容を一覧表示",
@@ -1120,9 +1136,21 @@
           "description": "画像認識対応モデルで PNG、JPEG、WebP、GIF ファイルを読み取ります",
           "label": "画像を読み取る"
         },
+        "send_message": {
+          "description": "バックグラウンドのサブエージェントに追跡メッセージを送信します",
+          "label": "サブエージェントにメッセージを送信"
+        },
         "skill": {
           "description": "有効なスキルの完全な手順を読み込む",
           "label": "スキルの手順を読み込む"
+        },
+        "subagent": {
+          "description": "後からメッセージを送信できるバックグラウンドのサブエージェントにタスクを委譲します",
+          "label": "サブエージェントに委譲"
+        },
+        "subagent_fork": {
+          "description": "この会話のコンテキストを継承するサブエージェントに追跡タスクを委譲します",
+          "label": "サブエージェントをフォーク"
         },
         "todo_write": {
           "description": "タスクリストを管理",
@@ -2666,7 +2694,6 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
-    "image_unreadable_for_non_vision_model": "選択されたモデルは画像に対応しておらず、Cherry Studioは添付ファイルから読み取り可能なテキストを抽出できませんでした。画像対応モデルを選択するか、画像を削除して再試行してください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -3217,6 +3244,8 @@
         "delete_confirm_title": "選択したデータソースを削除しますか？",
         "loaded_only_hint": "読み込まれたアイテムのみに適用されます（合計{{total}}件）",
         "reindex": "再インデックス",
+        "reindex_none_eligible": "選択済みのデータソースは処理中であり、まだ再インデックスできません",
+        "reindex_skipped": "処理中の {{count}} 件のデータソースをスキップしました",
         "selected_count": "{{count}} 件選択"
       },
       "chunks_count": "{{count}} チャンク",
@@ -3552,6 +3581,11 @@
               "claude_code": "高度：Claude Agent",
               "dsh": "DeepSeek Harness",
               "pi": "高速：Pi"
+            },
+            "option_description": {
+              "claude_code": "より強力 — 計画モードとティア別モデル",
+              "dsh": "広範なプロバイダー対応とゴール駆動型の実行",
+              "pi": "高速なレスポンスと低いオーバーヘッド"
             }
           },
           "small_model": {
@@ -7438,8 +7472,11 @@
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
+        "newline_shortcuts": "改行のショートカット",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
+        "steer_shortcuts": "誘導のショートカット",
+        "steer_shortcuts_hint": "エージェントが動作中の場合、このショートカットで現在のターンにメッセージを即時送信して誘導できます。送信ショートカットを使用すると、ターン終了までキューに追加されます。",
         "title": "入力設定"
       },
       "layout": {
