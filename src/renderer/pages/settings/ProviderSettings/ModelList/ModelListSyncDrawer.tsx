@@ -18,7 +18,7 @@ interface ModelListSyncDrawerProps {
   open: boolean
   provider?: Provider
   allModels: Model[]
-  localModels: Model[]
+  localModels: readonly Model[]
   removableModelIds: UniqueModelId[]
   defaultModelIds?: UniqueModelId[]
   isLoading: boolean
