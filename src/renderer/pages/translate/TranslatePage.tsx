@@ -394,7 +394,7 @@ const TranslatePage: FC = () => {
   )
 
   const translateTextContent = useCallback(
-    async (rawText: string, allowBidirectional: boolean): Promise<void> => {
+    async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
       if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
 
       let actualSourceLanguage = sourceLanguage
@@ -404,6 +404,7 @@ const TranslatePage: FC = () => {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
             logger.error('Failed to detect language', error as Error)
           })
+          if (isCurrent && !isCurrent()) return
           setDetectedLanguage(actualSourceLanguage)
         } finally {
           setIsDetecting(false)
@@ -468,7 +469,7 @@ const TranslatePage: FC = () => {
         return
       }
 
-      await translateTextContent(extractedText, false)
+      await translateTextContent(extractedText, false, () => pdfTextRequestIdRef.current === requestId)
     } catch (error) {
       if (pdfTextRequestIdRef.current !== requestId) return
       logger.error('Failed to extract PDF text', error as Error)
@@ -989,6 +990,7 @@ const TranslatePage: FC = () => {
               </div>
             }>
             <PdfTranslationView
+              key={pdfFile.path}
               file={pdfFile}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}

@@ -10,17 +10,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(() => ({
-  mockStart: vi.fn(),
-  mockStop: vi.fn(),
-  mockSetShared: vi.fn(),
-  mockGetActiveUsageContext: vi.fn(),
-  mockPreferenceSet: vi.fn(async () => {}),
-  captured: {
-    prefHandler: undefined as ((enabled: boolean) => void) | undefined,
-    enabledPreference: false
-  }
-}))
+const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(
+  () => ({
+    mockStart: vi.fn(),
+    mockStop: vi.fn(),
+    mockSetShared: vi.fn(),
+    mockGetActiveUsageContext: vi.fn(),
+    mockPreferenceSet: vi.fn(async () => {}),
+    captured: {
+      prefHandler: undefined as ((enabled: boolean) => void) | undefined,
+      enabledPreference: false
+    }
+  })
+)
 
 vi.mock('../server', () => ({
   ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
@@ -385,7 +387,7 @@ describe('ApiGatewayService running-state publication', () => {
     expect(lastPublishedRunning()).toBe(true)
   })
 
-  it('stop() during a lease resolves without throwing and leaves the server listening', async () => {
+  it('returns deferred when stop() clears intent but a lease leaves the server listening', async () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
@@ -398,7 +400,7 @@ describe('ApiGatewayService running-state publication', () => {
 
     // A user-driven stop while a lease is held records the intent but must resolve (not throw); the
     // lease keeps the server up (still listening, still `running=true`) until it releases.
-    await expect(service.stop()).resolves.toBeUndefined()
+    await expect(service.stop()).resolves.toBe('deferred')
     expect(service.isActivated).toBe(true)
     expect(mockStop).not.toHaveBeenCalled()
     expect(lastPublishedRunning()).toBe(true)
@@ -408,6 +410,20 @@ describe('ApiGatewayService running-state publication', () => {
     await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
     expect(service.isActivated).toBe(false)
     expect(lastPublishedRunning()).toBe(false)
+  })
+
+  it('returns stopped when stop() deactivates the server immediately', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const started = service.start()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await started
+
+    await expect(service.stop()).resolves.toBe('stopped')
+    expect(service.isActivated).toBe(false)
+    expect(mockStop).toHaveBeenCalledTimes(1)
   })
 
   it('refuses restart() while a lease is active (no false-success no-op rebind)', async () => {

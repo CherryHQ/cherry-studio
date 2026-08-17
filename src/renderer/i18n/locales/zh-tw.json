@@ -784,6 +784,7 @@
       "restartSuccess": "API 閘道重新啟動成功",
       "startError": "啟動 API 閘道失敗：",
       "startSuccess": "API 閘道啟動成功",
+      "stopDeferred": "目前翻譯完成後，API 閘道將自動停止",
       "stopError": "停止 API 閘道失敗：",
       "stopSuccess": "API 閘道停止成功"
     },

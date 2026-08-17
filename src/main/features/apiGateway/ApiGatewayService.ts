@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ApiGatewayConfig } from '@shared/types/apiGateway'
+import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -156,20 +156,21 @@ export class ApiGatewayService extends BaseService implements Activatable {
     logger.info('API Gateway started successfully')
   }
 
-  async stop(): Promise<void> {
+  async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
     if (this.isActivated) {
       if (this.leaseCount > 0) {
         // A transient lease still holds the server open; the reconciler will stop it once the last
         // lease releases. Persistent intent is cleared, so this is a success, not a failure.
         logger.info('API Gateway persistent intent cleared; server stays up for active lease(s)')
-        return
+        return 'deferred'
       }
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error
     }
     logger.info('API Gateway stopped successfully')
+    return 'stopped'
   }
 
   async restart(): Promise<void> {

@@ -1,10 +1,13 @@
+import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() }
+  ipcApi: { request: ipcRequestMock }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -17,6 +20,7 @@ describe('useApiGateway', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
+    ipcRequestMock.mockReset()
   })
 
   it('does not promote `enabled` when the gateway is only running (e.g. under a transient lease)', () => {
@@ -34,5 +38,15 @@ describe('useApiGateway', () => {
     expect(result.current.apiGatewayConfig.enabled).toBe(false)
     // No `running → enabled` inference remains: `enabled` stays false after mount + effects.
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.api_gateway.enabled')).toBe(false)
+  })
+
+  it('reports that stopping is deferred while a translation lease keeps the gateway running', async () => {
+    ipcRequestMock.mockResolvedValue({ success: true, outcome: 'deferred' })
+    const { result } = renderHook(() => useApiGateway())
+
+    await act(() => result.current.stopApiGateway())
+
+    expect(toast.info).toHaveBeenCalledWith('apiGateway.messages.stopDeferred')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

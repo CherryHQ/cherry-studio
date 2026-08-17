@@ -800,6 +800,7 @@
       "restartSuccess": "API 网关重启成功",
       "startError": "启动 API 网关失败：",
       "startSuccess": "API 网关启动成功",
+      "stopDeferred": "当前翻译完成后，API 网关将自动停止",
       "stopError": "停止 API 网关失败：",
       "stopSuccess": "API 网关停止成功"
     },

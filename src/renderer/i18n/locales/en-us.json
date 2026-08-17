@@ -800,6 +800,7 @@
       "restartSuccess": "API Gateway restarted successfully",
       "startError": "Failed to start API Gateway: ",
       "startSuccess": "API Gateway started successfully",
+      "stopDeferred": "API Gateway will stop after the current translation finishes",
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
     },
