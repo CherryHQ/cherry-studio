@@ -272,6 +272,18 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeIntent?.hadFocus).toBe(true)
   })
 
+  it('loads the runtime for the compact structural variant', async () => {
+    render(<Harness compactWhenSingleLine />)
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the runtime for the expanded structural variant', async () => {
+    render(<Harness isExpanded />)
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
   it('follows the send-shortcut preference when the caller does not pass one', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.input.send_message_shortcut', 'Ctrl+Enter')
     render(<Harness sendMessageShortcut={undefined} />)
