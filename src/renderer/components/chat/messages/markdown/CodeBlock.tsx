@@ -135,6 +135,7 @@ const CodeBlock: React.FC<Props> = ({
             onSave={handleSave}
             editable={canSaveCodeBlock}
             isStreaming={isHtmlArtifactStreaming}
+            kind={htmlKind ?? 'document'}
           />
         )
       }
