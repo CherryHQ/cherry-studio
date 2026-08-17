@@ -129,7 +129,14 @@ export class MockMainDbService {
 
   public withEffects = vi.fn(
     <T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T =>
-      this.collectAndPublish((collected) => fn({ add: (effect) => collected.push(effect) }))
+      this.collectAndPublish((collected) => {
+        const result = fn({ add: (effect) => collected.push(effect) })
+        // Mirrors the production guard: effects publish on return, so async callbacks are rejected.
+        if (result instanceof Promise) {
+          throw new Error('withEffects callback must be synchronous — effects publish when it returns')
+        }
+        return result
+      })
   )
 
   /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */

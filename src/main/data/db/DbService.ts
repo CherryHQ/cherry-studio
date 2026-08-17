@@ -268,7 +268,13 @@ export class DbService extends BaseService {
     }
   }
 
-  /** Publish effects for an already-committed autocommit write or composed service result. */
+  /**
+   * Publish effects for an already-committed autocommit write or composed service result.
+   *
+   * `fn` MUST be synchronous — effects publish the moment it returns, so an async
+   * callback would publish (and clear the collector) before its work ran. A Promise
+   * return therefore throws without publishing anything.
+   */
   public withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
@@ -280,6 +286,9 @@ export class DbService extends BaseService {
 
     try {
       const result = fn(this.createEffectCollector(collected))
+      if (result instanceof Promise) {
+        throw new Error('withEffects callback must be synchronous — effects publish when it returns')
+      }
       if (isOutermost) this.publishEffectsBestEffort(collected)
       return result
     } catch (error) {
