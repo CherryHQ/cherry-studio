@@ -74,6 +74,7 @@
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
+      "/settings/screenshot",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -328,6 +329,27 @@
         "defaultBinding": [],
         "global": true,
         "when": "feature.selection.enabled",
+        "supportedPlatforms": [
+          "darwin",
+          "win32",
+          "linux"
+        ]
+      }
+    },
+    {
+      "id": "screenshot.capture",
+      "titleKey": "settings.shortcuts.screenshot_capture",
+      "categoryKey": "settings.shortcuts.feature.screenshot",
+      "scope": "main",
+      "enablement": "feature.screenshot.enabled",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "A"
+        ],
+        "global": true,
+        "when": "feature.screenshot.enabled",
         "supportedPlatforms": [
           "darwin",
           "win32",
