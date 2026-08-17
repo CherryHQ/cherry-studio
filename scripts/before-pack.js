@@ -119,7 +119,6 @@ const resolvePackageManifest = (packageName, require_) => {
 
 const collectDshRuntimePackageNames = (projectRoot) => {
   const rootManifestPath = path.join(projectRoot, 'package.json')
-  const rootManifest = JSON.parse(fs.readFileSync(rootManifestPath, 'utf8'))
   const rootRequire = createRequire(rootManifestPath)
   const packageNames = new Set()
   const requiredPeers = new Set()
@@ -148,10 +147,7 @@ const collectDshRuntimePackageNames = (projectRoot) => {
     }
   }
 
-  const roots = Object.keys(rootManifest.dependencies ?? {}).filter(
-    (packageName) => packageName.startsWith('@deepseek-ai/') || packageName === '@cherrystudio/dsh-bridge'
-  )
-  for (const root of roots) visit(root, rootRequire)
+  visit('@cherrystudio/dsh-bridge', rootRequire)
 
   const missingPeers = [...requiredPeers].filter((peer) => !packageNames.has(peer)).sort()
   if (missingPeers.length) throw new Error(`Missing production DSH peer dependencies: ${missingPeers.join(', ')}`)
