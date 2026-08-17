@@ -7184,6 +7184,7 @@
         "no": "Fără descriere",
         "nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
         "python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",
+        "qveris": "Conectați-vă la QVeris pentru a descoperi, inspecta și apela capabilitățile agenților AI. Este necesară configurarea variabilei de mediu QVERIS_API_KEY.",
         "sequentialthinking": "O implementare de server MCP care oferă instrumente pentru rezolvarea dinamică și reflexivă a problemelor prin procese de gândire structurată"
       },
       "command": "Comandă",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Nume furnizor",
       "providerUrl": "URL furnizor",
       "providers": "Furnizori",
+      "qveris": {
+        "get_api_key": "Obține cheia API",
+        "missing_api_key": "QVeris necesită o cheie API. <link>Înregistrați-vă sau conectați-vă pentru a obține o cheie API</link>, apoi introduceți-o ca QVERIS_API_KEY."
+      },
       "registry": "Registru pachete",
       "registryDefault": "Implicit",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "Ieșire",
     "show_window": "Afișează fereastra",
     "visualization": "Vizualizare"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }

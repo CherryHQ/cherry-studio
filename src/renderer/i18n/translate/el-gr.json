@@ -7184,6 +7184,7 @@
         "no": "Χωρίς περιγραφή",
         "nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
+        "qveris": "Συνδεθείτε στο QVeris για να ανακαλύπτετε, να επιθεωρείτε και να καλείτε δυνατότητες πρακτόρων AI. Απαιτεί τη ρύθμιση της μεταβλητής περιβάλλοντος QVERIS_API_KEY.",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },
       "command": "Εντολή",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
+      "qveris": {
+        "get_api_key": "Λήψη κλειδιού API",
+        "missing_api_key": "Το QVeris απαιτεί ένα κλειδί API. <link>Εγγραφείτε ή συνδεθείτε για να αποκτήσετε ένα κλειδί API</link> και, στη συνέχεια, εισαγάγετέ το ως QVERIS_API_KEY."
+      },
       "registry": "Πηγή Διαχείρισης πακέτων",
       "registryDefault": "Προεπιλεγμένη",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "Έξοδος",
     "show_window": "Εμφάνιση Παραθύρου",
     "visualization": "προβολή"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }

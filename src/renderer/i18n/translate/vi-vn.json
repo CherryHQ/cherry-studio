@@ -7184,6 +7184,7 @@
         "no": "Không có mô tả",
         "nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
         "python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
+        "qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
         "sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc"
       },
       "command": "Lệnh",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Tên nhà cung cấp",
       "providerUrl": "URL của nhà cung cấp",
       "providers": "Nhà cung cấp",
+      "qveris": {
+        "get_api_key": "Lấy khóa API",
+        "missing_api_key": "QVeris yêu cầu khóa API. <link>Đăng ký hoặc đăng nhập để nhận khóa API</link>, sau đó nhập khóa đó vào QVERIS_API_KEY."
+      },
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "Thôi",
     "show_window": "Hiển thị Cửa sổ",
     "visualization": "Trực quan hóa"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }

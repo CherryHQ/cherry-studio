@@ -7218,6 +7218,7 @@
         "no": "No description",
         "nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "qveris": "Connect to QVeris to discover, inspect, and call AI-agent capabilities. Requires configuring the QVERIS_API_KEY environment variable.",
         "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
       },
       "command": "Command",
@@ -7337,6 +7338,10 @@
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
+      "qveris": {
+        "get_api_key": "Get API Key",
+        "missing_api_key": "QVeris requires an API key. <link>Register or sign in to get an API key</link>, then enter it as QVERIS_API_KEY."
+      },
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryOptions": {
@@ -9070,5 +9075,18 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "xlsx_preview": {
+    "chart": "Chart",
+    "chart_unsupported": "This chart type isn't supported yet",
+    "error": {
+      "description": "This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "Formula couldn't be evaluated",
+    "sheet_tabs_label": "Sheets",
+    "too_large": {
+      "description": "File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "File too large to preview"
+    }
   }
 }

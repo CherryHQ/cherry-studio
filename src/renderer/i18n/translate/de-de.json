@@ -7184,6 +7184,7 @@
         "no": "Keine Beschreibung",
         "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
+        "qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },
       "command": "Befehl",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
+      "qveris": {
+        "get_api_key": "API-Schlüssel erhalten",
+        "missing_api_key": "QVeris benötigt einen API-Schlüssel. <link>Registrieren Sie sich oder melden Sie sich an, um einen API-Schlüssel zu erhalten</link>, und geben Sie ihn anschließend als QVERIS_API_KEY ein."
+      },
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryOptions": {
@@ -9033,5 +9038,18 @@
     "quit": "Beenden",
     "show_window": "Fenster anzeigen",
     "visualization": "Visualisierung"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }
