@@ -95,6 +95,7 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
+      openPath: vi.fn(),
       showItemInFolder: vi.fn(),
       trashItem: vi.fn()
     },

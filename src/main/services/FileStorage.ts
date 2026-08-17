@@ -12,12 +12,13 @@
  * Electron dialog, with no validation layer of its own. Introducing
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
  * already `@deprecated` and slated for deletion, changing v1 behavior instead of
- * migrating it. The casts only feed `getFileType`, which reads the extension. */
+ * migrating it. The casts only feed `getFileType` (extension reads) and the
+ * `safeOpen` handoff in `openPath`. */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { assertOutsideManagedStorageMutation } from '@main/services/file'
+import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -687,10 +688,9 @@ class FileStorage {
   }
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    const resolved = await shell.openPath(resolveHomeRelativeFilePath(path))
-    if (resolved !== '') {
-      throw new Error(resolved)
-    }
+    // Same unsafe-extension policy as the gated `file.open` route (safeOpen). Narrowing
+    // to OS-execute-only extensions is a pending product call — see PRD D2.
+    return safeOpen(resolveHomeRelativeFilePath(path) as AbsoluteFilePath)
   }
 
   /**
