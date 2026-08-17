@@ -259,14 +259,16 @@ export function buildDshProviderInjection(
  * Gateway-route counterpart of {@link buildDshProviderInjection}: the local API
  * Gateway fronts a model with no native dsh wire family as OpenAI-compatible.
  * The gateway key is a secret like any native key — it reaches the child only
- * through `CHERRY_DSH_API_KEY`, never the YAML.
+ * through `CHERRY_DSH_API_KEY`, never the YAML. The session usage headers ride
+ * the route's `headers` so the gateway can attach provider usage to the owning
+ * agent message and apply the stable per-session prompt cache key.
  *
  * @throws DshUnsupportedProviderError when the model is not gateway-routable either.
  */
 export function buildDshGatewayInjection(
   provider: Provider,
   model: Model,
-  gateway: { baseUrl: string; apiKey: string },
+  gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> },
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
@@ -279,6 +281,7 @@ export function buildDshGatewayInjection(
     providerName: provider.id,
     api: 'openai-completions',
     baseUrl: formatDshBaseUrl(gateway.baseUrl, 'openai-completions'),
+    ...(Object.keys(gateway.usageHeaders).length ? { headers: gateway.usageHeaders } : {}),
     apiKey: gateway.apiKey,
     modelId,
     ...(reasoning ? { reasoning } : {}),
