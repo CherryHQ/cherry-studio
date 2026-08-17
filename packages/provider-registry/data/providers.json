@@ -38,19 +38,12 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini",
-            "openai"
-          ]
+          "vendors": ["anthropic", "gemini", "openai"]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini"
-          ]
+          "vendors": ["anthropic", "gemini"]
         }
       ]
     },
@@ -136,19 +129,12 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini",
-            "openai"
-          ]
+          "vendors": ["anthropic", "gemini", "openai"]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini"
-          ]
+          "vendors": ["anthropic", "gemini"]
         }
       ]
     },
@@ -256,9 +242,7 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "zhipu"
-          ]
+          "vendors": ["zhipu"]
         }
       ]
     },
@@ -335,9 +319,7 @@
       "name": "deepseek",
       "serverTools": [
         {
-          "endpointTypes": [
-            "openai-responses"
-          ],
+          "endpointTypes": ["openai-responses"],
           "id": "web-search",
           "modelScope": "model-dependent"
         }
@@ -704,19 +686,12 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini",
-            "openai"
-          ]
+          "vendors": ["anthropic", "gemini", "openai"]
         },
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": [
-            "anthropic",
-            "gemini"
-          ]
+          "vendors": ["anthropic", "gemini"]
         }
       ]
     },
@@ -777,9 +752,7 @@
       ]
     },
     {
-      "authMethods": [
-        "external-cli"
-      ],
+      "authMethods": ["external-cli"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Claude Code - AI model provider",
       "endpointConfigs": {
@@ -811,9 +784,7 @@
       "apiFeatures": {
         "serviceTier": true
       },
-      "authMethods": [
-        "oauth"
-      ],
+      "authMethods": ["oauth"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
       "endpointConfigs": {
@@ -836,9 +807,7 @@
       "name": "OpenAI Codex"
     },
     {
-      "authMethods": [
-        "oauth"
-      ],
+      "authMethods": ["oauth"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Grok CLI - AI model provider",
       "endpointConfigs": {
@@ -1017,9 +986,7 @@
         {
           "id": "url-context",
           "modelScope": "model-dependent",
-          "vendors": [
-            "gemini"
-          ]
+          "vendors": ["gemini"]
         }
       ]
     },
@@ -1125,9 +1092,7 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "kimi"
-          ]
+          "vendors": ["kimi"]
         }
       ]
     },
@@ -1290,9 +1255,7 @@
         {
           "id": "web-search",
           "modelScope": "model-dependent",
-          "vendors": [
-            "doubao"
-          ]
+          "vendors": ["doubao"]
         }
       ]
     },
