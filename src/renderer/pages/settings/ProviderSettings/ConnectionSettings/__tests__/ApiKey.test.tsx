@@ -32,6 +32,10 @@ vi.mock('../ProviderApiKeyListDrawer', () => ({
   default: () => null
 }))
 
+vi.mock('../../ModelList', () => ({
+  ProviderModelCheck: () => <button type="button" aria-label="settings.models.check.button_caption" />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -57,10 +61,13 @@ describe('ApiKey', () => {
     })
   })
 
-  it('keeps key management but removes the duplicate model-check entry', () => {
+  it('places model check after key management in the API key action row', () => {
     render(<ApiKey providerId="openai" />)
 
-    expect(screen.getByRole('button', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.provider.check' })).not.toBeInTheDocument()
+    const buttons = screen.getAllByRole('button')
+    const keyListButton = screen.getByRole('button', { name: 'settings.provider.api.key.list.title' })
+    const modelCheckButton = screen.getByRole('button', { name: 'settings.models.check.button_caption' })
+
+    expect(buttons.indexOf(keyListButton)).toBeLessThan(buttons.indexOf(modelCheckButton))
   })
 })

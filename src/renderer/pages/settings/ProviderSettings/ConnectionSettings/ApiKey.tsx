@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import { ProviderModelCheck } from '../ModelList'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
@@ -109,6 +110,7 @@ export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyPr
                 </button>
               </span>
             </Tooltip>
+            <ProviderModelCheck />
           </div>
         </ProviderField>
       </ProviderSection>

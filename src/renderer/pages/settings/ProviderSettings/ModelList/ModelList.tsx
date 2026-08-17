@@ -4,7 +4,6 @@ import React, { memo } from 'react'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
-import ProviderModelCheck from './ProviderModelCheck'
 import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
@@ -31,7 +30,6 @@ function ModelListContent({
         disabled={disabled}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
-            <ProviderModelCheck />
             <ProviderModelPullReconcile
               providerId={providerId}
               disabled={toolbarDisabled}
