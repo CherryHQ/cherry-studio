@@ -17,6 +17,7 @@ import {
   useQuery
 } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
 import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -25,7 +26,6 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  AgentSessionListItem,
   AgentSessionSearchScope,
   AgentSessionSortBy,
   AgentSessionStatsQuery,
@@ -35,8 +35,7 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -70,33 +69,6 @@ const sessionGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
 /**
- * Preserve entity identity across list refreshes when DataApi returns an
- * equivalent object graph. Order changes still publish a new array, while
- * unchanged rows retain their references for memoized consumers.
- */
-function useStructurallySharedSessions(sessions: AgentSessionListItem[]): AgentSessionListItem[] {
-  const previousSessionsRef = useRef<AgentSessionListItem[]>([])
-
-  return useMemo(() => {
-    const previousSessions = previousSessionsRef.current
-    const previousById = new Map(previousSessions.map((session) => [session.id, session] as const))
-    let arrayChanged = previousSessions.length !== sessions.length
-
-    const nextSessions = sessions.map((session, index) => {
-      const previous = previousById.get(session.id)
-      const next = previous && isEqual(previous, session) ? previous : session
-      if (next !== previousSessions[index]) {
-        arrayChanged = true
-      }
-      return next
-    })
-    const sharedSessions = arrayChanged ? nextSessions : previousSessions
-    previousSessionsRef.current = sharedSessions
-    return sharedSessions
-  }, [sessions])
-}
-
-/**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
  * the parent agent — fetch via `useAgent(session.agentId)` separately. For
  * mutations call `useUpdateSession()` directly.
@@ -119,37 +91,7 @@ export const useSession = (sessionId: string | null) => {
     }
   })
 
-  return { session, error, isLoading, mutate }
-}
-
-/**
- * The globally most-recently-active session, for first-entry restore.
- *
- * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
- * most-recently-active session without waiting for the full session history to paginate
- * in and without depending on either `/agent-sessions` list stream's order.
- *
- * Activity-bearing writes publish a scalar data-change signal so a mounted
- * first-entry surface cannot keep a stale winner from another window. Folding
- * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
- * revalidation rather than trust a stale cache.
- * `latestSession` is `undefined` while loading and when there are no sessions.
- */
-export function useLatestSession(opts?: { enabled?: boolean }) {
-  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
-    enabled: opts?.enabled
-  })
-
-  useDataChange('/agent-sessions/latest', () => {
-    if (opts?.enabled !== false) void refetch()
-  })
-
-  return {
-    latestSession: data?.session ?? undefined,
-    isLoading: isLoading || isRefreshing,
-    refetch,
-    mutate
-  }
+  return { session, error, isLoading }
 }
 
 /**
@@ -231,16 +173,13 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
   const clearActiveSession = useCallback(() => selectSession(null, null), [selectSession])
 
   return {
-    ...result,
     session,
     sessionSource,
     isLoading: !session && result.isLoading,
-    activeSessionId,
-    setActiveSessionId,
+    error: result.error,
     setActiveSession,
     selectSession,
     clearActiveSession,
-    pendingSession,
     setPendingSession
   }
 }
@@ -253,8 +192,6 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
  * page explicitly with `loadMore()`.
  */
 export const useSessions = (agentId: string | null | undefined, options: UseSessionsOptions) => {
-  const { t } = useTranslation()
-  const closeConversationTabs = useCloseConversationTabs()
   const pageSize = options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE
   const enabled = options.enabled
   const sortBy = options.sortBy
@@ -296,7 +233,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   })
 
   const flatSessions = useInfiniteFlatItems(pages)
-  const sessions = useStructurallySharedSessions(flatSessions)
+  const sessions = useStructurallySharedItems(flatSessions)
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
 
@@ -308,6 +245,22 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     }
   }, [hasMore, isLoadingMore, loadNext])
 
+  return {
+    sessions,
+    hasMore,
+    error,
+    isLoading,
+    isLoadingMore,
+    isValidating: isRefreshing,
+    reload,
+    loadMore
+  }
+}
+
+/** Session-list writes, mounted only by surfaces that expose these actions. */
+export function useSessionMutations() {
+  const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
     refresh: SESSION_LIST_REFRESH
   })
@@ -358,19 +311,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     [reorderTrigger, t]
   )
 
-  return {
-    sessions,
-    hasMore,
-    error,
-    isLoading,
-    isLoadingMore,
-    isValidating: isRefreshing,
-    reload,
-    loadMore,
-    deleteSession,
-    deleteSessions,
-    reorderSession
-  }
+  return { deleteSession, deleteSessions, reorderSession }
 }
 
 /**

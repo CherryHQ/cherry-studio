@@ -5,7 +5,12 @@ import { useResourceListPinnedItems } from '@renderer/components/chat/resourceLi
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import {
+  useAgentSessionStats,
+  useSessionMutations,
+  useSessions,
+  useUpdateSession
+} from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
@@ -64,7 +69,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     sortBy: historySortBy,
     pinned: false
   })
-  const { deleteSession, deleteSessions } = unpinnedSessionsSource
+  const { deleteSession, deleteSessions } = useSessionMutations()
   const {
     items: sourceBandSessions,
     error: sessionError,

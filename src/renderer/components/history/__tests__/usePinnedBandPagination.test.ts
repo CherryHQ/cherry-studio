@@ -1,12 +1,12 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { PinnedBandSource } from '../usePinnedBandPagination'
 import { usePinnedBandPagination } from '../usePinnedBandPagination'
 
 type Item = { id: string; pinned?: boolean }
+type ItemSource = Parameters<typeof usePinnedBandPagination<Item>>[0]
 
-const source = (overrides: Partial<PinnedBandSource<Item>> = {}): PinnedBandSource<Item> => ({
+const source = (overrides: Partial<ItemSource> = {}): ItemSource => ({
   items: [],
   error: undefined,
   hasNext: false,
@@ -17,11 +17,8 @@ const source = (overrides: Partial<PinnedBandSource<Item>> = {}): PinnedBandSour
   ...overrides
 })
 
-const useTestPinnedBandPagination = (
-  pinned: PinnedBandSource<Item>,
-  unpinned: PinnedBandSource<Item>,
-  continuityKey = 'default'
-) => usePinnedBandPagination(pinned, unpinned, { continuityKey })
+const useTestPinnedBandPagination = (pinned: ItemSource, unpinned: ItemSource, continuityKey = 'default') =>
+  usePinnedBandPagination(pinned, unpinned, { continuityKey })
 
 describe('usePinnedBandPagination', () => {
   it('renders the pinned band first and appends the unpinned band once pins are complete', () => {
@@ -32,7 +29,6 @@ describe('usePinnedBandPagination', () => {
       )
     )
 
-    expect(result.current.isPinnedBandComplete).toBe(true)
     expect(result.current.items.map((item) => item.id)).toEqual(['p1', 'u1', 'u2'])
   })
 
@@ -44,29 +40,8 @@ describe('usePinnedBandPagination', () => {
       )
     )
 
-    expect(result.current.isPinnedBandComplete).toBe(false)
     expect(result.current.items.map((item) => item.id)).toEqual(['p1'])
     expect(result.current.hasNext).toBe(true)
-  })
-
-  it('drops rows whose pin state contradicts their stream', () => {
-    const { result } = renderHook(() =>
-      useTestPinnedBandPagination(
-        source({ items: [{ id: 'p1', pinned: true }, { id: 'stale-unpinned' }] }),
-        source({ items: [{ id: 'u1' }, { id: 'stale-pinned', pinned: true }] })
-      )
-    )
-
-    expect(result.current.items.map((item) => item.id)).toEqual(['p1', 'u1'])
-  })
-
-  it('deduplicates transient cross-band snapshots with the pinned row winning', () => {
-    const pinnedRow = { id: 'moving', pinned: true }
-    const { result } = renderHook(() =>
-      useTestPinnedBandPagination(source({ items: [pinnedRow] }), source({ items: [{ id: 'moving' }, { id: 'u1' }] }))
-    )
-
-    expect(result.current.items).toEqual([pinnedRow, { id: 'u1' }])
   })
 
   it('cascades loadNext: pinned stream drains before the unpinned stream pages', () => {
@@ -136,7 +111,6 @@ describe('usePinnedBandPagination', () => {
     rerender()
 
     expect(result.current.items.map((item) => item.id)).toEqual(['p1'])
-    expect(result.current.isPinnedBandComplete).toBe(false)
   })
 
   it('invalidates prior completion after a same-scope reset returns an incomplete first page', () => {
@@ -155,7 +129,6 @@ describe('usePinnedBandPagination', () => {
     rerender()
 
     expect(result.current.items.map((item) => item.id)).toEqual(['p2'])
-    expect(result.current.isPinnedBandComplete).toBe(false)
     expect(result.current.error).toBe(nextPageError)
   })
 })

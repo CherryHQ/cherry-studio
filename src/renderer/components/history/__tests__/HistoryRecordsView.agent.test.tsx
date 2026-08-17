@@ -314,6 +314,25 @@ function createSession(overrides: Partial<AgentSessionListItem> = {}): AgentSess
   }
 }
 
+function createPinnedSession(overrides: Partial<AgentSessionListItem> = {}): AgentSessionListItem {
+  const session = createSession(overrides)
+  return { ...session, pinId: overrides.pinId ?? `pin-${session.id}`, pinned: true }
+}
+
+function createDefaultSessions(pinnedAlpha = false): AgentSessionListItem[] {
+  return [
+    pinnedAlpha ? createPinnedSession() : createSession(),
+    createSession({
+      id: 'session-beta',
+      agentId: 'agent-beta',
+      name: 'Beta session',
+      description: 'Runbook audit',
+      workspace: makeWorkspace('/Users/jd/project-b'),
+      orderKey: 'b'
+    })
+  ]
+}
+
 function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return {
     id: 'agent-alpha',
@@ -336,18 +355,7 @@ function setupAgentHistory({
     createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
     createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' } })
   ],
-  sessions = [
-    createSession(),
-    createSession({
-      id: 'session-beta',
-      agentId: 'agent-beta',
-      name: 'Beta session',
-      description: 'Runbook audit',
-      workspace: makeWorkspace('/Users/jd/project-b'),
-      orderKey: 'b'
-    })
-  ],
-  pinIdBySessionId = new Map<string, string>(),
+  sessions = createDefaultSessions(),
   hasMore = false,
   isLoadingMore = false,
   sourceError
@@ -356,17 +364,12 @@ function setupAgentHistory({
   agents?: AgentEntity[]
   hasMore?: boolean
   isLoadingMore?: boolean
-  pinIdBySessionId?: Map<string, string>
   sessions?: AgentSessionListItem[]
   sourceError?: Error
 } = {}) {
   hookMocks.useAgents.mockReturnValue({ agents, error: undefined, isLoading: false })
-  const projectedSessions = sessions.map((session) => {
-    const pinId = pinIdBySessionId.get(session.id) ?? session.pinId
-    return pinId ? { ...session, pinId, pinned: true } : { ...session, pinId: null, pinned: false }
-  })
   const filterSessions = (ownerScope?: string, pinned?: boolean) =>
-    projectedSessions.filter((session) => {
+    sessions.filter((session) => {
       if (pinned !== undefined && session.pinned !== pinned) return false
       if (ownerScope === 'unlinked') return session.agentId === null
       if (ownerScope && session.agentId !== ownerScope) return false
@@ -386,13 +389,12 @@ function setupAgentHistory({
   hookMocks.useAgentSessionStats.mockReturnValue({
     stats: {
       total: sessions.length,
-      pinnedCount: pinIdBySessionId.size,
-      byAgent: Array.from(
-        sessions.reduce((counts, session) => {
-          counts.set(session.agentId, (counts.get(session.agentId) ?? 0) + 1)
-          return counts
-        }, new Map<string | null, number>())
-      ).map(([agentId, count]) => ({ agentId, count, pinnedCount: 0 }))
+      pinnedCount: sessions.filter((session) => session.pinned).length,
+      byAgent: Array.from(new Set(sessions.map((session) => session.agentId))).map((agentId) => ({
+        agentId,
+        count: sessions.filter((session) => session.agentId === agentId).length,
+        pinnedCount: sessions.filter((session) => session.agentId === agentId && session.pinned).length
+      }))
     },
     error: undefined,
     isLoading: false
@@ -491,7 +493,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('renders sessions from the existing agent session list data', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({
-      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+      sessions: createDefaultSessions(true)
     })
 
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
@@ -739,7 +741,7 @@ describe('HistoryRecordsView agent mode', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({
       sessions: [
         createSession(),
-        createSession({
+        createPinnedSession({
           id: 'session-beta',
           agentId: 'agent-beta',
           name: 'Beta session',
@@ -747,8 +749,7 @@ describe('HistoryRecordsView agent mode', () => {
           workspace: makeWorkspace('/Users/jd/project-b'),
           orderKey: 'b'
         })
-      ],
-      pinIdBySessionId: new Map([['session-beta', 'pin-session-beta']])
+      ]
     })
 
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
@@ -771,7 +772,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('disables bulk delete when only pinned sessions are selected', () => {
     setupAgentHistory({
-      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+      sessions: [createPinnedSession()]
     })
 
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
@@ -785,7 +786,7 @@ describe('HistoryRecordsView agent mode', () => {
     setupAgentHistory({
       sessions: [
         createSession(),
-        createSession({
+        createPinnedSession({
           id: 'session-beta',
           agentId: 'agent-beta',
           name: 'Beta session',
@@ -801,8 +802,7 @@ describe('HistoryRecordsView agent mode', () => {
           workspace: makeWorkspace('/Users/jd/project-c'),
           orderKey: 'c'
         })
-      ],
-      pinIdBySessionId: new Map([['session-beta', 'pin-session-beta']])
+      ]
     })
 
     const alphaCheckbox = within(screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement).getByRole(
@@ -891,7 +891,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('hides the session delete action for pinned history rows', () => {
     setupAgentHistory({
-      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+      sessions: [createPinnedSession()]
     })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')

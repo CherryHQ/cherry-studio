@@ -866,19 +866,11 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   const listOverrides = { ...overrides }
   delete listOverrides.loadLatestSession
   delete listOverrides.reuseOrCreateSession
-  const pinIdBySessionId = listOverrides.pinIdBySessionId as ReadonlyMap<string, string> | undefined
-  delete listOverrides.pinIdBySessionId
-  const rawSessions = (listOverrides.sessions as AgentSessionListItem[] | undefined) ?? [
+  const sessions = (listOverrides.sessions as AgentSessionListItem[] | undefined) ?? [
     createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
     createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
   ]
   delete listOverrides.sessions
-  const sessions = pinIdBySessionId
-    ? rawSessions.map((session) => {
-        const pinId = pinIdBySessionId.get(session.id) ?? null
-        return { ...session, pinId, pinned: pinId !== null }
-      })
-    : rawSessions
   const listSource = {
     sessions,
     isLoading: false,
@@ -2358,8 +2350,15 @@ describe('Sessions', () => {
   it('keeps the pinned group label when every session is pinned in time mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({
-      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'a' })],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+      sessions: [
+        createSession({
+          id: 'session-pinned',
+          name: 'Pinned session',
+          orderKey: 'a',
+          pinId: 'pin-session-pinned',
+          pinned: true
+        })
+      ]
     })
 
     render(<SessionsForTest />)
@@ -3606,7 +3605,9 @@ describe('Sessions', () => {
           name: 'Pinned Alpha session',
           workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
-          orderKey: 'b'
+          orderKey: 'b',
+          pinId: 'pin-session-pinned',
+          pinned: true
         }),
         createSession({
           agentId: null,
@@ -3616,8 +3617,7 @@ describe('Sessions', () => {
           workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
           orderKey: 'c'
         })
-      ],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+      ]
     })
 
     render(<SessionsForTest />)

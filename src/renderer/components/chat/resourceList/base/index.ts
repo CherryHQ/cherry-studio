@@ -65,8 +65,7 @@ export {
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export { useDisplayModeRevealRequest } from './useDisplayModeRevealRequest'
-export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
-export { useResourceListPinnedItems, useResourceListPinnedState } from './useResourceListPinnedState'
+export { useResourceListPinnedItems } from './useResourceListPinnedItems'
 export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListBase'
 export {
   buildResourceListGroupDropAnchor,

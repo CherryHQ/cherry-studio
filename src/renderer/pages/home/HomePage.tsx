@@ -90,6 +90,7 @@ const HomePage: FC = () => {
 
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
+  const isActiveTab = useIsActiveTab()
   const routeTopicId = routeSearch.topicId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -119,7 +120,7 @@ const HomePage: FC = () => {
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
   // Shared topic facts plus exact derived lookups for rails, restore, and empty-topic reuse.
-  const assistantTopicsSource = useAssistantTopicsSource()
+  const assistantTopicsSource = useAssistantTopicsSource({ enabled: isActiveTab && !isMessageOnlyView })
   const { stats: topicStats, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
@@ -283,7 +284,6 @@ const HomePage: FC = () => {
   // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
   // globally-focused tab".
   const currentTabId = useCurrentTabId()
-  const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {

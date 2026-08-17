@@ -76,16 +76,14 @@ describe('searchHandlers', () => {
       expect(entitySearchMock).not.toHaveBeenCalled()
     })
 
-    it('rejects blank q before calling the service', async () => {
-      await expect(
-        searchHandlers['/search/entities'].GET({
-          query: {
-            q: '   '
-          }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    it('uses an empty query for recent entities', async () => {
+      const response = { query: '', groups: [] }
+      entitySearchMock.mockResolvedValueOnce(response)
 
-      expect(entitySearchMock).not.toHaveBeenCalled()
+      const result = await searchHandlers['/search/entities'].GET({ query: {} } as never)
+
+      expect(entitySearchMock).toHaveBeenCalledWith({ q: '' })
+      expect(result).toBe(response)
     })
   })
 

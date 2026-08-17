@@ -77,7 +77,7 @@ function getEntityRailGroupRank(item: ResourceEntityRailItem) {
   return item.groupId ? 2 : 1
 }
 
-export function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
+function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
   return items
     .map((item, index) => ({ item, index, rank: getEntityRailGroupRank(item) }))
     .sort((a, b) => {

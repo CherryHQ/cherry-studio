@@ -100,7 +100,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
   // Shared session facts plus exact derived lookups for rails, restore, and placeholder reuse.
-  const agentSessionsSource = useAgentSessionsSource()
+  const agentSessionsSource = useAgentSessionsSource({ enabled: isActiveTab && !isMessageOnlyView })
 
   const { stats: sessionStats, loadSession, loadLatestSession, reuseOrCreateSession } = agentSessionsSource
   const {

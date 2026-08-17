@@ -658,10 +658,7 @@ export function Topics({
     [pinTopic, unpinTopic]
   )
   const sourceTopics = useMemo(() => {
-    const byId = new Map<string, TopicResourceItem>()
-    for (const topic of ordinaryTopics) byId.set(topic.id, topic)
-    for (const topic of pinnedTopics) byId.set(topic.id, topic)
-    return [...byId.values()]
+    return [...ordinaryTopics, ...pinnedTopics]
   }, [ordinaryTopics, pinnedTopics])
   const { items: projectedTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
@@ -1033,7 +1030,6 @@ export function Topics({
     [baseGroupedTopics, optimisticMove, topicGroupBy]
   )
 
-  const filteredTopics = groupedTopics
   const getActiveTopicId = useCallback(() => activeTopicIdRef.current, [])
   const getTopicRemovalOwnerId = useCallback((topic: Topic) => topic.assistantId ?? 'topic-owner:unlinked', [])
   const clearTopicSelection = useCallback(() => {
@@ -1079,7 +1075,7 @@ export function Topics({
       try {
         await coordinateTopicRemoval({
           item: topic,
-          displayedItems: filteredTopics,
+          displayedItems: groupedTopics,
           groupOrder: topicGroupSeeds.map((group) => group.id),
           commit: () => removeTopic(topic)
         })
@@ -1089,7 +1085,7 @@ export function Topics({
         toast.error(message)
       }
     },
-    [coordinateTopicRemoval, filteredTopics, removeTopic, t, topicGroupSeeds]
+    [coordinateTopicRemoval, groupedTopics, removeTopic, t, topicGroupSeeds]
   )
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
@@ -1132,7 +1128,6 @@ export function Topics({
       pinnedTopicsSource.isLoading ||
       (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||
       (isAssistantDisplayMode && (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading))))
-  const visibleFilteredTopics = filteredTopics
   const listStatus = listError
     ? 'error'
     : listLoading
@@ -1793,7 +1788,7 @@ export function Topics({
       <TopicResourceList<TopicResourceItem>
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         presentation={presentation}
-        items={visibleFilteredTopics}
+        items={groupedTopics}
         remoteGroups={isAssistantDisplayMode ? remoteTopicGroups : undefined}
         status={listStatus}
         groupSeeds={topicGroupSeeds}

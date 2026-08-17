@@ -2,7 +2,7 @@
  * Topic data layer — three tiers in one module:
  *
  *  1. Pure / non-React helpers — `mapApiTopicToRendererTopic`,
- *     `getTopicById`, `getTopicMessages`, topic-rename cache helpers.
+ *     `getTopicMessages`, topic-rename cache helpers.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useTopics` / `useTopicById` / `useTopicMutations` / `useTopicAutoRenameSync`).
  *  3. Composed hook — `useActiveTopic`.
@@ -28,6 +28,7 @@ import {
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
 import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -47,7 +48,6 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -65,33 +65,6 @@ const topicGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
 
 /** Canonical topic-list write refresh. */
 const TOPIC_LIST_REFRESH: ConcreteApiPaths[] = ['/topics', '/topics/stats']
-
-/**
- * Preserve entity identity across list refreshes when DataApi returns an
- * equivalent object. Order changes still publish a new array, while unchanged
- * rows retain their references for memoized consumers.
- */
-function useStructurallySharedTopics(topics: TopicListItem[]): TopicListItem[] {
-  const previousTopicsRef = useRef<TopicListItem[]>([])
-
-  return useMemo(() => {
-    const previousTopics = previousTopicsRef.current
-    const previousById = new Map(previousTopics.map((topic) => [topic.id, topic] as const))
-    let arrayChanged = previousTopics.length !== topics.length
-
-    const nextTopics = topics.map((topic, index) => {
-      const previous = previousById.get(topic.id)
-      const next = previous && isEqual(previous, topic) ? previous : topic
-      if (next !== previousTopics[index]) {
-        arrayChanged = true
-      }
-      return next
-    })
-    const sharedTopics = arrayChanged ? nextTopics : previousTopics
-    previousTopicsRef.current = sharedTopics
-    return sharedTopics
-  }, [topics])
-}
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -119,13 +92,6 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     pinned: false,
     isNameManuallyEdited: t.isNameManuallyEdited
   }
-}
-
-export async function getTopicById(topicId: string): Promise<RendererTopic> {
-  const apiTopic = await dataApiService.get(`/topics/${topicId}`)
-  // `messages` stays empty — the sole caller reads only topic metadata
-  // (`topic.id`); message history is fetched on demand via `getTopicMessages`.
-  return mapApiTopicToRendererTopic(apiTopic)
 }
 
 /**
@@ -313,7 +279,7 @@ export function useTopics(opts: {
     return built
   }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
   const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
     enabled: opts.enabled,
@@ -324,21 +290,19 @@ export function useTopics(opts: {
     }
   })
   const flatTopics = useInfiniteFlatItems(pages)
-  const topics = useStructurallySharedTopics(flatTopics)
+  const topics = useStructurallySharedItems(flatTopics)
 
   useDataChange('/topics', () => {
     if (opts.enabled !== false) void refresh()
   })
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
-    pages,
     hasNext,
     loadNext,
     isLoading,
     isRefreshing,
     error,
-    refetch: refresh,
-    mutate
+    refetch: refresh
   }
 }
 
@@ -365,7 +329,7 @@ export function useTopicStats(opts?: { enabled?: boolean; query?: TopicStatsQuer
  * Fetch a single topic by id from SQLite via DataApi.
  */
 export function useTopicById(topicId: string | undefined) {
-  const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
+  const { data, isLoading, error, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
   useDataChange(
@@ -378,41 +342,7 @@ export function useTopicById(topicId: string | undefined) {
     { routeParams: topicId ? { id: topicId } : undefined }
   )
 
-  return {
-    topic: data,
-    isLoading,
-    error,
-    refetch,
-    mutate
-  }
-}
-
-/**
- * The globally most-recently-active topic, for first-entry restore.
- *
- * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
- * most-recently-active conversation without waiting for the full topic history to
- * paginate in and without depending on either `/topics` list stream's order.
- *
- * Activity-bearing writes publish a scalar data-change signal so a mounted
- * first-entry surface cannot keep a stale winner from another window. Folding
- * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
- * revalidation rather than trust a stale cache.
- * `latestTopic` is `undefined` while loading and when the library is empty.
- */
-export function useLatestTopic(opts?: { enabled?: boolean }) {
-  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
-
-  useDataChange('/topics/latest', () => {
-    if (opts?.enabled !== false) void refetch()
-  })
-
-  return {
-    latestTopic: data?.topic ?? undefined,
-    isLoading: isLoading || isRefreshing,
-    refetch,
-    mutate
-  }
+  return { topic: data, isLoading, error }
 }
 
 /**

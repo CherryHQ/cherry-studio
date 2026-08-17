@@ -299,9 +299,6 @@ vi.mock('@renderer/hooks/agent/useSession', () => {
           : activeSessionMocks.session
             ? activeSessionMocks.sessionSource
             : 'none',
-        activeSessionId: options.activeSessionId,
-        setActiveSessionId: options.setActiveSessionId,
-        pendingSession: agentPageMocks.pendingSession,
         selectSession,
         setActiveSession: (entity: any) => selectSession(entity.id, entity),
         clearActiveSession: () => selectSession(null, null),

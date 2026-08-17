@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /** One cursor-paged stream feeding a band, adapted from `useTopics` / `useSessions`. */
-export interface PinnedBandSource<T> {
+interface PinnedBandSource<T> {
   items: readonly T[]
   error: Error | undefined
   hasNext: boolean
@@ -16,8 +16,6 @@ export interface PinnedBandSource<T> {
 interface PinnedBandPaginationResult<T> {
   /** Pinned band first; unpinned band appended only once the pinned band is complete. */
   items: T[]
-  /** Every pin page is known from this key's current or last successful completed snapshot. */
-  isPinnedBandComplete: boolean
   error: Error | undefined
   isLoading: boolean
   isLoadingMore: boolean
@@ -37,29 +35,13 @@ interface PinnedBandPaginationResult<T> {
  * Callers own outer gating (error/loading guards, runtime-status branches)
  * around `loadNext`.
  */
-export function usePinnedBandPagination<T extends { id: string; pinned?: boolean }>(
+export function usePinnedBandPagination<T>(
   pinned: PinnedBandSource<T>,
   unpinned: PinnedBandSource<T>,
   /** Changes whenever owner/search scope changes, invalidating prior completion continuity. */
   options: { continuityKey: string }
 ): PinnedBandPaginationResult<T> {
   const pinnedCompletionRef = useRef({ continuityKey: options.continuityKey, completed: false })
-
-  // Defensive narrowing: the streams are server-filtered, but a stale page can
-  // briefly carry rows whose pin state flipped locally.
-  const pinnedItems = useMemo(
-    () => [...new Map(pinned.items.filter((item) => item.pinned === true).map((item) => [item.id, item])).values()],
-    [pinned.items]
-  )
-  const pinnedIds = useMemo(() => new Set(pinnedItems.map((item) => item.id)), [pinnedItems])
-  const unpinnedItems = useMemo(
-    () => [
-      ...new Map(
-        unpinned.items.filter((item) => item.pinned !== true && !pinnedIds.has(item.id)).map((item) => [item.id, item])
-      ).values()
-    ],
-    [pinnedIds, unpinned.items]
-  )
 
   const isPinnedBandCompleteNow = !pinned.isLoading && !pinned.error && !pinned.hasNext
   const hasCompletedCurrentKey =
@@ -85,8 +67,8 @@ export function usePinnedBandPagination<T extends { id: string; pinned?: boolean
   const isPinnedBandComplete = isPinnedBandCompleteNow || (!!pinned.error && hasCompletedCurrentKey)
 
   const items = useMemo(
-    () => (isPinnedBandComplete ? [...pinnedItems, ...unpinnedItems] : [...pinnedItems]),
-    [isPinnedBandComplete, pinnedItems, unpinnedItems]
+    () => (isPinnedBandComplete ? [...pinned.items, ...unpinned.items] : [...pinned.items]),
+    [isPinnedBandComplete, pinned.items, unpinned.items]
   )
 
   const { hasNext: hasNextPinned, loadNext: loadNextPinned } = pinned
@@ -105,7 +87,6 @@ export function usePinnedBandPagination<T extends { id: string; pinned?: boolean
 
   return {
     items,
-    isPinnedBandComplete,
     error: pinned.error ?? (isPinnedBandComplete ? unpinned.error : undefined),
     isLoading: pinned.isLoading || (isPinnedBandComplete && unpinned.isLoading),
     isLoadingMore: pinned.isLoadingMore || (isPinnedBandComplete && unpinned.isLoadingMore),

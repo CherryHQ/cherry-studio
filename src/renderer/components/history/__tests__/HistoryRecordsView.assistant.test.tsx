@@ -37,9 +37,7 @@ const hookMocks = vi.hoisted(() => ({
   useAssistants: vi.fn(),
   useCache: vi.fn(),
   useMultiplePreferences: vi.fn(),
-  useSessions: vi.fn(),
-  useTopicStats: vi.fn(),
-  useUpdateSession: vi.fn()
+  useTopicStats: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -131,29 +129,6 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
-
-vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useSessions: hookMocks.useSessions,
-  useUpdateSession: hookMocks.useUpdateSession
-}))
-
-vi.mock('@renderer/hooks/resourceViewSources', async () => {
-  // Resolves to the mocked useTopic module, so rendererTopics uses the same mapper as the test.
-  const { mapApiTopicToRendererTopic } = await import('@renderer/hooks/useTopic')
-  return {
-    useAgentSessionsSource: () => hookMocks.useSessions(),
-    useAssistantTopicsSource: () => {
-      const source = hookMocks.useTopics()
-      return {
-        ...source,
-        rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
-        orderSignature: '',
-        isLoadingAll: source.isLoadingAll ?? source.isLoading,
-        isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
-      }
-    }
-  }
-})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
@@ -473,15 +448,12 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.updateTopic.mockResolvedValue(undefined)
     hookMocks.unpinTopic.mockReset()
     hookMocks.unpinTopic.mockResolvedValue(undefined)
-    hookMocks.useSessions.mockReset()
     hookMocks.useTopicStats.mockReset()
     hookMocks.useTopicStats.mockReturnValue({
       stats: { total: 0, pinnedCount: 0, byAssistant: [] },
       error: undefined,
       isLoading: false
     })
-    hookMocks.useUpdateSession.mockReset()
-
     if (!assistantHistoryLoaded) {
       await import('../AssistantHistoryRecords')
       hookMocks.useTopics.mockReturnValue({ topics: [], error: undefined, isLoading: false })
@@ -541,18 +513,13 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(hookMocks.useSessions).not.toHaveBeenCalled()
-    expect(hookMocks.useTopics).toHaveBeenCalledWith()
-    expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
 
-  it('keeps the loading state until the shared full-topic source commits', () => {
+  it('shows loading while the server-filtered topic streams load', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [],
       error: undefined,
-      isLoading: false,
-      isLoadingAll: true,
-      isFullyLoaded: false
+      isLoading: true
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -572,17 +539,6 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
     expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not select a topic when the selection checkbox is clicked', () => {
-    const { onClose, onRecordSelect } = setupAssistantHistory()
-
-    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
-    expect(alphaRow).not.toBeNull()
-    fireEvent.click(within(alphaRow as HTMLElement).getByRole('checkbox'))
-
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('bulk deletes selected topics from the query toolbar', async () => {
@@ -706,112 +662,6 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-beta', 'topic-gamma'])
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
-  })
-
-  it('skips pinned topics when bulk deleting from the query toolbar', async () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [
-        createTopic(),
-        createTopic({
-          id: 'topic-beta',
-          name: 'Beta topic',
-          orderKey: 'b',
-          pinId: 'pin-topic-beta',
-          pinned: true
-        }),
-        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
-      ],
-      error: undefined,
-      isLoading: false
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockResolvedValueOnce({
-      deletedIds: ['topic-alpha'],
-      deletedCount: 1
-    })
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
-
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
-
-    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
-    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
-    fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(within(betaRow).getByRole('checkbox'))
-
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected conversation(s)?')
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    })
-
-    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('disables bulk delete when only pinned topics are selected', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [
-        createTopic({ pinId: 'pin-topic-alpha', pinned: true }),
-        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })
-      ],
-      error: undefined,
-      isLoading: false
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
-
-    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
-    fireEvent.click(within(alphaRow).getByRole('checkbox'))
-
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
-    expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
-  })
-
-  it('excludes pinned topics from row selection and select all', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [
-        createTopic(),
-        createTopic({
-          id: 'topic-beta',
-          name: 'Beta topic',
-          orderKey: 'b',
-          pinId: 'pin-topic-beta',
-          pinned: true
-        }),
-        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
-      ],
-      error: undefined,
-      isLoading: false
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
-
-    const alphaCheckbox = within(screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement).getByRole(
-      'checkbox'
-    )
-    const betaCheckbox = within(screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement).getByRole(
-      'checkbox'
-    )
-    const gammaCheckbox = within(screen.getByText('Gamma topic').closest('[role="row"]') as HTMLElement).getByRole(
-      'checkbox'
-    )
-
-    expect(betaCheckbox).toBeDisabled()
-    fireEvent.click(betaCheckbox)
-    expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
-
-    expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
-    expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
   })
 
   it('bulk moves selected topics to another assistant from the query toolbar', async () => {

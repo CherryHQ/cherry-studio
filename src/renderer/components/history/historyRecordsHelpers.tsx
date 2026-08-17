@@ -8,8 +8,8 @@ import { Bot } from 'lucide-react'
 import type { HistorySourceOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
-export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
-export const UNLINKED_AGENT_SOURCE_ID = '__unknown_agent__'
+const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
+const UNLINKED_AGENT_SOURCE_ID = '__unknown_agent__'
 
 /**
  * Map a history source-filter selection to the server-side owner scope: the

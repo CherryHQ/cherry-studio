@@ -20,7 +20,9 @@ import {
 } from '../search'
 
 describe('EntitySearchQuerySchema', () => {
-  it('trims q without applying a default limit', () => {
+  it('normalizes an omitted, blank, or padded entity query', () => {
+    expect(EntitySearchQuerySchema.parse({})).toEqual({ q: '' })
+    expect(EntitySearchQuerySchema.parse({ q: '   ' })).toEqual({ q: '' })
     expect(EntitySearchQuerySchema.parse({ q: '  assistant  ' })).toEqual({
       q: 'assistant'
     })
@@ -42,8 +44,7 @@ describe('EntitySearchQuerySchema', () => {
     })
   })
 
-  it('rejects blank q, invalid updatedAtFrom, out-of-range limits, and message flags', () => {
-    expect(() => EntitySearchQuerySchema.parse({ q: '   ' })).toThrow()
+  it('rejects invalid updatedAtFrom, out-of-range limits, and message flags', () => {
     expect(() => EntitySearchQuerySchema.parse({ q: 'agent', updatedAtFrom: 'today' })).toThrow()
     expect(() => EntitySearchQuerySchema.parse({ q: 'agent', limitPerType: 0 })).toThrow()
     expect(() =>

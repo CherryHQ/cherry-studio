@@ -68,11 +68,6 @@ const homeMocks = vi.hoisted(() => ({
     lastActivityAt: string
     updatedAt: string
   }>,
-  isLatestTopicLoading: false,
-  // `undefined` → derive the latest from `resourceLayoutTopics`; `null` → empty; a topic → that exact topic
-  // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
-  latestTopicOverride: undefined as Topic | null | undefined,
-  latestTopicOptions: [] as Array<{ enabled?: boolean }>,
   // Controls the imperative scoped `/topics/latest` lookup used by owner fallback.
   loadLatestTopicOverride: undefined as Topic | null | undefined,
   assistants: [{ id: 'assistant-default' }, { id: 'assistant-1' }] as Array<{
@@ -293,20 +288,9 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
 
 vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
-  const { compareResourceActivityOrder } = await import('@renderer/utils/chat/resourceListBase')
 
   return {
     mapApiTopicToRendererTopic: (topic: Topic) => topic,
-    useLatestTopic: (options: { enabled?: boolean } = {}) => {
-      homeMocks.latestTopicOptions.push(options)
-      const derived = [...homeMocks.resourceLayoutTopics].sort(compareResourceActivityOrder)[0] as Topic | undefined
-      const latest =
-        homeMocks.latestTopicOverride === undefined ? derived : (homeMocks.latestTopicOverride ?? undefined)
-      return {
-        latestTopic: options.enabled === false ? undefined : latest,
-        isLoading: homeMocks.isLatestTopicLoading
-      }
-    },
     useTopicMutations: () => ({
       createTopic: homeMocks.createTopic,
       refreshTopics: homeMocks.refreshTopics
@@ -788,10 +772,7 @@ describe('HomePage', () => {
     homeMocks.entryTopic = initialTopic
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-1' }]
     homeMocks.resourceLayoutTopics = []
-    homeMocks.isLatestTopicLoading = false
-    homeMocks.latestTopicOverride = undefined
     homeMocks.loadLatestTopicOverride = undefined
-    homeMocks.latestTopicOptions = []
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false

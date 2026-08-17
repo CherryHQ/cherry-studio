@@ -37,7 +37,12 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import {
+  useAgentSessionStats,
+  useSessionMutations,
+  useSessions,
+  useUpdateSession
+} from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -514,14 +519,13 @@ const Sessions = ({
     searchScope: 'name'
   })
   const {
-    deleteSession,
     hasMore: hasMorePinnedSessions,
     isValidating: isPinnedSessionsValidating,
     loadMore: loadMorePinnedSessions,
     reload: reloadPinnedSessions,
-    reorderSession,
     sessions: pinnedSessions
   } = pinnedSessionsSource
+  const { deleteSession, reorderSession } = useSessionMutations()
   const ordinarySessionsSource = useSessions(rightPanelAgentScope, {
     enabled: isSessionListEnabled && displayMode === 'time',
     pageSize: SESSION_PAGE_SIZE,
@@ -745,11 +749,8 @@ const Sessions = ({
     [pinSession, unpinSession]
   )
   const sourceSessionItems = useMemo<AgentSessionListItem[]>(() => {
-    const byId = new Map<string, AgentSessionListItem>()
     const ordinaryRows = displayMode === 'time' ? ordinarySessions : remoteSessions
-    for (const session of ordinaryRows) byId.set(session.id, session)
-    for (const session of pinnedSessions) byId.set(session.id, session)
-    return [...byId.values()]
+    return [...ordinaryRows, ...pinnedSessions]
   }, [displayMode, ordinarySessions, pinnedSessions, remoteSessions])
   const { items: projectedSessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
     disabled: isSessionPinMutating,
@@ -2367,10 +2368,9 @@ const Sessions = ({
     pinnedSessionsSource.isValidating ||
     (displayMode === 'time' && isOrdinarySessionsValidating) ||
     (displayMode === 'workdir' && isWorkdirMetadataRefreshing)
-  const visibleGroupedSessions = filteredGroupedSessions
   const listStatus = listError
     ? 'error'
-    : listLoading && visibleGroupedSessions.length === 0
+    : listLoading && filteredGroupedSessions.length === 0
       ? 'loading'
       : sessionGroupSeeds.length === 0 && (sessionStats?.total ?? sessionItems.length) === 0
         ? 'empty'
@@ -2439,7 +2439,7 @@ const Sessions = ({
     <SessionResourceList<AgentSessionListItem>
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
-      items={visibleGroupedSessions}
+      items={filteredGroupedSessions}
       remoteGroups={displayMode === 'time' ? undefined : remoteSessionGroups}
       status={listStatus}
       groupSeeds={sessionGroupSeeds}

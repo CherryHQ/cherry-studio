@@ -1,6 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
@@ -16,7 +15,6 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import {
   getTopicMessages,
   useActiveTopic,
-  useLatestTopic,
   useTopicById,
   useTopicMutations,
   useTopics,
@@ -50,17 +48,6 @@ const apiMessage = (id: string, isContextBoundary = false) => ({
   stats: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
-})
-
-const createApiTopic = (overrides: Partial<ApiTopic> = {}): ApiTopic => ({
-  id: 'topic-1',
-  name: 'Topic',
-  isNameManuallyEdited: false,
-  orderKey: 'a0',
-  lastActivityAt: '2026-01-01T00:00:00.000Z',
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-  ...overrides
 })
 
 describe('getTopicMessages', () => {
@@ -155,16 +142,6 @@ describe('useTopics', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps progressive topic sources on first-page revalidation', () => {
-    renderHook(() => useTopics({ pinned: false }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: { pinned: false },
-      limit: 50,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
-    })
-  })
   it('converges the topic list for every notification regardless of entity hints', () => {
     renderHook(() => useTopics({ pinned: false }))
     const refresh = mockUseInfiniteQuery.mock.results.at(-1)?.value.refresh
@@ -173,43 +150,6 @@ describe('useTopics', () => {
     listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
 
     expect(refresh).toHaveBeenCalled()
-  })
-
-  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
-    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
-    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
-    let pages = [{ items: [topicA, topicB] }]
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext: false,
-          loadNext: vi.fn(),
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
-
-    const { result, rerender } = renderHook(() => useTopics({ pinned: false }))
-    const firstTopics = result.current.topics
-
-    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics).not.toBe(firstTopics)
-    expect(result.current.topics[0]).toBe(firstTopics[1])
-    expect(result.current.topics[1]).toBe(firstTopics[0])
-
-    const reorderedTopics = result.current.topics
-    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
-    expect(result.current.topics[1]).toBe(reorderedTopics[1])
   })
 })
 
@@ -373,25 +313,6 @@ describe('useTopicMutations', () => {
     // Rethrown so the caller can roll its optimistic UI back.
     expect(caught).toEqual(new Error('move failed'))
     expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
-  })
-})
-
-describe('useLatestTopic', () => {
-  beforeEach(() => {
-    MockUseDataApiUtils.resetMocks()
-    vi.clearAllMocks()
-  })
-
-  it('keeps first-entry restore gated while cached latest topic is revalidating', () => {
-    MockUseDataApiUtils.mockQueryResult('/topics/latest', {
-      data: { topic: { id: 'topic-a' } } as never,
-      isRefreshing: true
-    })
-
-    const { result } = renderHook(() => useLatestTopic())
-
-    expect(result.current.latestTopic?.id).toBe('topic-a')
-    expect(result.current.isLoading).toBe(true)
   })
 })
 
