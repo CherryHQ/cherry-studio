@@ -121,6 +121,71 @@ describe('DshStreamAdapter', () => {
     expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
   })
 
+  it('suppresses autonomous turn within grace period after host turn ends', () => {
+    vi.useFakeTimers()
+    try {
+      const { adapter, onAutonomousTurnState, onTurnEnd } = makeAdapter()
+      // Host-prompted turn
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'text-delta', index: 0, text: 'answer' }))
+      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+      expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+
+      // Goal-round content arrives within 500ms of host turn end
+      vi.advanceTimersByTime(100)
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'goal work' }))
+
+      // Autonomous turn should be suppressed — no 'started' event
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('allows autonomous turn after grace period expires', () => {
+    vi.useFakeTimers()
+    try {
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      // Host-prompted turn
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+
+      // More than 500ms after host turn end
+      vi.advanceTimersByTime(600)
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'late work' }))
+
+      // Autonomous turn should proceed normally
+      expect(onAutonomousTurnState).toHaveBeenCalledWith('started')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never suppresses autonomous turns without a preceding host turn', () => {
+    vi.useFakeTimers()
+    try {
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      // Autonomous turn arrives without any preceding host turn — no grace period
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(1, 1, { type: 'text-delta', index: 0, text: 'autonomous work' }))
+
+      // Should always proceed — no hostTurnEndedAt was ever set
+      expect(onAutonomousTurnState).toHaveBeenCalledWith('started')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('swallows a content-less turn instead of fabricating an empty one', () => {
     // A stale goal round rejected at pre-step: turn/start → turn/end {blocked}, zero content.
     const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()

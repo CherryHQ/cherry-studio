@@ -34,6 +34,14 @@ import type { AgentRuntimeEvent } from '../types'
 /** dsh transport tag consumed by the renderer's tool-part routing. */
 export const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
 
+/**
+ * Grace period after a host-prompted turn ends during which autonomous turns are suppressed.
+ * The DSH goal-round-driver can fire immediately after `turn/end`; suppressing it prevents
+ * a spurious "Processing" bubble from appearing before the user replies. Legitimate autonomous
+ * work (background subagent completions, deferred wake-ups) has longer latency and is unaffected.
+ */
+const POST_HOST_TURN_GRACE_MS = 500
+
 export interface DshInvocationMetrics {
   timeFirstTokenMs?: number
   timeCompletionMs: number
@@ -126,6 +134,8 @@ export class DshStreamAdapter {
   private turnActive = false
   /** The current turn was opened by runtime content (a goal round), not a host prompt. */
   private autonomousTurn = false
+  /** Timestamp of the last host-prompted turn's `turn/end`; drives the post-turn grace period. */
+  private hostTurnEndedAt?: number
 
   constructor(private readonly sink: DshStreamSink) {}
 
@@ -134,6 +144,7 @@ export class DshStreamAdapter {
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
+    this.hostTurnEndedAt = undefined
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
@@ -156,6 +167,12 @@ export class DshStreamAdapter {
   /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
   private ensureTurnOpen(): void {
     if (this.turnActive) return
+    // Suppress autonomous turns that fire within the grace period after a host turn ended.
+    // The DSH goal-round-driver starts a new round almost immediately after `turn/end`; this
+    // prevents a spurious "Processing" bubble from appearing before the user replies.
+    if (this.hostTurnEndedAt !== undefined && Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
+      return
+    }
     this.sink.onAutonomousTurnState('started')
     this.turnActive = true
     this.autonomousTurn = true
@@ -200,6 +217,10 @@ export class DshStreamAdapter {
           this.autonomousTurn = false
           // Ownership release must precede the terminal turn-complete (host contract).
           this.sink.onAutonomousTurnState('finished')
+        } else {
+          // Host-prompted turn ended: start the grace period so the goal-round-driver's
+          // immediate autonomous content does not create a spurious new bubble.
+          this.hostTurnEndedAt = Date.now()
         }
         this.sink.onTurnEnd(event.data.reason)
         return

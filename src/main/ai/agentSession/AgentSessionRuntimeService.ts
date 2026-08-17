@@ -108,6 +108,13 @@ const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
 
+/**
+ * Adapter-level grace period after a host turn ends. Matches the adapter's
+ * `POST_HOST_TURN_GRACE_MS` — used as a safety net in `startReceiveOnlyTurn`
+ * to prevent autonomous goal-round content from creating a spurious bubble.
+ */
+const POST_HOST_TURN_GRACE_MS = 500
+
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
   const rightIds = new Set(right)
@@ -249,6 +256,8 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   lastResumeToken?: string
   idleTimer?: ReturnType<typeof setTimeout>
+  /** Timestamp of the last host turn's terminal status; drives the post-turn grace period. */
+  lastHostTurnEndedAt?: number
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
@@ -801,6 +810,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return
 
     this.clearIdleTimer(entry)
+    // User sent a message — clear the post-turn grace period so the adapter can handle
+    // any subsequent autonomous turns normally.
+    entry.lastHostTurnEndedAt = undefined
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
     const headless = opts.headless === true
@@ -887,6 +899,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!executionOwnsTurn || completedTurn?.turnId !== expectedTurnId) return
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
+    // Capture before the transition — after, execution may be idle.
+    const wasHostTurn = entry.runtimeState.execution.kind === 'turn'
     if (completedTurn) {
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
       this._onTurnTerminal.fire({
@@ -895,6 +909,11 @@ export class AgentSessionRuntimeService extends BaseService {
         status,
         boundary: isRowRoll ? 'row-roll' : 'turn'
       })
+    }
+    // Record when a host turn just ended so the adapter grace period can suppress
+    // the goal-round-driver's autonomous turn that fires immediately after.
+    if (wasHostTurn && entry.runtimeState.execution.kind === 'idle') {
+      entry.lastHostTurnEndedAt = Date.now()
     }
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
@@ -2674,6 +2693,14 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.kind !== 'autonomous-turn' ||
       entry.runtimeState.execution.turn
     ) {
+      return
+    }
+    // Safety net: suppress autonomous turns that fire within the grace period after a
+    // host turn ended. The adapter-level grace period is the primary guard; this catches
+    // any autonomous content that leaks through (e.g. a race where the adapter's
+    // hostTurnEndedAt was cleared before the event was processed).
+    if (entry.lastHostTurnEndedAt !== undefined && Date.now() - entry.lastHostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
+      this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-abandoned' })
       return
     }
     const { modelId, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
