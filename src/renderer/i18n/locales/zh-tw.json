@@ -1,30 +1,16 @@
 {
   "agent": {
     "add": {
-      "description": "呼叫各種工具處理複雜任務",
       "error": {
-        "failed": "新增 Agent 失敗",
-        "invalid_agent": "無效的 Agent"
+        "failed": "新增 Agent 失敗"
       },
-      "model": {
-        "supported_providers": "支援的供應商",
-        "tooltip": "目前大多數聊天模型可供 Agent 使用，暫不支援 Gemini 供應商。",
-        "view_providers": "檢視支援的供應商"
-      },
-      "title": "新增 Agent",
-      "type": {
-        "placeholder": "選擇 Agent 類型"
-      }
+      "title": "新增 Agent"
     },
     "askUserQuestion": {
       "answered": "已回答",
       "close": "關閉",
       "customPlaceholder": "輸入你的答案...",
-      "loading": "載入問題中...",
-      "multiSelect": "多重選擇",
       "next": "下一個",
-      "noQuestions": "沒有可用的問題",
-      "other": "其他",
       "previous": "上一個",
       "progress": "第{{current}}項，共{{total}}項",
       "skip": "跳過",
@@ -45,12 +31,9 @@
       "chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人傳送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
       "comingSoon": "即將推出",
       "connected": "已連線",
-      "connecting": "連線中",
       "createError": "建立頻道失敗",
       "deleteConfirm": "確定刪除頻道「{{name}}」？",
       "deleteError": "刪除頻道失敗",
-      "description": "將您的 Agent 連接到訊息平台。",
-      "disconnected": "已中斷連線",
       "discord": {
         "botToken": "Bot Token",
         "botTokenPlaceholder": "輸入您的 Discord 機器人 Token",
@@ -89,8 +72,6 @@
       "logs": "記錄",
       "noInstances": "尚無 {{type}} 頻道，點選「+ 新增」建立。",
       "noLogs": "尚無記錄",
-      "notifyReceiver": "接收任務通知",
-      "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
       "qq": {
         "appId": "App ID",
         "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
@@ -107,8 +88,7 @@
       },
       "security": {
         "inheritFromAgent": "繼承 Agent 設定",
-        "permissionMode": "頻道權限模式",
-        "permissionModeHint": "覆寫此頻道訊息的 Agent 權限模式。選擇「繼承」則使用 Agent 預設設定。"
+        "permissionMode": "頻道權限模式"
       },
       "selectAgent": "選擇要綁定的 Agent",
       "slack": {
@@ -123,7 +103,6 @@
         "title": "Slack",
         "whoamiTip": "💡 提示：傳送 /whoami 給機器人即可取得頻道 ID。"
       },
-      "tab": "頻道",
       "telegram": {
         "botToken": "Bot Token",
         "botTokenPlaceholder": "輸入您的 Telegram 機器人 Token",
@@ -133,13 +112,8 @@
         "description": "透過 Telegram 機器人使用長輪詢方式接收和回覆訊息。",
         "title": "Telegram"
       },
-      "title": "頻道",
       "updateError": "更新頻道失敗",
       "wechat": {
-        "addAccount": "新增微信帳號",
-        "chatIds": "允許的使用者 ID",
-        "chatIdsHint": "以逗號分隔。留空以允許所有使用者。",
-        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
         "connected": "已連線",
         "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
         "disconnected": "未登入",
@@ -147,8 +121,7 @@
         "qrExpired": "QR 碼已過期，請切換頻道後重試。",
         "qrHint": "開啟手機上的微信，掃描 QR 碼登入。",
         "qrTitle": "微信 QR 碼登入",
-        "title": "微信",
-        "whoamiTip": "提示：在微信中傳送 /whoami 可取得使用者的 ID。"
+        "title": "微信"
       }
     },
     "composer": {
@@ -165,43 +138,6 @@
     "edit": {
       "title": "編輯 Agent"
     },
-    "empty": {
-      "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
-      "title": "尚無 Agent"
-    },
-    "get": {
-      "error": {
-        "failed": "無法取得 Agent。",
-        "null_id": "Agent ID 為空。"
-      }
-    },
-    "gitBash": {
-      "autoDetected": "使用自動偵測的 Git Bash",
-      "autoDiscoveredHint": "自動發現",
-      "clear": {
-        "button": "清除自訂路徑"
-      },
-      "customPath": "使用自訂路徑：{{path}}",
-      "error": {
-        "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
-        "recheck": "重新偵測 Git Bash 安裝",
-        "required": "在 Windows 上需要設定 Git Bash 路徑",
-        "title": "需要 Git Bash"
-      },
-      "found": {
-        "title": "已設定 Git Bash"
-      },
-      "notFound": "找不到 Git Bash。請先安裝。",
-      "pick": {
-        "button": "選擇 Git Bash 路徑",
-        "failed": "設定 Git Bash 路徑失敗",
-        "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
-        "title": "選擇 Git Bash 可執行檔"
-      },
-      "placeholder": "選擇 bash.exe 路徑",
-      "success": "成功偵測到 Git Bash！",
-      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
-    },
     "home": {
       "welcome_title": "今天要做些什麼？"
     },
@@ -212,11 +148,6 @@
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段",
       "placeholder_streaming": "智能體執行中 — {{sendKey}} 排隊發送後續訊息，{{steerKey}} 立即引導"
     },
-    "list": {
-      "error": {
-        "failed": "無法列出 Agent。"
-      }
-    },
     "manage": {
       "title": "管理 Agent"
     },
@@ -226,7 +157,6 @@
     "preview_pane": {
       "close": "關閉預覽",
       "code": "程式碼",
-      "code_unavailable": "無法為二進位檔案提供來源檢視",
       "default_app": "預設應用程式",
       "edit": {
         "conflict": {
@@ -251,39 +181,17 @@
         "description": "開始與 Agent 對話；產生的程式碼與即時預覽將顯示於此。",
         "title": "準備好了"
       },
-      "excel": {
-        "errors": {
-          "file_too_large": "此 Excel 檔案超過預覽大小限制。",
-          "invalid_request": "Excel 預覽請求無效。",
-          "parse_failed": "無法讀取此 Excel 檔案。",
-          "too_complex": "這個 Excel 檔案過於複雜，無法預覽。",
-          "unsupported_extension": "僅支援預覽 .xlsx 與 .xlsm 檔案。",
-          "unsupported_xls": "舊版 .xls 檔案不受 Excel 預覽支援。"
-        },
-        "warnings": {
-          "generic": "部分活頁簿內容可能無法完整顯示。",
-          "title": "預覽通知",
-          "unsupported_images": "圖片尚未在 Excel 預覽中顯示。"
-        }
-      },
-      "file_tree": "檔案樹",
       "items_one": "{{count}} 件商品",
       "items_other": "{{count}} 個項目",
-      "maximize": "最大化",
-      "minimize": "最小化",
       "no_search_results": "沒有任何檔案符合您的搜尋",
       "office": {
-        "description": "此檔案類型需使用系統預設應用程式開啟。",
         "title": "在此處開啟 {{extension}} 檔案尚不支援"
       },
       "preview": "預覽",
       "refresh": "重新整理",
       "search_placeholder": "搜尋檔案...",
-      "select_file": "選擇檔案以預覽",
-      "toggle": "顯示預覽面板",
       "too_large": {
-        "description": "檔案超過 {{limit}} 預覽限制。",
-        "title": "檔案太大，無法預覽"
+        "description": "檔案超過 {{limit}} 預覽限制。"
       },
       "tree_error": {
         "invalid_path": {
@@ -294,30 +202,10 @@
           "description": "請確認工作目錄仍然存在且可存取，然後再試一次。",
           "title": "無法載入工作區檔案"
         }
-      },
-      "unavailable": {
-        "description": "無法開啟此檔案，它可能已被移動或刪除。",
-        "title": "檔案不可用"
-      },
-      "word": {
-        "errors": {
-          "parse_failed": "無法呈現此 Word 文件。",
-          "read_failed": "無法讀取此 Word 文件。"
-        }
-      }
-    },
-    "reorder": {
-      "error": {
-        "failed": "Agent 排序失敗"
       }
     },
     "right_pane": {
-      "close": "關閉",
       "flow": {
-        "empty": {
-          "description": "選擇一個 Agent 工具呼叫以檢視其子訊息流程。",
-          "title": "未選擇任何工具"
-        },
         "no_messages": {
           "description": "此工具呼叫沒有擷取到的子訊息流程。",
           "title": "沒有訊息"
@@ -338,76 +226,33 @@
           "system_tools": "系統工具"
         },
         "context_usage": "上下文用量",
-        "label": "任務資訊",
-        "more": "還有 {{count}} 項",
-        "no_artifacts": "目前沒有宣告產物",
-        "no_subagents": "目前沒有子 Agent",
         "shell_tasks": "背景指令",
         "subagents": "子 Agent",
         "workflows": "工作流程"
       },
       "status": {
-        "activity": "活動",
-        "agent": "Agent",
-        "context": "上下文",
-        "no_tasks": "沒有進行中的任務",
-        "run_task_live_one": "{{count}} 直播中",
-        "run_task_live_other": "{{count}} 個執行中",
-        "run_tasks": "子任務",
-        "selected_tool": "選取的工具",
         "stop_run_task": "停止任務",
         "stop_run_task_failed": "無法停止任務",
         "task_count": "{{completed}} / {{total}} 完成",
         "tasks": "任務",
         "tool_uses_one": "{{count}} 個工具呼叫",
-        "tool_uses_other": "{{count}} 個工具呼叫",
-        "tools_active": "活躍",
-        "tools_done": "完成",
-        "tools_failed": "失敗",
-        "tools_total": "總計",
-        "workspace": "工作區"
+        "tool_uses_other": "{{count}} 個工具呼叫"
       },
       "tabs": {
         "files": "檔案",
-        "flow": "訊息流程",
         "status": "狀態"
       }
     },
-    "server": {
-      "error": {
-        "not_running": "API 閘道已啟用，但運作不正常。"
-      }
-    },
     "session": {
-      "accessible_paths": {
-        "add": "新增目錄",
-        "default_hint": "未指定時將自動建立預設工作目錄。",
-        "duplicate": "此目錄已包含在內。",
-        "empty": "選擇至少一個 Agent 可以存取的目錄。",
-        "error": {
-          "at_least_one": "請至少選取一個可存取的目錄。"
-        },
-        "label": "可存取的目錄",
-        "select_failed": "無法選擇目錄。"
-      },
       "add": {
         "title": "新增工作階段"
       },
       "agent": {
         "delete": {
           "content": "刪除此 Agent 的任務會刪除與此 Agent 相關的所有任務。Agent 本身不會被刪除。",
-          "error": {
-            "failed": "刪除 Agent 任務失敗"
-          },
           "title": "刪除 Agent 任務",
           "trigger": "刪除 Agent 任務"
         }
-      },
-      "allowed_tools": {
-        "empty": "目前此 Agent 沒有可用的工具。",
-        "helper": "預先核准的工具可直接執行；未選取的工具在使用前需要手動核准。",
-        "label": "預先授權工具",
-        "placeholder": "選擇預先授權的工具"
       },
       "api_retry": {
         "reason": "請求失敗（{{error}}，HTTP {{status}}）— 重試中",
@@ -423,8 +268,7 @@
       "delete": {
         "content": "您確定要刪除此工作階段嗎？",
         "error": {
-          "failed": "無法刪除工作階段",
-          "last": "至少必須保留一個工作階段"
+          "failed": "無法刪除工作階段"
         },
         "title": "刪除工作階段"
       },
@@ -448,9 +292,7 @@
       },
       "get": {
         "error": {
-          "failed": "無法取得工作階段",
-          "not_found": "找不到任務",
-          "null_id": "工作階段 ID 為空"
+          "failed": "無法取得工作階段"
         }
       },
       "group": {
@@ -468,8 +310,6 @@
         "unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。",
         "yesterday": "昨天"
       },
-      "label_one": "會議",
-      "label_other": "工作階段",
       "list": {
         "title": "任務"
       },
@@ -549,111 +389,14 @@
       }
     },
     "settings": {
-      "advance": {
-        "envVars": {
-          "description": "為 Agent 執行環境設定自訂環境變數。",
-          "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
-          "label": "環境變數"
-        },
-        "permissionMode": {
-          "description": "控制 Agent 在需要授權時的處理方式。",
-          "label": "權限模式",
-          "options": {
-            "acceptEdits": "自動接受編輯",
-            "bypassPermissions": "略過權限檢查",
-            "default": "預設（繼續前先詢問）",
-            "plan": "規劃模式（需核准計畫）"
-          },
-          "placeholder": "選擇權限模式"
-        },
-        "title": "進階設定"
-      },
-      "essential": "必要設定",
       "permissionMode": {
-        "tab": "權限模式",
         "title": "權限模式"
       },
-      "plugins": {
-        "available": {
-          "title": "可用外掛"
-        },
-        "confirm": {
-          "uninstall": "確定要解除安裝此外掛嗎？"
-        },
-        "empty": {
-          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
-        },
-        "error": {
-          "install": "安裝外掛失敗",
-          "load": "載入外掛失敗",
-          "load_more": "無法載入更多外掛",
-          "uninstall": "解除安裝外掛失敗"
-        },
-        "filter": {
-          "all": "所有類別"
-        },
-        "install": {
-          "button": "安裝",
-          "title": "安裝外掛"
-        },
-        "installed": {
-          "empty": "尚未安裝任何技能。瀏覽可用技能以開始使用。",
-          "title": "已安裝技能"
-        },
-        "installing": "安裝中...",
-        "plugin_upload": {
-          "all_failed": "全部 {{failed}} 個元件安裝失敗",
-          "error": "安裝失敗",
-          "format_hint": "支援技能套件格式（.claude-plugin/plugin.json）",
-          "hint": "拖曳技能 ZIP 至此處，或點選選擇檔案",
-          "invalid_format": "請上傳 ZIP 格式的檔案",
-          "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
-          "select_folder": "選擇資料夾",
-          "select_folder_title": "選擇外掛資料夾",
-          "success": "外掛 \"{{name}}\" 安裝成功（{{count}} 個元件）",
-          "success_multi": "已從 {{packages}} 個外掛套件安裝 {{count}} 個元件",
-          "uploading": "正在上傳並安裝..."
-        },
-        "results": "找到 {{count}} 個外掛",
-        "search": {
-          "placeholder": "搜尋外掛..."
-        },
-        "standalone_plugins": "獨立外掛",
-        "success": {
-          "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功",
-          "uninstall_package": "外掛套件 \"{{name}}\" 解除安裝成功"
-        },
-        "tab": "外掛",
-        "type": {
-          "agent": "Agent",
-          "agents": "Agent",
-          "all": "全部",
-          "command": "指令",
-          "commands": "指令",
-          "skills": "技能"
-        },
-        "uninstall": "解除安裝",
-        "uninstall_package": "解除安裝整個套件",
-        "uninstall_package_confirm": "確定要解除安裝整個 \"{{name}}\" 外掛套件嗎？這將刪除 {{count}} 個元件。",
-        "uninstalling": "解除安裝中..."
-      },
-      "prompt": "提示設定",
       "skills": {
-        "addMore": "管理技能",
-        "builtin": "內建",
-        "noFilterResults": "沒有符合的技能",
-        "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
-        "searchPlaceholder": "搜尋技能…",
-        "tab": "技能",
-        "title": "已安裝技能"
+        "addMore": "管理技能"
       },
       "tooling": {
         "mcp": {
-          "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
-          "empty": "尚未偵測到 MCP 伺服器，請前往 MCP 設定頁新增。",
-          "inactiveTooltip": "此 MCP 伺服器未啟用，請先啟動它。",
-          "manageHint": "需要進階設定？前往 設定 → MCP 伺服器。",
           "toggle": "切換 {{name}}"
         },
         "permissionMode": {
@@ -674,50 +417,23 @@
             "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
             "warning_pi": "危險 — 除已停用工具外，所有操作均不會詢問，包含檔案刪除與網路存取。"
           },
-          "confirmChange": {
-            "description": "切換模式會更新自動預先授權的工具。",
-            "title": "確認切換權限模式？"
-          },
           "default": {
             "description": "編輯檔案或執行命令前詢問。",
             "title": "逐次確認"
           },
-          "helper": "選擇 Agent 如何處理工具核准。",
-          "placeholder": "選擇權限模式",
           "plan": {
             "description": "只規劃、不編輯檔案，僅執行唯讀或審查通過的命令。",
             "title": "僅規劃"
-          },
-          "title": "權限模式"
+          }
         },
         "preapproved": {
           "autoBadge": "模式自動新增",
-          "autoDescription": "此工具由目前的權限模式自動預先授權。",
-          "autoDisabledTooltip": "由「{{mode}}」自動授權，無法停用。",
-          "empty": "沒有符合篩選條件的工具。",
-          "mcpBadge": "MCP 工具",
-          "requiresApproval": "停用時需要人工核准",
-          "search": "搜尋工具",
-          "toggle": "切換 {{name}}"
+          "autoDisabledTooltip": "由「{{mode}}」自動授權，無法停用。"
         }
-      },
-      "tools": {
-        "approved": "已授權",
-        "caution": "預先授權的工具會略過人工審查，請僅啟用可信任的工具。",
-        "description": "選擇哪些工具可在無需人工核准的情況下執行。",
-        "requiresPermission": "未預先授權時需要人工核准。",
-        "tab": "預先授權工具",
-        "title": "預先授權工具",
-        "toggle": "{{defaultValue}}"
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "MCP",
-          "title": "MCP 伺服器"
-        },
-        "tab": "工具",
-        "tools": {
-          "title": "預授權工具"
+          "tab": "MCP"
         }
       }
     },
@@ -731,20 +447,16 @@
       "title": "回應設定"
     },
     "tasks": {
-      "add": "新增任務",
       "cancel": "取消",
       "channels": {
         "label": "傳送至頻道",
         "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人傳送一則訊息。",
         "placeholder": "選擇接收結果的頻道"
       },
-      "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
       "delete": {
         "confirm": "確定要刪除此任務嗎？",
         "label": "刪除"
       },
-      "edit": "編輯",
-      "empty": "目前沒有排程任務，請新增一項以開始使用。",
       "error": {
         "createFailed": "建立任務失敗",
         "deleteFailed": "無法刪除任務",
@@ -754,8 +466,6 @@
         "updateFailed": "更新任務失敗"
       },
       "frequency": {
-        "everyPrefix": "間隔",
-        "everySuffix": "分鐘執行",
         "label": "執行頻率"
       },
       "intervalPlaceholder": "至少1",
@@ -767,7 +477,6 @@
         "duration": "耗時",
         "empty": "目前沒有執行歷史。",
         "failed": "失敗",
-        "justNow": "剛剛",
         "label": "執行歷史",
         "loadError": "載入執行歷史失敗",
         "result": "結果",
@@ -785,7 +494,6 @@
       "oncePlaceholder": "選擇日期和時間",
       "pause": "暫停",
       "prompt": {
-        "expand": "展開編輯器",
         "label": "提示詞",
         "placeholder": "此任務執行時 Agent 應該做什麼？"
       },
@@ -810,7 +518,6 @@
         "invalid": "請輸入有效的執行頻率。",
         "minute": "分鐘",
         "once": "一次",
-        "runAt": "執行於",
         "summary": {
           "daily": "每日 {{time}}",
           "hourly": "在每小時的開始",
@@ -832,166 +539,29 @@
         "weekdaysOnly": "週一至週五",
         "weekly": "每週"
       },
-      "scheduleType": {
-        "cron": "Cron",
-        "interval": "間隔",
-        "once": "一次性"
-      },
       "status": {
         "active": "活躍",
         "completed": "已完成",
         "paused": "已暫停"
       },
-      "tab": "任務",
-      "time": {
-        "hoursAgo": "{{count}}小時前",
-        "minutesAgo": "{{count}}分鐘前"
-      },
       "timeout": {
         "label": "最長執行時間",
         "placeholder": "無限制"
-      },
-      "title": "排程任務"
-    },
-    "todo": {
-      "mock": {
-        "actions": {
-          "complete": "完成",
-          "dismiss": "關閉"
-        },
-        "details": {
-          "addRouter": {
-            "summary": "正在使用 react-router-dom v6 設定用戶端路由...",
-            "title": "新增 React Router"
-          },
-          "configureProject": {
-            "resources": {
-              "createdMeta": "已建立",
-              "postcssConfig": "postcss.config.js",
-              "tailwindConfig": "tailwind.config.js",
-              "updatedMeta": "已更新",
-              "viteConfig": "vite.config.ts - port 3001"
-            },
-            "title": "設定專案"
-          },
-          "installDependencies": {
-            "resources": {
-              "dependenciesMeta": "相依套件",
-              "devDependenciesMeta": "開發相依套件",
-              "reactDeps": "react@18.3.1, react-dom@18.3.1",
-              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
-              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
-            },
-            "summary": "安裝了 react, react-dom, tailwindcss, postcss, autoprefixer 和 TypeScript。",
-            "title": "安裝依賴"
-          },
-          "reviewReferences": {
-            "collectionTitle": "審閱參考資料",
-            "resources": {
-              "npmCreateVite": "npm create vite - Official Scaffolding",
-              "npmMeta": "npmjs.com",
-              "reactDocs": "React Documentation - Quick Start",
-              "reactMeta": "react.dev",
-              "tailwindDocs": "Tailwind CSS - Installation Guide",
-              "tailwindMeta": "tailwindcss.com",
-              "viteDocs": "Vite - Next Generation Frontend Tooling",
-              "viteMeta": "vitejs.dev"
-            },
-            "title": "審閱參考資料"
-          },
-          "searchWeb": {
-            "resources": {
-              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
-            },
-            "summary": "收集了 React + Vite 專案腳手架和最佳實務的最新資料。",
-            "title": "搜尋網路資料"
-          },
-          "title": "執行過程詳細資訊",
-          "writeComponents": {
-            "collectionTitle": "建立的檔案",
-            "resources": {
-              "app": "src/App.tsx",
-              "button": "src/components/Button.tsx",
-              "card": "src/components/Card.tsx",
-              "footer": "src/components/Footer.tsx",
-              "header": "src/components/Header.tsx",
-              "layout": "src/components/Layout.tsx",
-              "modifiedMeta": "已修改",
-              "newMeta": "新增",
-              "updatedMeta": "已更新"
-            },
-            "title": "編寫元件"
-          },
-          "writePages": {
-            "resources": {
-              "about": "src/pages/About.tsx",
-              "home": "src/pages/Home.tsx",
-              "newMeta": "新增"
-            },
-            "title": "編寫頁面"
-          }
-        },
-        "progress": "{{completed}}/{{total}} 任務已完成",
-        "tasks": {
-          "addLinting": "新增 ESLint + Prettier",
-          "addRouter": "新增 React Router",
-          "buildDeploy": "建置與部署",
-          "configureProject": "設定專案",
-          "finish": "完成",
-          "installDependencies": "安裝依賴",
-          "reviewReferences": "審閱參考資料",
-          "searchWeb": "搜尋網路資料",
-          "writeComponents": "編寫元件",
-          "writePages": "編寫頁面"
-        },
-        "title": "任務"
-      },
-      "panel": {
-        "title": "已完成 {{completed}}/{{total}} 個任務"
-      },
-      "status": {
-        "completed": "已完成",
-        "in_progress": "進行中",
-        "pending": "待處理"
       }
     },
     "toolPermission": {
-      "aria": {
-        "allowAllRequest": "總是允許此工具",
-        "allowRequest": "允許工具請求",
-        "denyRequest": "拒絕工具請求",
-        "hideDetails": "隱藏工具詳細資訊",
-        "runWithOptions": "帶選項執行",
-        "showDetails": "顯示工具詳細資訊"
-      },
       "button": {
         "allow": "允許",
-        "allowAll": "總是允許",
-        "cancel": "取消",
         "deny": "拒絕",
         "run": "執行"
       },
       "confirmation": "確定要執行此 Claude 工具嗎？",
       "defaultDenyMessage": "使用者拒絕了該工具的權限。",
-      "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
       "error": {
         "sendFailed": "傳送您的決定失敗，請重試。"
       },
-      "executing": "執行中...",
-      "expired": "已過期",
       "inputPreview": "工具輸入預覽",
       "pendingBadge": "待確認",
-      "permissionExpired": "權限請求已過期。等待新指令...",
-      "requiresElevatedPermissions": "此工具需要提升的權限。",
-      "suggestion": {
-        "permissionUpdateMultiple": "如果您選擇總是允許此工具，核准可能會更新多個工作階段權限。",
-        "permissionUpdateSingle": "如果您選擇總是允許此工具，核准可能會更新您的工作階段權限。"
-      },
-      "toast": {
-        "denied": "工具請求已被拒絕。",
-        "timeout": "工具請求在收到核准前逾時。"
-      },
-      "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
     "tools": {
@@ -1166,10 +736,6 @@
         }
       }
     },
-    "type": {
-      "label": "Agent 類型",
-      "unknown": "未知類型"
-    },
     "unpin": {
       "title": "取消釘選 Agent"
     },
@@ -1177,13 +743,6 @@
       "error": {
         "failed": "無法更新 Agent"
       }
-    },
-    "warning": {
-      "enable_and_start": "啟用並啟動",
-      "enable_server": "啟用 API 閘道以使用 Agent。",
-      "enable_server_description": "Agent 功能需要啟用 API 閘道。你可以直接啟用，或前往設定頁面進行設定。",
-      "server_not_running": "API 閘道已啟用但未執行。請檢查閘道設定。",
-      "server_not_running_description": "Agent 功能需要 API 閘道執行。你可以直接啟動閘道，或前往設定頁面檢查設定。"
     }
   },
   "apiGateway": {
@@ -1220,7 +779,6 @@
     "messages": {
       "apiKeyRegenerated": "API 金鑰已重新產生",
       "notEnabled": "請先啟動閘道，再連線至此位址。",
-      "operationFailed": "API 閘道操作失敗：",
       "restartError": "重新啟動 API 閘道失敗：",
       "restartFailed": "API 閘道重新啟動失敗：",
       "restartSuccess": "API 閘道重新啟動成功",
@@ -1248,14 +806,8 @@
       "success_title": "已清空 {{count}} 個話題",
       "title": "清空對話"
     },
-    "copy": {
-      "title": "複製助理"
-    },
     "delete": {
       "content": "刪除助理會刪除所有該助理下的對話和檔案，確定要繼續嗎？",
-      "error": {
-        "remain_one": "不允許刪除最後一個助理"
-      },
       "title": "刪除助理"
     },
     "edit": {
@@ -1271,103 +823,37 @@
     "icon": {
       "type": "助理圖示"
     },
-    "list": {
-      "showByList": "清單顯示"
-    },
     "pin": {
       "title": "釘選助理"
     },
     "presets": {
       "add": {
-        "button": "新增到助理",
-        "knowledge_base": {
-          "label": "知識庫",
-          "placeholder": "選擇知識庫"
-        },
-        "name": {
-          "label": "名稱",
-          "placeholder": "輸入名稱"
-        },
         "prompt": {
-          "label": "提示詞",
-          "placeholder": "輸入提示詞",
           "variables": {
             "tip": {
               "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱",
               "title": "可用的變數"
             }
           }
-        },
-        "title": "建立助理",
-        "unsaved_changes_warning": "有未儲存的變更，確定要關閉嗎？"
-      },
-      "delete": {
-        "popup": {
-          "content": "確定要刪除此助理嗎？"
         }
-      },
-      "edit": {
-        "model": {
-          "select": {
-            "title": "選擇模型"
-          }
-        },
-        "title": "編輯助理"
       },
       "export": {
         "agent": "匯出助理"
       },
       "import": {
         "action": "匯入助理",
-        "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
-          "file_required": "請先選擇一個檔案",
-          "invalid_format": "無效的助理格式：缺少必填欄位",
-          "url_required": "請輸入 URL"
+          "invalid_format": "無效的助理格式：缺少必填欄位"
         },
         "file_filter": "JSON 檔案",
-        "select_file": "選擇檔案",
-        "subscribe": {
-          "title": "Agent 訂閱",
-          "url_placeholder": "訂閱網址"
-        },
-        "title": "從外部匯入",
-        "type": {
-          "file": "檔案",
-          "url": "URL"
-        },
-        "url_placeholder": "輸入 JSON URL"
+        "title": "從外部匯入"
       },
       "manage": {
-        "batch_delete": {
-          "button": "批次刪除",
-          "confirm": "確定要刪除所選的 {{count}} 個助理嗎？"
-        },
-        "batch_export": {
-          "button": "匯出"
-        },
-        "mode": {
-          "manage": "管理",
-          "sort": "排序"
-        },
         "title": "管理助理"
-      },
-      "my_agents": "我的助理",
-      "search": {
-        "no_results": "找不到相符的助理"
-      },
-      "settings": {
-        "title": "助理設定"
       },
       "sorting": {
         "title": "排序"
-      },
-      "tag": {
-        "agent": "助理",
-        "default": "預設",
-        "new": "新增",
-        "system": "系統"
       },
       "title": "助理庫"
     },
@@ -1376,83 +862,18 @@
         "failed": "無法重新排序助理"
       }
     },
-    "save": {
-      "success": "儲存成功",
-      "title": "儲存到助理庫"
-    },
-    "search": "搜尋助理...",
     "settings": {
-      "default_model": "預設模型",
-      "knowledge_base": {
-        "label": "知識庫設定",
-        "recognition": {
-          "label": "呼叫知識庫",
-          "off": "強制查詢",
-          "on": "意圖識別",
-          "tip": "助理會使用大型語言模型的意圖識別能力，判斷是否需要查詢知識庫；此功能仰賴模型能力"
-        }
-      },
-      "mcp": {
-        "description": "預設啟用的 MCP 伺服器",
-        "enableFirst": "請先在 MCP 設定中啟用此伺服器",
-        "label": "MCP 伺服器",
-        "mode": {
-          "auto": {
-            "description": "AI 自動發現和使用工具",
-            "label": "自動"
-          },
-          "disabled": {
-            "description": "不使用 MCP 工具",
-            "label": "停用"
-          },
-          "manual": {
-            "description": "選擇特定的 MCP 伺服器",
-            "label": "手動"
-          }
-        },
-        "noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
-        "title": "MCP 設定"
-      },
-      "model": "模型設定",
-      "more": "助理設定",
-      "prompt": "提示詞設定",
       "reasoning_effort": {
         "auto": "自動",
-        "auto_description": "彈性決定推理投入的心力",
         "default": "預設",
-        "default_description": "依照模型的預設行為，無需額外設定。",
         "high": "盡力思考",
-        "high_description": "進階推理",
         "label": "思維鏈長度",
         "low": "稍微思考",
-        "low_description": "低階推理",
         "max": "全力思考",
-        "max_description": "最高階推理",
         "medium": "正常思考",
-        "medium_description": "中等程度推理",
         "minimal": "最少思考",
-        "minimal_description": "最少推理",
         "off": "關閉",
-        "off_description": "停用推理",
-        "xhigh": "極力思考",
-        "xhigh_description": "超高階推理"
-      },
-      "regular_phrases": {
-        "add": "新增短語",
-        "contentLabel": "內容",
-        "contentPlaceholder": "輸入短語內容。支援 ${variables}；按 Tab 可在變數間快速跳轉。例如：\n請幫我規劃從 ${from} 到 ${to} 的路線，並傳送至 ${email}。",
-        "delete": "刪除短語",
-        "deleteConfirm": "確定要刪除這個短語嗎？",
-        "edit": "編輯短語",
-        "title": "常用短語",
-        "titleLabel": "標題",
-        "titlePlaceholder": "輸入標題"
-      },
-      "title": "助理設定",
-      "tool_use_mode": {
-        "function": "函式",
-        "label": "工具呼叫方式",
-        "prompt": "提示詞"
+        "xhigh": "極力思考"
       }
     },
     "title": "助理",
@@ -1461,16 +882,11 @@
     }
   },
   "auth": {
-    "error": "自動取得金鑰失敗，請手動取得",
-    "get_key": "取得",
-    "get_key_success": "自動取得金鑰成功",
-    "login": "登入",
-    "oauth_button": "使用 {{provider}} 登入"
+    "get_key_success": "自動取得金鑰成功"
   },
   "backup": {
     "confirm": {
-      "button": "選擇備份位置",
-      "label": "確定要備份資料嗎？"
+      "button": "選擇備份位置"
     },
     "content": "備份全部資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待",
     "error": {
@@ -1490,17 +906,12 @@
   },
   "button": {
     "add": "新增",
-    "added": "已新增",
     "case_sensitive": "區分大小寫",
     "collapse": "折疊",
     "download": "下載",
     "includes_user_questions": "包含使用者提問",
-    "manage": "管理",
     "select_assistant": "選擇助理",
     "select_model": "選擇模型",
-    "show": {
-      "all": "顯示全部"
-    },
     "update_available": "有可用更新",
     "whole_word": "全字比對"
   },
@@ -1510,21 +921,15 @@
         "description": "日常對話和快速問答",
         "title": "新增助理"
       },
-      "option": {
-        "title": "選擇新增類型"
-      },
       "topic": {
         "title": "新增對話"
       }
     },
     "alerts": {
-      "create_agent": "建立 Agent 以開始使用",
-      "create_session": "建立工作階段",
       "select_agent": "選擇一個 Agent"
     },
     "artifacts": {
       "button": {
-        "download": "下載",
         "openExternal": "外部瀏覽器開啟",
         "preview": "預覽"
       },
@@ -1534,8 +939,7 @@
             "content": "外部瀏覽器開啟出錯"
           }
         }
-      },
-      "title": "產物"
+      }
     },
     "assistant": {
       "search": {
@@ -1550,44 +954,24 @@
     "conversation": {
       "new": "新聊天"
     },
-    "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是 Cherry 助理。你可以立即開始與我聊天",
       "name": "Cherry 助理",
       "topic": {
         "name": "預設對話"
       }
     },
-    "history": {
-      "assistant_node": "助理",
-      "click_to_navigate": "點選以前往對應訊息",
-      "coming_soon": "聊天工作流程圖表即將上線",
-      "no_messages": "沒有找到訊息",
-      "start_conversation": "開始對話以檢視聊天流程圖",
-      "title": "聊天歷史",
-      "user_node": "使用者",
-      "view_full_content": "檢視完整內容"
-    },
     "home": {
       "welcome_title": "今天我們要談些什麼？"
     },
     "input": {
-      "auto_resize": "自動調整高度",
       "cancel_editing": "取消編輯",
       "clear": {
         "content": "您想要清除目前對話的所有訊息嗎？",
-        "label": "清除",
         "title": "清除所有訊息？"
       },
       "collapse": "折疊",
-      "context_count": {
-        "tip": "上下文數 / 最大上下文數"
-      },
       "editing": "編輯",
       "editing_message": "編輯已傳送的訊息",
-      "estimated_tokens": {
-        "tip": "預估 Token 數"
-      },
       "expand": "展開",
       "file_error": "檔案處理錯誤",
       "file_not_supported": "模型不支援此檔案類型",
@@ -1610,8 +994,6 @@
       "new": {
         "context": "清除上下文"
       },
-      "new_session": "新工作階段 {{Command}}",
-      "new_topic": "新對話 {{Command}}",
       "note_reference": {
         "description": "從「筆記」附加一則筆記",
         "empty": "未找到筆記",
@@ -1623,7 +1005,6 @@
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
-      "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "reference_panel": {
         "load_failed": "無法載入引用的對話",
         "no_room": "訊息中沒有足夠的空間來新增此對話",
@@ -1645,17 +1026,9 @@
       "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
-          "agents": "Agent",
-          "resources": "檔案與資料夾",
-          "skills": "技能"
+          "resources": "檔案與資料夾"
         },
-        "description": "從檔案、Agent 或技能中選擇",
         "load_failed": "無法載入工作區資源",
-        "loading": "載入中...",
-        "no_items_found": {
-          "description": "沒有可用的檔案、Agent 或技能",
-          "label": "未找到項目"
-        },
         "no_resources_found": {
           "description": "目前工作區中沒有可搜尋的檔案或資料夾",
           "label": "找不到資源"
@@ -1665,7 +1038,6 @@
       "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
-      "settings": "設定",
       "slash_commands": {
         "commands": {
           "clear": "開啟全新對話，清空上下文",
@@ -1673,27 +1045,7 @@
           "context": "以彩色網格視覺化目前上下文使用情況",
           "usage": "顯示工作階段成本、方案用量上限與活動統計"
         },
-        "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"
-      },
-      "thinking": {
-        "budget_exceeds_max": "思考預算超過最大 Token 數",
-        "fixed_model": "此模型的推理是固定的",
-        "label": "思考",
-        "mode": {
-          "custom": {
-            "label": "自訂",
-            "tip": "模型最多可用來思考的 Token 數。請依模型的上下文上限調整，否則可能發生錯誤"
-          },
-          "default": {
-            "label": "預設",
-            "tip": "模型會自動決定思考的 Token 數"
-          },
-          "tokens": {
-            "tip": "設定思考的 Token 數"
-          }
-        },
-        "unsupported_model": "目前模型不支援可調整的推理"
       },
       "toolbar": {
         "customize": "自訂工具列",
@@ -1708,10 +1060,6 @@
         "restore_default": "還原預設"
       },
       "tools": {
-        "collapse": "折疊",
-        "collapse_in": "加入折疊",
-        "collapse_out": "移出折疊",
-        "expand": "展開",
         "file_not_found": "檔案不存在: {{path}}",
         "generate_image": {
           "failed": "圖片產生失敗",
@@ -1723,38 +1071,21 @@
         "open_with": "開啟方式",
         "reveal_in_finder": "在檔案管理器中顯示"
       },
-      "topics": "對話",
-      "translate": "翻譯成 {{target_language}}",
       "translating": "翻譯中...",
       "upload": {
         "attachment": "上傳附件",
-        "document": "上傳檔案（模型不支援圖片）",
         "document_only": "僅限文件",
-        "image_not_supported": "此模型不支援圖片上傳，僅限文件。",
-        "image_or_document": "上傳圖片或檔案",
-        "upload_from_local": "上傳本機檔案..."
+        "image_not_supported": "此模型不支援圖片上傳，僅限文件。"
       },
       "web_search": {
         "builtin": {
-          "disabled_content": "目前模型不支援網路搜尋功能",
-          "enabled_content": "使用模型內建的網路搜尋功能",
-          "label": "模型內建"
+          "disabled_content": "目前模型不支援網路搜尋功能"
         },
-        "button": {
-          "ok": "前往設定"
-        },
-        "enable": "開啟網路搜尋",
-        "enable_content": "需要先在設定中檢查網路搜尋連線狀態",
         "label": "網路搜尋",
-        "no_web_search": {
-          "description": "關閉網路搜尋",
-          "label": "關閉網路搜尋"
-        },
         "route": {
           "builtin": "使用模型內建工具進行搜尋",
           "client": "使用 {{provider}} 搜尋"
-        },
-        "settings": "網路搜尋設定"
+        }
       }
     },
     "mcp": {
@@ -1763,10 +1094,6 @@
       }
     },
     "message": {
-      "cache_stats": {
-        "inline": "快取 {{hit_rate}}%",
-        "tooltip": "快取讀取 {{cache_read}} / 寫入 {{cache_write}} / 未快取 {{no_cache}} · 節省 {{saved}} 輸入 Token"
-      },
       "editing_current": "此訊息正在編輯器中編輯",
       "flow": {
         "branches": "分支",
@@ -1789,9 +1116,6 @@
         "context": "新上下文"
       },
       "quote": "引用",
-      "regenerate": {
-        "model": "切換模型"
-      },
       "token_details": {
         "cache_read": "快取讀取",
         "cache_write": "快取寫入",
@@ -1836,14 +1160,10 @@
       },
       "bottom": "回到底端",
       "close": "關閉",
-      "first": "已經是第一條訊息",
-      "history": "聊天歷史",
-      "last": "已經是最後一條訊息",
       "next": "下一條訊息",
       "prev": "上一條訊息",
       "top": "回到頂端"
     },
-    "resend": "重新傳送",
     "save": {
       "file": {
         "title": "儲存到本機檔案"
@@ -1924,8 +1244,7 @@
           "select": {
             "content": {
               "label": "選擇要儲存的內容類型",
-              "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息",
-              "tip": "對話將以包含完整上下文的形式儲存到知識庫"
+              "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息"
             }
           },
           "source_fallback": "對話",
@@ -1963,38 +1282,12 @@
         "tip": "為 mermaid 等程式碼區塊渲染後的影像啟用預覽工具"
       },
       "code_wrappable": "程式碼區塊可自動換行",
-      "context_count": {
-        "label": "上下文",
-        "tip": "在上下文中保留的前幾則訊息"
-      },
-      "max": "不限",
-      "max_tokens": {
-        "confirm": "設定最大 Token 數",
-        "confirm_content": "設定單次互動的最大 Token 數，會影響回應內容的長度。請依模型的上下文上限調整，否則可能發生錯誤",
-        "label": "最大 Token 數",
-        "tip": "模型可產生的最大 Token 數。請依模型的上下文上限調整，否則可能發生錯誤"
-      },
-      "reset": "重設",
-      "set_as_default": "設為預設助理",
       "show_line_numbers": "程式碼顯示行號",
-      "temperature": {
-        "label": "溫度",
-        "tip": "模型產生文字的隨機程度。數值越高，回應內容越具多樣性、創意性及隨機性；設定為 0 則會依據事實回答。一般聊天建議設定為 0.7"
-      },
       "thought_auto_collapse": {
         "label": "思考內容自動折疊",
         "tip": "思考結束後思考內容自動折疊"
-      },
-      "top_p": {
-        "label": "Top-P",
-        "tip": "模型產生文字的隨機程度。值越小，AI 產生的內容越單調，也越容易理解；值越大，AI 回應的詞彙範圍越大，越多樣化"
       }
     },
-    "suggestions": {
-      "title": "建議的問題"
-    },
-    "thinking": "思考中（用時 {{seconds}} 秒）",
-    "thinking_tokens": "約 {{tokens}} Token",
     "topics": {
       "auto_rename": "自動重新命名對話",
       "auto_rename_failed": "自動產生對話名稱失敗",
@@ -2012,7 +1305,6 @@
       },
       "display": {
         "assistant": "助理",
-        "tag": "標籤",
         "time": "時間",
         "title": "顯示模式"
       },
@@ -2036,7 +1328,6 @@
           "label": "匯出為 Markdown",
           "reason": "匯出為 Markdown (包含思考)"
         },
-        "notes": "匯出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "obsidian_atributes": "設定筆記屬性",
@@ -2091,40 +1382,21 @@
       },
       "list": "對話清單",
       "manage": {
-        "clear_selection": "取消選擇",
         "delete": {
           "confirm": {
             "content": "確定要刪除選中的 {{count}} 個對話嗎？此操作不可撤銷。",
             "title": "刪除對話"
           },
           "error": "刪除失敗，請再試一次。",
-          "partial_success": "成功刪除了 {{successCount}} 個對話，{{failedCount}} 個失敗",
           "success": "已刪除 {{count}} 個對話"
         },
         "deselect_all": "取消全選",
-        "error": {
-          "at_least_one": "至少需要保留一個對話"
-        },
         "move": {
-          "button": "移動",
-          "placeholder": "選擇目標助理",
           "success": "已移動 {{count}} 個對話"
-        },
-        "pinned": "已固定的對話",
-        "selected_count": "已選擇 {{count}} 個",
-        "title": "管理對話",
-        "unpinned": "未固定的對話"
+        }
       },
       "move_to": "移動到",
-      "new": "開始新對話",
       "pin": "固定對話",
-      "prompt": {
-        "edit": {
-          "title": "編輯對話提示詞"
-        },
-        "label": "對話提示詞",
-        "tips": "對話提示詞：針對目前對話提供額外的補充提示詞"
-      },
       "search": {
         "placeholder": "搜尋對話...",
         "title": "搜尋"
@@ -2165,12 +1437,8 @@
         "max_context_tokens_hint": "最大上下文 Token",
         "max_output_tokens_hint": "最大輸出 Token",
         "model_column": "實際請求模型",
-        "model_roles": "模型角色對應",
         "model_roles_hint": "覆寫背景子任務（如壓縮、標題）使用的模型。留空則跟隨主模型。",
-        "options": "快速選項",
         "opus_model": "Opus",
-        "permissions_allow": "允許（逗號分隔）",
-        "permissions_deny": "拒絕（逗號分隔）",
         "permissions_hint": "預授權或拒絕工具模式。支援萬用字元，如 Read(secrets-*/config.json)。",
         "role_column": "角色",
         "sonnet_model": "Sonnet",
@@ -2227,7 +1495,6 @@
         "default": "預設",
         "high": "高",
         "low": "低",
-        "max": "全力思考",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"
@@ -2240,19 +1507,13 @@
       "title": "統一網關"
     },
     "apply_failed": "寫入 CLI 設定到系統檔案失敗",
-    "auto_update_to_latest": "檢查更新並安裝最新版本",
-    "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
-    "can_upgrade": "可升級",
     "clear_config_failed": "清除 CLI 設定失敗，憑證可能仍保留在該工具的設定檔中",
     "cli_config": {
       "format_failed": "格式化失敗，請檢查檔案格式",
-      "hint": "這裡顯示將寫入系統 CLI 設定檔的內容，API Key 不會儲存到偏好設定",
       "title": "CLI 設定檔",
       "unknown_model": "未知模型",
       "unknown_provider": "未知供應商"
     },
-    "cli_tool": "CLI 工具",
-    "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
       "deepseek_harness": "DeepSeek Harness",
@@ -2267,17 +1528,9 @@
       "qwen_code": "Qwen Code"
     },
     "collapse": "收起",
-    "config_json_hint": "貼上或編輯原始 JSON，可與上方參數雙向同步",
     "configure": "設定",
-    "configuring_provider": "設定 {{provider}}",
     "count_one": "{{count}} 項",
     "count_other": "{{count}} 個",
-    "current_config": "目前",
-    "current_config_settings": "目前設定",
-    "custom_path": "自訂路徑",
-    "custom_path_error": "設定自訂終端機路徑失敗",
-    "custom_path_required": "此終端機需要設定自訂路徑",
-    "custom_path_set": "自訂終端機路徑設定成功",
     "deepseek_harness": {
       "agent_preset": "預設智能體模式",
       "agent_presets": {
@@ -2315,38 +1568,22 @@
         }
       }
     },
-    "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
     "disable": "停用",
-    "edit_config": "編輯設定",
     "enable": "啟用",
-    "enabled": "已啟用",
-    "endpoint_default": "使用供應商預設端點",
     "endpoint_hint": "端點 / Key 在模型服務",
-    "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
-    "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
     "format_json": "格式化",
-    "hero_tagline": "選一個 CLI 工具開始設定",
     "install": "安裝",
-    "install_bun": "安裝 Bun",
-    "install_error": "安裝失敗",
     "install_success": "安裝成功",
-    "install_tool_first": "請先安裝 {{toolName}} 再選擇供應商",
     "installing": "安裝中…",
-    "installing_bun": "安裝中...",
     "latest": "最新",
     "launch": {
-      "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
       "error": "啟動失敗，請重試",
       "label": "啟動",
-      "launched": "已啟動",
-      "success": "啟動成功",
       "title": "啟動 {{tool}}",
       "validation_error": "請完成所有必填欄位：CLI 工具、模型和工作目錄"
     },
     "launching": "啟動中...",
-    "model": "模型",
-    "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_hint_config": "選擇要使用的模型",
     "model_mode": {
       "common": "通用",
@@ -2359,7 +1596,6 @@
     "more": "更多",
     "move_provider_to_top": "將供應商移到頂端",
     "no_matching_providers": "沒有符合的供應商",
-    "no_model_for_provider": "該供應商沒有可用的模型",
     "no_providers_description": "在 設定 → 模型服務 中啟用支援的供應商",
     "no_providers_title": "沒有已啟用的供應商",
     "no_tools": "目前沒有工具",
@@ -2370,41 +1606,28 @@
       "title": "{{toolName}} 官方"
     },
     "providerless_hint": "該工具透過自帶的登入流程進行認證 — 只需選擇工作目錄即可啟動。請先執行一次該工具完成登入。",
-    "providers": "供應商",
-    "raw_config": "原始設定 (JSON)",
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
     "select_provider_model": "請先選擇供應商和模型",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
-    "set_custom_path": "設定自訂終端機路徑",
     "stop": "停止",
-    "supported_providers": "支援的供應商",
     "terminal": "終端機",
-    "terminal_hint": "選擇執行命令的終端機應用程式",
-    "terminal_placeholder": "選擇終端機應用程式",
     "title": "編碼搭檔",
     "tool_parameters": "參數設定",
     "up_to_date": "最新版本",
-    "update_options": "更新選項",
     "upgrade": "升級",
-    "upgrade_error": "升級失敗",
     "upgrade_success": "升級成功",
-    "working_directory": "工作目錄",
-    "working_directory_hint": "CLI 工具啟動時的工作目錄"
+    "working_directory": "工作目錄"
   },
   "code_block": {
     "collapse": "收合",
     "copy": {
       "failed": "複製失敗",
-      "label": "複製",
       "source": "複製原始碼",
       "success": "已複製"
     },
     "download": {
-      "failed": {
-        "network": "下載失敗，請檢查網路連線"
-      },
       "label": "下載",
       "png": "下載 PNG",
       "source": "下載原始碼",
@@ -2414,8 +1637,7 @@
       "label": "編輯",
       "save": {
         "failed": {
-          "label": "儲存失敗",
-          "message_not_found": "儲存失敗，找不到對應的訊息"
+          "label": "儲存失敗"
         },
         "label": "儲存變更",
         "success": "已儲存"
@@ -2434,7 +1656,6 @@
     }
   },
   "common": {
-    "about": "關於",
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
@@ -2442,7 +1663,6 @@
     "agent_one": "代理人",
     "agent_other": "Agent",
     "all": "全部",
-    "and": "與",
     "assistant": "Agent",
     "assistant_one": "助理",
     "assistant_other": "助理",
@@ -2452,8 +1672,6 @@
     "cancel": "取消",
     "chat": "聊天",
     "clear": "清除",
-    "clear_all": "全部清除",
-    "click_to_replace": "點選以替換",
     "close": "關閉",
     "close_sidebar": "關閉側邊欄",
     "collapse": "收合",
@@ -2475,14 +1693,9 @@
     "disabled": "已停用",
     "docs": "說明文件",
     "download": "下載",
-    "duplicate": "複製",
     "edit": "編輯",
     "enabled": "已啟用",
     "error": "錯誤",
-    "errors": {
-      "create_message": "無法建立訊息",
-      "validation": "驗證失敗"
-    },
     "expand": "展開",
     "export": {
       "excel": "匯出至 Excel"
@@ -2490,11 +1703,8 @@
     "file": {
       "not_supported": "不支援的檔案類型 {{type}}"
     },
-    "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
-    "generate_random_seed": "產生隨機種子",
-    "get_embedding_dimension": "取得嵌入維度",
     "go_to_settings": "前往設定",
     "group": {
       "create": "新群組",
@@ -2505,11 +1715,6 @@
     "help": "幫助",
     "html_preview": "HTML 預覽",
     "i_know": "我知道了",
-    "ignore": "忽略",
-    "image_preview": "圖片預覽",
-    "image_url": "圖片網址",
-    "image_url_or_upload": "輸入圖片網址或上傳檔案",
-    "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "載入中...",
@@ -2523,29 +1728,19 @@
     "next_match": "下一個相符項目",
     "no_results": "沒有結果",
     "none": "無",
-    "off": "關閉",
-    "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
     "open_in_new_tab": "在新分頁中開啟",
-    "open_sidebar": "開啟側邊欄",
     "other": "其他",
-    "placeholders": {
-      "select": {
-        "model": "選擇模型"
-      }
-    },
     "powered_by": "技術提供",
     "preview": "預覽",
     "previous": "上一頁",
     "previous_match": "上一個相符項目",
     "prompt": "提示詞",
-    "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
     "refresh_failed": "無法重新整理清單。顯示上次載入的版本。",
     "regenerate": "重新產生",
-    "remove_image": "移除圖片",
     "rename": "重新命名",
     "required_field": "必填欄位",
     "reset": "重設",
@@ -2560,30 +1755,14 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
-    "sessions": "工作階段",
     "settings": "設定",
-    "sort": {
-      "pinyin": {
-        "asc": "依拼音遞增",
-        "desc": "依拼音遞減",
-        "label": "依拼音排序"
-      }
-    },
     "stop": "停止",
-    "subscribe": "訂閱",
     "success": "成功",
     "swap": "交換",
-    "topics": "對話",
-    "translate_text": "翻譯文字",
     "undo": "復原",
     "unknown": "未知",
     "unnamed": "未命名",
-    "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
-    "upload_files": "上傳檔案",
-    "upload_image": "上傳圖片檔案",
-    "uploaded_image": "已上傳圖片",
-    "warning": "警告",
     "yesterday": "昨天",
     "you": "您"
   },
@@ -2597,14 +1776,11 @@
       "flags": "旗幟",
       "food_drink": "食物與飲品",
       "objects": "物件",
-      "people_body": "人物",
       "recent": "最近使用",
       "smileys_emotion": "表情與角色",
       "symbols": "符號",
       "travel_places": "旅行和地點"
     },
-    "clear_recent": "清除最近使用",
-    "no_results": "沒有匹配的表情",
     "search": "搜尋"
   },
   "endpoint_type": {
@@ -2753,12 +1929,6 @@
   },
   "export": {
     "assistant": "助理",
-    "attached_files": "附件",
-    "conversation_details": "對話詳細資訊",
-    "conversation_history": "對話紀錄",
-    "created": "建立時間",
-    "last_updated": "最後更新",
-    "messages": "訊息數",
     "notion": {
       "reasoning_truncated": "思維鏈無法分段，已截斷"
     },
@@ -2850,23 +2020,13 @@
     "actions": "操作",
     "all": "所有檔案",
     "audio": "音訊",
-    "batch_delete": "批次刪除",
-    "batch_operation": "全選",
-    "count": "個檔案",
     "created_at": "建立時間",
     "delete": {
-      "content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",
-      "db_error": "刪除失敗",
-      "label": "刪除",
-      "paintings": {
-        "warning": "繪圖中包含該圖片，暫時無法刪除"
-      },
-      "title": "刪除檔案"
+      "label": "刪除"
     },
     "delete_or_remove": "刪除/移除",
     "document": "文件",
     "drag_upload": "拖曳檔案到此處上傳",
-    "edit": "編輯",
     "empty": {
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案",
@@ -2883,14 +2043,11 @@
       "restore_failed": "還原檔案失敗",
       "restore_partial_failed": "部分檔案還原失敗"
     },
-    "file": "檔案",
-    "footer_count": "{{count}} 個檔案",
     "footer_selected_count": "{{count}} 個已選",
     "image": "圖片",
     "missing": "缺失",
     "modified_at": "修改時間",
     "name": "名稱",
-    "no_actions": "目前沒有可用操作",
     "open": "開啟",
     "other": "其他",
     "permanent_delete": "永久刪除",
@@ -2907,8 +2064,6 @@
     "select_all": "全選目前顯示的檔案",
     "select_all_short": "全選",
     "select_file": "選取 {{name}}",
-    "selected_count": "已選取 {{count}} 個檔案",
-    "selected_missing_hint": "所選檔案中有缺失檔案，只能定位或移除記錄",
     "show_in_folder": "在資料夾中顯示",
     "size": "大小",
     "text": "文字",
@@ -2982,7 +2137,6 @@
     "resultTypes": {
       "agent": "Agent",
       "assistant": "助理",
-      "knowledge-base": "知識庫",
       "session": "任務",
       "topic": "對話"
     },
@@ -3002,8 +2156,7 @@
       "description": "模型在記憶體中保持的時間（預設為 5 分鐘）",
       "placeholder": "分鐘",
       "title": "保持活躍時間"
-    },
-    "title": "GPUStack"
+    }
   },
   "help": {
     "feedback": "問題回饋",
@@ -3013,12 +2166,8 @@
     "whats_new": "新功能"
   },
   "history": {
-    "continue_chat": "繼續聊天",
     "error": {
       "topic_not_found": "對話不存在"
-    },
-    "locate": {
-      "message": "定位到訊息"
     },
     "records": {
       "agentTitle": "Agent 歷史",
@@ -3079,23 +2228,7 @@
         "time": "時間"
       },
       "title": "對話歷史記錄"
-    },
-    "search": {
-      "match": {
-        "substring": "包含",
-        "whole_word": "整詞"
-      },
-      "messages": "搜尋所有訊息",
-      "placeholder": "搜尋對話或訊息...",
-      "sort": {
-        "newest": "最新優先",
-        "oldest": "最早優先"
-      },
-      "topics": {
-        "empty": "沒有找到相關對話，按 Enter 鍵搜尋所有訊息"
-      }
-    },
-    "title": "搜尋對話"
+    }
   },
   "html_artifacts": {
     "capture": {
@@ -3120,7 +2253,6 @@
       "button": "選擇檔案",
       "description": "僅匯入對話文字，不攜帶圖片和附件",
       "error": {
-        "invalid_json": "無效的 JSON 檔案格式",
         "no_conversations": "檔案中未找到任何對話",
         "no_valid_conversations": "沒有可匯入的有效對話",
         "unknown": "匯入失敗，請檢查檔案格式"
@@ -3142,7 +2274,6 @@
       "button": "選擇檔案",
       "description": "匯入文字、思考過程及工具使用；圖片與附件不包含在內",
       "error": {
-        "invalid_json": "無效的 JSON 檔案格式",
         "no_conversations": "檔案中未找到對話",
         "no_valid_conversations": "沒有可匯入的有效對話",
         "unknown": "匯入失敗，請檢查檔案格式"
@@ -3158,13 +2289,7 @@
       "success": "成功匯入 {{topics}} 個對話，包含 {{messages}} 則訊息",
       "title": "匯入 Claude 對話",
       "untitled_conversation": "未命名對話"
-    },
-    "confirm": {
-      "button": "選擇匯入檔案",
-      "label": "確定要匯入外部資料嗎？"
-    },
-    "content": "選擇要匯入的外部應用程式對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
-    "title": "匯入外部對話"
+    }
   },
   "knowledge": {
     "add": {
@@ -3212,10 +2337,6 @@
             "import": "匯入說明"
           }
         },
-        "placeholder": {
-          "supported_formats": "支援 PDF, DOCX, MD, XLSX, TXT, CSV",
-          "title": "點選檔案，或將檔案拖曳到這裡"
-        },
         "sources": {
           "directory": "資料夾",
           "file": "檔案",
@@ -3223,8 +2344,7 @@
           "url": "連結"
         },
         "submit": {
-          "error": "新增資料來源失敗",
-          "success": "資料來源已新增到知識庫"
+          "error": "新增資料來源失敗"
         },
         "title": "新增資料來源",
         "too_many_sources": "單次最多新增 {{count}} 個資料來源，請減少選擇後重試",
@@ -3232,9 +2352,7 @@
         "url": {
           "description": "輸入網頁連結：",
           "help": "系統會自動擷取網頁文字、分段並建立索引",
-          "input_label": "網頁位址",
-          "placeholder": "https://example.com",
-          "title": "匯入單一網頁"
+          "placeholder": "https://example.com"
         }
       },
       "back_to_parent": "返回上層",
@@ -3269,7 +2387,6 @@
       "empty_description": "目前沒有資料來源",
       "empty_folder": "此資料夾為空",
       "filters": {
-        "all": "全部",
         "directory": "資料夾",
         "file": "檔案",
         "note": "筆記",
@@ -3309,8 +2426,6 @@
         "add": "新增資料來源"
       }
     },
-    "dimensions_auto_set": "自動設定嵌入維度",
-    "dimensions_size_placeholder": "留空表示不設定",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知識庫嵌入模型是必需的",
     "empty": "目前沒有知識庫",
@@ -3325,8 +2440,7 @@
       "failed_to_move": "知識庫移動失敗",
       "indexing_interrupted": "索引因應用程式關閉而中斷，請重新索引以完成。",
       "missing_embedding_model": "移轉時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
-      "missing_vector_store": "移轉時無法讀取此知識庫的向量儲存庫（遺失、空白或遭鎖定）。知識庫已保留；請重新建立索引以復原。",
-      "model_invalid": "未選擇模型"
+      "missing_vector_store": "移轉時無法讀取此知識庫的向量儲存庫（遺失、空白或遭鎖定）。知識庫已保留；請重新建立索引以復原。"
     },
     "groups": {
       "add": "新增群組",
@@ -3343,11 +2457,9 @@
       "name_placeholder": "輸入群組名稱...",
       "name_required": "群組名稱為必填欄位",
       "rename": "重新命名",
-      "rename_title": "重新命名群組",
-      "ungrouped": "未群組"
+      "rename_title": "重新命名群組"
     },
     "meta": {
-      "data_sources_count": "{{count}} 資料來源",
       "updated_at": "更新於 {{time}}"
     },
     "name_required": "知識庫名稱為必填欄位",
@@ -3356,14 +2468,12 @@
       "chunk_overlap": "重疊大小",
       "chunk_overlap_invalid": "重疊大小必須大於或等於 0",
       "chunk_overlap_must_be_smaller": "重疊大小必須小於分段大小",
-      "chunk_overlap_requires_chunk_size": "設定重疊大小時，必須同時設定分段大小",
       "chunk_separator": "分隔符號",
       "chunk_separator_required": "關閉智慧分段時必須填寫分隔符號",
       "chunk_size": "分段大小",
       "chunk_size_change_warning": "分段設定的修改只針對新新增的內容有效",
       "chunk_size_invalid": "分段大小必須大於 0",
       "chunking": "分段",
-      "default_separator": "自動（推薦）",
       "document_count": "Top K",
       "download_local_embedding_failed": "本機嵌入模型下載失敗",
       "download_local_model": "下載本機模型",
@@ -3390,15 +2500,12 @@
       "rerank_disabled": "不使用",
       "rerank_model": "重新排序模型",
       "reset_action": "還原預設",
-      "reset_defaults": "還原預設",
       "retrieval": "檢索",
       "save_action": "儲存",
       "saved": "已儲存",
-      "separator_rule": "分隔符號規則",
       "smart_chunking": "智慧分段",
       "threshold": "相似度閾值",
-      "tokens_unit": "Token",
-      "use_local_embedding": "使用本機模型"
+      "tokens_unit": "Token"
     },
     "recall": {
       "collapse": "收起片段",
@@ -3437,16 +2544,11 @@
       "failed": "失敗",
       "processing": "處理中"
     },
-    "status_embedding_failed": "嵌入失敗",
-    "status_preprocess_failed": "預處理失敗",
-    "subtitle_file": "字幕檔案",
     "tabs": {
-      "data_source": "資料來源",
       "rag_config": "知識庫設定",
       "recall_test": "檢索測試"
     },
-    "title": "知識庫",
-    "videos_file": "影片檔案"
+    "title": "知識庫"
   },
   "languages": {
     "arabic": "阿拉伯文",
@@ -3475,18 +2577,13 @@
     "apps": "應用程式",
     "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理側邊欄",
-    "minapps": "小程式",
     "miniApps": "小程式",
     "pin_to_sidebar": "新增到側邊欄",
     "unpin_from_sidebar": "從側邊欄移除"
   },
   "library": {
     "action": {
-      "create": "新增",
-      "delete": "刪除",
-      "disable": "停用",
       "duplicate": "複製",
-      "edit": "編輯",
       "enable": "啟用",
       "manage_groups": "管理群組",
       "uninstall": "解除安裝"
@@ -3494,42 +2591,18 @@
     "assistant_catalog": {
       "add": "新增",
       "add_failed": "新增助理失敗",
-      "browse_label": "助理分類",
       "empty_description": "此分類下暫時沒有助理預設",
       "empty_title": "目前沒有可新增助理",
       "go_to_chat": "去對話",
-      "mine": "我的",
       "no_match_description": "請嘗試其他搜尋關鍵字",
       "no_match_title": "找不到相符的助理",
-      "preview": "預覽",
       "preview_description": "簡介",
       "preview_prompt": "提示詞",
-      "scroll_left": "向左捲動分類",
-      "scroll_right": "向右捲動分類",
       "title": "助理庫"
-    },
-    "badge": {
-      "update": "更新"
     },
     "config": {
       "agent": {
-        "create_banner": "儲存後才能綁定工具和 MCP 服務",
-        "create_title": "新增 Agent",
         "field": {
-          "accessible_paths": {
-            "add": "新增目錄",
-            "empty": "未設定（預設為工作區根目錄）",
-            "hint": "限制 Agent 可存取的目錄",
-            "label": "可存取的目錄"
-          },
-          "allowed_tools": {
-            "add": "新增工具",
-            "empty": "留空以使用權限模式的預設值",
-            "label": "允許的工具"
-          },
-          "avatar": {
-            "hint": "用於在資源庫和工作階段中識別 Agent"
-          },
           "description": {
             "hint": "有助於識別此 Agent 的用途",
             "label": "描述",
@@ -3546,13 +2619,7 @@
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
           },
-          "mcps": {
-            "add": "新增 MCP 伺服器",
-            "empty": "無綁定",
-            "label": "MCP 伺服器（id）"
-          },
           "model": {
-            "help": "UniqueModelId；稍後將切換為由 /models 支援的選擇器",
             "hint": "主要推理與執行",
             "label": "主要模型"
           },
@@ -3562,13 +2629,7 @@
             "placeholder": "給 Agent 取個名字"
           },
           "permission_mode": {
-            "label": "權限模式",
-            "option": {
-              "acceptEdits": "接受編輯",
-              "bypassPermissions": "繞過權限",
-              "default": "預設",
-              "plan": "計畫模式"
-            }
+            "label": "權限模式"
           },
           "plan_model": {
             "hint": "任務分解與規劃",
@@ -3595,25 +2656,9 @@
         },
         "model_config": "模型",
         "section": {
-          "advanced": {
-            "desc": "最大回合數與環境變數",
-            "label": "進階",
-            "title": "進階"
-          },
-          "basic": {
-            "desc": "名稱、頭像、模型、目錄與執行階段",
-            "label": "基本",
-            "title": "基本"
-          },
           "permission": {
             "desc": "控制 Agent 可執行操作的授權範圍",
-            "label": "權限模式",
             "title": "權限模式"
-          },
-          "prompt": {
-            "desc": "系統提示與行為限制",
-            "label": "提示",
-            "title": "提示"
           },
           "tools": {
             "add": "新增",
@@ -3625,21 +2670,17 @@
               "search": "搜尋",
               "shell": "終端"
             },
-            "desc": "設定 Agent 可使用的工具與 MCP 伺服器",
-            "label": "工具",
             "no_builtin_enabled": "未啟用任何內建工具",
             "no_mcp_bound": "未綁定任何 MCP 服務",
             "no_skills_enabled": "未啟用任何技能",
             "search_placeholder": "搜尋工具或伺服器…",
-            "skills_coming_soon": "Skill 綁定即將支援",
             "skills_enable_all": "全部開啟",
             "skills_require_save": "儲存後才能啟用技能",
             "tab": {
               "mcp": "MCP",
               "skills": "技能",
               "tools": "內建工具"
-            },
-            "title": "能力"
+            }
           }
         }
       },
@@ -3661,12 +2702,7 @@
         "custom_params_add": "新增參數",
         "custom_params_name": "參數名稱",
         "default_value": "模型預設",
-        "desc": "填寫頭像、名稱、簡介和系統提示詞",
-        "description_label": "描述",
         "field": {
-          "avatar": {
-            "hint": "用於在資源庫和聊天中識別助理"
-          },
           "context_compress_enabled": {
             "hint": "當接近上下文視窗限制時自動摘要較早的對話內容"
           },
@@ -3720,23 +2756,18 @@
         "max_tool_calls": "最大工具呼叫輪數",
         "max_tool_calls_default": "預設（{{count}} 輪）",
         "mcp_mode": "MCP 模式",
-        "model": "預設模型",
         "model_clear": "清除",
         "model_not_found": "找不到模型（可能已被移除）：{{id}}",
         "model_pick": "選擇模型",
-        "pick_avatar": "選擇頭像",
         "precise": "精確",
         "stream_output": "串流輸出",
         "tag_empty": "無可用標籤",
-        "tag_hint": "若要新增標籤，請使用資源庫頂端列中的「+ 標籤」項目",
         "tag_placeholder": "選擇標籤",
         "tag_search": "搜尋標籤",
         "tags": "標籤",
         "temperature": "溫度",
-        "title": "基礎設定",
         "top_p": "Top-P"
       },
-      "breadcrumb": "資源庫",
       "dialogs": {
         "create": {
           "agent_title": "新增 Agent",
@@ -3745,12 +2776,10 @@
           "back": "上一步",
           "capability": {
             "builtin_badge": "預設啟用",
-            "import": "匯入技能",
             "no_skills": "未安裝技能",
             "search": "搜尋技能"
           },
           "description_placeholder": "描述它的用途...",
-          "guided_progress": "引導式建立 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "輸入名稱",
           "next": "下一步",
           "step": {
@@ -3778,7 +2807,6 @@
       "knowledge": {
         "add": "新增知識庫",
         "create_first": "前往知識庫建立",
-        "desc": "連結一或多個知識庫；相關片段將在對話期間檢索",
         "doc_count": "{{count}} 份文件",
         "empty_desc": "一旦連結後，助理即可根據文件內容回答",
         "empty_title": "未連結任何知識庫",
@@ -3787,25 +2815,11 @@
         "linked_hint": "控制此助理可從哪些知識庫檢索",
         "no_more": "沒有更多可用的知識庫",
         "remove_aria": "移除",
-        "search": "搜尋知識庫...",
-        "title": "知識庫"
+        "search": "搜尋知識庫..."
       },
       "prompt": {
         "copy_variable": "複製 {{variable}}",
-        "create_title": "新增提示詞",
         "dblclick_hint": "雙擊預覽即可切換回編輯",
-        "desc": "系統提示詞會作為助理的開場上下文傳送給模型",
-        "edit_title": "編輯提示",
-        "field": {
-          "content": {
-            "label": "內容",
-            "too_long": "內容必須為 {{max}} 個字元或更少"
-          },
-          "name": {
-            "label": "姓名",
-            "too_long": "名稱不得超過 {{max}} 個字元"
-          }
-        },
         "generate": "產生提示",
         "generate_failed_description": "請檢查或調整預設模型後重試。",
         "generate_failed_title": "產生提示失敗",
@@ -3817,7 +2831,6 @@
         "polish_failed_title": "未能潤飾提示詞",
         "polish_variables_changed_description": "潤飾結果變更或移除了提示詞變數。請再試一次。",
         "polish_variables_changed_title": "無法套用潤飾後的提示詞",
-        "title": "提示",
         "tokens_label": "Token：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助理回覆前，系統會按當時的資訊自動填寫。",
         "variables_example": "例如：今天是 {{variable}}，會使用目前日期。",
@@ -3833,35 +2846,10 @@
           "username": "使用者名稱"
         }
       },
-      "save_failed": "儲存失敗",
-      "saving": "儲存中...",
-      "section": {
-        "basic": {
-          "desc": "頭像、名稱、簡介、系統提示詞",
-          "label": "基礎設定"
-        },
-        "knowledge": {
-          "desc": "連結的知識庫與檢索",
-          "label": "知識"
-        },
-        "more": {
-          "desc": "模型、標籤和參數",
-          "label": "更多設定"
-        },
-        "prompt": {
-          "desc": "系統提示與變數",
-          "label": "提示"
-        },
-        "tools": {
-          "desc": "MCP 伺服器與工具設定",
-          "label": "工具"
-        }
-      },
       "tools": {
         "add_mcp": "新增 MCP 伺服器",
         "added": "已新增 MCP 伺服器",
         "added_hint": "手動模式僅公開此清單中的伺服器",
-        "desc": "設定此助理在聊天期間可呼叫的 MCP 伺服器",
         "empty_desc": "新增後，助理即可呼叫外部工具",
         "empty_title": "未新增任何 MCP 伺服器",
         "inactive_badge": "未啟用",
@@ -3882,15 +2870,11 @@
           }
         },
         "no_more": "沒有可用的伺服器",
-        "search": "搜尋可用的伺服器...",
-        "switch_title_active": "關閉以移除",
-        "switch_title_inactive": "此伺服器已在 MCP 設定中停用；請先移除，稍後再重新加入",
-        "title": "工具"
+        "search": "搜尋可用的伺服器..."
       }
     },
     "create_menu": {
-      "create": "新增{{type}}",
-      "import": "匯入 {{type}}"
+      "create": "新增{{type}}"
     },
     "delete": {
       "agent": {
@@ -3901,12 +2885,6 @@
         "content": "您確定要解除安裝此技能嗎？它將從全域資源庫中移除，且所有 Agent 工作區的符號連結都會被清除。",
         "title": "解除安裝技能"
       }
-    },
-    "delete_confirm": {
-      "cancel": "取消",
-      "confirm": "刪除",
-      "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
-      "title": "確認刪除"
     },
     "duplicate_assistant_failed": "無法複製助理",
     "duplicate_name": "{{name}}（複本）",
@@ -3964,17 +2942,6 @@
       "title": "匯入技能"
     },
     "no_match": "無相符結果",
-    "pending_backend": {
-      "description": "此資源的寫入操作即將推出，目前僅顯示佔位內容。",
-      "title": "資料層接入中"
-    },
-    "sidebar": {
-      "all_resources": "所有資源",
-      "no_tags": "尚無標籤",
-      "subtitle": "管理您的 AI 資源",
-      "tags": "標籤",
-      "title": "資源庫"
-    },
     "skill_add": {
       "add": "新增 Skill",
       "local_import": "本機匯入",
@@ -3983,13 +2950,10 @@
     },
     "skill_detail": {
       "created_at": "建立時間",
-      "delete_description": "移除此技能及其所有設定。此操作無法復原。",
-      "delete_title": "刪除技能",
       "description": "描述",
       "file_preview": "檔案預覽",
       "installed": "已安裝",
       "no_description": "目前沒有描述",
-      "source_files": "來源檔案",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {
@@ -4008,12 +2972,6 @@
       "source_label": "技能來源",
       "title": "線上搜尋技能"
     },
-    "sort": {
-      "created": "依建立時間",
-      "name": "依名稱",
-      "updated": "依更新時間"
-    },
-    "subtitle": "管理你的助理、Agent 與技能",
     "system_skill": {
       "conflict": "名稱衝突",
       "description": "匯入系統中已安裝的 Skill。",
@@ -4027,32 +2985,17 @@
       "search_placeholder": "搜尋系統 Skill...",
       "title": "系統 Skill"
     },
-    "tag_picker": {
-      "no_tags": "尚無標籤",
-      "placeholder": "新標籤名稱..."
-    },
-    "tag_sync_failed": "同步標籤失敗",
     "title": "資源庫",
     "toolbar": {
-      "add_group_placeholder": "群組名稱...",
       "all_groups": "所有群組",
       "group_button": "群組",
-      "new_resource": "新資源",
       "search_placeholder": "搜尋資源..."
     },
     "type": {
       "agent": "Agent",
       "assistant": "助理",
-      "new_agent": "新 Agent",
-      "new_assistant": "新助理",
-      "new_prompt": "新提示",
       "prompt": "提示",
       "skill": "技能"
-    },
-    "uninstall_failed": "解除安裝失敗",
-    "view": {
-      "grid": "網格檢視",
-      "list": "清單檢視"
     }
   },
   "lmstudio": {
@@ -4060,8 +3003,7 @@
       "description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
       "placeholder": "分鐘",
       "title": "保持活躍時間"
-    },
-    "title": "LM Studio"
+    }
   },
   "message": {
     "agents": {
@@ -4081,11 +3023,6 @@
         "success": "連線成功"
       }
     },
-    "assistant": {
-      "added": {
-        "content": "助理新增成功"
-      }
-    },
     "attachments": {
       "pasted_image": "剪貼簿圖片",
       "pasted_text": "貼上的文字"
@@ -4093,13 +3030,7 @@
     "backup": {
       "cleanup_failed": "備份已完成，但無法清理舊備份。",
       "failed": "備份失敗",
-      "start": {
-        "success": "開始備份"
-      },
       "success": "備份成功"
-    },
-    "branch": {
-      "error": "分支建立失敗"
     },
     "chat": {
       "completion": {
@@ -4135,36 +3066,21 @@
     "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
     "error": {
       "avatar_image_too_large": "圖片過大（上限 {{limit}}）",
-      "chunk_overlap_too_large": "分段重疊不能大於分段大小",
-      "copy": "複製失敗",
       "dimension_too_large": "內容尺寸過大",
       "dismiss_failed": "無法關閉錯誤訊息",
       "enter": {
         "api": {
-          "host": "請先輸入您的 API 主機位址",
           "label": "請先輸入您的 API 金鑰"
         },
-        "model": "請先選擇一個模型",
-        "name": "請先輸入知識庫名稱"
+        "model": "請先選擇一個模型"
       },
       "excel": {
         "export": "匯出 Excel 失敗"
       },
       "fetchTopicName": "對話命名失敗",
-      "file": {
-        "process_failed": "檔案 {{name}} 無法處理",
-        "text_extraction_failed": "無法從 {{name}} 中擷取文字"
-      },
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "image_process_failed": "圖片處理失敗，請重試",
       "invalid": {
-        "api": {
-          "host": "無效的 API 位址",
-          "label": "無效的 API 金鑰"
-        },
-        "enter": {
-          "model": "請選擇一個模型"
-        },
         "nutstore": "無效的堅果雲設定",
         "nutstore_token": "無效的堅果雲 Token",
         "proxy": {
@@ -4187,8 +3103,7 @@
       },
       "notion": {
         "export": "匯出 Notion 失敗，請檢查連線狀態並參考說明文件確認設定",
-        "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
-        "no_content": "沒有可匯出至 Notion 的內容"
+        "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
       },
       "operation_unavailable": "訊息操作無法使用，請稍後再試。",
       "siyuan": {
@@ -4220,11 +3135,6 @@
       "retry_failed": "重試出錯的訊息",
       "retry_skipped_same_model": "已略過 {{count}} 個額外失敗回覆，因為「全部重試」每個模型最多只會啟動一次重試。"
     },
-    "ignore": {
-      "knowledge": {
-        "base": "網路模式開啟，忽略知識庫"
-      }
-    },
     "loading": {
       "notion": {
         "exporting_progress": "正在匯出到 Notion ...",
@@ -4240,13 +3150,10 @@
         "title": "對話已壓縮"
       },
       "delete": {
-        "content": "確定要刪除此訊息嗎？",
-        "title": "刪除訊息"
+        "content": "確定要刪除此訊息嗎？"
       },
       "multi_model_style": {
         "fold": {
-          "compress": "切換到緊湊排列",
-          "expand": "切換到展開排列",
           "label": "標籤模式"
         },
         "grid": "網格版面",
@@ -4262,19 +3169,9 @@
       "user_content": {
         "collapse": "摺疊",
         "expand": "展開"
-      },
-      "video": {
-        "error": {
-          "local_file_missing": "本機影片檔案路徑不存在",
-          "unsupported_type": "不支援的影片類型",
-          "youtube_url_missing": "YouTube 影片連結不存在"
-        }
       }
     },
     "processing": "正在處理...",
-    "regenerate": {
-      "confirm": "重新產生會覆寫目前訊息"
-    },
     "restore": {
       "failed": "還原失敗",
       "success": "還原成功"
@@ -4314,12 +3211,7 @@
         "export": "成功匯出到語雀"
       }
     },
-    "switch": {
-      "disabled": "請等待目前回覆完成"
-    },
     "tools": {
-      "abort_failed": "工具呼叫中斷失敗",
-      "aborted": "工具呼叫已中斷",
       "activity": {
         "analyze": "分析",
         "analyzing": "正在分析",
@@ -4404,7 +3296,6 @@
         "writing": "正在寫入"
       },
       "agent_background": "在背景執行",
-      "approvalRequired": "工具 \"{{tool}}\" 需要核准",
       "autoApproveEnabled": "此工具已啟用自動核准",
       "cancelled": "已取消",
       "collapse": "收合",
@@ -4454,15 +3345,11 @@
         "thinking": "思考",
         "usingTools": "正在處理任務"
       },
-      "preview": "預覽",
       "processed": "已處理",
       "raw": "原始資料",
-      "runningCount": "{{count}} 個工具正在執行",
-      "runningHeader": "執行中…",
       "sections": {
         "args": "參數",
         "command": "命令",
-        "content": "內容",
         "exitCode": "退出碼",
         "input": "輸入",
         "output": "輸出",
@@ -4485,8 +3372,6 @@
       "units": {
         "char_one": "{{count}} 字元",
         "char_other": "{{count}} 個字元",
-        "done_one": "{{count}} 完成",
-        "done_other": "{{count}} 完成",
         "file_one": "{{count}} 個檔案",
         "file_other": "{{count}} 個檔案",
         "item_one": "{{count}} 個項目",
@@ -4508,37 +3393,15 @@
         "workflow": "工作流程"
       }
     },
-    "topic": {
-      "added": "新對話已新增"
-    },
-    "upgrade": {
-      "success": {
-        "button": "重新啟動",
-        "content": "請重新啟動程式以完成升級",
-        "title": "升級成功"
-      }
-    },
     "warn": {
       "export": {
         "exporting": "正在進行其他匯出，請等待上一次匯出完成後再試"
       }
     },
-    "warning": {
-      "file": {
-        "pdf_exceeds_limit": "PDF 檔案 {{name}} 超過大小限制（{{limit}}），將改用文字擷取。",
-        "pdf_text_extraction_failed": "無法從 PDF {{name}} 中擷取文字",
-        "pdf_upload_failed": "PDF {{name}} 上傳失敗，將改用文字擷取。"
-      },
-      "rate": {
-        "limit": "傳送過於頻繁，請在 {{seconds}} 秒後再嘗試"
-      }
-    },
     "websearch": {
-      "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
       "fetch_empty": "找不到搜尋結果",
-      "fetch_opaque": "由模型搜尋",
-      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
+      "fetch_opaque": "由模型搜尋"
     }
   },
   "miniApp": {
@@ -4608,9 +3471,7 @@
       "pin": "置頂此模型",
       "unpin": "取消置頂"
     },
-    "add_parameter": "新增參數",
     "all": "全部",
-    "custom_parameters": "自訂參數",
     "detail": {
       "context_window": "上下文視窗",
       "image_modes": "影像模式",
@@ -4619,51 +3480,29 @@
       "model_id": "模型 ID",
       "provider": "供應商"
     },
-    "dimensions": "{{dimensions}} 維",
     "edit": "編輯模型",
-    "embedding": "嵌入",
-    "embedding_dimensions": "嵌入維度",
-    "embedding_model": "嵌入模型",
-    "embedding_model_tooltip": "在設定 -> 模型服務中點選管理按鈕新增",
-    "enable_tool_use": "工具呼叫",
-    "filter": {
-      "by_tag": "按標籤篩選",
-      "selected": "已選標籤"
-    },
     "function_calling": "函式呼叫",
     "group": {
       "ungrouped": "未群組"
     },
-    "invalid_model": "無效模型",
-    "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
       "label": "多重選擇",
       "tooltip": "多模型同時回答"
     },
     "no_matches": "無可用模型",
-    "parameter_name": "參數名稱",
-    "parameter_type": {
-      "boolean": "布林值",
-      "json": "JSON",
-      "number": "數字",
-      "string": "文字"
-    },
     "pinned": "已固定",
     "price": {
       "add_tier": "新增價格級距",
       "cache_fallback_help": "將快取價格留空可使用此級距的輸入價格；輸入 0 表示免費。",
       "cache_read": "快取讀取價格",
       "cache_write": "快取寫入價格",
-      "cost": "花費",
       "currency": "幣種",
-      "custom": "自訂",
       "field_for_tier": "{{field}}，級距 {{index}}",
       "input": "輸入價格",
       "million_tokens": "百萬 Token",
       "min_input_tokens": "起始輸入 Token 數",
       "min_input_tokens_help": "包含邊界值；必須大於前一個級距。",
       "output": "輸出價格",
-      "price": "價格",
       "remove_tier": "移除價格級距 {{index}}",
       "tier": "級距 {{index}}",
       "tier_from": "從 {{boundary}} 個輸入 Token 起（含）",
@@ -4672,14 +3511,8 @@
       "validation_min_input_tokens_order": "此級距必須從前一個級距之後開始。",
       "validation_price": "請輸入大於或等於 0 的價格。"
     },
-    "reasoning": "推理",
-    "rerank_model": "重新排序模型",
-    "rerank_model_not_support_provider": "目前，重新排序模型不支援此供應商（{{provider}}）",
-    "rerank_model_support_provider": "目前重新排序序模型僅支援部分供應商 ({{provider}})",
-    "rerank_model_tooltip": "在「設定 → 模型服務」點選 [管理] 按鈕新增",
     "search": {
-      "placeholder": "搜尋模型...",
-      "tooltip": "搜尋模型"
+      "placeholder": "搜尋模型..."
     },
     "selection": {
       "context_window": "上下文 {{count}}",
@@ -4687,7 +3520,6 @@
       "restore_default": "還原助理模型",
       "selected_models": "精選模型"
     },
-    "stream_output": "串流輸出",
     "type": {
       "audio": "音訊",
       "embedding": "嵌入",
@@ -4696,7 +3528,6 @@
       "image": "圖片",
       "reasoning": "推理",
       "rerank": "重新排序",
-      "select": "模型類型",
       "speech": "語音",
       "text": "文字",
       "transcription": "轉錄",
@@ -4706,7 +3537,6 @@
     }
   },
   "navbar": {
-    "expand": "伸縮對話框",
     "hide_sidebar": "隱藏側邊欄",
     "show_sidebar": "顯示側邊欄",
     "window": {
@@ -4727,26 +3557,22 @@
       "success": "已成功產生筆記名稱"
     },
     "characters": "字元",
-    "collapse": "收合",
     "conflict": {
       "description": "此筆記在編輯器外被更改。請重新載入以載入最新版本（您未儲存的編輯將被捨棄），或繼續編輯。",
       "keep_draft": "繼續編輯",
       "reload": "重新載入",
       "title": "磁碟上的筆記已變更"
     },
-    "content_placeholder": "請輸入筆記內容...",
     "copyContent": "複製內容",
     "create_folder_failed": "建立資料夾失敗",
     "create_note_failed": "建立筆記失敗",
     "crossPlatformRestoreWarning": "偵測到從其他裝置還原設定，但筆記目錄為空。請將筆記檔案複製到：{{path}}",
     "delete": "刪除",
-    "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_failed": "刪除筆記失敗",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
     "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
     "drop_markdown_hint": "拖曳 .md 檔案或資料夾到此處匯入",
     "empty": "目前沒有筆記",
-    "expand": "展開",
     "exportToPDF": "匯出為 PDF",
     "exportToWord": "匯出為 Word",
     "export_failed": "匯出至知識庫失敗",
@@ -4756,7 +3582,6 @@
     "export_to_pdf_success": "已匯出為 PDF",
     "export_to_word_failed": "匯出為 Word 失敗",
     "file_removed_draft": "此筆記已從磁碟中移除。您未儲存的草稿仍可在編輯器中取得。",
-    "folder": "資料夾",
     "leave": {
       "description": "離開此頁面將會放棄您未儲存的編輯。您是否確定要繼續？",
       "discard_and_continue": "捨棄並繼續",
@@ -4774,12 +3599,10 @@
     "no_file_selected": "請選擇要上傳的檔案",
     "no_note_selected": "請先選擇一個筆記",
     "no_valid_files": "沒有上傳有效的檔案",
-    "open_folder": "開啟外部資料夾",
     "open_outside": "從外部開啟",
     "print": "列印",
     "print_failed": "列印筆記失敗",
     "rename": "重新命名",
-    "rename_changed": "基於安全性考量，檔名已從 {{original}} 變更為 {{final}}",
     "rename_failed": "重新命名筆記失敗",
     "save": "儲存到筆記",
     "save_blocked_load_failed": "筆記載入失敗，已阻止儲存",
@@ -4792,9 +3615,7 @@
       "both": "名稱 + 內容",
       "content": "內容",
       "found_results": "找到 {{count}} 個結果（名稱：{{nameCount}}，內容：{{contentCount}}）",
-      "more_matches": "更多符合結果",
-      "searching": "搜尋中...",
-      "show_less": "收合"
+      "searching": "搜尋中..."
     },
     "settings": {
       "data": {
@@ -4842,8 +3663,7 @@
           "edit_mode": "編輯模式",
           "read_mode": "閱讀模式",
           "title": "預設檢視"
-        },
-        "view_mode_description": "設定新標籤頁的預設檢視模式。"
+        }
       },
       "save_failed": "儲存筆記設定失敗",
       "title": "筆記"
@@ -4855,14 +3675,11 @@
     "sort_updated_asc": "更新時間（從舊到新）",
     "sort_updated_desc": "更新時間（從新到舊）",
     "sort_z2a": "檔名（Z-A）",
-    "spell_check": "拼字檢查",
     "spell_check_tooltip": "啟用/停用拼字檢查",
     "star": "收藏筆記",
-    "starred_notes": "收藏的筆記",
     "target_name_exists": "已存在同名筆記或資料夾",
     "title": "筆記",
     "tree_load_failed": "載入筆記目錄失敗",
-    "unsaved_changes": "尚有未儲存的內容，確定要離開嗎？",
     "unstar": "取消收藏",
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
@@ -4871,30 +3688,14 @@
     "upload_files": "上傳檔案",
     "upload_folder": "上傳資料夾",
     "upload_partial_failed": "已上傳 {{uploaded}} 個筆記，{{failed}} 個失敗",
-    "upload_success": "筆記上傳成功",
-    "uploading_files": "正在上傳 {{count}} 個檔案..."
+    "upload_success": "筆記上傳成功"
   },
   "notification": {
     "assistant": "助理回應",
-    "knowledge": {
-      "batch_error": "{{failed}} 個項目處理失敗",
-      "batch_mixed": "{{succeeded}} 個項目處理成功，{{failed}} 個項目處理失敗",
-      "batch_success": "{{succeeded}} 個項目處理成功",
-      "error": "{{error}}",
-      "success": "成功將 {{type}} 新增至知識庫"
-    },
     "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
   },
   "ocr": {
     "processing": "OCR 處理中..."
-  },
-  "ollama": {
-    "keep_alive_time": {
-      "description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
-      "placeholder": "分鐘",
-      "title": "保持活躍時間"
-    },
-    "title": "Ollama"
   },
   "onboarding": {
     "privacy": {
@@ -4909,13 +3710,11 @@
       "missing_model": "請先啟用該供應商下的至少一個模型",
       "missing_provider": "請先啟用一個供應商",
       "next": "下一步",
-      "subtitle": "新增 API Key 或登入 CherryIN，然後啟用一個供應商。",
       "title": "選擇供應商"
     },
     "select_model": {
       "change_later": "您可以隨時在設定中更改此項目",
       "start": "開始使用",
-      "subtitle": "為每個情境選擇預設模型",
       "title": "選擇預設模型"
     },
     "skip": "跳過",
@@ -4927,111 +3726,19 @@
       "login_cherryin": "使用 CherryIN 登入",
       "or_continue_with": "或繼續使用",
       "other_provider": "選擇其他供應商",
-      "select_other_provider": "選擇其他供應商",
       "setup_hint": "您可以隨時在設定中變更供應商",
       "subtitle": "連接供應商，開啟您的全能 AI 工作站",
       "title": "歡迎來到 Cherry Studio"
     }
   },
   "openclaw": {
-    "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
-    "description": "使用 Cherry Studio 供應商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助理，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
     "error": {
       "select_provider_model": "請先選擇供應商和模型"
     },
     "gateway": {
-      "open_dashboard": "開啟 OpenClaw",
-      "port": "連接埠",
-      "restart": "重新啟動",
-      "start": "啟動",
-      "status": "狀態",
-      "stop": "停止",
-      "version": "版本"
+      "open_dashboard": "開啟 OpenClaw"
     },
-    "git_missing": {
-      "description": "OpenClaw 安裝部分相依套件時需要 Git。請先安裝 Git，再次點選安裝。",
-      "download_button": "下載 Git",
-      "hint": "macOS：brew install git | Windows：從 git-scm.com 下載（安裝時請確保勾選將 Git 加入 PATH）",
-      "title": "需要安裝 Git"
-    },
-    "installed_at": "OpenClaw 安裝路徑",
-    "migration": {
-      "description": "偵測到 PATH 中存在外部 OpenClaw 安裝，但 Cherry Studio 只使用受管理的 OpenClaw 二進位檔。請安裝受管理版本後繼續。",
-      "install_button": "重新安裝 OpenClaw",
-      "title": "OpenClaw 需要更新"
-    },
-    "model_config": {
-      "auth_token": "認證 Token",
-      "auth_token_hint": "閘道認證 Token（必填）。留空時將自動產生。",
-      "auth_token_placeholder": "輸入或產生 Token",
-      "generate_token": "產生",
-      "model": "模型",
-      "provider": "供應商",
-      "select_model": "選擇模型",
-      "select_provider": "選擇供應商",
-      "sync_hint": "選擇的供應商和模型將同步到 OpenClaw 設定檔",
-      "title": "模型設定"
-    },
-    "node_missing": {
-      "description": "OpenClaw 需要 Node.js 22 或更高版本。請先安裝 Node.js，再次點選安裝。",
-      "download_button": "下載 Node.js",
-      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
-      "title": "需要 Node.js"
-    },
-    "node_version_low": {
-      "description": "OpenClaw 需要 Node.js 22.0 或以上版本。您目前的版本是 v{{version}}。請先升級 Node.js。",
-      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "Node.js 版本過低"
-    },
-    "not_installed": {
-      "description": "OpenClaw 尚未安裝在您的系統上。請先安裝它以使用此功能。",
-      "install_button": "安裝 OpenClaw",
-      "install_guide_title": "安裝指南",
-      "macos_linux_title": "macOS / Linux",
-      "refresh": "重新整理",
-      "step2_hint": "安裝完成後，點選上方的重新整理按鈕來偵測 OpenClaw",
-      "step2_title": "第二步：驗證安裝",
-      "title": "OpenClaw 未安裝",
-      "windows_title": "Windows"
-    },
-    "quick_actions": {
-      "check_update": "檢查更新",
-      "open_dashboard": "開啟控制面板",
-      "title": "快速操作",
-      "uninstall": "解除安裝",
-      "view_docs": "檢視說明文件"
-    },
-    "status": {
-      "error": "錯誤",
-      "running": "執行中",
-      "starting": "啟動中",
-      "stopped": "已停止"
-    },
-    "tips": {
-      "permissions": "OpenClaw 擁有較高的系統權限，建議僅在可信環境中使用",
-      "title": "溫馨提示",
-      "token_usage": "AI Agent 模式會消耗較多 Token，請注意用量"
-    },
-    "title": "OpenClaw",
-    "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
-    "uninstalled": {
-      "description": "OpenClaw 已成功解除安裝。",
-      "title": "解除安裝完成"
-    },
-    "uninstalling": {
-      "description": "請稍候，正在解除安裝 OpenClaw...",
-      "title": "解除安裝 OpenClaw"
-    },
-    "update": {
-      "available": "發現新版本：v{{latest}}（目前版本：v{{current}}）",
-      "checking": "正在檢查更新...",
-      "confirm_button": "立即更新",
-      "failed": "檢查更新失敗",
-      "modal_title": "OpenClaw 更新",
-      "success": "更新成功！",
-      "up_to_date": "已是最新版本（v{{current}}）",
-      "updating": "更新中..."
-    }
+    "title": "OpenClaw"
   },
   "ovms": {
     "action": {
@@ -5046,7 +3753,6 @@
     "description": "<div><p>1. 下載 OV 模型。</p><p>2. 在「管理」中新增模型。</p><p>僅支援 Windows。</p><p>OVMS 安裝路徑：'%USERPROFILE%\\.cherrystudio\\ovms'。</p><p>請參閱 <a href=\"https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md\">Intel OVMS 指南</a>。</p></div>",
     "download": {
       "button": "下載",
-      "error": "下載失敗",
       "model_id": {
         "label": "模型 ID",
         "model_id_pattern": "模型 ID 必須以 OpenVINO/ 開頭",
@@ -5060,7 +3766,6 @@
       },
       "model_source": "模型來源：",
       "model_task": "模型任務：",
-      "success": "下載成功",
       "success_desc": "模型\"{{modelName}}\"-\"{{modelId}}\"下載成功，請前往 OVMS 管理介面新增模型",
       "task": {
         "embeddings": "嵌入",
@@ -5090,19 +3795,11 @@
       "not_running": "OVMS 未執行",
       "running": "OVMS 正在執行",
       "unknown": "OVMS 狀態未知"
-    },
-    "title": "Intel OVMS"
+    }
   },
   "paintings": {
     "add_image": "新增圖片",
     "aspect_ratio": "畫幅比例",
-    "aspect_ratios": {
-      "landscape": "橫圖",
-      "portrait": "豎圖",
-      "square": "方形"
-    },
-    "auto_create_paint": "自動新增圖片",
-    "auto_create_paint_tip": "圖片產生後會自動新增圖片",
     "background": "背景",
     "background_options": {
       "auto": "自動",
@@ -5157,7 +3854,6 @@
       "upscale_factor": "放大倍數"
     },
     "dmxapi": {
-      "generating_tip": "使用官方模型產生，預計等待時間為 2–5 分鐘以獲得最佳結果。請檢視 DMXAPI 後端記錄以瞭解此操作的成本。",
       "max_images": "最大影像數",
       "sequential_image_generation": "組圖產生",
       "sequential_image_generation_options": {
@@ -5166,7 +3862,6 @@
       }
     },
     "edit": {
-      "image_file": "輸入影像",
       "image_required": "請先上傳需要編輯的圖片"
     },
     "generate": {
@@ -5174,9 +3869,7 @@
       "width": "寬度"
     },
     "generate_failed": "無法產生圖片",
-    "generated_image": "產生的圖片",
     "generating": "繪圖進行中，請不要離開頁面",
-    "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
     "image": {
@@ -5187,18 +3880,13 @@
     "image_handle_required": "請先上傳圖片。",
     "image_mix_failed": "無法混合圖片",
     "image_placeholder": "無圖片",
-    "image_retry": "重試",
     "image_size_options": {
       "auto": "自動"
     },
     "image_weight": "影像權重",
     "inference_steps": "推理步數",
     "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
-    "input_image": "輸入圖片",
     "input_image_limit_exceeded": "選取的模型參考圖片過多。請移除部分圖片後再試一次。",
-    "input_parameters": "輸入參數",
-    "invalid_image_url": "圖片網址格式無效",
-    "learn_more": "瞭解更多",
     "magic_prompt_option": "提示詞增強",
     "mode": {
       "edit": "編輯",
@@ -5208,7 +3896,6 @@
       "upscale": "放大"
     },
     "model": "模型",
-    "model_and_pricing": "模型與定價",
     "moderation": "敏感度",
     "moderation_options": {
       "auto": "自動",
@@ -5216,14 +3903,10 @@
     },
     "negative_prompt": "反向提示詞",
     "negative_prompt_tip": "描述你不想在圖片中出現的內容",
-    "no_image_generation_model": "目前沒有可用的圖片產生模型，請先新增模型並設定端點類型為 {{endpoint_type}}",
     "number_images": "張數",
     "number_images_tip": "一次產生的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
     "output_compression": "輸出壓縮",
-    "paint_course": "教學",
-    "per_image": "每張圖片",
-    "per_images": "每張圖片",
     "person_generation": "產生人物",
     "person_generation_options": {
       "allow_adult": "允許成人",
@@ -5232,21 +3915,11 @@
     },
     "person_generation_tip": "允許模型產生人物影像",
     "ppio": {
-      "edit_prompt_tip": "用於指定要從影像中移除的對象或區域，例如：'dog' 或 'hat'",
-      "mask_image": "遮罩影像",
-      "mask_image_tip": "用於指示要擦除的區域。要擦除的區域應為白色，要保留的區域應為黑色",
-      "output_format": "輸出格式",
-      "resolution": "目標解析度",
-      "seed_tip": "隨機種子，相同的種子和參數可以產生相似的圖片，-1 表示隨機",
-      "use_pre_llm_tip": "開啟文字擴寫，會針對輸入提示詞進行擴寫最佳化。提示詞較短建議開啟，較長建議關閉",
-      "watermark_tip": "是否在產生的圖片上新增浮水印，預設不新增"
+      "output_format": "輸出格式"
     },
-    "pricing": "定價",
     "prompt_enhancement": "提示詞增強",
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
-    "prompt_placeholder_edit": "輸入你的圖片描述，文字繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入英文圖片描述，目前僅支援英文提示詞",
     "prompt_placeholder_upload": "描述你想要的圖片，或上傳圖片進行編輯",
     "prompt_placeholder_upload_required": "請上傳圖片，並描述你想要的編輯",
     "prompt_required": "請輸入提示",
@@ -5260,9 +3933,6 @@
       "medium": "中",
       "standard": "標準"
     },
-    "regenerate": {
-      "confirm": "這將覆蓋已產生的圖片，是否繼續？"
-    },
     "rendering_speed": "渲染速度",
     "rendering_speeds": {
       "default": "預設",
@@ -5271,15 +3941,11 @@
     },
     "req_error_model": "取得模型失敗",
     "req_error_no_balance": "請檢查 Token 的有效性",
-    "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查 Token 的有效性",
-    "required_field": "必填欄位",
     "revealing": "正在呈現產生的圖片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",
-    "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
-    "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
     "showcase": {
@@ -5315,96 +3981,21 @@
     "thinking_mode": "思考模式",
     "thinking_mode_tip": "開啟時，產生品質會更高，但會增加約 10–30 秒。",
     "title": "圖片",
-    "top_up": "儲值",
-    "translating": "翻譯中...",
-    "uploaded_input": "已上傳輸入",
     "upscale": {
       "detail": "細節",
-      "detail_tip": "控制放大影像的細節增強程度",
-      "image_file": "需要放大的圖片",
-      "magic_prompt_option_tip": "開啟後會自動調整放大提示詞，以提升效果",
-      "number_images_tip": "要產生的放大結果數量",
-      "resemblance": "相似度",
-      "resemblance_tip": "控制放大結果與原圖的相似程度",
-      "seed_tip": "控制放大結果的隨機性"
+      "resemblance": "相似度"
     },
     "watermark": "新增浮水印",
     "zhipu": {
       "custom_size_divisible": "自訂尺寸必須能被 16 整除",
-      "custom_size_hint": "寬度和高度必須介於 512px 到 2048px 之間，可被 16 整除，且總像素數不得超過 2^21px。",
       "custom_size_pixels": "自訂尺寸的總像素數不可超過 2,097,152",
       "custom_size_range": "自訂尺寸必須介於 512 像素至 2048 像素之間",
-      "custom_size_required": "請設定自訂寬度和高度",
-      "image_sizes": {
-        "1024x1024_default": "1024x1024（預設）",
-        "1152x864": "1152x864",
-        "1344x768": "1344x768",
-        "1440x720": "1440x720",
-        "720x1440": "720x1440",
-        "768x1344": "768x1344",
-        "864x1152": "864x1152"
-      },
-      "quality_options": {
-        "hd": "HD",
-        "standard_default": "標準（預設）"
-      }
+      "custom_size_required": "請設定自訂寬度和高度"
     }
   },
   "plugins": {
-    "actions": "操作",
-    "agents": "Agent",
-    "all_categories": "所有類別",
-    "all_types": "全部",
-    "category": "類別",
-    "commands": "指令",
-    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
-    "confirm_uninstall_package": "確定要解除安裝套件 {{name}} 及其所有元件嗎？",
-    "content_saved": "外掛內容已成功儲存",
-    "detail": {
-      "allowed_tools": "允許的工具",
-      "author": "作者",
-      "content": "內容",
-      "description": "描述",
-      "file": "檔案",
-      "installed": "已安裝",
-      "metadata": "詮釋資料",
-      "size": "大小",
-      "source": "來源",
-      "tags": "標籤",
-      "tools": "工具"
-    },
-    "install": "安裝",
-    "install_plugins_from_browser": "瀏覽可用技能以開始使用",
-    "installing": "安裝中...",
     "manage_skills": "管理技能",
-    "name": "名稱",
-    "no_description": "無描述",
-    "no_installed_plugins": "尚未安裝任何技能",
-    "no_results": "未找到外掛",
-    "no_results_skills": "未找到技能",
-    "search_placeholder": "搜尋外掛...",
-    "search_placeholder_skills": "搜尋技能...",
-    "showing_results": "顯示 {{count}} 個外掛",
-    "showing_results_one": "顯示 {{count}} 個外掛程式",
-    "showing_results_other": "顯示 {{count}} 個外掛",
-    "showing_results_plural": "顯示 {{count}} 個外掛",
-    "showing_results_skills": "顯示 {{count}} 個技能",
-    "showing_results_skills_one": "顯示 {{count}} 個技能",
-    "showing_results_skills_other": "顯示 {{count}} 個技能",
-    "showing_results_skills_plural": "顯示 {{count}} 個技能",
-    "skills": "技能",
-    "sort": {
-      "downloads": "下載量",
-      "label": "排序",
-      "relevance": "相關性",
-      "stars": "星標"
-    },
-    "standalone_plugins": "獨立外掛",
-    "try_different_search": "請嘗試調整搜尋或類別篩選",
-    "type": "類型",
-    "uninstall": "解除安裝",
-    "uninstall_package": "解除安裝外掛套件",
-    "uninstalling": "解除安裝中..."
+    "skills": "技能"
   },
   "preview": {
     "close": "關閉預覽",
@@ -5417,7 +4008,6 @@
     "flip_vertical": "垂直翻轉",
     "label": "預覽",
     "next": "下一張圖片",
-    "pan": "移動",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
@@ -5529,9 +4119,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
-    },
     "clipboard": {
       "empty": "剪貼簿為空"
     },
@@ -5561,8 +4148,7 @@
   },
   "restore": {
     "confirm": {
-      "button": "選擇備份檔案",
-      "label": "確定要復原資料嗎？"
+      "button": "選擇備份檔案"
     },
     "content": "復原操作將使用備份資料覆蓋目前所有應用程式資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待",
     "messages_paused": "正在進行備份還原；新訊息已暫停，直到還原完成。",
@@ -5749,7 +4335,6 @@
       "tooLarge": "圖片大小不能超過 10MB",
       "upload": "上傳",
       "uploadError": "圖片上傳失敗",
-      "uploadFile": "上傳檔案",
       "uploadHint": "支援 JPG、PNG、GIF 等格式，最大 10MB",
       "uploadSuccess": "圖片上傳成功",
       "uploadText": "點選或拖曳圖片到此處上傳",
@@ -5813,9 +4398,6 @@
         "summary": "請摘要以下內容。要求：使用 {{language}} 回覆；不要解釋此提示詞，直接給出回覆：\n\n"
       },
       "translate": {
-        "error": {
-          "no_selected_text": "未選取要翻譯的文字"
-        },
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
       },
       "window": {
@@ -5878,7 +4460,6 @@
         },
         "title": "啟用"
       },
-      "experimental": "實驗性功能",
       "filter_modal": {
         "title": "應用程式篩選名單",
         "user_tips": {
@@ -5908,7 +4489,6 @@
           },
           "test": "測試",
           "url": {
-            "hint": "使用 {{queryString}} 代表搜尋詞",
             "invalid_format": "請輸入以 http:// 或 https:// 開頭的有效 URL",
             "label": "自訂搜尋 URL",
             "missing_placeholder": "URL 必須包含 {{queryString}} 佔位符",
@@ -6036,10 +4616,6 @@
     },
     "edit_dialog": {
       "refresh_failed": "已儲存，但無法重新整理清單"
-    },
-    "workspace": {
-      "empty_text": "目前沒有工作區",
-      "placeholder": "選擇工作區"
     }
   },
   "settings": {
@@ -6052,7 +4628,6 @@
         "available": "立即更新",
         "label": "檢查更新"
       },
-      "checkingUpdate": "正在檢查更新...",
       "contact": {
         "button": "電子郵件",
         "title": "聯絡方式"
@@ -6207,9 +4782,6 @@
         "title": "更新日誌"
       },
       "repository": "GitHub 儲存庫",
-      "social": {
-        "title": "社交帳號"
-      },
       "title": "關於我們",
       "updateAvailable": "發現新版本 {{version}}",
       "updateError": "更新錯誤",
@@ -6218,10 +4790,6 @@
         "button": "網站",
         "title": "官方網站"
       }
-    },
-    "advanced": {
-      "auto_switch_to_topics": "自動切換到對話",
-      "title": "進階設定"
     },
     "agent": {
       "position": {
@@ -6237,46 +4805,33 @@
       "icon": {
         "type": {
           "emoji": "Emoji 表情",
-          "label": "模型圖示類型",
           "model": "模型圖示",
           "none": "不顯示"
         }
-      },
-      "label": "預設助理",
-      "model_params": "模型參數",
-      "title": "預設助理"
+      }
     },
     "channels": {
-      "description": "將 Agent 連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
     },
     "data": {
       "app_data": {
         "copy_data_option": "複製資料，會在重新啟動後將原始目錄的資料複製到新目錄",
-        "copy_failed": "複製資料失敗",
-        "copy_success": "成功複製資料到新位置",
         "copy_time_notice": "複製資料需要一些時間，期間請勿關閉應用程式",
-        "copying": "正在複製資料到新位置...",
-        "copying_warning": "資料複製中，請勿強制關閉應用程式；複製完成後會自動重新啟動應用程式",
         "label": "應用程式資料",
         "migration_title": "資料移轉",
         "new_path": "新路徑",
         "open": "開啟目錄",
         "original_path": "原始路徑",
         "path_change_failed": "資料目錄變更失敗",
-        "path_changed_without_copy": "路徑已變更成功",
         "restart_notice": "變更資料目錄後可能需要重新啟動應用程式才能生效",
         "select": "變更目錄",
         "select_error": "所選資料目錄可能正由另一個 Cherry Studio 執行個體使用。請關閉其他執行個體後再試一次。若沒有其他執行個體正在執行，請從該目錄移除過期的 SingletonLock 與 SingletonSocket 檔案。",
-        "select_error_in_app_path": "新路徑與應用程式安裝路徑相同，請選擇其他路徑",
         "select_error_protected_path": "所選路徑受作業系統或 Cherry Studio 保護，請選擇其他資料夾",
         "select_error_root_path": "新路徑不能是根路徑",
         "select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
         "select_error_write_permission": "新路徑沒有寫入權限",
         "select_not_empty_dir": "新路徑不為空",
-        "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
-        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉",
         "switch_existing_notice": "將直接使用這個非空目錄，不會覆寫其中的現有檔案。"
       },
       "app_logs": {
@@ -6335,12 +4890,10 @@
         "title": "資料重設"
       },
       "divider": {
-        "basic": "基本資料設定",
         "cloud_storage": "雲備份設定",
         "export_settings": "匯出設定",
         "import_settings": "匯入設定",
-        "note_export": "筆記匯出",
-        "third_party": "第三方連結"
+        "note_export": "筆記匯出"
       },
       "export_menu": {
         "categories": {
@@ -6360,8 +4913,6 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
-      "hour_interval_one": "{{count}} 小時",
-      "hour_interval_other": "{{count}} 小時",
       "import_settings": {
         "button": "匯入 JSON 檔案",
         "chatgpt": "匯入 ChatGPT 資料",
@@ -6504,8 +5055,6 @@
           "title": "使用快速模型為匯出的訊息命名標題"
         }
       },
-      "minute_interval_one": "{{count}} 分鐘",
-      "minute_interval_other": "{{count}} 分鐘",
       "notion": {
         "api_key": "Notion 金鑰",
         "api_key_placeholder": "請輸入 Notion 金鑰",
@@ -6582,9 +5131,7 @@
       },
       "obsidian": {
         "default_vault": "預設 Obsidian 儲存庫",
-        "default_vault_export_failed": "匯出失敗",
         "default_vault_fetch_error": "取得 Obsidian 儲存庫失敗",
-        "default_vault_loading": "正在取得 Obsidian 儲存庫...",
         "default_vault_no_vaults": "未找到 Obsidian 儲存庫",
         "default_vault_placeholder": "請選擇預設 Obsidian 儲存庫",
         "title": "Obsidian 設定"
@@ -6602,7 +5149,6 @@
         },
         "backup": {
           "button": "立即備份",
-          "error": "S3 備份失敗：{{message}}",
           "manager": {
             "button": "管理備份"
           },
@@ -6612,8 +5158,7 @@
             },
             "title": "S3 備份"
           },
-          "operation": "備份操作",
-          "success": "S3 備份成功"
+          "operation": "備份操作"
         },
         "bucket": {
           "label": "儲存桶",
@@ -6624,7 +5169,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "關閉",
           "columns": {
             "actions": "操作",
             "fileName": "檔案名稱",
@@ -6678,7 +5222,6 @@
             "ok": "確認還原",
             "title": "確認還原資料"
           },
-          "error": "資料還原失敗：{{message}}",
           "file": {
             "required": "請選擇要還原的備份檔案"
           },
@@ -6724,8 +5267,7 @@
           "empty_config": "請填寫 API 位址和 Token",
           "error": "連線異常，請檢查網路連線",
           "fail": "連線失敗，請檢查 API 位址和 Token",
-          "success": "連線成功",
-          "title": "連線檢查"
+          "success": "連線成功"
         },
         "root_path": "思源筆記根路徑",
         "root_path_placeholder": "例如：/CherryStudio",
@@ -6830,9 +5372,7 @@
           "confirm": {
             "content": "從 WebDAV 還原將覆蓋目前資料，是否繼續？",
             "title": "復元確認"
-          },
-          "content": "從 WebDAV 還原將覆蓋目前資料，是否繼續？",
-          "title": "從 WebDAV 還原"
+          }
         },
         "syncError": "備份錯誤",
         "syncStatus": "備份狀態",
@@ -6859,7 +5399,6 @@
       "addTool": "新增工具",
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "檢查更新",
-      "coreDepsMissing": "核心相依套件未安裝",
       "description": "管理應用程式執行所需的二進位工具與執行階段相依套件。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
@@ -6940,7 +5479,6 @@
         "title": "本機模型",
         "unsupported": "目前平台不支援本機模型。"
       },
-      "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
       "remove": "移除工具",
       "removeConfirmMessage": "要從 Cherry Studio 移除「{{name}}」嗎？其可攜式定義將被刪除。如有完全相符且由 mise 管理的複本，Cherry 也會一併清理；系統與內建執行檔絕不會變更。",
@@ -6993,9 +5531,6 @@
       "title": "開發者模式"
     },
     "display": {
-      "assistant": {
-        "title": "助理設定"
-      },
       "custom": {
         "css": {
           "label": "自訂 CSS",
@@ -7009,48 +5544,6 @@
         "global": "全域字型",
         "select": "選擇字型",
         "title": "字型設定"
-      },
-      "navbar": {
-        "position": {
-          "label": "導覽列位置",
-          "left": "左側",
-          "top": "頂端"
-        },
-        "title": "導覽列設定"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "助理是基礎功能，不支援隱藏"
-        },
-        "disabled": "隱藏的圖示",
-        "empty": "把要隱藏的功能從左側拖曳到這裡",
-        "files": {
-          "icon": "顯示檔案圖示"
-        },
-        "knowledge": {
-          "icon": "顯示知識圖示"
-        },
-        "minapp": {
-          "icon": "顯示小工具圖示"
-        },
-        "miniApp": {
-          "icon": "顯示小工具圖示"
-        },
-        "painting": {
-          "icon": "顯示繪圖圖示"
-        },
-        "title": "側邊欄設定",
-        "translate": {
-          "icon": "顯示翻譯圖示"
-        },
-        "visible": "顯示的圖示"
-      },
-      "title": "顯示",
-      "topic": {
-        "title": "對話視圖設定"
-      },
-      "zoom": {
-        "title": "縮放設定"
       }
     },
     "font_size": {
@@ -7081,16 +5574,8 @@
           }
         },
         "sections": {
-          "chat_settings": "聊天設定",
-          "custom_css": "自訂 CSS",
-          "display_language": "顯示與語言",
-          "privacy_advanced": "隱私與進階",
-          "system_startup": "系統與啟動"
-        },
-        "title": "通用"
-      },
-      "display": {
-        "title": "顯示"
+          "display_language": "顯示與語言"
+        }
       },
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
@@ -7109,18 +5594,13 @@
         "rc_version_tooltip": "接近正式版，功能已基本穩定，僅有少量錯誤。",
         "title": "測試計畫",
         "tooltip": "參與測試計畫，體驗最新功能，但同時也帶來更多風險，請務必提前備份資料",
-        "version_channel_not_match": "預覽版和測試版的切換將在下一個正式版發布時生效",
-        "version_options": "版本選項"
+        "version_channel_not_match": "預覽版和測試版的切換將在下一個正式版發布時生效"
       },
       "title": "一般設定",
       "user_name": {
         "label": "使用者名稱",
         "placeholder": "輸入您的名稱"
-      },
-      "view_webdav_settings": "檢視 WebDAV 設定"
-    },
-    "groq": {
-      "title": "Groq 設定"
+      }
     },
     "hardware_acceleration": {
       "confirm": {
@@ -7132,23 +5612,10 @@
     },
     "input": {
       "auto_translate_with_space": "快速敲擊 3 次空格翻譯",
-      "clear": {
-        "all": "清除",
-        "knowledge_base": "清除選中的知識庫",
-        "models": "清除@的所有模型"
-      },
       "show_translate_confirm": "顯示翻譯確認對話框",
       "target_language": {
-        "chinese": "簡體中文",
-        "chinese-traditional": "繁體中文",
-        "english": "英文",
-        "japanese": "日文",
-        "label": "目標語言",
-        "russian": "俄文"
+        "label": "目標語言"
       }
-    },
-    "integrations": {
-      "title": "整合"
     },
     "launch": {
       "onboot": "開機自動啟動",
@@ -7157,8 +5624,7 @@
     },
     "math": {
       "engine": {
-        "label": "數學公式引擎",
-        "none": "無"
+        "label": "數學公式引擎"
       },
       "single_dollar": {
         "label": "啟用 $...$",
@@ -7167,8 +5633,6 @@
       "title": "數學公式設定"
     },
     "mcp": {
-      "actions": "操作",
-      "active": "啟用",
       "addError": "新增伺服器失敗",
       "addServer": {
         "advanced": "進階",
@@ -7186,20 +5650,16 @@
           "mcpbFile": "MCPB 套件檔案",
           "mcpbHelp": "選擇包含 MCP 伺服器的 .mcpb 檔案",
           "mcpbProcessFailed": "處理 MCPB 檔案失敗",
-          "method": "匯入方式",
           "nameExists": "伺服器已存在：{{name}}",
           "noDxtFile": "請選擇一個 DXT 檔案",
           "noMcpbFile": "請選擇一個 MCPB 檔案",
-          "oneServer": "每次只能儲存一個 MCP 伺服器設定",
           "placeholder": "貼上 MCP 伺服器 JSON 設定",
           "selectDxtFile": "選擇 DXT 檔案",
           "selectMcpbFile": "選擇 MCPB 檔案",
           "tooltip": "請從 MCP 伺服器介紹頁複製設定 JSON（優先採用 NPX 或 UVX 設定），\n再貼到輸入框。"
-        },
-        "label": "新增伺服器"
+        }
       },
       "addSuccess": "伺服器新增成功",
-      "advancedSettings": "進階設定",
       "allServers": "MCP 伺服器",
       "args": "參數",
       "argsTooltip": "每個參數佔一行",
@@ -7222,66 +5682,32 @@
         "sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
       "command": "指令",
-      "config_description": "設定 MCP（Model Context Protocol）伺服器",
       "copyLogs": "複製日誌",
       "customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",
       "deleteError": "刪除伺服器失敗",
       "deleteServer": "刪除伺服器",
       "deleteServerConfirm": "確定要刪除此伺服器嗎？",
       "deleteSuccess": "伺服器刪除成功",
-      "dependenciesInstall": "安裝相依套件",
-      "dependenciesInstalling": "正在安裝相依套件...",
       "description": "描述",
-      "disable": {
-        "description": "不啟用 MCP 服務功能",
-        "label": "不使用 MCP 伺服器"
-      },
       "discover": "發現",
-      "duplicateName": "已存在相同名稱的伺服器",
-      "editJson": "編輯 JSON",
-      "editMcpJson": "編輯 MCP 設定",
-      "editServer": "編輯伺服器",
       "env": "環境變數",
       "envTooltip": "格式：KEY=value，每行一個",
-      "errors": {
-        "32000": "MCP 伺服器啟動失敗，請根據教學檢查參數是否填寫完整",
-        "toolNotFound": "未找到工具 {{name}}"
-      },
       "fetch": {
         "button": "取得伺服器",
         "success": "已成功取得 MCP 伺服器"
       },
       "filter": {
-        "allStatuses": "所有狀態",
-        "allTypes": "所有類型",
-        "builtinOnly": "僅限內建",
-        "label": "篩選",
-        "status": "按狀態篩選",
-        "type": "按類型篩選"
+        "label": "篩選"
       },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
       "headersTooltip": "HTTP 請求的自定義標頭",
-      "inMemory": "記憶體",
       "install": "安裝",
-      "installError": "安裝相依套件失敗",
-      "installHelp": "取得安裝幫助",
-      "installSuccess": "相依套件安裝成功",
-      "jsonFormatError": "JSON 格式錯誤",
-      "jsonModeHint": "編輯 MCP 伺服器設定的 JSON 表示。儲存前請確認格式正確",
-      "jsonSaveError": "儲存 JSON 設定失敗",
-      "jsonSaveSuccess": "JSON 設定已儲存",
-      "lanyun": {
-        "description": "藍雲科技雲平台MCP服務",
-        "name": "藍雲科技"
-      },
-      "logoUrl": "標誌 URL",
       "logs": "記錄",
       "logsHint": "MCP 伺服器程序的日誌",
       "longRunning": "長時間運作模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務；收到進度通知時會重設逾時計時器，並將最大逾時時間延長至 10 分鐘",
       "marketplaces": "市場",
-      "missingDependencies": "遺失，請安裝它以繼續",
       "more": {
         "awesome": "精選的 MCP 伺服器清單",
         "composio": "Composio MCP 開發工具",
@@ -7301,42 +5727,27 @@
       "noLogs": "目前沒有記錄",
       "noServers": "未設定伺服器",
       "notInstalled": "未安裝",
-      "not_support": "不支援此模型",
       "npx_list": {
-        "actions": "操作",
-        "description": "描述",
         "no_packages": "找不到套件",
         "npm": "NPM",
-        "package_name": "套件名稱",
         "scope_placeholder": "輸入 npm 作用區域 (例如 @your-org)",
         "scope_required": "請輸入 npm 作用區域",
-        "search": "搜尋",
         "search_error": "搜尋失敗",
-        "usage": "用法",
-        "version": "版本"
+        "usage": "用法"
       },
-      "pageDescription": "管理 MCP 伺服器。啟用後，Agent 可以呼叫其提供的工具和資源。",
       "prompts": {
-        "arguments": "參數",
         "availablePrompts": "可用提示",
-        "genericError": "取得提示錯誤",
-        "loadError": "取得提示失敗",
-        "noPromptsAvailable": "無可用提示",
-        "requiredField": "必填欄位"
+        "noPromptsAvailable": "無可用提示"
       },
       "protocolInstall": {
         "title": "安裝 MCP"
       },
       "protocolInstallWarning": {
-        "command": "啟動命令",
         "message": "此 MCP 透過通訊協定從外部來源安裝，執行來源不明的工具可能會對您的電腦造成危害。",
         "run": "執行",
         "title": "執行外部 MCP？"
       },
-      "provider": "供應商",
       "providerNotFound": "未找到 MCP 供應商",
-      "providerPlaceholder": "供應商名稱",
-      "providerUrl": "供應商網址",
       "providers": "供應商",
       "qveris": {
         "get_api_key": "取得 API Key",
@@ -7359,12 +5770,10 @@
         "availableResources": "可用資源",
         "blob": "二進位資料",
         "blobInvisible": "隱藏二進位資料",
-        "genericError": "取得資源錯誤",
         "mimeType": "MIME 類型",
         "noResourcesAvailable": "無可用資源",
         "size": "大小",
-        "text": "文字",
-        "uri": "URI"
+        "text": "文字"
       },
       "runtimeStatus": {
         "connected": "已連線",
@@ -7378,8 +5787,6 @@
         "tooltip": "搜尋 MCP 伺服器"
       },
       "searchNpx": "搜尋 MCP",
-      "serverPlural": "伺服器",
-      "serverSingular": "伺服器",
       "servers": "MCP 伺服器",
       "shortTitle": "MCP",
       "sse": "伺服器傳送事件 (sse)",
@@ -7387,17 +5794,9 @@
       "stdio": "標準輸入 / 輸出 (stdio)",
       "streamableHttp": "可串流的 HTTP (streamableHttp)",
       "sync": {
-        "button": "同步",
-        "discoverMcpServers": "發現 MCP 伺服器",
-        "discoverMcpServersDescription": "存取平台以發現可用的 MCP 伺服器",
         "error": "同步 MCP 伺服器出錯",
-        "getToken": "取得 API Token",
-        "getTokenDescription": "從帳戶取得個人 API Token",
         "noServersAvailable": "無可用的 MCP 伺服器",
-        "selectProvider": "選擇供應商：",
-        "setToken": "輸入 Token",
         "success": "同步 MCP 伺服器成功",
-        "title": "同步伺服器",
         "tokenPlaceholder": "在此輸入 API Token",
         "tokenRequired": "需要 API Token",
         "unauthorized": "同步未授權"
@@ -7410,8 +5809,6 @@
         "resources": "資源",
         "tools": "工具"
       },
-      "tags": "標籤",
-      "tagsPlaceholder": "輸入標籤",
       "timeout": "逾時",
       "timeoutTooltip": "對該伺服器請求的逾時時間（秒），預設為 60 秒",
       "title": "MCP 伺服器",
@@ -7419,7 +5816,6 @@
         "autoApprove": {
           "label": "自動核准",
           "tooltip": {
-            "confirm": "是否要執行此 MCP 工具？",
             "disabled": "工具執行前需要手動核准",
             "enabled": "工具將自動執行，無需手動核准",
             "howToEnable": "啟用工具後才能使用自動核准"
@@ -7433,9 +5829,7 @@
           },
           "label": "輸入模式"
         },
-        "loadError": "取得工具失敗",
-        "noToolsAvailable": "無可用工具",
-        "run": "執行"
+        "noToolsAvailable": "無可用工具"
       },
       "type": "類型",
       "types": {
@@ -7446,23 +5840,16 @@
       },
       "updateError": "更新伺服器失敗",
       "updateSuccess": "伺服器更新成功",
-      "url": "URL",
-      "user": "使用者"
+      "url": "URL"
     },
     "menuGroups": {
       "automation": "效率",
       "capabilities": "工具",
-      "models": "模型",
       "personal": "偏好",
       "quickAccess": "快速入口",
       "system": "系統"
     },
     "messages": {
-      "divider": {
-        "label": "訊息間顯示分隔線",
-        "tooltip": "不適用於氣泡樣式訊息"
-      },
-      "grid_columns": "訊息網格展示列數",
       "grid_popover_trigger": {
         "click": "點選顯示",
         "hover": "停留顯示",
@@ -7470,7 +5857,6 @@
       },
       "input": {
         "confirm_delete_message": "刪除訊息前確認",
-        "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 觸發輸入快速面板",
         "newline_shortcuts": "換行快捷鍵",
         "send_shortcuts": "傳送快捷鍵",
@@ -7480,16 +5866,10 @@
         "title": "輸入設定"
       },
       "layout": {
-        "classic": "經典",
         "conversation": "對話視圖",
-        "modern": "現代",
         "work": "工作視圖"
       },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
-      "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} Token",
-      "model": {
-        "title": "模型設定"
-      },
       "navigation": {
         "anchor": "對話錨點",
         "buttons": "上下按鈕",
@@ -7545,14 +5925,12 @@
       },
       "reset_tooltip": "重設為預設值",
       "show_app": "顯示 {{name}}",
-      "title": "小程式設定",
       "visible": "顯示的小程式"
     },
     "model": "預設模型",
     "models": {
       "add": {
         "add_model": "新增模型",
-        "batch_add_models": "批次新增模型",
         "capabilities": {
           "label": "模型能力"
         },
@@ -7563,14 +5941,12 @@
         "endpoint_type": {
           "label": "端點類型",
           "placeholder": "選擇端點類型",
-          "remove_chip": "移除",
           "required": "請選擇端點類型",
           "tooltip": "選擇 API 的端點類型格式"
         },
         "group_name": {
           "label": "群組名稱",
-          "placeholder": "例如 ChatGPT",
-          "tooltip": "選填，例如 ChatGPT"
+          "placeholder": "例如 ChatGPT"
         },
         "input_modalities": {
           "label": "輸入模態"
@@ -7586,16 +5962,11 @@
         "model_id": {
           "label": "模型 ID",
           "placeholder": "例如 gpt-5.5",
-          "required": "請輸入模型 ID",
-          "select": {
-            "placeholder": "選擇模型"
-          },
-          "tooltip": "例如 gpt-3.5-turbo"
+          "required": "請輸入模型 ID"
         },
         "model_name": {
           "label": "模型名稱",
-          "placeholder": "例如 GPT-5.5",
-          "tooltip": "例如 GPT-4"
+          "placeholder": "例如 GPT-5.5"
         },
         "model_type": {
           "label": "模型類型"
@@ -7628,11 +5999,9 @@
       "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
-        "all_models_passed": "所有模型檢查皆成功",
         "button_caption": "健康檢查",
         "disabled": "未啟用",
         "disclaimer": "健康檢查會向選中的模型和 API Key 傳送真實請求。按次計費或並行檢查可能產生高額費用，請確認後再開始。",
-        "drawer_result_hint": "檢查結果會保留在此面板中，直到您關閉側邊面板或再次執行檢查。",
         "enable_concurrent": "並行檢查",
         "enabled": "已啟用",
         "failed": "失敗",
@@ -7640,13 +6009,11 @@
         "generation_output_audio": "音訊",
         "generation_output_image": "圖片",
         "generation_output_video": "影片",
-        "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
         "model_button_caption": "檢查所有模型",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
         "model_status_passed": "{{count}} 個模型健康檢查成功",
         "model_status_summary": "{{provider}}: {{summary}}",
-        "no_api_keys": "未找到 API 金鑰，請先新增 API 金鑰",
         "no_results": "無結果",
         "outcome_fail_short": "{{count}} 失敗",
         "outcome_skipped_short": "{{count}} 跳過",
@@ -7655,9 +6022,6 @@
         "passed": "已通過",
         "pipeline_heading": "檢查進度",
         "progress_count": "{{done}} / {{total}}",
-        "progress_current": "正在檢查：{{name}}",
-        "progress_hint": "檢查期間請檢視下方清單；完成後，上方會顯示簡短摘要。",
-        "progress_title": "正在進行模型健康檢查",
         "retry": "重新檢查",
         "select_api_key": "選擇要使用的 API 金鑰：",
         "single": "單一模型",
@@ -7693,18 +6057,13 @@
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
-        "clear": "清除模型篩選",
         "label": "篩選模型",
         "scroll_left": "向左捲動模型類型",
         "scroll_right": "向右捲動模型類型"
       },
-      "group_disable": "停用此群組",
-      "group_enable": "開啟此群組",
       "list_title": "模型",
       "manage": {
-        "add_custom_model": "新增自訂模型",
         "add_listed": {
-          "confirm": "確定要新增所有模型到清單嗎？",
           "label": "新增全部模型"
         },
         "add_success_enable_failed": "模型已新增，但供應商啟用失敗。",
@@ -7713,81 +6072,27 @@
         "clean_stale_success": "已清理 {{count}} 個失效模型",
         "default_model_cannot_remove": "預設模型無法刪除",
         "drawer_title": "模型管理",
-        "fetch_deselect_all_add": "取消全選",
-        "fetch_deselect_all_remove": "取消全選",
-        "fetch_list": "取得模型清單",
-        "fetch_ok": "好的",
-        "fetch_removed_hint": "以下模型已不存在於供應商 API，勾選後可從清單移除。",
-        "fetch_result_title": "取得結果",
-        "fetch_select_all_add": "全選新增",
-        "fetch_select_all_remove": "全選刪除",
-        "fetch_summary_add": "新增 {{selected}}/{{total}} 個模型",
-        "fetch_summary_remove": "刪除 {{selected}}/{{total}} 個模型",
-        "fetch_up_to_date": "模型清單已是最新",
-        "fetch_up_to_date_hint": "沒有發現新模型或失效模型",
-        "filter_add_all": "全部新增",
-        "filter_remove_all": "全部移除",
-        "footer_done": "完成",
-        "large_group_hidden": "顯示剩餘 {{count}} 個模型",
         "model_in_use_by_knowledge_base": "該模型正在被知識庫使用，無法刪除。",
         "operation_failed": "模型操作失敗。",
-        "refetch_list": "重新取得模型清單",
-        "reload_catalog": "重新整理清單",
         "remove_listed": "移除全部模型",
         "remove_model": "刪除模型",
         "remove_skipped_default_in_use": "已跳過 {{count}} 個預設模型",
         "remove_whole_group": "刪除群組",
         "search_models_placeholder": "搜尋模型…",
-        "select_none": "取消全選",
         "stale_badge": "失效",
         "stale_filter": "失效",
-        "status_all": "全部",
-        "status_disabled": "未啟用",
-        "status_enabled": "已啟用",
-        "sync_added_description": "可新增到目前供應商的上游模型。",
-        "sync_added_metric": "{{count}} 個新增模型",
-        "sync_added_section": "新增模型",
-        "sync_apply_changes": "確認套用",
         "sync_apply_default_in_use": "部分模型正被用作預設模型，無法刪除。",
-        "sync_apply_result": "已新增 {{added}} 個，標記棄用 {{deprecated}} 個，刪除 {{deleted}} 個。",
-        "sync_empty_added": "沒有發現新增的上游模型。",
-        "sync_empty_missing": "沒有發現已失效的本機模型。",
-        "sync_impact_section": "引用影響",
-        "sync_impact_summary": "{{models}} 個受影響模型，{{references}} 處強引用",
-        "sync_missing_description": "這些本機模型已不在最新的上游模型清單中。",
-        "sync_missing_metric": "{{count}} 個已失效模型",
-        "sync_missing_section": "已失效模型",
-        "sync_no_references": "無強引用",
-        "sync_pick_delete": "刪除",
-        "sync_pick_deprecate": "標記棄用",
-        "sync_preview_description": "先預覽上游模型變化，再決定如何更新本機模型清單。",
-        "sync_preview_summary": "取得預覽",
-        "sync_pull_failed": "取得模型失敗。",
-        "sync_reference_assistants": "助理 {{count}}",
-        "sync_reference_knowledge": "知識庫 {{count}}",
-        "sync_reference_preferences": "偏好設定 {{count}}",
-        "sync_references": "強引用 {{count}}",
-        "sync_replacement": "替代建議：{{model}}",
-        "sync_selected_metric": "已選擇 {{count}} 項",
-        "sync_selected_summary": "已選擇 {{selected}} / {{total}} 項",
-        "sync_switch_to_delete": "改為刪除",
-        "sync_switch_to_deprecate": "改為標記棄用",
-        "sync_will_deprecate": "將標記為棄用"
+        "sync_pull_failed": "取得模型失敗。"
       },
       "more_actions": "更多模型清單操作",
-      "not_enabled_models": "已停用",
       "painting_model": "繪圖模型",
       "painting_model_description": "影像產生使用的模型",
       "provider_id": "供應商 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
-      "provider_key_add_failed_by_empty_data": "新增供應商 API 金鑰失敗，資料為空",
       "provider_key_add_failed_by_invalid_data": "新增供應商 API 金鑰失敗，資料格式錯誤",
       "provider_key_added": "成功為 {{provider}} 新增 API 金鑰",
       "provider_key_already_exists": "{{provider}} 已有相同的 API 金鑰，不會重複新增。",
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
-      "provider_key_no_change": "{{provider}} 的 API 金鑰沒有變化",
-      "provider_key_overridden": "成功更新 {{provider}} 的 API 金鑰",
-      "provider_key_override_confirm": "{{provider}} 已有 API 金鑰（{{existingKey}}）。是否使用新金鑰（{{newKey}}）取代？",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快速助理模型",
@@ -7809,9 +6114,6 @@
         "tooltip": "重試和回退機制僅在模型開始串流內容之前適用"
       },
       "toolbar": {
-        "custom_add": "自訂",
-        "filter_close": "關閉篩選",
-        "filter_open": "依能力篩選",
         "pull_short": "取得模型清單"
       },
       "topic_naming": {
@@ -7821,20 +6123,12 @@
       },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
-      "translate_model_prompt_message": "請輸入翻譯模型提示詞",
-      "translate_model_prompt_title": "翻譯模型提示詞",
       "use_assistant": "使用助理",
       "use_model": "預設模型"
     },
     "moresetting": {
-      "check": {
-        "confirm": "確認勾選",
-        "warn": "請謹慎選擇此選項；錯誤的選擇可能導致模型無法正常使用。"
-      },
-      "label": "更多設定",
-      "warn": "風險警告"
+      "label": "更多設定"
     },
-    "no_provider_selected": "未選擇供應商",
     "notification": {
       "assistant": "助理訊息",
       "backup": "備份訊息",
@@ -7843,39 +6137,8 @@
       "update": "應用程式更新"
     },
     "openai": {
-      "service_tier": {
-        "auto": "自動",
-        "default": "預設",
-        "flex": "彈性",
-        "on_demand": "按需",
-        "priority": "優先",
-        "tip": "指定用於處理請求的延遲層級",
-        "title": "服務層級"
-      },
-      "stream_options": {
-        "include_usage": {
-          "tip": "是否請求 Token 用量（僅 OpenAI Chat Completions API 可用）",
-          "title": "包含用量"
-        }
-      },
-      "summary_text_mode": {
-        "auto": "自動",
-        "concise": "簡潔",
-        "detailed": "詳細",
-        "off": "關閉",
-        "tip": "模型所執行的推理摘要",
-        "title": "摘要模式"
-      },
-      "title": "OpenAI 設定",
-      "verbosity": {
-        "high": "高",
-        "low": "低",
-        "medium": "中",
-        "tip": "控制模型輸出的詳細程度",
-        "title": "詳細程度"
-      }
+      "title": "OpenAI 設定"
     },
-    "parameter_settings": "參數設定",
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
     },
@@ -7894,7 +6157,6 @@
         "createFailed": "建立提示詞失敗",
         "deleteFailed": "刪除提示詞失敗",
         "loadFailed": "載入提示詞失敗",
-        "reorderFailed": "調整提示詞順序失敗",
         "updateFailed": "更新提示詞失敗"
       },
       "manage": "管理提示詞",
@@ -8303,35 +6565,19 @@
       "back": "後退",
       "close": "關閉",
       "confirm": "確認",
-      "forward": "前進",
       "mcp": {
         "agentEmpty": "此 Agent 尚未設定任何 MCP 伺服器",
         "assistantEmpty": "此助理未設定任何 MCP 伺服器",
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
-        "open_config": "設定 MCP 伺服器",
-        "unknownServer": "未知的 MCP 伺服器"
+        "open_config": "設定 MCP 伺服器"
       },
       "multiple": "多選",
       "noResult": "沒有相符項目",
       "page": "翻頁",
       "select": "選擇",
       "title": "輸入快速面板"
-    },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助理常用語",
-      "contentLabel": "內容",
-      "contentPlaceholder": "輸入短語內容。支援 ${variables}；按 Tab 可在變數間快速跳轉。例如：\n請幫我規劃從 ${from} 到 ${to} 的路線，並傳送至 ${email}。",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快速短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
     },
     "scheduledTasks": {
       "agentCreate": "使用 Agent 建立",
@@ -8340,7 +6586,6 @@
       "clearFilters": "清除篩選條件",
       "createDescription": "設定 Agent 應該執行的操作以及執行時間。",
       "createTitle": "新增排程任務",
-      "description": "管理所有 Agent 的排程任務。任務將依設定好的排程自動執行。",
       "editDescription": "更新 Agent 應該執行的操作以及何時執行。",
       "editTitle": "編輯排程任務",
       "filterAgent": "按 Agent 篩選",
@@ -8348,7 +6593,6 @@
       "manualCreate": "手動建立",
       "newTask": "新",
       "noAgents": "沒有可用的 Agent。請先建立一個 Agent，再新增排程任務。",
-      "noAgentsTip": "提示：你也可以直接在對話中讓 Agent 建立排程任務。",
       "noAgentsTitle": "沒有 Agent",
       "noMatches": "嘗試不同的搜尋或篩選條件。",
       "noMatchesTitle": "沒有相符的任務",
@@ -8360,7 +6604,6 @@
       "paginationStatus": "第 {{page}} 頁，共 {{pageCount}} 頁 · {{total}} 個任務",
       "search": "搜尋排程工作",
       "searchPlaceholder": "搜尋任務或 Agent",
-      "selectTask": "選擇一個任務來檢視詳細資訊",
       "title": "排程工作",
       "validation": {
         "agent": "選擇 Agent",
@@ -8369,8 +6612,6 @@
       }
     },
     "shortcuts": {
-      "action": "操作",
-      "actions": "操作",
       "all_disable": "全部停用",
       "all_enable": "全部啟用",
       "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
@@ -8379,33 +6620,23 @@
         "assistant": "AI 助理工具",
         "chat": "訊息互動",
         "general": "全域與視窗",
-        "title": "快捷鍵群組",
         "topic": "對話與話題"
       },
-      "clear_shortcut": "清除快捷鍵",
-      "clear_topic": "清除所有訊息",
-      "close_tab": "關閉分頁",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
       "empty": "目前群組下沒有可顯示的快捷鍵",
-      "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "filter": "篩選",
-      "label": "按鍵",
-      "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增對話",
       "next_tab": "下一個分頁",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式佔用",
-      "open_tab_in_new_window": "在新視窗中開啟分頁",
-      "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
       "prev_tab": "上一個分頁",
       "print": "列印",
       "quick_assistant": "快速助理",
       "rename_topic": "重新命名對話",
       "reset": "重設",
-      "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
       "reset_defaults_failed": "重設快捷鍵失敗",
       "reset_to_default": "重設為預設",
@@ -8423,27 +6654,14 @@
       "toggle_left_sidebar": "切換左側邊欄",
       "toggle_new_context": "清除上下文",
       "toggle_right_sidebar": "切換右側邊欄",
-      "toggle_show_topics": "切換對話顯示",
-      "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"
     },
     "skills": {
-      "author": "作者",
       "batchInstallComplete": "已安裝 {{count}} 個技能",
       "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
       "batchInstallQueued": "等待安裝",
-      "batchUninstallSuccess": "{{count}} 個技能已解除安裝",
-      "builtin": "內建",
-      "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",
-      "confirmUninstall": "確定要解除安裝此技能嗎？",
-      "directory": "資料夾",
-      "dropHint": "或將 ZIP 檔案或資料夾拖放到此處",
-      "emptyDesc": "從 ZIP、資料夾安裝，或搜尋線上 Skill 登錄來源，以擴充 Agent 的能力。",
-      "emptyTip": "提示：你也可以讓 Agent 幫你安裝技能。",
-      "emptyTitle": "未選擇技能",
-      "filterPlaceholder": "篩選技能...",
       "install": "安裝",
       "installFailed": "技能安裝失敗：{{name}}",
       "installFromDirectory": "從資料夾安裝",
@@ -8451,22 +6669,8 @@
       "installSuccess": "技能已安裝：{{name}}",
       "installed": "已安裝",
       "invalidFormat": "僅支援 ZIP 檔案和資料夾",
-      "localInstall": "本機安裝",
-      "multiSelect": "多選",
-      "noFilterResults": "沒有匹配的技能",
-      "noInstalled": "目前沒有已安裝的技能",
-      "noResults": "未找到技能",
-      "noSkillFile": "未找到 SKILL.md 檔案",
-      "pageDescription": "管理已安裝的技能。技能可擴充 Agent 的功能，並在需要時呼叫。",
-      "searchPlaceholder": "發現更多技能...",
-      "searchRegistryTitle": "搜尋線上 Skill 登錄來源",
-      "searchTitle": "搜尋技能",
-      "selectFile": "選擇一個檔案檢視",
       "title": "技能",
-      "uninstall": "解除安裝",
-      "uninstallSuccess": "技能已解除安裝：{{name}}",
-      "viewSource": "檢視原始碼",
-      "zip": "ZIP"
+      "viewSource": "檢視原始碼"
     },
     "system": {
       "title": "系統"
@@ -8567,20 +6771,10 @@
             "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
             "name": "Tesseract OCR"
           }
-        },
-        "title": "文件解析"
+        }
       },
-      "title": "其他設定",
       "websearch": {
-        "api_key_required": {
-          "content": "{{provider}} 需要 API 金鑰才能運作。您現在要設定嗎？",
-          "ok": "設定",
-          "title": "需要 API 金鑰"
-        },
-        "api_providers": "API 供應商",
-        "apikey": "API 金鑰",
         "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜尋結果中",
         "blacklist_invalid_entries": "以下黑名單項目無效：{{entries}}",
         "blacklist_tooltip": "請使用以下格式（以換行分隔）\n模式比對：*://*.example.com/*\n規則運算式：/example\\.(net|org)/",
         "check": "檢查",
@@ -8596,38 +6790,19 @@
               "label": "截斷長度",
               "placeholder": "輸入長度",
               "tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字元）"
-            },
-            "unit": {
-              "char": "字元",
-              "token": "Token"
             }
           },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
             "none": "不壓縮"
-          },
-          "title": "搜尋結果壓縮"
+          }
         },
-        "content_limit": "內容長度限制",
-        "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
-        "default_provider": "預設搜尋供應商",
         "errors": {
           "save_failed": "儲存失敗",
           "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
         "fetch_urls_provider": "URL 擷取供應商",
-        "free": "免費",
-        "is_default": "預設",
-        "local_provider": {
-          "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
-          "open_settings": "開啟 {{provider}} 設定",
-          "settings": "本機搜尋設定"
-        },
-        "local_providers": "本機搜尋",
-        "no_provider_selected": "請選擇搜尋供應商後再檢查",
-        "overwrite": "覆蓋搜尋服務",
-        "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
         "provider_description": {
           "bocha": "面向 AI 場景的中文搜尋 API，提供即時網頁與結構化結果。",
           "exa": "為 AI 應用程式設計的神經搜尋 API，擅長語意檢索高品質網頁。",
@@ -8647,28 +6822,14 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "set_as_default": "設為預設",
-        "tavily": {
-          "api_key": {
-            "label": "Tavily API 金鑰",
-            "placeholder": "請輸入 Tavily API 金鑰"
-          },
-          "description": "Tavily 是一個為 AI Agent 量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "網路搜尋",
-        "url_invalid": "輸入了無效的 URL",
-        "url_required": "需要輸入 URL"
+        "title": "網路搜尋"
       }
     },
     "topic": {
-      "pin_to_top": "固定對話置頂",
       "position": {
         "label": "對話位置",
         "left": "左側",
         "right": "右側"
-      },
-      "show": {
-        "time": "顯示對話時間"
       }
     },
     "translate": {
@@ -8688,8 +6849,7 @@
           },
           "update": "更新失敗",
           "value": {
-            "empty": "語言名稱不能留空",
-            "too_long": "語言名稱過長"
+            "empty": "語言名稱不能留空"
           }
         },
         "langCode": {
@@ -8702,13 +6862,7 @@
           "delete": "刪除成功",
           "update": "更新成功"
         },
-        "table": {
-          "action": {
-            "title": "操作"
-          }
-        },
         "value": {
-          "help": "1~32 個字元",
           "label": "語言名稱",
           "placeholder": "繁體中文"
         }
@@ -8718,8 +6872,7 @@
     },
     "tray": {
       "onclose": "關閉時最小化到系統匣",
-      "show": "顯示系統匣圖示",
-      "title": "系統匣"
+      "show": "顯示系統匣圖示"
     },
     "usage": {
       "cards": {
@@ -8831,7 +6984,6 @@
       "title": "使用系統標題列（Linux）"
     },
     "zoom": {
-      "reset": "重設",
       "title": "縮放"
     }
   },
@@ -8845,7 +6997,6 @@
     "close_others": "關閉其他標籤頁",
     "close_to_right": "關閉右側標籤頁",
     "move_to_first": "移至最左側",
-    "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
@@ -8907,10 +7058,6 @@
     "close": "關閉",
     "closed": "翻譯已關閉",
     "complete": "翻譯完成",
-    "confirm": {
-      "content": "翻譯後將覆蓋原文，是否繼續？",
-      "title": "翻譯確認"
-    },
     "copied": "翻譯內容已複製",
     "custom": {
       "label": "自定義語言"
@@ -8930,7 +7077,6 @@
           "label": "LLM",
           "tip": "使用快速模型進行語言偵測，消耗少量 Token。"
         },
-        "placeholder": "選擇自動偵測方法",
         "tip": "自動偵測輸入語言時使用的方法"
       }
     },
@@ -8942,22 +7088,15 @@
     "empty": "翻譯內容為空",
     "error": {
       "auto_copy_failed": "自動複製翻譯結果失敗",
-      "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
         "empty": "偵測到的語言為空",
-        "failed": "語言偵測失敗",
         "invalid": "偵測到的語言不受支援",
-        "qwen_mt": "QwenMT 模型不能用於語言偵測",
-        "unknown": "偵測到未知語言",
-        "update_setting": "設定失敗"
+        "qwen_mt": "QwenMT 模型不能用於語言偵測"
       },
       "empty": "翻譯結果為空",
       "failed": "翻譯失敗",
-      "invalid_source": "無效的來源語言",
       "languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
-      "not_configured": "翻譯模型未設定",
-      "not_supported": "不支援的語言 {{language}}",
-      "unknown": "翻譯過程中遇到未知錯誤"
+      "not_configured": "翻譯模型未設定"
     },
     "exchange": {
       "label": "交換來源語言與目標語言"
@@ -8994,9 +7133,6 @@
         "starred": "僅顯示收藏"
       },
       "reuse": "使用此翻譯",
-      "search": {
-        "placeholder": "搜尋翻譯歷史"
-      },
       "source": "原文",
       "star": "最愛",
       "success": {
@@ -9019,12 +7155,6 @@
       "same": "來源語言和目標語言相同"
     },
     "language_settings": "語言設定",
-    "menu": {
-      "description": "對目前輸入框內容進行翻譯"
-    },
-    "not": {
-      "found": "未找到翻譯內容"
-    },
     "output": {
       "placeholder": "翻譯"
     },
@@ -9034,30 +7164,15 @@
       "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在來源語言和目標語言之間進行雙向翻譯",
-      "error": {
-        "save": "儲存翻譯設定失敗"
-      },
-      "model": "模型設定",
-      "model_desc": "翻譯服務使用的模型",
       "model_placeholder": "選擇翻譯模型",
-      "no_model_warning": "未選擇翻譯模型",
       "preview": "Markdown 預覽",
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
     "source_language": "來源語言",
     "stop": "停止翻譯",
-    "success": {
-      "custom": {
-        "delete": "刪除成功",
-        "update": "更新成功"
-      }
-    },
     "target_language": "目標語言",
-    "title": "翻譯",
-    "tooltip": {
-      "newline": "換行"
-    }
+    "title": "翻譯"
   },
   "update": {
     "install": "立即安裝",
@@ -9066,15 +7181,6 @@
     "noReleaseNotes": "目前沒有更新日誌",
     "saveDataError": "儲存資料失敗，請重試",
     "title": "更新提示"
-  },
-  "warning": {
-    "missing_provider": "供應商不存在，已改用預設供應商 {{provider}}。這可能會導致問題。"
-  },
-  "words": {
-    "knowledgeGraph": "知識圖譜",
-    "quit": "結束",
-    "show_window": "顯示視窗",
-    "visualization": "視覺化"
   },
   "xlsx_preview": {
     "chart": "圖表",

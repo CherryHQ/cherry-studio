@@ -9,7 +9,7 @@ import {
   isInCodeContext,
   isNonUIString,
   shouldSkipNode
-} from '../check-hardcoded-strings'
+} from '../i18n-check-hardcoded-strings'
 
 function createTestProject() {
   return new Project({
@@ -44,7 +44,7 @@ function findTemplateLiteral(project: Project, code: string): Node | undefined {
 // Mock fs module
 vi.mock('fs')
 
-describe('check-hardcoded-strings', () => {
+describe('i18n-check-hardcoded-strings', () => {
   const mockSrcDir = '/mock/src/renderer'
 
   beforeEach(() => {

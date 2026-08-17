@@ -6,16 +6,9 @@ import { sortedObjectByKeys } from './sort'
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const baseFileName = `${baseLocale}.json`
 
-// Renderer and main each own an independent catalog (locales/ + translate/); sync both.
-const catalogs = [
-  {
-    localesDir: path.join(__dirname, '../src/renderer/i18n/locales'),
-    translateDir: path.join(__dirname, '../src/renderer/i18n/translate')
-  },
-  {
-    localesDir: path.join(__dirname, '../src/main/i18n/locales'),
-    translateDir: path.join(__dirname, '../src/main/i18n/translate')
-  }
+const catalogDirectories = [
+  path.join(__dirname, '../src/renderer/i18n/locales'),
+  path.join(__dirname, '../src/main/i18n/locales')
 ]
 
 type I18NValue = string | { [key: string]: I18NValue }
@@ -28,7 +21,7 @@ type I18N = { [key: string]: I18NValue }
  * 3. Recursively sync nested objects
  *
  * @param target Target object (language object to be updated)
- * @param template Base locale object (Chinese)
+ * @param template Base locale object
  * @returns Returns whether target was updated
  */
 function syncRecursively(target: I18N, template: I18N): void {
@@ -90,7 +83,7 @@ function checkDuplicateKeys(obj: I18N): string[] {
   return duplicateKeys
 }
 
-function syncCatalog(localesDir: string, translateDir: string) {
+function syncCatalog(localesDir: string) {
   const baseFilePath = path.join(localesDir, baseFileName)
   if (!fs.existsSync(baseFilePath)) {
     console.error(`Base locale file ${baseFileName} does not exist, please check path or filename`)
@@ -124,15 +117,10 @@ function syncCatalog(localesDir: string, translateDir: string) {
     }
   }
 
-  const localeFiles = fs
+  const files = fs
     .readdirSync(localesDir)
     .filter((file) => file.endsWith('.json') && file !== baseFileName)
     .map((filename) => path.join(localesDir, filename))
-  const translateFiles = fs
-    .readdirSync(translateDir)
-    .filter((file) => file.endsWith('.json') && file !== baseFileName)
-    .map((filename) => path.join(translateDir, filename))
-  const files = [...localeFiles, ...translateFiles]
 
   // Sync keys
   for (const filePath of files) {
@@ -159,6 +147,6 @@ function syncCatalog(localesDir: string, translateDir: string) {
   }
 }
 
-for (const { localesDir, translateDir } of catalogs) {
-  syncCatalog(localesDir, translateDir)
+for (const localesDir of catalogDirectories) {
+  syncCatalog(localesDir)
 }

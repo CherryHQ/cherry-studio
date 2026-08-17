@@ -3,7 +3,7 @@ import * as path from 'path'
 
 import { sortedObjectByKeys } from './sort'
 
-const baseLocale = process.env.BASE_LOCALE ?? 'zh-cn'
+const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const baseFileName = `${baseLocale}.json`
 
 const rendererLocalesDir = path.join(__dirname, '../src/renderer/i18n/locales')
@@ -15,7 +15,7 @@ type I18N = { [key: string]: I18NValue }
 
 /**
  * 递归检查目标对象与模板对象的键值结构是否完全一致（缺键、多键、嵌套结构不符都会抛错）。
- * 用于确保所有翻译文件与基准模板（中文翻译文件）保持相同的键值结构。
+ * 用于确保所有翻译文件与基准模板保持相同的键值结构。
  */
 function checkRecursively(target: I18N, template: I18N): void {
   for (const key in template) {
@@ -86,7 +86,7 @@ function readI18N(filePath: string): I18N {
  * 校验一组翻译文件：基准模板无重复键且有序，其余文件有序且与基准结构完全一致。
  *
  * @param label 分组名（用于报错信息，如 renderer / main）
- * @param baseFilePath 基准模板文件（通常是中文翻译）
+ * @param baseFilePath 基准模板文件
  * @param files 该组需要校验的全部翻译文件（含基准模板本身）
  */
 function checkCatalog(label: string, baseFilePath: string, files: string[]): I18N {
@@ -203,16 +203,10 @@ function checkMainKeyCoverage(mainBaseJson: I18N): void {
 }
 
 function checkTranslations(): void {
-  // Renderer catalog: only the human-authored locales/ files are structure-checked, matching
-  // historical behavior (the machine-translated translate/ files are validated by the sync job).
   checkCatalog('renderer', path.join(rendererLocalesDir, baseFileName), listJsonFiles(rendererLocalesDir))
 
-  // Main catalog: all 12 files (locales/ + translate/) must be aligned and sorted.
   const mainBaseFilePath = path.join(mainI18nDir, 'locales', baseFileName)
-  const mainFiles = [
-    ...listJsonFiles(path.join(mainI18nDir, 'locales')),
-    ...listJsonFiles(path.join(mainI18nDir, 'translate'))
-  ]
+  const mainFiles = listJsonFiles(path.join(mainI18nDir, 'locales'))
   const mainBaseJson = checkCatalog('main', mainBaseFilePath, mainFiles)
 
   checkMainKeyCoverage(mainBaseJson)

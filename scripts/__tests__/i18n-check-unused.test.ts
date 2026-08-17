@@ -12,7 +12,7 @@ import {
   type I18N,
   removeI18nKeys,
   selectKeysByGroups
-} from '../check-unused-i18n'
+} from '../i18n-check-unused'
 
 function createSourceFile(code: string, filePath = 'test.tsx') {
   const project = new Project({
@@ -24,7 +24,7 @@ function createSourceFile(code: string, filePath = 'test.tsx') {
   return project.createSourceFile(filePath, code, { overwrite: true })
 }
 
-describe('check-unused-i18n', () => {
+describe('i18n-check-unused', () => {
   describe('flattenI18nKeys', () => {
     it('flattens nested locale keys into dotted keys', () => {
       const locale: I18N = {
@@ -168,7 +168,7 @@ describe('check-unused-i18n', () => {
 
   describe('findSourceFiles', () => {
     it('includes app source directories named translate', () => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'unused-i18n-'))
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'i18n-unused-'))
       const translateDir = path.join(root, 'pages/translate')
       fs.mkdirSync(translateDir, { recursive: true })
       fs.writeFileSync(path.join(translateDir, 'TranslatePage.tsx'), "t('translate.detected.language')", 'utf-8')
