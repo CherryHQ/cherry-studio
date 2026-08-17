@@ -12,6 +12,7 @@ const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Reco
 const SelectContext = React.createContext<{ onValueChange?: (value: string) => void; value?: string }>({})
 
 export const MockCherrystudioUI = {
+  Badge: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
   Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean }) => {
     void loading
     return (
@@ -102,6 +103,20 @@ export const MockCherrystudioUI = {
   ),
   ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
   CustomTag: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
+  DescriptionSwitch: ({ checked, description, disabled, label, onCheckedChange, position = 'right' }: any) => (
+    <label data-position={position}>
+      <span>{label}</span>
+      {description && <span>{description}</span>}
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
+    </label>
+  ),
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
   DialogContent: ({ children, closeOnOverlayClick, showCloseButton, ...props }: any) => {
     void closeOnOverlayClick
@@ -115,6 +130,7 @@ export const MockCherrystudioUI = {
   DialogFooter: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   DialogHeader: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: { children?: ReactNode }) => <h2 {...props}>{children}</h2>,
+  Divider: (props: Record<string, unknown>) => <hr {...props} />,
   EmptyState: ({ description, title }: { description?: string; title: string }) => (
     <div>
       <h2>{title}</h2>

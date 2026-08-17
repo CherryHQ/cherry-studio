@@ -104,6 +104,13 @@
     "save_as_html": "儲存為 HTML",
     "save_as_pdf": "儲存為 PDF",
     "save_file": "儲存檔案",
+    "screen_capture_permission": {
+      "cancel": "[to be translated]:Cancel",
+      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
+      "open_settings": "[to be translated]:Open System Settings",
+      "title": "[to be translated]:Screen Recording Permission"
+    },
     "select_folder": "選擇資料夾",
     "word_document": "Word 文件"
   },

@@ -69,7 +69,19 @@ const packages = [
   '@aiany/sqlite-vec-linux-arm64',
   '@aiany/sqlite-vec-linux-x64',
   '@aiany/sqlite-vec-windows-arm64',
-  '@aiany/sqlite-vec-windows-x64'
+  '@aiany/sqlite-vec-windows-x64',
+  // Screen capture backend. Its platform binaries are npm sibling packages, not nested
+  // under the main package, so they are declared in optionalDependencies like every other
+  // family here — that is what puts them at top-level node_modules where the keep/exclude
+  // filters and the asarUnpack glob can see them. loong64 is omitted: not a target arch.
+  'node-screenshots-darwin-arm64',
+  'node-screenshots-darwin-x64',
+  'node-screenshots-linux-arm64-gnu',
+  'node-screenshots-linux-x64-gnu',
+  'node-screenshots-linux-x64-musl',
+  'node-screenshots-win32-arm64-msvc',
+  'node-screenshots-win32-ia32-msvc',
+  'node-screenshots-win32-x64-msvc'
 ]
 
 const platformToArch = {

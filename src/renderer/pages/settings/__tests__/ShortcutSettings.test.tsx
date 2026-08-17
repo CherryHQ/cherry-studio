@@ -33,6 +33,16 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+// The page reads `?command=<id>` to focus one row; rendered without a router, the real hook
+// throws. Tests set this to choose which row (if any) arrives focused.
+const { routerSearch } = vi.hoisted(() => ({ routerSearch: { current: {} as { command?: string } } }))
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => routerSearch.current
+}))
+
+// jsdom ships no scrollIntoView, and the focused row calls it on mount.
+Element.prototype.scrollIntoView = vi.fn()
+
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof RendererConstantModule
 
@@ -132,19 +142,21 @@ const makeShortcut = ({
   command = 'app.search',
   binding = [],
   enabled = binding.length > 0,
-  defaultPreference = { binding: [], enabled: false }
+  defaultPreference = { binding: [], enabled: false },
+  label = 'Search everywhere'
 }: {
   command?: CommandId
   binding?: ShortcutBinding
   enabled?: boolean
   defaultPreference?: PreferenceShortcutType
+  label?: string
 } = {}): ShortcutListItem => {
   const key = commandShortcutPreferenceKey(command)
 
   return {
     command,
     key,
-    label: 'Search everywhere',
+    label,
     group: 'general',
     keybinding: {
       command,
@@ -169,6 +181,7 @@ const renderShortcutSettings = (onKeyDown?: React.KeyboardEventHandler<HTMLDivEl
 
 describe('ShortcutSettings shortcut recorder', () => {
   beforeEach(() => {
+    routerSearch.current = {}
     shortcutsMock.shortcuts = [makeShortcut()]
     shortcutsMock.updatePreference.mockReset()
     shortcutsMock.updatePreference.mockResolvedValue(undefined)
@@ -266,5 +279,32 @@ describe('ShortcutSettings shortcut recorder', () => {
         'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
       })
     })
+  })
+
+  // Pages that own a feature but not its shortcut link here with `?command=<id>`. Landing on
+  // an unmarked list leaves the user to find the row themselves, which is the whole problem.
+  it('marks the row named by the command search param', () => {
+    shortcutsMock.shortcuts = [
+      makeShortcut({ command: 'app.search', label: 'Search everywhere' }),
+      makeShortcut({ command: 'tab.next', label: 'Next tab' })
+    ]
+    routerSearch.current = { command: 'tab.next' }
+
+    const { container } = renderShortcutSettings()
+
+    const focused = container.querySelectorAll('[data-focused]')
+    expect(focused).toHaveLength(1)
+    expect(focused[0]?.textContent).toContain('Next tab')
+  })
+
+  it('marks nothing when no command is named', () => {
+    shortcutsMock.shortcuts = [
+      makeShortcut({ command: 'app.search', label: 'Search everywhere' }),
+      makeShortcut({ command: 'tab.next', label: 'Next tab' })
+    ]
+
+    const { container } = renderShortcutSettings()
+
+    expect(container.querySelectorAll('[data-focused]')).toHaveLength(0)
   })
 })

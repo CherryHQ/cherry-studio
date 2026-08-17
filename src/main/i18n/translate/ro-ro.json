@@ -104,6 +104,13 @@
     "save_as_html": "Salvează ca HTML",
     "save_as_pdf": "Salvează ca PDF",
     "save_file": "Salvează fișier",
+    "screen_capture_permission": {
+      "cancel": "[to be translated]:Cancel",
+      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
+      "open_settings": "[to be translated]:Open System Settings",
+      "title": "[to be translated]:Screen Recording Permission"
+    },
     "select_folder": "Selectează directorul",
     "word_document": "Document Word"
   },

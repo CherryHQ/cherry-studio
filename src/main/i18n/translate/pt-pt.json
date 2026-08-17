@@ -104,6 +104,13 @@
     "save_as_html": "Guardar como HTML",
     "save_as_pdf": "Guardar como PDF",
     "save_file": "Guardar Ficheiro",
+    "screen_capture_permission": {
+      "cancel": "[to be translated]:Cancel",
+      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
+      "open_settings": "[to be translated]:Open System Settings",
+      "title": "[to be translated]:Screen Recording Permission"
+    },
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"
   },
