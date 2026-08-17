@@ -58,8 +58,8 @@ bottom of this document — read them.
 3. **Add i18n keys** for the runtime option label (`labelKey`) and
    `agent.tools.builtin.<id>.*` entries for each builtin tool. Add the canonical English
    and Chinese reference values to `src/renderer/i18n/locales/{en-us,zh-cn}.json`, run
-   `pnpm i18n:sync`, then use Claude Code to translate every remaining locale. Finish with
-   `pnpm i18n:check` and `pnpm i18n:validate`.
+   `pnpm i18n:sync`, then translate every remaining locale manually or with an available
+   translation tool. Finish with `pnpm i18n:check` and `pnpm i18n:validate`.
 
 ## Step 2 — main-process driver package
 
