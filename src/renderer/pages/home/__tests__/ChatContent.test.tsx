@@ -64,14 +64,21 @@ function useExecutionOverlayMock(topicId: string, executions: ActiveExecution[])
         decision: { move: string } | undefined,
         previous: string | null
       ) =>
-        setSeed({
-          topicId,
-          messages,
-          executions: openedExecutions,
-          activeNodeOverride:
-            decision?.move === 'keep' || !messages.at(-1)?.id
-              ? null
-              : { previousActiveNodeId: previous, activeNodeId: messages.at(-1)!.id }
+        // Accumulates like the real service (`entry.optimisticMessages.set(...)`): a later
+        // seed (e.g. the stream-open ack) must not drop earlier reservations (forked user).
+        setSeed((prev) => {
+          const prevSeed = prev.topicId === topicId ? prev : { messages: [], executions: [], activeNodeOverride: null }
+          const merged = new Map(prevSeed.messages.map((message) => [message.id, message]))
+          for (const message of messages) merged.set(message.id, message)
+          return {
+            topicId,
+            messages: [...merged.values()],
+            executions: [...prevSeed.executions, ...openedExecutions],
+            activeNodeOverride:
+              decision?.move === 'keep' || !messages.at(-1)?.id
+                ? prevSeed.activeNodeOverride
+                : { previousActiveNodeId: previous, activeNodeId: messages.at(-1)!.id }
+          }
         }))
   }
 }
@@ -1111,6 +1118,28 @@ describe('ChatContent', () => {
         isError: false
       })
     })
+
+    // Simulate the post-finish convergence the mocked transport/overlay would do:
+    // the settled execution leaves activeExecutions and the overlay retires its view.
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate,
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages,
+      activeExecutions: []
+    })
+    mockExecutionOverlay.current = {
+      overlay: {},
+      liveAssistants: [],
+      optimisticMessages: [],
+      projectedExecutions: [],
+      activeNodeOverride: null,
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1)
