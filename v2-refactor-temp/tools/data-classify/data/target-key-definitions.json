@@ -717,8 +717,8 @@
       "targetKey": "shortcut.screenshot.capture",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
-        "binding": [],
-        "enabled": false
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
