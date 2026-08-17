@@ -66,7 +66,7 @@ import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { TERMINAL_TASK_STATUSES } from '@shared/ai/agentSessionBackgroundTasks'
+import { isTerminalAgentSessionTaskStatus } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentWorkflowAgentProgress } from '@shared/ai/agentWorkflowProgress'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
@@ -956,7 +956,7 @@ function isLocalWorkflowRunTask(task: AgentRunTask): boolean {
 }
 
 function isRunTaskTerminal(task: AgentRunTask): boolean {
-  return TERMINAL_TASK_STATUSES.has(task.status)
+  return isTerminalAgentSessionTaskStatus(task.status)
 }
 
 function compareRunTaskTimestamps(left: string | undefined, right: string | undefined, newestFirst = false): number {
@@ -1076,16 +1076,15 @@ function WorkflowAgentStatusSquare({
 
   return (
     <>
-      <span
-        {...(withLabel ? { 'aria-hidden': true } : { 'aria-label': label, role: 'img', title: label })}
-        className={cn('size-2.5 shrink-0 rounded-xs', stateClassName)}
-      />
+      <span aria-hidden title={label} className={cn('size-2.5 shrink-0 rounded-xs', stateClassName)} />
       {withLabel ? (
         <>
           <span className="min-w-0 flex-1 truncate">{agent.label}</span>
           <span className="sr-only">{` · ${statusLabel}`}</span>
         </>
-      ) : null}
+      ) : (
+        <span className="sr-only">{label}</span>
+      )}
     </>
   )
 }
@@ -1117,7 +1116,7 @@ function WorkflowPhaseAccordion({
           key={`${phase.index}-${phase.title}`}
           value={String(phase.index)}
           className="overflow-hidden rounded-md border border-border-subtle bg-background-subtle first:border-t last:border-b">
-          <AccordionTrigger aria-label={phase.title} className="min-w-0 px-2.5 py-2 font-normal hover:no-underline">
+          <AccordionTrigger className="min-w-0 px-2.5 py-2 font-normal hover:no-underline">
             <div className="min-w-0 flex-1">
               <div title={phase.title} className="truncate text-foreground text-xs leading-5">
                 {phase.title}
@@ -1423,7 +1422,7 @@ function ShellRunTaskCard({
                 successFeedback="icon"
                 size={13}
                 aria-label={t('agent.right_pane.status.copy_all')}
-                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 outline-none focus-visible:bg-accent"
               />
             </div>
           </AccordionContent>
@@ -1475,9 +1474,7 @@ function WorkflowRunTaskCard({
         <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
           <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
             {phases.length > 0 ? (
-              <AccordionTrigger
-                aria-label={t('agent.right_pane.status.toggle_workflow', { name: title })}
-                className="min-w-0 items-start gap-2 rounded-none px-2.5 py-2 font-normal hover:bg-accent/50 hover:no-underline">
+              <AccordionTrigger className="min-w-0 items-start gap-2 rounded-none px-2.5 py-2 font-normal hover:bg-accent/50 hover:no-underline">
                 {summary}
               </AccordionTrigger>
             ) : (

@@ -1729,14 +1729,14 @@ export class AgentSessionMessageService {
       if (!existingRow) return
 
       const parts = existingRow.data.parts ?? []
-      const index = parts.findIndex(
-        (part) =>
+      const existingCheckpoint = parts.find(
+        (part): part is Extract<CherryMessagePart, { type: 'data-agent-task-event' }> =>
           isDataUIPart(part) &&
           part.type === 'data-agent-task-event' &&
           part.data.taskId === event.taskId &&
           part.data.workflow !== undefined
       )
-      const existingCheckpoint = index >= 0 && isDataUIPart(parts[index]) ? parts[index] : undefined
+      const index = existingCheckpoint ? parts.indexOf(existingCheckpoint) : -1
       const checkpoint = {
         type: 'data-agent-task-event',
         id: existingCheckpoint?.id ?? `task-${event.taskId}-workflow-checkpoint`,

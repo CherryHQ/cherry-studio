@@ -3516,6 +3516,60 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
+    it('uses SDK workflow_progress without synchronously reading a non-terminal snapshot', () => {
+      const fixture = createWorkflowFixture()
+      try {
+        fixture.writeSnapshot({ padding: 'x'.repeat(1_048_576) })
+        const { adapter, statusEvents } = createAdapter()
+        launchWorkflow(adapter, fixture)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          task_type: 'local_workflow',
+          workflow_name: 'review-pr',
+          prompt: fixture.script
+        } as any)
+        loggerMocks.warn.mockClear()
+
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_progress',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          workflow_progress: [
+            { type: 'workflow_phase', index: 1, title: 'Review' },
+            {
+              type: 'workflow_agent',
+              index: 1,
+              label: 'reviewer:main',
+              phaseIndex: 1,
+              phaseTitle: 'Review',
+              state: 'progress',
+              tokens: 120,
+              toolCalls: 2
+            }
+          ]
+        } as any)
+
+        expect(statusEvents.at(-1)?.data.workflow).toMatchObject({
+          totalTokens: 120,
+          totalToolCalls: 2,
+          workflowProgress: expect.arrayContaining([
+            expect.objectContaining({ label: 'reviewer:main', state: 'running', tokens: 120, toolCalls: 2 })
+          ])
+        })
+        expect(loggerMocks.warn).not.toHaveBeenCalledWith('Skipped oversized workflow snapshot', expect.anything())
+      } finally {
+        fixture.cleanup()
+      }
+    })
+
     it('accumulates running workflow Agent transcript stats from new steps', () => {
       const fixture = createWorkflowFixture()
       const agentId = 'agent-live'
@@ -3988,8 +4042,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         } as any)
 
         const eventsBeforeRetries = statusEvents.length
-        // The retry budget is bounded: five one-second attempts, then the state is released.
-        for (let attempt = 0; attempt < 5; attempt += 1) {
+        // The retry budget is bounded: two retries remain live, then the third attempt releases it.
+        for (let attempt = 0; attempt < 2; attempt += 1) {
           vi.advanceTimersByTime(1000)
           expect((adapter as any).pendingTerminalWorkflowEvents.size).toBe(1)
         }
@@ -4075,6 +4129,89 @@ describe('ClaudeCodeStreamAdapter', () => {
               toolCalls: 1
             })
           ])
+        })
+      } finally {
+        fixture.cleanup()
+      }
+    })
+
+    it('continues a workflow transcript across bounded read passes', () => {
+      const fixture = createWorkflowFixture()
+      const agentId = 'agent-bounded-passes'
+      const transcriptPath = path.join(fixture.transcriptDir, `agent-${agentId}.jsonl`)
+      const assistantLine = (id: string, inputTokens: number, outputTokens: number, toolId: string) =>
+        JSON.stringify({
+          type: 'assistant',
+          uuid: crypto.randomUUID(),
+          message: {
+            id,
+            usage: {
+              input_tokens: inputTokens,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+              output_tokens: outputTokens
+            },
+            content: [
+              { type: 'text', text: 'x'.repeat(300_000) },
+              { type: 'tool_use', id: toolId, name: 'Read', input: {} }
+            ]
+          }
+        })
+      try {
+        writeFileSync(
+          transcriptPath,
+          `${assistantLine('message-first', 100, 20, 'tool-first')}\n${assistantLine(
+            'message-second',
+            200,
+            30,
+            'tool-second'
+          )}\n`
+        )
+        const { adapter, statusEvents } = createAdapter()
+        launchWorkflow(adapter, fixture)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          task_id: fixture.taskId,
+          tool_use_id: 'workflow-tool-use',
+          task_type: 'local_workflow',
+          workflow_name: 'review-pr',
+          prompt: fixture.script
+        } as any)
+        const emitProgress = () =>
+          adapter.handleMessage({
+            type: 'system',
+            subtype: 'task_progress',
+            session_id: 'sdk-1',
+            uuid: crypto.randomUUID(),
+            task_id: fixture.taskId,
+            tool_use_id: 'workflow-tool-use',
+            workflow_progress: [
+              { type: 'workflow_phase', index: 1, title: 'Review' },
+              {
+                type: 'workflow_agent',
+                index: 1,
+                label: 'reviewer:main',
+                phaseIndex: 1,
+                phaseTitle: 'Review',
+                agentId,
+                state: 'progress'
+              }
+            ]
+          } as any)
+
+        emitProgress()
+        expect(statusEvents.at(-1)?.data.workflow).toMatchObject({
+          totalCumulativeTokens: 120,
+          totalToolCalls: 1
+        })
+
+        emitProgress()
+        expect(statusEvents.at(-1)?.data.workflow).toMatchObject({
+          totalCumulativeTokens: 350,
+          totalToolCalls: 2
         })
       } finally {
         fixture.cleanup()

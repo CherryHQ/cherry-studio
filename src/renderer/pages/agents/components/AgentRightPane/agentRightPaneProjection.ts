@@ -18,10 +18,14 @@ import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/t
 import {
   type AgentSessionBackgroundTasks,
   type AgentSessionTaskEvents,
-  mergeAgentSessionTaskEvent,
-  TERMINAL_TASK_STATUSES
+  isTerminalAgentSessionTaskStatus,
+  mergeAgentSessionTaskEvent
 } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import {
+  isClaudeCodeAgentLaunchReceipt,
+  splitClaudeCodeAgentCompletionReceipt
+} from '@shared/ai/claudeCodeInternalProtocol'
 import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -209,6 +213,12 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
+function getToolOutputText(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
+  if (resolvedOutput !== undefined) return textFromContent(resolvedOutput)
+  if (!part) return undefined
+  return textFromContent(getToolPartOutput(part))
+}
+
 const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfully.'
 
 function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
@@ -272,26 +282,6 @@ function getOrderedMessageParts(
 
 function isTerminalToolState(state: string | undefined): boolean {
   return state === 'output-available' || state === 'output-error' || state === 'output-denied' || state === 'cancelled'
-}
-
-const INTERNAL_AGENT_LAUNCH_RECEIPT_PREFIXES = [
-  'Async agent launched successfully. (This tool result is internal metadata',
-  'Remote agent launched successfully. (This tool result is internal metadata'
-] as const
-
-function isInternalAgentLaunchReceipt(text: string): boolean {
-  return INTERNAL_AGENT_LAUNCH_RECEIPT_PREFIXES.some((prefix) => text.startsWith(prefix))
-}
-
-function splitAgentCompletionReceipt(text: string): { text: string; receipt?: string } {
-  const match = text.match(
-    /(?:^|\r?\n)[ \t]*(?:<usage>\s*)?(agentId:\s+\S+[\s\S]*?)(?:\s*<usage>\s*)?(subagent_tokens:\s+\d+\s+tool_uses:\s+\d+\s+duration_ms:\s+\d+)\s*(?:<\/usage>)?\s*$/
-  )
-  if (!match || match.index === undefined) return { text }
-  return {
-    text: text.slice(0, match.index).trimEnd(),
-    receipt: `${match[1].trimEnd()}\n${match[2].trim()}`
-  }
 }
 
 export function buildAgentToolFlowProjection(
@@ -381,20 +371,21 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    const selectedOutput =
-      selectedToolOutput !== undefined
-        ? selectedToolOutput
-        : selectedToolPart
-          ? getToolPartOutput(selectedToolPart)
-          : undefined
-    const selectedOutputText = textFromContent(selectedOutput)
-    // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
-    // actual conversation already arrives through the child flow parts collected above.
-    if (selectedOutputText) {
-      if (isInternalAgentLaunchReceipt(selectedOutputText)) {
-        launchReceipt = selectedOutputText
-      } else if (!isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)) {
-        const separated = splitAgentCompletionReceipt(selectedOutputText)
+    const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
+    if (outputText) {
+      if (isClaudeCodeAgentLaunchReceipt(outputText)) {
+        launchReceipt = outputText
+      } else if (
+        !isBackgroundAgentLaunchReceipt(
+          selectedToolOutput !== undefined
+            ? selectedToolOutput
+            : selectedToolPart
+              ? getToolPartOutput(selectedToolPart)
+              : undefined,
+          outputText
+        )
+      ) {
+        const separated = splitClaudeCodeAgentCompletionReceipt(outputText)
         if (separated.text) assistantParts.push({ type: 'text', text: separated.text } as CherryMessagePart)
         completionReceipt = separated.receipt
       }
@@ -574,7 +565,7 @@ function applyAgentTaskEvent(
   const isBackgrounded = mergedData.isBackgrounded ?? existing?.isBackgrounded
   const workflowSnapshot = mergedData.workflow ?? existing?.workflow
   const workflow =
-    workflowSnapshot && TERMINAL_TASK_STATUSES.has(status)
+    workflowSnapshot && isTerminalAgentSessionTaskStatus(status)
       ? settleActiveWorkflowAgents(workflowSnapshot, status === 'completed' ? 'completed' : 'interrupted')
       : workflowSnapshot
 
@@ -700,18 +691,24 @@ export function buildAgentRightPaneStatus(
     applyAgentTaskEvent(runTaskMap, taskEventMap, data)
   }
 
-  // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
-  // app restart means it never will. Foreground liveness belongs to the originating assistant row,
-  // while a detached task remains live only while the runtime aggregate still contains it.
+  // Explicitly detached tasks are dead once the authoritative aggregate drops them. For an event
+  // that has not declared detachment, the turn-result → background_tasks_changed handoff leaves a
+  // short window with neither authority live; keep that ambiguous state neutral instead of flashing
+  // an error and interrupting workflow agents that may still be running.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
-      if (TERMINAL_TASK_STATUSES.has(task.status)) continue
+      if (isTerminalAgentSessionTaskStatus(task.status)) continue
       const originMessageId = runTaskOriginMessageIds.get(id)
       const originIsLive = Boolean(originMessageId && liveness.activeMessageIds.has(originMessageId))
       const aggregateIsLive = aggregateTaskIds.has(id)
       const isDetached = taskEventMap.get(id)?.isBackgrounded === true
       const isLive = aggregateIsLive || (!isDetached && originIsLive)
       if (isLive) continue
+      const anotherMessageIsLive = [...liveness.activeMessageIds].some((messageId) => messageId !== originMessageId)
+      if (!isDetached && !anotherMessageIsLive) {
+        runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
+        continue
+      }
       const workflow = task.workflow ? settleActiveWorkflowAgents(task.workflow, 'interrupted') : undefined
       runTaskMap.set(id, {
         ...task,

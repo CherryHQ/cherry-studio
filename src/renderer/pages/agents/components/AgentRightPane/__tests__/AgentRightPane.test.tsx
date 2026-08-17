@@ -1253,7 +1253,10 @@ describe('AgentRightPane', () => {
 
     const preview = screen.getByTestId('status-shortcut-preview')
     const contextUsage = within(preview).getByTestId('context-usage')
-    const taskButton = within(preview).getByTitle('agent.right_pane.status.view_details')
+    const taskButton = within(preview).getByRole('button', {
+      name: /Inspect task state.*agent\.right_pane\.status\.total.*2\.4K.*agent\.right_pane\.status\.context_size.*800.*agent\.right_pane\.status\.tools.*7/
+    })
+    expect(taskButton).not.toHaveAttribute('aria-label')
     expect(contextUsage.compareDocumentPosition(taskButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
@@ -1574,8 +1577,9 @@ describe('AgentRightPane', () => {
     expect(screen.getByText('agent.right_pane.status.context_size·2K')).toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.tools·7')).toBeInTheDocument()
     const workflowButton = screen.getByRole('button', {
-      name: 'agent.right_pane.status.toggle_workflow'
+      name: /review-pr.*agent\.right_pane\.status\.workflow_state\.running/
     })
+    expect(workflowButton).not.toHaveAttribute('aria-label')
     expect(workflowButton).toHaveAttribute('aria-expanded', 'true')
     expect(within(workflowButton).getByText('review-pr')).toBeInTheDocument()
     expect(
@@ -1585,32 +1589,42 @@ describe('AgentRightPane', () => {
     const workflowDescription = within(workflowButton).getByText('Review the pull request with specialist agents')
     expect(workflowDescription).toBeInTheDocument()
     const phaseTitle = 'Inspect renderer files with a deliberately long phase name'
-    expect(screen.getByRole('button', { name: phaseTitle })).toBeInTheDocument()
+    const phaseButtonName = new RegExp(phaseTitle)
+    expect(screen.getByRole('button', { name: phaseButtonName })).toBeInTheDocument()
 
     await user.click(workflowDescription)
     expect(workflowButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: phaseTitle })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: phaseButtonName })).not.toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.total·5.6K')).toBeInTheDocument()
     expect(screen.getByText('agent.right_pane.status.context_size·2K')).toBeInTheDocument()
 
     await user.click(workflowButton)
-    const phaseButton = screen.getByRole('button', { name: phaseTitle })
+    const phaseButton = screen.getByRole('button', {
+      name: /Inspect renderer files.*Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap.*agent\.right_pane\.status\.workflow_state\.running.*Inspect:tests.*agent\.right_pane\.status\.workflow_state\.completed/
+    })
     expect(phaseButton).toBeInTheDocument()
-    expect(phaseButton).toHaveAttribute('aria-label', phaseTitle)
+    expect(phaseButton).not.toHaveAttribute('aria-label')
     expect(phaseButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByTitle(phaseTitle)).toBeInTheDocument()
-    const summarySquares = within(phaseButton).getAllByRole('img')
-    expect(summarySquares.map((square) => square.getAttribute('aria-label'))).toEqual([
-      'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap · agent.right_pane.status.workflow_state.running',
-      'Inspect:tests · agent.right_pane.status.workflow_state.completed'
-    ])
+    const summarySquares = [
+      within(phaseButton).getByTitle(
+        'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap · agent.right_pane.status.workflow_state.running'
+      ),
+      within(phaseButton).getByTitle('Inspect:tests · agent.right_pane.status.workflow_state.completed')
+    ]
+    expect(summarySquares[0]).toHaveAttribute('aria-hidden', 'true')
+    expect(summarySquares[1]).toHaveAttribute('aria-hidden', 'true')
     // The user explicitly requires solid status-square colors to match each workflow state.
     expect(summarySquares[0]).toHaveClass('size-2.5', 'rounded-xs', 'bg-info')
     expect(summarySquares[1]).toHaveClass('size-2.5', 'rounded-xs', 'bg-muted-foreground')
     expect(
-      within(phaseButton).queryByText('Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap')
-    ).not.toBeInTheDocument()
-    expect(within(phaseButton).queryByText('Inspect:tests')).not.toBeInTheDocument()
+      within(phaseButton).getByText(
+        'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap · agent.right_pane.status.workflow_state.running'
+      )
+    ).toHaveClass('sr-only')
+    expect(
+      within(phaseButton).getByText('Inspect:tests · agent.right_pane.status.workflow_state.completed')
+    ).toHaveClass('sr-only')
     expect(screen.queryByText('agent.right_pane.status.agent')).not.toBeInTheDocument()
 
     await user.click(phaseButton)
@@ -1667,7 +1681,7 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('region', { name: 'agent.right_pane.status.running' })).not.toBeInTheDocument()
     const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
-    const completedPhaseButton = within(completed).getByRole('button', { name: phaseTitle })
+    const completedPhaseButton = within(completed).getByRole('button', { name: phaseButtonName })
     expect(completedPhaseButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(completedPhaseButton)
     expect(within(completed).getByRole('table')).toBeInTheDocument()
@@ -1721,10 +1735,14 @@ describe('AgentRightPane', () => {
       fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
       const workflowButton = screen.getByRole('button', {
-        name: 'agent.right_pane.status.toggle_workflow'
+        name: /Live workflow time.*agent\.right_pane\.status\.workflow_state\.running/
       })
       expect(within(workflowButton).getByText('10s')).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Inspect' }))
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: /Inspect.*Inspect:runtime.*agent\.right_pane\.status\.workflow_state\.running/
+        })
+      )
       expect(screen.getByText('1s')).toBeInTheDocument()
 
       act(() => {
@@ -1781,18 +1799,14 @@ describe('AgentRightPane', () => {
     )
     await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    const phaseButtons = screen.getAllByRole('button', { name: 'Review' })
+    const phaseButtons = screen.getAllByRole('button', { name: /^Review(?:\s|$)/ })
     expect(phaseButtons).toHaveLength(2)
     expect(
-      within(phaseButtons[0]).queryByRole('img', {
-        name: 'second-phase-agent · agent.right_pane.status.workflow_state.running'
-      })
+      within(phaseButtons[0]).queryByText('second-phase-agent · agent.right_pane.status.workflow_state.running')
     ).not.toBeInTheDocument()
     expect(
-      within(phaseButtons[1]).getByRole('img', {
-        name: 'second-phase-agent · agent.right_pane.status.workflow_state.running'
-      })
-    ).toBeInTheDocument()
+      within(phaseButtons[1]).getByText('second-phase-agent · agent.right_pane.status.workflow_state.running')
+    ).toHaveClass('sr-only')
   })
 
   it('moves a detached task from running to completed when authoritative membership is removed', async () => {
@@ -2019,8 +2033,11 @@ describe('AgentRightPane', () => {
       fireEvent.click(commandButton)
       expect(screen.getByText('ready on http://localhost:5173')).toBeInTheDocument()
 
+      const copyAllButton = screen.getByRole('button', { name: 'agent.right_pane.status.copy_all' })
+      // The focus-visible fill is the keyboard focus contract for this icon-only overlay action.
+      expect(copyAllButton).toHaveClass('focus-visible:bg-accent', 'outline-none')
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.status.copy_all' }))
+        fireEvent.click(copyAllButton)
         await Promise.resolve()
       })
       expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith('> pnpm dev\n\nready on http://localhost:5173')

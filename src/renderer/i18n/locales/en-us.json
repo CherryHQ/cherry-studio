@@ -188,7 +188,6 @@
   "agent.right_pane.status.task_progress_compact": "Step {{current}}/{{total}}",
   "agent.right_pane.status.tasks": "Tasks",
   "agent.right_pane.status.time": "Time",
-  "agent.right_pane.status.toggle_workflow": "Toggle {{name}} details",
   "agent.right_pane.status.tools": "Tools",
   "agent.right_pane.status.tools_active": "Active",
   "agent.right_pane.status.tools_done": "Done",

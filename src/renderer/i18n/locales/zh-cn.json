@@ -188,7 +188,6 @@
   "agent.right_pane.status.task_progress_compact": "步骤 {{current}}/{{total}}",
   "agent.right_pane.status.tasks": "任务",
   "agent.right_pane.status.time": "时间",
-  "agent.right_pane.status.toggle_workflow": "展开或折叠 {{name}} 的详情",
   "agent.right_pane.status.tools": "工具",
   "agent.right_pane.status.tools_active": "活跃",
   "agent.right_pane.status.tools_done": "完成",
