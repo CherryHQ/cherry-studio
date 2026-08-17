@@ -22,7 +22,8 @@ import type {
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
-  ReusableTopicPlaceholderQuery,
+  ReusableTopicPlaceholderResponse,
+  ReuseOrCreateTopicDto,
   TopicListItem,
   TopicSearchScope,
   TopicSortBy,
@@ -276,34 +277,42 @@ export class TopicService {
     return row ? rowToTopic(row.topic) : null
   }
 
-  /**
-   * Return the newest reusable placeholder for one exact creation owner.
-   * This is a domain read rather than a list-page scan: pin membership and
-   * manual list order cannot hide an older empty placeholder.
-   */
-  getReusablePlaceholder(query: ReusableTopicPlaceholderQuery): Topic | null {
-    const db = application.get('DbService').getDb()
-    const ownerFilter =
-      query.assistantId === 'unassigned' ? isNull(topicTable.assistantId) : eq(assistantTable.id, query.assistantId)
+  /** Reuse or create one exact empty placeholder under a serialized write transaction. */
+  reuseOrCreatePlaceholder(dto: ReuseOrCreateTopicDto): ReusableTopicPlaceholderResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
 
-    const [row] = db
-      .select({ topic: topicTable })
-      .from(topicTable)
-      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
-      .where(
-        and(
-          isNull(topicTable.deletedAt),
-          ownerFilter,
-          isNull(topicTable.activeNodeId),
-          eq(topicTable.isNameManuallyEdited, false),
-          sql`trim(${topicTable.name}) = ''`
+      const [reusable] = tx
+        .select({ topic: topicTable })
+        .from(topicTable)
+        .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+        .where(
+          and(
+            isNull(topicTable.deletedAt),
+            dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
+            dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
+            isNull(topicTable.activeNodeId),
+            eq(topicTable.isNameManuallyEdited, false),
+            sql`trim(${topicTable.name}) = ''`
+          )
         )
-      )
-      .orderBy(desc(topicTable.createdAt), desc(topicTable.updatedAt), asc(topicTable.id))
-      .limit(1)
-      .all()
+        .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+        .limit(1)
+        .all()
 
-    return row ? rowToTopic(row.topic) : null
+      if (reusable) return { row: reusable.topic, created: false }
+      return {
+        row: this.createTx(tx, { assistantId: dto.assistantId ?? undefined }),
+        created: true
+      }
+    })
+
+    if (result.created) {
+      this.notifyReadModelChange([result.row.id], 'membership')
+      logger.info('Created empty topic', { id: result.row.id })
+    }
+
+    return { topic: rowToTopic(result.row), created: result.created }
   }
 
   /** Monotonically advance a topic's activity time within the caller's write transaction. */
@@ -343,36 +352,35 @@ export class TopicService {
   }
 
   create(dto: CreateTopicDto): Topic {
-    const dbService = application.get('DbService')
-    const messageService = getDataService('MessageService')
-
-    const row = dbService.withWriteTx((tx) => {
-      const createdAt = Date.now()
-      const topicRow = insertWithOrderKey(
-        tx,
-        topicTable,
-        {
-          name: dto.name,
-          assistantId: dto.assistantId,
-          activeNodeId: null,
-          lastActivityAt: createdAt,
-          createdAt,
-          updatedAt: createdAt
-        },
-        {
-          pkColumn: topicTable.id,
-          position: 'first',
-          scope: TOPIC_ORDER_SCOPE
-        }
-      ) as TopicRow
-      messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
-    })
+    const row = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
     this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
+  }
+
+  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+    const createdAt = Date.now()
+    const topicRow = insertWithOrderKey(
+      tx,
+      topicTable,
+      {
+        name: dto.name,
+        assistantId: dto.assistantId,
+        activeNodeId: null,
+        lastActivityAt: createdAt,
+        createdAt,
+        updatedAt: createdAt
+      },
+      {
+        pkColumn: topicTable.id,
+        position: 'first',
+        scope: TOPIC_ORDER_SCOPE
+      }
+    ) as TopicRow
+    getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
+    return topicRow
   }
 
   duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {

@@ -1,5 +1,6 @@
 import { dataApiService } from '@renderer/data/DataApiService'
-import { AGENT_SESSION_DELETE_MAX_IDS, type AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_SESSION_DELETE_MAX_IDS } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { createContext, use, useCallback } from 'react'
 
 import { useAgentSessionStats } from './agent/useSession'
@@ -23,11 +24,10 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
         : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
     return result.topic
   }, [])
-  const loadReusableTopic = useCallback(async (assistantId: string | null) => {
-    const result = await dataApiService.get('/topics/reusable-placeholder', {
-      query: { assistantId: assistantId ?? 'unassigned' }
+  const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
+    return dataApiService.post('/topics/reusable-placeholder', {
+      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
     })
-    return result.topic
   }, [])
 
   return {
@@ -35,7 +35,7 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
     isStatsLoading: statsSource.isLoading,
     statsError: statsSource.error,
     loadLatestTopic,
-    loadReusableTopic
+    reuseOrCreateTopic
   }
 }
 
@@ -50,12 +50,14 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
     return result.session
   }, [])
-  const loadReusableSessions = useCallback(async (agentId: string, workspaceId?: AgentSessionWorkspaceScope) => {
-    const result = await dataApiService.get('/agent-sessions/reusable-placeholders', {
-      query: { agentId, ...(workspaceId ? { workspaceId } : {}) }
-    })
-    return result.sessions
-  }, [])
+  const reuseOrCreateSession = useCallback(
+    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
+      return dataApiService.post('/agent-sessions/reusable-placeholders', {
+        body: { agentId, workspace, ...(excludeSessionId ? { excludeSessionId } : {}) }
+      })
+    },
+    []
+  )
   const loadSessionIds = useCallback(async (agentId: string) => {
     const ids: string[] = []
 
@@ -85,7 +87,7 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
     refetchStats: statsSource.refetch,
     loadSession,
     loadLatestSession,
-    loadReusableSessions,
+    reuseOrCreateSession,
     loadSessionIds
   }
 }

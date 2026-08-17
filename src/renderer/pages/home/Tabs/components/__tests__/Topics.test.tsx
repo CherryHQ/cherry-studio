@@ -628,7 +628,10 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
     isStatsLoading: false,
     statsError: undefined,
     loadLatestTopic: vi.fn().mockResolvedValue(null),
-    loadReusableTopic: vi.fn().mockResolvedValue(null),
+    reuseOrCreateTopic: vi.fn().mockResolvedValue({
+      topic: createApiTopic({ id: 'topic-created', name: '' }),
+      created: true
+    }),
     stats: { total: items.length, pinnedCount: 0, byAssistant }
   }
 }
@@ -1220,6 +1223,138 @@ describe('Topics', () => {
     )
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a-replacement' }))
     expect(onClearActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('deleting the last unlinked topic selects the latest remaining topic instead of seeding a new unlinked one', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-unlinked',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'b',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined }),
+      assistantTopicsSource: {
+        ...createAssistantTopicsSource(),
+        loadLatestTopic: vi.fn(async (assistantId?: string | null) =>
+          assistantId === null
+            ? createApiTopic({
+                id: 'topic-a',
+                name: 'Alpha topic',
+                assistantId: 'assistant-1',
+                orderKey: 'a',
+                createdAt: '2026-01-03T01:00:00.000Z',
+                updatedAt: '2026-01-03T01:00:00.000Z'
+              })
+            : null
+        )
+      }
+    })
+
+    const topicRow = getTopicRow('Default topic')
+    const deleteButton = within(topicRow).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
+    // The unlinked assistant group is a display fallback, not a real assistant: deleting its last
+    // topic must not seed a fresh unlinked topic. Fall back to the latest remaining topic instead.
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' })))
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('deleting the sole unlinked topic resolves the replacement to a real assistant', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-unlinked',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'a'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined })
+    })
+
+    const topicRow = getTopicRow('Default topic')
+    const deleteButton = within(topicRow).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
+    // With no other topic left, the replacement must not be an unlinked topic either — omit the
+    // assistant id so HomePage resolves it to a real assistant (last-used / first-assistant).
+    await vi.waitFor(() => expect(onNewTopic).toHaveBeenCalledWith({ excludeReuseTopicId: 'topic-unlinked' }))
+  })
+
+  it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 200 }))
+    await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
   })
 
   it('shows the empty chat state without a creation action', () => {

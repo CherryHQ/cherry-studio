@@ -23,7 +23,6 @@ import { PromptBuilder } from '../prompt'
 
 const baseConfig: AgentConfiguration = {
   permission_mode: 'bypassPermissions',
-  max_turns: 100,
   env_vars: {}
 }
 

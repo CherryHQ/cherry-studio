@@ -2112,88 +2112,6 @@ describe('TopicService', () => {
     })
   })
 
-  describe('getReusablePlaceholder', () => {
-    it('selects the newest exact empty owner target independently of list position and pin state', async () => {
-      await dbh.db.insert(assistantTable).values([
-        {
-          id: 'asst-reusable',
-          name: 'Reusable owner',
-          emoji: '🌟',
-          settings: DEFAULT_ASSISTANT_SETTINGS,
-          orderKey: 'a0'
-        },
-        {
-          id: 'asst-reusable-deleted',
-          name: 'Deleted owner',
-          emoji: '🌟',
-          settings: DEFAULT_ASSISTANT_SETTINGS,
-          orderKey: 'a1',
-          deletedAt: 999
-        }
-      ])
-      await dbh.db.insert(topicTable).values([
-        {
-          id: 'owned-empty-old',
-          name: '  ',
-          assistantId: 'asst-reusable',
-          orderKey: 'z9',
-          createdAt: 10,
-          updatedAt: 10
-        },
-        {
-          id: 'owned-empty-new',
-          name: '',
-          assistantId: 'asst-reusable',
-          orderKey: 'z8',
-          createdAt: 20,
-          updatedAt: 20
-        },
-        {
-          id: 'owned-started-newer',
-          name: '',
-          assistantId: 'asst-reusable',
-          activeNodeId: 'message-1',
-          orderKey: 'a0',
-          createdAt: 30,
-          updatedAt: 30
-        },
-        {
-          id: 'owned-manual-newer',
-          name: '',
-          isNameManuallyEdited: true,
-          assistantId: 'asst-reusable',
-          orderKey: 'a1',
-          createdAt: 40,
-          updatedAt: 40
-        },
-        {
-          id: 'unassigned-empty',
-          name: '',
-          orderKey: 'a2',
-          createdAt: 50,
-          updatedAt: 50
-        },
-        {
-          id: 'deleted-owner-empty',
-          name: '',
-          assistantId: 'asst-reusable-deleted',
-          orderKey: 'a3',
-          createdAt: 60,
-          updatedAt: 60
-        }
-      ])
-      await dbh.db.insert(pinTable).values({
-        id: 'pin-owned-empty-new',
-        entityType: 'topic',
-        entityId: 'owned-empty-new',
-        orderKey: 'a0'
-      })
-
-      expect(topicService.getReusablePlaceholder({ assistantId: 'asst-reusable' })?.id).toBe('owned-empty-new')
-      expect(topicService.getReusablePlaceholder({ assistantId: 'unassigned' })?.id).toBe('unassigned-empty')
-    })
-  })
-
   describe('getLatestActive', () => {
     it('returns the globally most-recently-active non-deleted topic, independent of pin/order/updatedAt', async () => {
       const service = new TopicService()
@@ -2219,6 +2137,66 @@ describe('TopicService', () => {
       ])
 
       expect(service.getLatestActive()?.id).toBe('latest')
+    })
+
+    it('returns latest activity within a live or unlinked assistant scope', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'assistant-scoped',
+          name: 'Scoped',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'assistant-other',
+          name: 'Other',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        },
+        {
+          id: 'assistant-deleted-scope',
+          name: 'Deleted',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a2',
+          deletedAt: 100
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-scoped',
+          name: 'Scoped',
+          assistantId: 'assistant-scoped',
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'topic-other',
+          name: 'Other',
+          assistantId: 'assistant-other',
+          orderKey: 'a1',
+          lastActivityAt: 500
+        },
+        {
+          id: 'topic-unassigned',
+          name: 'Unassigned',
+          orderKey: 'a2',
+          lastActivityAt: 200
+        },
+        {
+          id: 'topic-deleted-owner',
+          name: 'Deleted owner',
+          assistantId: 'assistant-deleted-scope',
+          orderKey: 'a3',
+          lastActivityAt: 300
+        }
+      ])
+
+      expect(service.getLatestActive({ assistantId: 'assistant-scoped' })?.id).toBe('topic-scoped')
+      expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('topic-deleted-owner')
     })
 
     it('returns null when there are no topics', () => {
@@ -2339,6 +2317,80 @@ describe('TopicService', () => {
       ])
       expect(await readLastActivityAt('t1')).toBe(100)
       expect(await readLastActivityAt('t2')).toBe(200)
+    })
+  })
+
+  describe('reuseOrCreatePlaceholder', () => {
+    it('reuses the latest-updated structurally empty topic for the exact owner', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-reusable',
+        name: 'Reusable',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'created-later',
+          name: '',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a0',
+          createdAt: 300,
+          updatedAt: 200
+        },
+        {
+          id: 'updated-later',
+          name: '  ',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a1',
+          createdAt: 100,
+          updatedAt: 400
+        },
+        {
+          id: 'started',
+          name: '',
+          assistantId: 'assistant-reusable',
+          activeNodeId: 'message-id',
+          orderKey: 'a2',
+          updatedAt: 900
+        },
+        {
+          id: 'manually-named',
+          name: '',
+          assistantId: 'assistant-reusable',
+          isNameManuallyEdited: true,
+          orderKey: 'a3',
+          updatedAt: 800
+        },
+        { id: 'unassigned', name: '', orderKey: 'a4', updatedAt: 700 }
+      ])
+
+      expect(service.reuseOrCreatePlaceholder({ assistantId: 'assistant-reusable' })).toMatchObject({
+        topic: { id: 'updated-later' },
+        created: false
+      })
+      expect(service.reuseOrCreatePlaceholder({ assistantId: null })).toMatchObject({
+        topic: { id: 'unassigned' },
+        created: false
+      })
+    })
+
+    it('creates at most one reusable placeholder for repeated requests', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-create-placeholder',
+        name: 'Create placeholder',
+        emoji: '✨',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+
+      const first = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+      const second = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+
+      expect(first.created).toBe(true)
+      expect(second).toMatchObject({ topic: { id: first.topic.id }, created: false })
     })
   })
 })

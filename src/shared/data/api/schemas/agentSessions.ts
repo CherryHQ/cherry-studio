@@ -155,13 +155,13 @@ export const LatestAgentSessionQuerySchema = z.strictObject({
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
-/** Exact owner and optional workspace target for reusable empty-session lookup. */
-export const ReusableAgentSessionPlaceholdersQuerySchema = z.strictObject({
+/** Exact creation target for atomically reusing or creating an empty session. */
+export const ReuseOrCreateAgentSessionSchema = z.strictObject({
   agentId: ConcreteAgentIdSchema,
-  /** Concrete user workspace id, `system`, or omitted for every workspace. */
-  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+  workspace: AgentSessionWorkspaceSourceSchema,
+  excludeSessionId: z.string().min(1).optional()
 })
-export type ReusableAgentSessionPlaceholdersQuery = z.infer<typeof ReusableAgentSessionPlaceholdersQuerySchema>
+export type ReuseOrCreateAgentSessionDto = z.infer<typeof ReuseOrCreateAgentSessionSchema>
 
 /**
  * Query for `GET /agent-sessions/stats`. This endpoint accepts owner scope and
@@ -198,9 +198,11 @@ export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
 
-/** Every reusable empty session for the exact target, newest first. */
+/** The reusable empty session selected or created for the exact target. */
 export interface ReusableAgentSessionPlaceholdersResponse {
-  sessions: AgentSessionEntity[]
+  session: AgentSessionEntity
+  created: boolean
+  deletedDuplicateSessionIds: string[]
 }
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
@@ -265,12 +267,12 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Structurally empty, untitled placeholders for one live agent and optional
-   * exact workspace scope. This derived read is independent of list pagination.
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
    */
   '/agent-sessions/reusable-placeholders': {
-    GET: {
-      query: ReusableAgentSessionPlaceholdersQuery
+    POST: {
+      body: ReuseOrCreateAgentSessionDto
       response: ReusableAgentSessionPlaceholdersResponse
     }
   }
@@ -287,7 +289,6 @@ export type AgentSessionSchemas = {
       response: AgentSessionStats
     }
   }
-
   '/agent-sessions/:sessionId': {
     GET: {
       params: { sessionId: string }

@@ -120,7 +120,7 @@ const HomePage: FC = () => {
   })
   // Shared topic facts plus exact derived lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { stats: topicStats, loadLatestTopic, loadReusableTopic } = assistantTopicsSource
+  const { stats: topicStats, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -176,6 +176,7 @@ const HomePage: FC = () => {
   // (`null`) never navigates: the next selection or the recovery path owns the URL then.
   const setActiveTopicId = useCallback(
     (id: string | null) => {
+      ownerFallbackRequestIdRef.current += 1
       setActiveTopicIdState(id)
       if (id && !isMessageOnlyView) {
         void navigate({ to: '/app/chat', search: { topicId: id }, replace: true })
@@ -185,7 +186,11 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
+    ownerFallbackRequestIdRef.current += 1
     setActiveTopicIdState(routeActiveTopicId)
+    return () => {
+      ownerFallbackRequestIdRef.current += 1
+    }
   }, [routeActiveTopicId])
 
   const {
@@ -437,14 +442,11 @@ const HomePage: FC = () => {
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
-        // Reuse the assistant's newest exact empty placeholder, independent of list pagination.
-        const reusableApiTopic = await loadReusableTopic(assistantId)
-        const reusableTopic = reusableApiTopic ? mapApiTopicToRendererTopic(reusableApiTopic) : undefined
-
-        const rendererTopic = reusableTopic ?? mapApiTopicToRendererTopic(await createTopic({ assistantId }))
+        const result = await reuseOrCreateTopic(assistantId)
+        const rendererTopic = mapApiTopicToRendererTopic(result.topic)
 
         setActiveTopicAndCloseResourceView(rendererTopic)
-        if (!reusableTopic) {
+        if (result.created) {
           void refreshTopics().catch((err) => {
             logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
           })
@@ -456,14 +458,31 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [
-      createTopic,
-      loadReusableTopic,
-      refreshTopics,
-      resolveAssistantIdForSelection,
-      setActiveTopicAndCloseResourceView,
-      t
-    ]
+    [refreshTopics, resolveAssistantIdForSelection, reuseOrCreateTopic, setActiveTopicAndCloseResourceView, t]
+  )
+
+  const resolveEmptyTopic = useCallback(
+    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
+      const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
+      const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
+      const result =
+        reuseTargetAssistantId === undefined
+          ? {
+              topic: await createTopic({
+                ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+              }),
+              created: true
+            }
+          : await reuseOrCreateTopic(reuseTargetAssistantId, payload?.excludeReuseTopicId)
+
+      if (result.created) {
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after composer topic create', err as Error)
+        })
+      }
+      return mapApiTopicToRendererTopic(result.topic)
+    },
+    [createTopic, refreshTopics, resolveNewTopicAssistantTarget, reuseOrCreateTopic]
   )
 
   const createAndActivateEmptyTopic = useCallback(
@@ -471,32 +490,9 @@ const HomePage: FC = () => {
       if (isCreatingTopicRef.current) return null
       isCreatingTopicRef.current = true
       try {
-        const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
-        // The explicit default/unassigned group (`payload.assistantId === null`) resolves to no target
-        // assistant, but its empty placeholders must still be reused rather than restacked — mark it with
-        // `null` so the exact reusable-placeholder read targets "no assistant" topics.
-        const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
-        const reusableApiTopic =
-          reuseTargetAssistantId === undefined ? null : await loadReusableTopic(reuseTargetAssistantId)
-        const reusableTopic =
-          reusableApiTopic && reusableApiTopic.id !== payload?.excludeReuseTopicId
-            ? mapApiTopicToRendererTopic(reusableApiTopic)
-            : undefined
-        const rendererTopic =
-          reusableTopic ??
-          mapApiTopicToRendererTopic(
-            await createTopic({
-              ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-            })
-          )
-
-        setActiveTopicAndCloseResourceView(rendererTopic)
-        if (!reusableTopic) {
-          void refreshTopics().catch((err) => {
-            logger.warn('Failed to refresh topics after composer topic create', err as Error)
-          })
-        }
-        return rendererTopic
+        const topic = await resolveEmptyTopic(payload, options)
+        setActiveTopicAndCloseResourceView(topic)
+        return topic
       } catch (err) {
         logger.error('Failed to create empty topic', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
@@ -505,14 +501,7 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [
-      createTopic,
-      loadReusableTopic,
-      refreshTopics,
-      resolveNewTopicAssistantTarget,
-      setActiveTopicAndCloseResourceView,
-      t
-    ]
+    [resolveEmptyTopic, setActiveTopicAndCloseResourceView, t]
   )
 
   const createAndActivateFreshTopic = useCallback(
@@ -553,10 +542,8 @@ const HomePage: FC = () => {
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
-    (assistantId: string | null) => {
-      void createAndActivateEmptyTopic({ assistantId })
-    },
-    [createAndActivateEmptyTopic]
+    (assistantId: string | null) => resolveEmptyTopic({ assistantId }),
+    [resolveEmptyTopic]
   )
 
   // No first-entry auto-create here: `DefaultAssistantSeeder` seeds one topic into every fresh
@@ -578,25 +565,31 @@ const HomePage: FC = () => {
         setLastUsedAssistantId(null)
       }
 
-      const nextTopic = await loadLatestTopic()
-      if (!isCurrent()) return
-      if (nextTopic && setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))) {
-        return
-      }
-
-      const created = await createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
-      // Creation failed → don't leave the view on a topic that belonged to the deleted assistant.
-      if (!created && isCurrent()) {
+      try {
+        const nextTopic = await loadLatestTopic()
+        if (!isCurrent()) return
+        if (nextTopic) {
+          setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))
+          return
+        }
+        const created = await resolveEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
+        if (!isCurrent()) return
+        setActiveTopicAndCloseResourceView(created)
+      } catch (err) {
+        if (!isCurrent()) return
+        logger.error('Failed to settle chat after deleting active assistant', err as Error, { deletedAssistantId })
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
         reenterChatRoute()
       }
     },
     [
-      createAndActivateEmptyTopic,
       lastUsedAssistantId,
       loadLatestTopic,
       reenterChatRoute,
+      resolveEmptyTopic,
       setActiveTopicAndCloseResourceView,
-      setLastUsedAssistantId
+      setLastUsedAssistantId,
+      t
     ]
   )
 

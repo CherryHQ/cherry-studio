@@ -5,12 +5,13 @@ import { useRawAgentSessionsSource, useRawAssistantTopicsSource } from '../resou
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  post: vi.fn(),
   useAgentSessionStats: vi.fn(),
   useTopicStats: vi.fn()
 }))
 
 vi.mock('@renderer/data/DataApiService', () => ({
-  dataApiService: { get: mocks.get }
+  dataApiService: { get: mocks.get, post: mocks.post }
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
@@ -24,6 +25,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 describe('resourceViewSources', () => {
   beforeEach(() => {
     mocks.get.mockReset()
+    mocks.post.mockReset()
     mocks.useAgentSessionStats.mockReturnValue({
       stats: undefined,
       isLoading: false,
@@ -38,25 +40,25 @@ describe('resourceViewSources', () => {
     })
   })
 
-  it('loads the exact reusable topic independently of list streams', async () => {
-    mocks.get.mockResolvedValueOnce({ topic: null })
+  it('atomically reuses or creates a topic independently of list streams', async () => {
+    mocks.post.mockResolvedValueOnce({ topic: null, created: false })
     const { result } = renderHook(() => useRawAssistantTopicsSource())
 
-    await result.current.loadReusableTopic('assistant-a')
+    await result.current.reuseOrCreateTopic('assistant-a')
 
-    expect(mocks.get).toHaveBeenCalledWith('/topics/reusable-placeholder', {
-      query: { assistantId: 'assistant-a' }
+    expect(mocks.post).toHaveBeenCalledWith('/topics/reusable-placeholder', {
+      body: { assistantId: 'assistant-a' }
     })
   })
 
-  it('loads exact reusable sessions with an optional workspace scope', async () => {
-    mocks.get.mockResolvedValueOnce({ sessions: [] })
+  it('atomically reuses or creates a session for an exact workspace target', async () => {
+    mocks.post.mockResolvedValueOnce({ session: null, created: false, deletedDuplicateSessionIds: [] })
     const { result } = renderHook(() => useRawAgentSessionsSource())
 
-    await result.current.loadReusableSessions('agent-a', 'system')
+    await result.current.reuseOrCreateSession('agent-a', { type: 'system' })
 
-    expect(mocks.get).toHaveBeenCalledWith('/agent-sessions/reusable-placeholders', {
-      query: { agentId: 'agent-a', workspaceId: 'system' }
+    expect(mocks.post).toHaveBeenCalledWith('/agent-sessions/reusable-placeholders', {
+      body: { agentId: 'agent-a', workspace: { type: 'system' } }
     })
   })
 })

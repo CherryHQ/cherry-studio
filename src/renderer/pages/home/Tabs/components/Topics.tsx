@@ -90,7 +90,6 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { TopicListItem as ApiTopicListItem } from '@shared/data/api/schemas/topics'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -650,14 +649,29 @@ export function Topics({
     },
     [setActiveTopic]
   )
-  const activateOwnerTopic = useCallback(
-    (topic: ApiTopic) => commitActiveTopic(mapApiTopicToRendererTopic(topic)),
-    [commitActiveTopic]
+  const loadLatestTopicForOwner = useCallback(
+    async (assistantId: string) => {
+      const topic = await loadLatestTopic(assistantId)
+      return topic ? mapApiTopicToRendererTopic(topic) : null
+    },
+    [loadLatestTopic]
   )
-  const loadLatestTopicForOwner = useCallback((assistantId: string) => loadLatestTopic(assistantId), [loadLatestTopic])
+  const createTopicForOwner = useCallback(
+    async (assistantId: string) => (await onNewTopic?.({ assistantId })) ?? null,
+    [onNewTopic]
+  )
+  const handleOwnerActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate assistant topic group', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
   const { activateOwnerResource, cancelOwnerResourceActivation } = useOwnerResourceActivation({
     loadResourceForOwner: loadLatestTopicForOwner,
-    onActivateResource: activateOwnerTopic
+    createResourceForOwner: createTopicForOwner,
+    onActivateResource: commitActiveTopic,
+    onError: handleOwnerActivationError
   })
 
   useEffect(() => {
@@ -953,8 +967,19 @@ export function Topics({
       const latest = await loadLatestTopic(deletedTopic.assistantId ?? null)
       if (latest) return mapApiTopicToRendererTopic(latest)
 
+      if (!deletedTopic.assistantId) {
+        const globalLatest = await loadLatestTopic()
+        if (globalLatest) return mapApiTopicToRendererTopic(globalLatest)
+
+        return (
+          (await onNewTopic?.({
+            excludeReuseTopicId: deletedTopic.id
+          })) ?? null
+        )
+      }
+
       const replacement = await onNewTopic?.({
-        assistantId: deletedTopic.assistantId ?? null,
+        assistantId: deletedTopic.assistantId,
         excludeReuseTopicId: deletedTopic.id
       })
       return replacement ?? null

@@ -54,7 +54,7 @@ type AgentResourceListProps = {
   onManageAgents?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
-  onCreateSession: (agentId: string) => void | Promise<unknown>
+  onCreateSession: (agentId: string) => Promise<AgentSessionEntity | null>
   onShowMissingAgentSelection?: () => void | Promise<void>
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
@@ -117,6 +117,24 @@ export function AgentResourceList({
       ),
     [sessionStats?.byAgent]
   )
+  const handleActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate agent resource from classic-layout rail', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
+  const handleCreateSession = useCallback(
+    async (agentId: string) => {
+      try {
+        const session = await onCreateSession(agentId)
+        if (session) onSelectSession(session.id, session)
+      } catch (error) {
+        handleActivationError(error)
+      }
+    },
+    [handleActivationError, onCreateSession, onSelectSession]
+  )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
@@ -135,7 +153,7 @@ export function AgentResourceList({
                 type="button"
                 aria-label={t('agent.session.new')}
                 onClick={() => {
-                  void onCreateSession(agent.id)
+                  void handleCreateSession(agent.id)
                 }}>
                 <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
@@ -143,7 +161,7 @@ export function AgentResourceList({
           )
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
   const handlePickSession = useCallback(
@@ -164,7 +182,6 @@ export function AgentResourceList({
     },
     [t]
   )
-
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resourceCountByEntityId: sessionCountByAgentId,
@@ -174,6 +191,7 @@ export function AgentResourceList({
     onPickResource: handlePickSession,
     onCreateResource: onCreateSession,
     loadResourceForEntity: loadLatestSessionForAgent,
+    onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError

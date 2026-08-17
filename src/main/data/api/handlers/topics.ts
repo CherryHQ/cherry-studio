@@ -18,7 +18,7 @@ import {
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
-  ReusableTopicPlaceholderQuerySchema,
+  ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   TopicStatsQuerySchema,
@@ -52,9 +52,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   },
 
   '/topics/reusable-placeholder': {
-    GET: async ({ query }) => {
-      const parsed = ReusableTopicPlaceholderQuerySchema.parse(query)
-      return { topic: topicService.getReusablePlaceholder(parsed) }
+    POST: async ({ body }) => {
+      const parsed = ReuseOrCreateTopicSchema.parse(body)
+      return topicService.reuseOrCreatePlaceholder(parsed)
     }
   },
 

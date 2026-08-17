@@ -2,15 +2,17 @@ import { useCallback, useEffect, useRef } from 'react'
 
 type UseOwnerResourceActivationOptions<TOwner, TResource> = {
   loadResourceForOwner: (owner: TOwner) => Promise<TResource | null>
+  createResourceForOwner: (owner: TOwner) => Promise<TResource | null>
   onActivateResource: (resource: TResource) => void
-  onEmptyOwner?: (owner: TOwner) => void
+  onError: (error: unknown) => void
 }
 
-/** Shared owner-entry policy for grouped sidebars and two-pane owner selectors. */
+/** Resolve owner navigation without allowing an older request to overwrite a newer selection. */
 export function useOwnerResourceActivation<TOwner, TResource>({
   loadResourceForOwner,
+  createResourceForOwner,
   onActivateResource,
-  onEmptyOwner
+  onError
 }: UseOwnerResourceActivationOptions<TOwner, TResource>) {
   const requestGenerationRef = useRef(0)
 
@@ -18,23 +20,22 @@ export function useOwnerResourceActivation<TOwner, TResource>({
     requestGenerationRef.current += 1
   }, [])
 
-  useEffect(() => cancelOwnerResourceActivation, [cancelOwnerResourceActivation, loadResourceForOwner])
+  useEffect(() => cancelOwnerResourceActivation, [cancelOwnerResourceActivation])
 
   const activateOwnerResource = useCallback(
     async (owner: TOwner) => {
       const requestGeneration = ++requestGenerationRef.current
       try {
-        const resource = await loadResourceForOwner(owner)
+        let resource = await loadResourceForOwner(owner)
+        if (requestGeneration !== requestGenerationRef.current) return
+        if (!resource) resource = await createResourceForOwner(owner)
         if (requestGeneration !== requestGenerationRef.current) return
         if (resource) onActivateResource(resource)
-        else onEmptyOwner?.(owner)
       } catch (error) {
-        // A superseded lookup no longer represents the requested owner. The current
-        // lookup still rejects so each surface can report it through its normal UI.
-        if (requestGeneration === requestGenerationRef.current) throw error
+        if (requestGeneration === requestGenerationRef.current) onError(error)
       }
     },
-    [loadResourceForOwner, onActivateResource, onEmptyOwner]
+    [createResourceForOwner, loadResourceForOwner, onActivateResource, onError]
   )
 
   return { activateOwnerResource, cancelOwnerResourceActivation }

@@ -17,7 +17,7 @@ import {
   DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
-  ReusableAgentSessionPlaceholdersQuerySchema,
+  ReuseOrCreateAgentSessionSchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -58,10 +58,10 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/reusable-placeholders': {
-    GET: async ({ query }) => {
-      const parsed = ReusableAgentSessionPlaceholdersQuerySchema.safeParse(query)
+    POST: async ({ body }) => {
+      const parsed = ReuseOrCreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return { sessions: agentSessionService.listReusablePlaceholders(parsed.data) }
+      return agentSessionService.reuseOrCreatePlaceholder(parsed.data)
     }
   },
 

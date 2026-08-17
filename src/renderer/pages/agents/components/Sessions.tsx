@@ -370,7 +370,7 @@ const Sessions = ({
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
-  const { loadLatestSession, stats: globalSessionStats } = agentSessionsSource
+  const { loadLatestSession, reuseOrCreateSession, stats: globalSessionStats } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -727,9 +727,22 @@ const Sessions = ({
     [commitActiveSession]
   )
   const loadLatestSessionForOwner = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
+  const createSessionForOwner = useCallback(
+    async (agentId: string) => (await onCreateSession?.({ agentId })) ?? null,
+    [onCreateSession]
+  )
+  const handleOwnerActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate agent session group', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+    },
+    [t]
+  )
   const { activateOwnerResource, cancelOwnerResourceActivation } = useOwnerResourceActivation({
     loadResourceForOwner: loadLatestSessionForOwner,
-    onActivateResource: activateOwnerSession
+    createResourceForOwner: createSessionForOwner,
+    onActivateResource: activateOwnerSession,
+    onError: handleOwnerActivationError
   })
 
   useEffect(() => {
@@ -1051,14 +1064,43 @@ const Sessions = ({
         sessionItemsRef.current.find((candidate) => candidate.id === id)
       if (!session) return
 
-      await coordinateSessionRemoval({
+      const wasActive = activeSessionIdRef.current === id
+      const removed = await coordinateSessionRemoval({
         item: session,
         displayedItems: filteredGroupedSessions,
         groupOrder: sessionGroupSeeds.map((group) => group.id),
         commit: () => deleteSession(id)
       })
+
+      if (removed === false || wasActive || !session.agentId) return
+
+      const latest = await loadLatestSession(session.agentId)
+      if (latest) return
+
+      const defaults = buildSessionCreationDefaults(session)
+      if (!defaults?.workspace) return
+
+      try {
+        const result = await reuseOrCreateSession(session.agentId, defaults.workspace, session.id)
+        closeConversationTabs('agents', result.deletedDuplicateSessionIds)
+      } catch (err) {
+        logger.error('Failed to create session after deleting last session of an agent', {
+          err,
+          sessionId: id
+        })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      }
     },
-    [coordinateSessionRemoval, deleteSession, filteredGroupedSessions, sessionGroupSeeds]
+    [
+      closeConversationTabs,
+      coordinateSessionRemoval,
+      deleteSession,
+      filteredGroupedSessions,
+      loadLatestSession,
+      reuseOrCreateSession,
+      sessionGroupSeeds,
+      t
+    ]
   )
 
   const handleRenameSession = useCallback(

@@ -63,7 +63,7 @@ describe('ResourceViewSourceProvider', () => {
       isStatsLoading: false,
       statsError: undefined,
       loadLatestTopic: vi.fn(),
-      loadReusableTopic: vi.fn()
+      reuseOrCreateTopic: vi.fn()
     }
     sourceMocks.agentSource = {
       stats: { total: 3, pinnedCount: 0, byAgent: [], byWorkspace: [] },
@@ -72,7 +72,8 @@ describe('ResourceViewSourceProvider', () => {
       refetchStats: vi.fn(),
       loadSession: vi.fn(),
       loadLatestSession: vi.fn(),
-      loadReusableSessions: vi.fn()
+      reuseOrCreateSession: vi.fn(),
+      loadSessionIds: vi.fn()
     }
   })
 

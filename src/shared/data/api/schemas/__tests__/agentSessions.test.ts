@@ -7,7 +7,7 @@ import {
   DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
-  ReusableAgentSessionPlaceholdersQuerySchema,
+  ReuseOrCreateAgentSessionSchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
@@ -36,9 +36,9 @@ describe('ListAgentSessionsQuerySchema', () => {
     expect(AgentSessionStatsQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
       agentId: MIGRATED_AGENT_ID
     })
-    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
-      agentId: MIGRATED_AGENT_ID
-    })
+    expect(
+      ReuseOrCreateAgentSessionSchema.parse({ agentId: MIGRATED_AGENT_ID, workspace: { type: 'system' } })
+    ).toEqual({ agentId: MIGRATED_AGENT_ID, workspace: { type: 'system' } })
   })
 
   it.each([
@@ -79,23 +79,32 @@ describe('ListAgentSessionsQuerySchema', () => {
   })
 })
 
-describe('ReusableAgentSessionPlaceholdersQuerySchema', () => {
-  it('requires one concrete agent and accepts an optional exact workspace scope', () => {
-    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID })).toEqual({ agentId: AGENT_ID })
-    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: 'system' })).toEqual({
+describe('ReuseOrCreateAgentSessionSchema', () => {
+  it('requires one concrete agent and an exact workspace creation target', () => {
+    expect(ReuseOrCreateAgentSessionSchema.parse({ agentId: AGENT_ID, workspace: { type: 'system' } })).toEqual({
       agentId: AGENT_ID,
-      workspaceId: 'system'
+      workspace: { type: 'system' }
     })
-    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: WORKSPACE_ID })).toEqual(
-      { agentId: AGENT_ID, workspaceId: WORKSPACE_ID }
-    )
+    expect(
+      ReuseOrCreateAgentSessionSchema.parse({
+        agentId: AGENT_ID,
+        workspace: { type: 'user', workspaceId: WORKSPACE_ID },
+        excludeSessionId: 'session-deleted'
+      })
+    ).toEqual({
+      agentId: AGENT_ID,
+      workspace: { type: 'user', workspaceId: WORKSPACE_ID },
+      excludeSessionId: 'session-deleted'
+    })
   })
 
   it('rejects aggregate owners and list-only dimensions', () => {
-    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: 'unlinked' })).toThrow()
-    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, pinned: false })).toThrow(
-      /unrecognized/i
-    )
+    expect(() =>
+      ReuseOrCreateAgentSessionSchema.parse({ agentId: 'unlinked', workspace: { type: 'system' } })
+    ).toThrow()
+    expect(() =>
+      ReuseOrCreateAgentSessionSchema.parse({ agentId: AGENT_ID, workspace: { type: 'system' }, pinned: false })
+    ).toThrow(/unrecognized/i)
   })
 })
 

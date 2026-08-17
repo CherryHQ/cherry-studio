@@ -72,7 +72,12 @@
   margin: 0.8em 0;
   line-height: inherit;
   text-wrap: pretty;
-  white-space: normal;
+  /* Model/AI output uses \n as a line break; without this, in-paragraph
+   * newlines collapse into a single space (e.g. "count 1..5, one per line"
+   * renders as one line). pre-line keeps \n, collapses incidental runs of
+   * spaces, and trims trailing spaces — gentle for AI-generated prose.
+   * Code blocks keep their own `pre`/`break-spaces` rules above. */
+  white-space: pre-line;
 }
 
 .markdown p:last-child {
@@ -93,14 +98,11 @@
 }
 
 /*
- * Prompt editor preview (PromptEditorField): restore visible line breaks.
+ * Prompt editor preview (PromptEditorField): keep full WYSIWYG spacing.
  *
- * The global `.markdown p { white-space: normal }` above collapses a single
- * soft newline to a space (correct for chat/model replies, where `\n` is a
- * CommonMark soft break). But users author system prompts as structured
- * plain text — one field per line — and expect WYSIWYG rendering. This scoped
- * override re-enables pre-wrap ONLY for the prompt preview container, leaving
- * chat messages, file previews, and model replies on `normal`. See #18377.
+ * The global rule above already preserves newlines via pre-line. But prompts
+ * are user-authored plain text, so keep pre-wrap here to also preserve runs
+ * of spaces and trailing spaces that pre-line would collapse. See #18377.
  */
 .prompt-preview .markdown p {
   white-space: pre-wrap;

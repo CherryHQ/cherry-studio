@@ -5,7 +5,6 @@ const {
   createSessionMock,
   getByIdMock,
   getLatestActiveMock,
-  listReusablePlaceholdersMock,
   statsMock,
   updateMock,
   setWorkspaceMock,
@@ -13,13 +12,13 @@ const {
   deleteByAgentIdMock,
   deleteByIdsMock,
   reorderMock,
-  reorderBatchMock
+  reorderBatchMock,
+  reuseOrCreatePlaceholderMock
 } = vi.hoisted(() => ({
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
-  listReusablePlaceholdersMock: vi.fn(),
   statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
@@ -27,7 +26,8 @@ const {
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
   reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
+  reorderBatchMock: vi.fn(),
+  reuseOrCreatePlaceholderMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -36,7 +36,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
     create: createSessionMock,
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
-    listReusablePlaceholders: listReusablePlaceholdersMock,
     stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
@@ -44,7 +43,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
     deleteByAgentId: deleteByAgentIdMock,
     deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock
   }
 }))
 
@@ -123,26 +123,38 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions/reusable-placeholders', () => {
-    it('forwards the exact agent/workspace target and wraps every match', async () => {
+    it('requires and forwards the full workspace creation target', async () => {
       const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
-      const sessions = [{ id: 'session-empty' }]
-      listReusablePlaceholdersMock.mockReturnValueOnce(sessions)
+      const response = {
+        session: { id: 'session-created' },
+        created: true,
+        deletedDuplicateSessionIds: []
+      }
+      reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
 
       await expect(
-        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
-          query: { agentId, workspaceId: 'system' }
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
+          body: {
+            agentId,
+            workspace: { type: 'user', workspaceId: 'workspace-1' }
+          }
         } as never)
-      ).resolves.toEqual({ sessions })
-      expect(listReusablePlaceholdersMock).toHaveBeenCalledWith({ agentId, workspaceId: 'system' })
+      ).resolves.toBe(response)
+
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
+        agentId,
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      })
     })
 
-    it('rejects aggregate owner scopes before calling the service', async () => {
+    it('rejects an omitted workspace before calling the service', async () => {
       await expect(
-        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
-          query: { agentId: 'unlinked' }
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
+          body: { agentId: '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001' }
         } as never)
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-      expect(listReusablePlaceholdersMock).not.toHaveBeenCalled()
+
+      expect(reuseOrCreatePlaceholderMock).not.toHaveBeenCalled()
     })
   })
 

@@ -42,6 +42,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -54,7 +55,6 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import {
-  ApiGatewayNotRunningError,
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,

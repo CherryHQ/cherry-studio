@@ -20,10 +20,11 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   isLoading: boolean
   isError: boolean
   onPickResource: (resource: TResource) => void
-  /** Create a replacement if the exact lookup races with an owner becoming empty. */
-  onCreateResource: (entityId: string) => void | Promise<unknown>
   /** Load the entity's most-recently-active resource before navigating. */
   loadResourceForEntity: (entityId: string) => Promise<TResource | null>
+  /** Create a replacement if the exact lookup races with an owner becoming empty. */
+  onCreateResource: (entityId: string) => Promise<TResource | null>
+  onActivationError: (error: unknown) => void
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -50,18 +51,21 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   isLoading,
   isError,
   onPickResource,
-  onCreateResource,
   loadResourceForEntity,
+  onCreateResource,
+  onActivationError,
   reorder,
   refetchEntities,
   onReorderError
 }: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
   const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
+  const createResourceForOwner = useCallback((item: TEntity) => onCreateResource(item.id), [onCreateResource])
   const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
     loadResourceForOwner,
+    createResourceForOwner,
     onActivateResource: onPickResource,
-    onEmptyOwner: (entity) => void onCreateResource(entity.id)
+    onError: onActivationError
   })
 
   useEffect(() => {

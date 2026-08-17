@@ -379,7 +379,7 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
     loadSession: vi.fn().mockResolvedValue(null),
     loadSessionIds: vi.fn().mockResolvedValue([]),
     loadLatestSession: vi.fn().mockResolvedValue(null),
-    loadReusableSessions: vi.fn().mockResolvedValue([]),
+    reuseOrCreateSession: vi.fn(),
     ...overrides
   }
 }
@@ -399,7 +399,7 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
     isStatsLoading: false,
     statsError: undefined,
     loadLatestTopic: vi.fn().mockResolvedValue(null),
-    loadReusableTopic: vi.fn().mockResolvedValue(null)
+    reuseOrCreateTopic: vi.fn()
   }
 }
 

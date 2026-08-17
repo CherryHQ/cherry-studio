@@ -28,7 +28,8 @@ import type {
   DeleteAgentSessionsResult,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
-  ReusableAgentSessionPlaceholdersQuery,
+  ReusableAgentSessionPlaceholdersResponse,
+  ReuseOrCreateAgentSessionDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -319,7 +320,7 @@ export class AgentSessionService {
     const [agent] = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
@@ -480,35 +481,105 @@ export class AgentSessionService {
     return row ? rowToSession(row) : null
   }
 
-  /**
-   * Return every reusable placeholder for one exact creation target, newest
-   * first. The message anti-join proves emptiness without a bounded renderer
-   * scan, while the optional workspace scope keeps create-or-reuse semantics
-   * exact for both user and system workspaces.
-   */
-  listReusablePlaceholders(query: ReusableAgentSessionPlaceholdersQuery): AgentSessionEntity[] {
-    const db = application.get('DbService').getDb()
-    const filters = buildSessionRecordFilters(query)
-    filters.push(eq(sessionsTable.isNameManuallyEdited, false))
-    filters.push(sql`trim(${sessionsTable.name}) = ''`)
-    filters.push(
-      sql`NOT EXISTS (
-        SELECT 1
-        FROM ${agentSessionMessageTable}
-        WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
-      )`
+  /** Reuse or create one exact empty placeholder under a serialized write transaction. */
+  reuseOrCreatePlaceholder(dto: ReuseOrCreateAgentSessionDto): ReusableAgentSessionPlaceholdersResponse {
+    const reservedId = uuidv4()
+    const result = withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          this.assertAgentExistsTx(tx, dto.agentId)
+
+          const workspaceFilter = (() => {
+            if (dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+              return eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)
+            }
+
+            const workspace = agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+            if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
+              throw DataApiErrorFactory.invalidOperation(
+                'reuse or create session',
+                'workspace source must reference a user workspace'
+              )
+            }
+            return and(
+              eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER),
+              eq(sessionsTable.workspaceId, workspace.id)
+            )
+          })()
+
+          const reusableRows = tx
+            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .from(sessionsTable)
+            .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .where(
+              and(
+                eq(sessionsTable.agentId, dto.agentId),
+                workspaceFilter,
+                dto.excludeSessionId ? notInArray(sessionsTable.id, [dto.excludeSessionId]) : undefined,
+                eq(sessionsTable.isNameManuallyEdited, false),
+                sql`trim(${sessionsTable.name}) = ''`,
+                sql`NOT EXISTS (
+                  SELECT 1
+                  FROM ${agentSessionMessageTable}
+                  WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+                )`
+              )
+            )
+            .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+            .all()
+
+          const reusable = reusableRows[0]
+          if (reusable) {
+            const duplicateDeletion =
+              dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
+                ? this.cascadeDeleteSessionRowsTx(tx, reusableRows.slice(1))
+                : { deletedIds: [], taskScheduleIds: [] }
+            return {
+              session: rowToSession(reusable),
+              created: false,
+              deletedDuplicateSessionIds: duplicateDeletion.deletedIds,
+              taskScheduleIds: duplicateDeletion.taskScheduleIds
+            }
+          }
+
+          this.createTx(tx, reservedId, {
+            agentId: dto.agentId,
+            name: '',
+            workspace: dto.workspace
+          })
+          const [created] = tx
+            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .from(sessionsTable)
+            .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .where(eq(sessionsTable.id, reservedId))
+            .limit(1)
+            .all()
+          if (!created) throw DataApiErrorFactory.notFound('Session', reservedId)
+
+          return {
+            session: rowToSession(created),
+            created: true,
+            deletedDuplicateSessionIds: [],
+            taskScheduleIds: []
+          }
+        }),
+      {
+        ...defaultHandlersFor('Session', reservedId),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
     )
 
-    const rows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(and(...filters))
-      .orderBy(desc(sessionsTable.createdAt), desc(sessionsTable.updatedAt), asc(sessionsTable.id))
-      .all()
-
-    return rows.map(rowToSession)
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    this.notifyReadModelChange(
+      [...(result.created ? [result.session.id] : []), ...result.deletedDuplicateSessionIds],
+      'membership'
+    )
+    if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
+    return {
+      session: result.session,
+      created: result.created,
+      deletedDuplicateSessionIds: result.deletedDuplicateSessionIds
+    }
   }
 
   ensureTraceId(sessionId: string): string {

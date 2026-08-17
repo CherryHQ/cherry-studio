@@ -126,15 +126,12 @@ export const LatestTopicQuerySchema = z.strictObject({
 })
 export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 
-/**
- * Exact owner target for reusable empty-topic lookup. `unassigned` means
- * `assistantId IS NULL` only; unlike the list's `unlinked` aggregate it does
- * not include topics whose former assistant was soft-deleted.
- */
-export const ReusableTopicPlaceholderQuerySchema = z.strictObject({
-  assistantId: z.union([z.uuidv4(), z.literal('unassigned')])
+/** Exact creation target for atomically reusing or creating an empty topic. */
+export const ReuseOrCreateTopicSchema = z.strictObject({
+  assistantId: z.uuidv4().nullable(),
+  excludeTopicId: z.string().min(1).optional()
 })
-export type ReusableTopicPlaceholderQuery = z.infer<typeof ReusableTopicPlaceholderQuerySchema>
+export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
 /**
  * Query parameters for `GET /topics/stats`. Only filters used by current
@@ -221,9 +218,10 @@ export interface LatestTopicResponse {
   topic: Topic | null
 }
 
-/** The newest reusable empty topic for the exact creation owner, or `null`. */
+/** The reusable empty topic selected or created for the exact target. */
 export interface ReusableTopicPlaceholderResponse {
-  topic: Topic | null
+  topic: Topic
+  created: boolean
 }
 
 const DeleteTopicsIdsQueryValueSchema = z
@@ -309,12 +307,12 @@ export type TopicSchemas = {
   }
 
   /**
-   * Newest structurally empty, untitled placeholder for one exact creation
-   * owner. This derived read is independent of list pagination and pin order.
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
    */
   '/topics/reusable-placeholder': {
-    GET: {
-      query: ReusableTopicPlaceholderQuery
+    POST: {
+      body: ReuseOrCreateTopicDto
       response: ReusableTopicPlaceholderResponse
     }
   }

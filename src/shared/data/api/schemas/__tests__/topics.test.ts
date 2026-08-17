@@ -6,7 +6,7 @@ import {
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
-  ReusableTopicPlaceholderQuerySchema,
+  ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   TopicStatsQuerySchema,
   UpdateTopicSchema
@@ -102,20 +102,19 @@ describe('ListTopicsQuerySchema', () => {
   })
 })
 
-describe('ReusableTopicPlaceholderQuerySchema', () => {
-  it('accepts an exact live owner or the unassigned creation target', () => {
+describe('ReuseOrCreateTopicSchema', () => {
+  it('accepts an exact live owner or the unlinked creation target', () => {
     const assistantId = '11111111-1111-4111-8111-111111111111'
-    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId })).toEqual({ assistantId })
-    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned' })).toEqual({
-      assistantId: 'unassigned'
+    expect(ReuseOrCreateTopicSchema.parse({ assistantId })).toEqual({ assistantId })
+    expect(ReuseOrCreateTopicSchema.parse({ assistantId: null, excludeTopicId: 'topic-deleted' })).toEqual({
+      assistantId: null,
+      excludeTopicId: 'topic-deleted'
     })
   })
 
-  it('rejects list-only and unlinked aggregate dimensions', () => {
-    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unlinked' })).toThrow()
-    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned', pinned: false })).toThrow(
-      /unrecognized/i
-    )
+  it('rejects aggregate and list-only dimensions', () => {
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: null, pinned: false })).toThrow(/unrecognized/i)
   })
 })
 
