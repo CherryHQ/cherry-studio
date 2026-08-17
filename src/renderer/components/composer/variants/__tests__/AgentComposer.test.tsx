@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -4920,6 +4921,29 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('close edit dialog'))
 
     expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses only the current session composer from the focus event', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.surfaceFocus.mockClear()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:other-session' })
+    })
+    expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:session-1' })
+    })
+    expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the active session agent control visible in classic layout', () => {

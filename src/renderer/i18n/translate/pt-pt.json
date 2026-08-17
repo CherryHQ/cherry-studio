@@ -209,7 +209,8 @@
       "type": "Ícone de Agente"
     },
     "input": {
-      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões."
+      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões.",
+      "placeholder_streaming": "Agente a trabalhar — {{sendKey}} enfileira uma mensagem de acompanhamento, {{steerKey}} orienta-o agora."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "description_pi": "Atua autonomamente. Pede confirmação ao detetar uma ação de risco.",
             "title": "Aprovar por mim",
-            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar.",
+            "warning_pi": "A deteção é feita no limite do possível; um comando incomum pode ainda passar despercebido."
           },
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
+            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
           },
           "confirmChange": {
             "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
@@ -1096,6 +1100,10 @@
           "description": "Editar ficheiros",
           "label": "Editar ficheiros"
         },
+        "exit_plan_mode": {
+          "description": "Apresenta o plano para revisão e sai do modo de plano após a aprovação.",
+          "label": "Sair do modo de plano"
+        },
         "find": {
           "description": "Procurar ficheiros",
           "label": "Procurar ficheiros"
@@ -1107,6 +1115,14 @@
         "grep": {
           "description": "Pesquisar conteúdos de ficheiros",
           "label": "Pesquisar conteúdos de ficheiros"
+        },
+        "interrupt_agent": {
+          "description": "Interrompe a vez atual de um subagente em segundo plano.",
+          "label": "Interromper subagente"
+        },
+        "list_agents": {
+          "description": "Lista subagentes em segundo plano e o respetivo estado.",
+          "label": "Listar subagentes"
         },
         "ls": {
           "description": "Listar conteúdos do diretório",
@@ -1120,9 +1136,21 @@
           "description": "Lê um ficheiro PNG, JPEG, WebP ou GIF com um modelo com capacidade visual",
           "label": "Ler imagem"
         },
+        "send_message": {
+          "description": "Envia uma mensagem de acompanhamento a um subagente em segundo plano.",
+          "label": "Mensagem ao subagente"
+        },
         "skill": {
           "description": "Carregar as instruções completas de uma competência ativada",
           "label": "Carregar instruções da competência"
+        },
+        "subagent": {
+          "description": "Delega uma tarefa a um subagente em segundo plano passível de receber mensagens posteriormente.",
+          "label": "Delegar ao subagente"
+        },
+        "subagent_fork": {
+          "description": "Delega uma tarefa subsequente a um subagente com o contexto desta conversa.",
+          "label": "Ramo de subagente"
         },
         "todo_write": {
           "description": "Gerir a lista de tarefas",
@@ -2666,7 +2694,6 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
-    "image_unreadable_for_non_vision_model": "O modelo selecionado não suporta imagens, e o Cherry Studio não conseguiu extrair texto legível do anexo. Escolha um modelo com capacidade de visão ou remova a imagem e tente novamente.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -3217,6 +3244,8 @@
         "delete_confirm_title": "Eliminar Fontes de Dados Selecionadas?",
         "loaded_only_hint": "Aplica-se apenas aos itens carregados ({{total}} no total)",
         "reindex": "Reindexar",
+        "reindex_none_eligible": "Todas as fontes de dados selecionadas estão ainda a ser processadas e não podem ser reindexadas de momento.",
+        "reindex_skipped": "Ignoradas {{count}} fonte(s) de dados ainda a processar.",
         "selected_count": "{{count}} selecionado"
       },
       "chunks_count": "{{count}} blocos",
@@ -3552,6 +3581,11 @@
               "claude_code": "Avançado: Claude Agent",
               "dsh": "DeepSeek Harness",
               "pi": "Rápido: Pi"
+            },
+            "option_description": {
+              "claude_code": "Maior capacidade — modo de plano e modelos por nível.",
+              "dsh": "Ampla compatibilidade com fornecedores e execução orientada por objetivos.",
+              "pi": "Respostas mais rápidas, menor sobrecarga."
             }
           },
           "small_model": {
@@ -7438,8 +7472,11 @@
         "confirm_delete_message": "confirmar antes de eliminar a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
+        "newline_shortcuts": "Atalho para quebra de linha",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
+        "steer_shortcuts": "Atalho de orientação",
+        "steer_shortcuts_hint": "Enquanto um Agente estiver a executar, este envia a sua mensagem imediatamente para a vez atual para a orientar; o atalho de envio coloca-a em espera até a vez terminar.",
         "title": "Configurações de entrada"
       },
       "layout": {

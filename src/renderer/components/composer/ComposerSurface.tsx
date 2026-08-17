@@ -99,9 +99,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     [props.draftTokens, props.text, props.tokens]
   )
 
-  // The fallback cannot rebase token offsets, render the editing header, or grow beyond its fixed
-  // two-line box — hand those states to the runtime instead of serving them badly.
-  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length) || props.text.trim().length > 0
+  // The fallback cannot rebase token offsets, render the editing header, grow beyond its fixed
+  // two-line box, or represent structural variants, so hand those states to the runtime instead.
+  const needsRuntime =
+    Boolean(props.editingState) ||
+    Boolean(props.draftTokens?.length) ||
+    props.text.trim().length > 0 ||
+    Boolean(props.compactWhenSingleLine) ||
+    props.isExpanded
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])

@@ -209,7 +209,8 @@
       "type": "Icône de l'agent"
     },
     "input": {
-      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
+      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
+      "placeholder_streaming": "L'Agent est actif — {{sendKey}} met une suite en attente, {{steerKey}} l'oriente immédiatement."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
+            "description_pi": "Fonctionne de manière autonome. Demande confirmation en cas d'action à risque.",
             "title": "Approuver pour moi",
-            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander.",
+            "warning_pi": "La détection est indicative ; une commande inhabituelle peut tout de même être exécutée."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
             "title": "Accès complet",
-            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation.",
+            "warning_pi": "Dangereux — aucune confirmation n'est demandée, sauf pour les outils désactivés, y compris la suppression de fichiers et l'accès réseau."
           },
           "confirmChange": {
             "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
@@ -1096,6 +1100,10 @@
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
         },
+        "exit_plan_mode": {
+          "description": "Soumet le plan à l'examen et quitte le mode planification après approbation",
+          "label": "Quitter le mode planification"
+        },
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
@@ -1107,6 +1115,14 @@
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
           "label": "Rechercher dans le contenu des fichiers"
+        },
+        "interrupt_agent": {
+          "description": "Arrête le tour en cours d'un sous-agent en arrière-plan",
+          "label": "Interrompre le sous-agent"
+        },
+        "list_agents": {
+          "description": "Répertorie les sous-agents en arrière-plan et leur statut",
+          "label": "Liste des sous-agents"
         },
         "ls": {
           "description": "Lister le contenu du répertoire",
@@ -1120,9 +1136,21 @@
           "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
           "label": "Lire une image"
         },
+        "send_message": {
+          "description": "Envoie un message de suivi à un sous-agent en arrière-plan",
+          "label": "Envoyer un message au sous-agent"
+        },
         "skill": {
           "description": "Charger les instructions complètes d’une compétence activée",
           "label": "Charger les instructions de la compétence"
+        },
+        "subagent": {
+          "description": "Délègue une tâche à un sous-agent en arrière-plan susceptible de recevoir des messages ultérieurement",
+          "label": "Délégation au sous-agent"
+        },
+        "subagent_fork": {
+          "description": "Délègue une tâche de suivi à un sous-agent initialisé avec cette conversation",
+          "label": "Bifurquer le sous-agent"
         },
         "todo_write": {
           "description": "Gérer la liste des tâches",
@@ -2666,7 +2694,6 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
-    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n'a pas pu extraire de texte lisible de la pièce jointe. Choisissez un modèle compatible avec la vision ou supprimez l'image et réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3217,6 +3244,8 @@
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
         "loaded_only_hint": "S'applique uniquement aux éléments chargés ({{total}} au total)",
         "reindex": "Réindexer",
+        "reindex_none_eligible": "Toutes les sources de données sélectionnées sont en cours de traitement et ne peuvent pas encore être réindexées",
+        "reindex_skipped": "Ignoré {{count}} source(s) de données en cours de traitement",
         "selected_count": "{{count}} sélectionné"
       },
       "chunks_count": "{{count}} morceaux",
@@ -3552,6 +3581,11 @@
               "claude_code": "Avancé : Claude Agent",
               "dsh": "DeepSeek Harness",
               "pi": "Rapide : Pi"
+            },
+            "option_description": {
+              "claude_code": "Plus performant — mode planification et modèles par niveau",
+              "dsh": "Compatibilité étendue avec les fournisseurs et exécution orientée objectifs",
+              "pi": "Réponses plus rapides, moindre surcharge"
             }
           },
           "small_model": {
@@ -7438,8 +7472,11 @@
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
+        "newline_shortcuts": "Raccourci pour saut de ligne",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
+        "steer_shortcuts": "Raccourci d'orientation",
+        "steer_shortcuts_hint": "Lorsqu'un Agent est en cours d'exécution, cela envoie immédiatement votre message dans le tour en cours pour l'orienter ; le raccourci d'envoi le met en file d'attente jusqu'à la fin du tour.",
         "title": "Paramètres d'entrée"
       },
       "layout": {
