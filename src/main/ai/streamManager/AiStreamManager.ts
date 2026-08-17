@@ -815,7 +815,7 @@ export class AiStreamManager extends BaseService {
       this.enqueueReservationPersistenceRecovery(receipt, topicId, error, persist, attempts)
       return
     }
-    this.publishDispatchReservationFailure(receipt, topicId, error, attempts, attemptControlRevisions)
+    void this.publishDispatchReservationFailure(receipt, topicId, error, attempts, attemptControlRevisions)
   }
 
   /** Retry every fail-closed terminal write. Production calls this from a lifecycle-scoped interval;
@@ -938,7 +938,13 @@ export class AiStreamManager extends BaseService {
           }
           attemptControlRevisions.push(aggregate.controlRevision)
         }
-        this.publishDispatchReservationFailure(receipt, topicId, notificationError, attempts, attemptControlRevisions)
+        await this.publishDispatchReservationFailure(
+          receipt,
+          topicId,
+          notificationError,
+          attempts,
+          attemptControlRevisions
+        )
         return true
       },
       abandon: async () => {
@@ -954,18 +960,24 @@ export class AiStreamManager extends BaseService {
           attemptControlRevisions.push(aggregate.controlRevision)
         }
         if (!abandoned) return
-        this.publishDispatchReservationFailure(receipt, topicId, notificationError, attempts, attemptControlRevisions)
+        await this.publishDispatchReservationFailure(
+          receipt,
+          topicId,
+          notificationError,
+          attempts,
+          attemptControlRevisions
+        )
       }
     })
   }
 
-  private publishDispatchReservationFailure(
+  private async publishDispatchReservationFailure(
     receipt: DispatchCommandReceipt,
     topicId: string,
     error: SerializedError,
     attempts: ReadonlyArray<{ modelId: UniqueModelId; anchorMessageId: string }>,
     attemptControlRevisions: readonly number[]
-  ): void {
+  ): Promise<void> {
     const aggregate = this.topicAggregates.get(topicId) ?? this.activeStreams.get(topicId)?.aggregate
     if (!aggregate) return
     const stream = this.activeStreams.get(topicId)
@@ -988,14 +1000,8 @@ export class AiStreamManager extends BaseService {
             ? { topicAttemptWatermark: aggregate.attemptWatermark(), isTopicDone: true }
             : { isTopicDone: false })
         }
-        for (const listener of stream.listeners.values()) {
-          try {
-            void listener.onError(result)
-          } catch (listenerError) {
-            logger.warn('reservation failure listener threw', { topicId, listenerError })
-          }
-        }
-        if (result.isTopicDone) void this.dispatchCleanupPorts(stream, result)
+        await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+        if (result.isTopicDone) await this.dispatchCleanupPorts(stream, result)
       }
       if (topicQuiescent) this.runTerminalLifecycle(stream)
     } else if (!stream && aggregate.isQuiescent()) {
@@ -1639,7 +1645,7 @@ export class AiStreamManager extends BaseService {
         const continuationId = stream.aggregate.dispatchingContinuationId()
         if (continuationId) stream.aggregate.terminateContinuation(continuationId, 'aborted')
         stream.status = stream.aggregate.status()
-        if (stream.aggregate.isQuiescent()) this.publishTopicQuiescence(stream, 'aborted')
+        if (stream.aggregate.isQuiescent()) void this.publishTopicQuiescence(stream, 'aborted')
       }
       return
     }
@@ -1650,7 +1656,7 @@ export class AiStreamManager extends BaseService {
       const continuationId = stream.aggregate.dispatchingContinuationId()
       if (continuationId) stream.aggregate.terminateContinuation(continuationId, 'aborted')
       stream.status = stream.aggregate.status()
-      if (stream.aggregate.isQuiescent()) this.publishTopicQuiescence(stream, 'aborted')
+      if (stream.aggregate.isQuiescent()) void this.publishTopicQuiescence(stream, 'aborted')
       return
     }
     logger.info('Aborting stream', { topicId, reason })
@@ -1677,12 +1683,12 @@ export class AiStreamManager extends BaseService {
       stream.aggregate.startContinuation(continuationId)
     }
     void terminalReady
-      .then(() => {
+      .then(async () => {
         if (this.activeStreams.get(stream.topicId) !== stream) return
         if (!stream.aggregate.terminateContinuation(continuationId, terminalOutcome.outcome)) return
         stream.status = stream.aggregate.status()
         if (stream.aggregate.isQuiescent()) {
-          this.publishTopicQuiescence(
+          await this.publishTopicQuiescence(
             stream,
             terminalOutcome.outcome,
             terminalOutcome.outcome === 'error' ? terminalOutcome.error : undefined
@@ -2162,7 +2168,7 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
     const continuationId = stream.aggregate.dispatchingContinuationId()
     if (!continuationId) return
-    this.failCapturedTopicContinuation(stream, continuationId, error)
+    void this.failCapturedTopicContinuation(stream, continuationId, error)
   }
 
   /** Bind a delayed failure to the continuation that is current now, never a later topic cycle. */
@@ -2178,26 +2184,30 @@ export class AiStreamManager extends BaseService {
     void ready
       .then(() => {
         if (this.activeStreams.get(topicId) !== stream) return
-        this.failCapturedTopicContinuation(stream, continuationId, error)
+        return this.failCapturedTopicContinuation(stream, continuationId, error)
       })
       .catch((readyError) => {
         logger.error('Deferred topic continuation failure barrier rejected', { topicId, readyError })
       })
   }
 
-  private failCapturedTopicContinuation(stream: ActiveStream, continuationId: string, error: SerializedError): void {
+  private async failCapturedTopicContinuation(
+    stream: ActiveStream,
+    continuationId: string,
+    error: SerializedError
+  ): Promise<void> {
     if (!stream.aggregate.finishContinuation(continuationId, 'failed')) return
     stream.status = stream.aggregate.status()
-    if (stream.aggregate.isQuiescent()) this.publishTopicQuiescence(stream, 'error', error)
+    if (stream.aggregate.isQuiescent()) await this.publishTopicQuiescence(stream, 'error', error)
   }
 
   /** Publish a topic-only barrier after a continuation ends without opening another attempt. */
-  private publishTopicQuiescence(
+  private async publishTopicQuiescence(
     stream: ActiveStream,
     outcome: 'error' | 'aborted',
     error?: SerializedError,
-    listeners: Iterable<StreamListener> = stream.listeners.values()
-  ): void {
+    listeners?: Iterable<StreamListener>
+  ): Promise<void> {
     if (!stream.aggregate.isQuiescent()) return
     const controlRevision = stream.aggregate.issueControlRevision()
     const common = {
@@ -2211,15 +2221,12 @@ export class AiStreamManager extends BaseService {
       outcome === 'error'
         ? { ...common, status: 'error', error: error ?? serializeError(new Error('Topic continuation failed')) }
         : { ...common, status: 'paused' }
-    for (const listener of listeners) {
-      try {
-        if (result.status === 'error') void listener.onError(result)
-        else void listener.onPaused(result)
-      } catch (listenerError) {
-        logger.warn('topic quiescence listener threw', { topicId: stream.topicId, listenerError })
-      }
+    if (result.status === 'error') {
+      await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result), listeners)
+    } else {
+      await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result), listeners)
     }
-    void this.dispatchCleanupPorts(stream, result)
+    await this.dispatchCleanupPorts(stream, result)
     this.runTerminalLifecycle(stream)
   }
 
@@ -2314,7 +2321,7 @@ export class AiStreamManager extends BaseService {
       // every window spins). Surface the failure and write a terminal status. Don't re-queue — a
       // retry just re-fails, mirroring the agent runtime's `startNextTurn` failure path.
       logger.error('Chat steer continuation failed to launch', { topicId, userMessageId, error })
-      if (previous) this.failChatContinuation(previous, continuationId, carried, serializeError(error))
+      if (previous) await this.failChatContinuation(previous, continuationId, carried, serializeError(error))
       return
     }
     // Re-attach any other windows that were on the prior turn (single subscriber goes through
@@ -2329,16 +2336,16 @@ export class AiStreamManager extends BaseService {
    * Persistence listeners are skipped — they belong to a turn that never opened. Mirrors the agent
    * runtime's continuation-failure terminal mark.
    */
-  private failChatContinuation(
+  private async failChatContinuation(
     previous: ActiveStream,
     continuationId: string,
     carried: StreamListener[],
     error: SerializedError
-  ): void {
+  ): Promise<void> {
     previous.aggregate.finishContinuation(continuationId, 'failed')
     this.dropPendingSteers(previous.topicId, 'error')
     previous.status = previous.aggregate.status()
-    if (previous.aggregate.isQuiescent()) this.publishTopicQuiescence(previous, 'error', error, carried)
+    if (previous.aggregate.isQuiescent()) await this.publishTopicQuiescence(previous, 'error', error, carried)
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────
@@ -2763,13 +2770,27 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Skips dead listeners and isolates notification failures.
+   * Skips dead listeners and isolates notification failures. An explicit
+   * `listeners` iterable (e.g. carried-forward renderer listeners of an
+   * evicted stream) is dispatched with the same policy but never pruned.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (listener: StreamListener) => void | Promise<void>
+    invoke: (listener: StreamListener) => void | Promise<void>,
+    listeners?: Iterable<StreamListener>
   ): Promise<void> {
+    if (listeners) {
+      for (const listener of listeners) {
+        if (!listener.isAlive()) continue
+        try {
+          await invoke(listener)
+        } catch (err) {
+          logger.warn('Listener threw', { topicId: stream.topicId, listenerId: listener.id, event, err })
+        }
+      }
+      return
+    }
     const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {

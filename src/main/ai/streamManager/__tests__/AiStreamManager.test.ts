@@ -3161,6 +3161,7 @@ describe('AiStreamManager', () => {
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
 
       mgr.failTopicContinuation(topicId, 'provider-a::model-a', error('no model configured'))
+      await flush()
 
       // Subscribers learn the topic errored, the cross-window status cache settles to 'error'…
       expect(listener.errorResults).toHaveLength(1)
@@ -3168,6 +3169,40 @@ describe('AiStreamManager', () => {
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('error')
 
       // …and the terminal lifecycle's cleanup evicts the failed continuation stream so it is no longer attachable.
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
+    // The continuation-failure terminal bypasses the ordinary attempt-terminal path; its listener
+    // notifications must still run through the awaited funnel so an asynchronously rejecting
+    // listener is isolated instead of surfacing as an unhandled rejection in Main.
+    it('isolates an asynchronously rejecting listener on the continuation-failure bypass path', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s4-rejecting-listener'
+      const rejecting: StreamListener = {
+        id: `l:rejecting:${topicId}`,
+        onChunk: () => {},
+        onDone: () => Promise.resolve(),
+        onPaused: () => Promise.reject(new Error('async listener failure')),
+        onError: () => Promise.reject(new Error('async listener failure')),
+        isAlive: () => true
+      }
+      const healthy = new FakeListener(`l:healthy:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [rejecting, healthy]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      mgr.failTopicContinuation(topicId, 'provider-a::model-a', error('no model configured'))
+      await flush()
+
+      // The rejection is isolated: the next listener still hears the terminal, the status
+      // cache settles, and the terminal lifecycle evicts the stream.
+      expect(healthy.errorResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('error')
       await vi.runAllTimersAsync()
       expect(mgr.inspect(topicId)).toBeUndefined()
     })
