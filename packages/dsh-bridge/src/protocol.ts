@@ -133,6 +133,7 @@ export interface BridgePluginRequestMap {
     result: { outcome: 'allowed-once' | 'rejected' }
   }
   'tool/call': {
+    /** `sessionId` is always the root session id — the host rejects child session ids. */
     params: { sessionId: string; callId: string; name: string; args: unknown }
     result: BridgeToolCallResult
   }
