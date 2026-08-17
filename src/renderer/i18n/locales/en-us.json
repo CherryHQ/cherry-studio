@@ -1607,6 +1607,7 @@
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
+      "max_length_reached": "Message limit reached ({{max}} characters)",
       "new": {
         "context": "Clear Context"
       },
@@ -1620,6 +1621,7 @@
         "title": "Reference Note"
       },
       "paste_text_file": "Paste into input",
+      "paste_text_file_no_room": "Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",

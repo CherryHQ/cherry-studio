@@ -1607,6 +1607,7 @@
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
+      "max_length_reached": "已达到消息长度上限（{{max}} 字符）",
       "new": {
         "context": "清除上下文"
       },
@@ -1620,6 +1621,7 @@
         "title": "引用笔记"
       },
       "paste_text_file": "粘贴到输入框",
+      "paste_text_file_no_room": "消息剩余长度不足以插入这段文本（上限 {{max}} 字符），已保留为文件附件。",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",

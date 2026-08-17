@@ -1579,6 +1579,7 @@
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択してください",
       "locate_editing_message": "元のメッセージを見つける",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "コンテキストをクリア"
       },
@@ -1592,6 +1593,7 @@
         "title": "参考注"
       },
       "paste_text_file": "入力に貼り付け",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "貼り付けたテキスト.txt",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",

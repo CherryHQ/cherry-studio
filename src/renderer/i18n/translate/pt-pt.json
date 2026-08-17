@@ -1579,6 +1579,7 @@
       "knowledge_base_disabled_by_files": "Remova os ficheiros anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Limpar contexto"
       },
@@ -1592,6 +1593,7 @@
         "title": "Nota de Referência"
       },
       "paste_text_file": "Cole na entrada",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Texto colado.txt",
       "pause": "Pausar",
       "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",

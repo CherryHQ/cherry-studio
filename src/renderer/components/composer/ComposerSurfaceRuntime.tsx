@@ -384,6 +384,8 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
   editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
 }
 
+const COMPOSER_INPUT_MAX_LENGTH_TOAST_KEY = 'composer-input-max-length'
+
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
   return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
 }
@@ -876,6 +878,17 @@ export default function ComposerSurfaceRuntime({
     editor.commands.focus()
   }, [])
 
+  // Silently refusing input reads as a frozen composer: keystrokes vanish while deletes still work.
+  const notifyComposerInputMaxLength = useCallback(
+    (reasonKey = 'chat.input.max_length_reached') => {
+      toast.warning({
+        title: t(reasonKey, { max: COMPOSER_INPUT_MAX_LENGTH }),
+        key: COMPOSER_INPUT_MAX_LENGTH_TOAST_KEY
+      })
+    },
+    [t]
+  )
+
   const handleShowPastedTextFileInInput = useCallback(
     async (token: ComposerDraftToken, nodeViewProps: NodeViewProps) => {
       const file = isPastedTextFileMetadata(token.payload) ? token.payload : undefined
@@ -885,10 +898,15 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const currentText = serializeComposerDocument(editor).text
-        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        // Inserting a truncated copy would drop the tail for good: the attachment is removed below.
+        if (exceedsComposerInputMaxLength(currentText, fileText)) {
+          notifyComposerInputMaxLength('chat.input.paste_text_file_no_room')
+          return
+        }
+
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = textToInsert
-          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+        const content = fileText
+          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
           : []
 
         if (typeof position === 'number') {
@@ -918,7 +936,7 @@ export default function ComposerSurfaceRuntime({
         toast.error(t('chat.input.file_error'))
       }
     },
-    [setFiles, t]
+    [notifyComposerInputMaxLength, setFiles, t]
   )
 
   const insertToken = useCallback((token: ComposerDraftToken) => {
@@ -1556,7 +1574,9 @@ export default function ComposerSurfaceRuntime({
           if (isNewlinePressed) {
             const selection = view?.state.selection
             const replacedText = selection ? getComposerReplacementText(view, selection.from, selection.to) : ''
-            if (!exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
+            if (exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
+              notifyComposerInputMaxLength()
+            } else {
               editorRef.current?.commands.setHardBreak()
             }
           }
@@ -1584,6 +1604,7 @@ export default function ComposerSurfaceRuntime({
           const replacedText = getComposerReplacementText(view, from, to)
           if (!exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)) return false
 
+          notifyComposerInputMaxLength()
           const limitedInsertedText = getComposerInputTextWithinLimit(textRef.current, insertedText, replacedText)
           if (limitedInsertedText && view) {
             view.dispatch(view.state.tr.insertText(limitedInsertedText, from, to))
@@ -1675,7 +1696,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, submitDraft]
+    [editorElementStyle, hasCustomHeight, notifyComposerInputMaxLength, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1691,6 +1712,7 @@ export default function ComposerSurfaceRuntime({
           pastedText,
           selectedPromptVariable.token.promptText ?? ''
         )
+        if (limitedPastedText !== pastedText) notifyComposerInputMaxLength()
         if (!limitedPastedText) return true
         updateSelectedPromptVariableToken(editor, limitedPastedText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
@@ -1713,6 +1735,7 @@ export default function ComposerSurfaceRuntime({
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
+        if (textToInsert !== pastedText) notifyComposerInputMaxLength()
         if (!textToInsert) {
           event.preventDefault()
           return true
@@ -1771,6 +1794,7 @@ export default function ComposerSurfaceRuntime({
     },
     [
       handlePaste,
+      notifyComposerInputMaxLength,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
       resolveSkillMarker,

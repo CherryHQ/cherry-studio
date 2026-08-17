@@ -1579,6 +1579,7 @@
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων",
       "locate_editing_message": "Εντοπίστε το αρχικό μήνυμα",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Εκκαθάριση περιβάλλοντος"
       },
@@ -1592,6 +1593,7 @@
         "title": "Σημείωση Αναφοράς"
       },
       "paste_text_file": "Επικόλληση στην είσοδο",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Επικολλημένο κείμενο.txt",
       "pause": "Παύση",
       "placeholder": "Πληκτρολογήστε ένα μήνυμα. Πατήστε {{key}} για αποστολή. Πληκτρολογήστε / για εργαλεία και ενέργειες ή @ για αναφορά σε θέματα.",

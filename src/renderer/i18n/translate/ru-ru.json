@@ -1579,6 +1579,7 @@
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов",
       "locate_editing_message": "Найти исходное сообщение",
+      "max_length_reached": "[to be translated]:Message limit reached ({{max}} characters)",
       "new": {
         "context": "Очистить контекст"
       },
@@ -1592,6 +1593,7 @@
         "title": "Справочная записка"
       },
       "paste_text_file": "Вставьте во входные данные",
+      "paste_text_file_no_room": "[to be translated]:Not enough room left in the message for this text ({{max}} characters max). It stays attached as a file.",
       "pasted_text_file_name": "Вставленный текст.txt",
       "pause": "Остановить",
       "placeholder": "Введите сообщение. Нажмите {{key}}, чтобы отправить его. Введите / для инструментов и действий или @ для ссылки на беседу.",
