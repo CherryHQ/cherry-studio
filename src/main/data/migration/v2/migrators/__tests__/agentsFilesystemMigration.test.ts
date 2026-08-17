@@ -1195,6 +1195,49 @@ describe('agentsFilesystemMigration', () => {
     await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
   })
 
+  it('preserves existing targets when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    const existingTargetId = 'existing-target'
+    const existingTarget = path.join(agentsDataRoot, existingTargetId)
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+    await mkdir(existingTarget)
+    await writeFile(path.join(existingTarget, 'keep.txt'), 'keep existing target')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(externalWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: externalWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    const input = {
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
+        { sourceAgentId: 'unrelated-source', finalAgentId: existingTargetId }
+      ],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+  })
+
   it('keeps realpath UNKNOWN fatal for a managed legacy workspace', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })

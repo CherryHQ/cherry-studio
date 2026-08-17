@@ -1678,13 +1678,18 @@ async function clearLegacyAgentMigrationTargets(input: {
       if (isPathInsideOrEqual(sourcePath, normalizedRoot) || !isUnsupportedVirtualDriveRealpathError(error)) {
         throw error
       }
-      const affectedTargetKeys = targetKeysBySourcePath.get(cleanupPathIndexKey(sourcePath)) ?? new Set<string>()
-      for (const targetKey of affectedTargetKeys) skippedTargetKeys.add(targetKey)
+      const protectedTargetKeys = new Set(
+        targetKeysBySourcePath.get(cleanupPathIndexKey(sourcePath)) ?? new Set<string>()
+      )
+      for (const target of targets) {
+        if (target.exists) protectedTargetKeys.add(cleanupPathIndexKey(target.path))
+      }
+      for (const targetKey of protectedTargetKeys) skippedTargetKeys.add(targetKey)
       logger.warn('Skipping Agent filesystem targets because an external legacy source cannot be resolved', {
         sourcePath,
         code: (error as NodeJS.ErrnoException).code,
         syscall: (error as NodeJS.ErrnoException).syscall,
-        skippedTargets: affectedTargetKeys.size
+        skippedTargets: protectedTargetKeys.size
       })
     }
   }
