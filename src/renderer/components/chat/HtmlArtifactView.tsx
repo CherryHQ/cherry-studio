@@ -9,25 +9,24 @@ import {
 } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import {
   canConsumeVerticalWheel,
-  clampForwardedWheelDelta,
   findVerticalWheelConsumer,
-  type ScrollRuntimeBoundary,
-  useScrollRuntimeBoundary,
-  VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX,
-  VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE
+  useScrollRuntimeBoundary
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
-import HtmlPreviewFrame, {
-  HTML_PREVIEW_RESTRICTED_CSP,
-  injectHtmlPreviewHeadElement
-} from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
+import {
+  getMaxPreviewHeight,
+  htmlArtifactPreviewRequiresInteractive,
+  HtmlArtifactPreviewSurface,
+  InteractiveHtmlPreview,
+  routeWheelScroll,
+  SCROLL_ACTIVATION_DELAY_MS
+} from '@renderer/components/CodeBlockView/HtmlArtifactPreviewSurface'
+import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
-import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   lazy,
@@ -52,14 +51,12 @@ const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
-const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
 /** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
  *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
 const STREAMING_PREVIEW_REFRESH_MS = 250
 const STREAMING_PREVIEW_MAX_REFRESH_MS = 4000
 const STREAMING_PREVIEW_CHARS_PER_MS = 2000
-const SCROLL_ACTIVATION_DELAY_MS = 300
 
 interface HtmlArtifactViewProps {
   /** Stable Markdown-node identity used only to preserve an open popup across renderer remounts. */
@@ -77,106 +74,6 @@ interface HtmlArtifactViewProps {
   kind?: HtmlArtifactKind
   /** Purely presentational: caps the height and hides the toolbar / code view while generating. */
   isStreaming?: boolean
-}
-
-type HtmlArtifactBridgeMessage =
-  | { type: 'height'; value: number }
-  | {
-      type: 'wheel'
-      value: number
-    }
-
-function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDelay: number): string {
-  return `(() => {
-    const sendConsoleMessage = console.debug.bind(console)
-    document.currentScript?.remove()
-    const send = (type, value) => {
-      sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
-    }
-    let lastReportedHeight = -1
-    const scrollableOverflowPattern = new RegExp(${JSON.stringify(
-      `^(?:${VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE})$`
-    )})
-    const reportHeight = () => {
-      const bodyHeight = document.body?.scrollHeight ?? 0
-      const rootHeight = document.documentElement?.scrollHeight ?? 0
-      const scrollingHeight = document.scrollingElement?.scrollHeight ?? 0
-      const height = Math.max(bodyHeight, rootHeight, scrollingHeight)
-      if (height === lastReportedHeight) return
-      lastReportedHeight = height
-      send('height', height)
-    }
-    const canScroll = (element, deltaY, isRoot = false) => {
-      if (!element || element.scrollHeight <= element.clientHeight + ${VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX}) return false
-      const style = getComputedStyle(element)
-      if (!isRoot && !scrollableOverflowPattern.test(style.overflowY)) return false
-      if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
-      if (deltaY < 0) return element.scrollTop > 0
-      return deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - ${VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX}
-    }
-    const scrollActivationDelay = ${scrollActivationDelay}
-    let isScrollActive = true
-    let scrollActivationTimer = null
-    const lockScroll = () => {
-      if (scrollActivationTimer !== null) {
-        clearTimeout(scrollActivationTimer)
-        scrollActivationTimer = null
-      }
-      isScrollActive = false
-    }
-    const scheduleScrollActivation = () => {
-      if (scrollActivationDelay === 0) return
-      lockScroll()
-      scrollActivationTimer = setTimeout(() => {
-        scrollActivationTimer = null
-        isScrollActive = true
-      }, scrollActivationDelay)
-    }
-    const handleWheel = (event) => {
-      if (!event.isTrusted || !Number.isFinite(event.deltaY) || event.deltaY === 0) return
-      if (!isScrollActive) {
-        event.preventDefault()
-        send('wheel', event.deltaY)
-        return
-      }
-
-      let element = event.target instanceof Element ? event.target : event.target?.parentElement
-      while (element && element !== document.documentElement) {
-        if (canScroll(element, event.deltaY)) return
-        element = element.parentElement
-      }
-
-      const root = document.scrollingElement ?? document.documentElement
-      if (!canScroll(root, event.deltaY, true)) send('wheel', event.deltaY)
-    }
-
-    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reportHeight)
-    if (resizeObserver) {
-      resizeObserver.observe(document.documentElement)
-      if (document.body) resizeObserver.observe(document.body)
-    }
-    window.addEventListener('load', reportHeight, true)
-    window.addEventListener('resize', reportHeight)
-    window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
-    if (scrollActivationDelay > 0) {
-      document.documentElement.addEventListener('mouseenter', scheduleScrollActivation)
-      document.documentElement.addEventListener('mouseleave', lockScroll)
-      if (document.documentElement.matches(':hover')) scheduleScrollActivation()
-    }
-    reportHeight()
-  })()`
-}
-
-function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string): HtmlArtifactBridgeMessage | null {
-  if (!message.startsWith(messagePrefix)) return null
-
-  try {
-    const payload = JSON.parse(message.slice(messagePrefix.length)) as Partial<HtmlArtifactBridgeMessage>
-    if ((payload.type !== 'height' && payload.type !== 'wheel') || !Number.isFinite(payload.value)) return null
-    return payload as HtmlArtifactBridgeMessage
-  } catch {
-    return null
-  }
 }
 
 function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
@@ -238,12 +135,6 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
   }
 }
 
-/** Child realms report deltas; only the owning runtime may write the message viewport. */
-function routeWheelScroll(viewport: HTMLElement, scrollRuntime: ScrollRuntimeBoundary, deltaY: number): void {
-  if (scrollRuntime.scrollByWheel(deltaY)) return
-  viewport.ownerDocument.defaultView?.scrollBy({ top: clampForwardedWheelDelta(deltaY) })
-}
-
 function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObject<T | null>) {
   const isScrollActiveRef = useRef(true)
 
@@ -279,13 +170,6 @@ function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObjec
   }, [viewportRef])
 
   return isScrollActiveRef
-}
-
-function getMaxPreviewHeight(viewport: HTMLElement, scrollContainer: HTMLElement | null): number {
-  const scroller = scrollContainer?.contains(viewport) ? scrollContainer : null
-  const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
-  const availableHeight = scrollerHeight > 0 ? scrollerHeight : (viewport.ownerDocument.defaultView?.innerHeight ?? 0)
-  return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
 }
 
 /**
@@ -458,134 +342,6 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   )
 })
 
-const StaticHtmlPopupPreview = memo(function StaticHtmlPopupPreview({
-  html,
-  title,
-  zoom,
-  iframeRef
-}: {
-  html: string
-  title: string
-  zoom: number
-  iframeRef: RefObject<HTMLIFrameElement | null>
-}) {
-  const zoomScale = zoom / 100
-
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      <div
-        className="origin-top-left"
-        style={{
-          width: `${100 / zoomScale}%`,
-          height: `${100 / zoomScale}%`,
-          transform: `scale(${zoomScale})`
-        }}>
-        <HtmlPreviewFrame
-          html={html}
-          title={title}
-          iframeRef={iframeRef}
-          sandbox="allow-same-origin"
-          csp={HTML_PREVIEW_RESTRICTED_CSP}
-        />
-      </div>
-    </div>
-  )
-})
-
-const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
-  html,
-  title,
-  zoom,
-  onHeightChange,
-  forwardBoundaryWheel = true
-}: {
-  html: string
-  title: string
-  zoom: number
-  onHeightChange?: (height: number) => void
-  forwardBoundaryWheel?: boolean
-}) {
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const webviewRef = useRef<WebviewTag | null>(null)
-  const contentHeightRef = useRef<number | null>(null)
-  const scrollRuntime = useScrollRuntimeBoundary()
-  const zoomScale = zoom / 100
-  const [messagePrefix] = useState(() => `__cherry_html_artifact_${crypto.randomUUID()}:`)
-  const src = useMemo(() => {
-    const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
-    const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
-    const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
-    return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
-  }, [forwardBoundaryWheel, html, messagePrefix])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const webview = webviewRef.current
-    if (!viewport || !webview) return
-
-    const handleConsoleMessage = (event: ConsoleMessageEvent) => {
-      const message = parseHtmlArtifactBridgeMessage(event.message, messagePrefix)
-      if (!message) return
-
-      if (message.type === 'height') {
-        contentHeightRef.current = message.value
-        if (!onHeightChange) return
-
-        const nextHeight = Math.min(
-          getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
-          Math.max(1, Math.ceil(message.value * zoomScale))
-        )
-        onHeightChange(nextHeight)
-        return
-      }
-
-      if (!forwardBoundaryWheel) return
-
-      routeWheelScroll(viewport, scrollRuntime, message.value)
-    }
-
-    webview.addEventListener('console-message', handleConsoleMessage)
-
-    return () => {
-      webview.removeEventListener('console-message', handleConsoleMessage)
-    }
-  }, [forwardBoundaryWheel, messagePrefix, onHeightChange, scrollRuntime, zoomScale])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const contentHeight = contentHeightRef.current
-    if (!viewport || contentHeight === null || !onHeightChange) return
-
-    const nextHeight = Math.min(
-      getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
-      Math.max(1, Math.ceil(contentHeight * zoomScale))
-    )
-    onHeightChange(nextHeight)
-  }, [onHeightChange, scrollRuntime, zoomScale])
-
-  return (
-    <div ref={viewportRef} data-testid="interactive-html-preview" className="relative h-full w-full overflow-hidden">
-      <div
-        data-testid="interactive-html-zoom-layer"
-        className="origin-top-left"
-        style={{
-          width: `${100 / zoomScale}%`,
-          height: `${100 / zoomScale}%`,
-          transform: `scale(${zoomScale})`
-        }}>
-        <webview
-          ref={webviewRef}
-          data-testid="interactive-html-webview"
-          src={src}
-          partition={HTML_ARTIFACT_PREVIEW_PARTITION}
-          aria-label={title}
-          className="inline-flex h-full w-full bg-white"
-        />
-      </div>
-    </div>
-  )
-})
-
 const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   title,
   description,
@@ -636,8 +392,7 @@ export function HtmlArtifactPopupOutlet() {
   if (!popupSession) return null
 
   // Opening the full-screen popup is the explicit viewing action, so it never renders a consent surface.
-  const requiresInteractivePreview =
-    popupSession.kind === 'document' && htmlArtifactRequiresUserConsent(popupSession.html)
+  const requiresInteractivePreview = htmlArtifactPreviewRequiresInteractive(popupSession.html, popupSession.kind)
 
   return (
     <Suspense fallback={null}>
@@ -647,24 +402,18 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
+        kind={popupSession.kind}
         canCapturePreview={!requiresInteractivePreview}
-        renderPreview={(iframeRef) =>
-          requiresInteractivePreview ? (
-            <InteractiveHtmlPreview
-              html={popupSession.html}
-              title={popupSession.title}
-              zoom={popupSession.zoom}
-              forwardBoundaryWheel={false}
-            />
-          ) : (
-            <StaticHtmlPopupPreview
-              html={popupSession.html}
-              title={popupSession.title}
-              zoom={popupSession.zoom}
-              iframeRef={iframeRef}
-            />
-          )
-        }
+        renderPreview={(iframeRef) => (
+          <HtmlArtifactPreviewSurface
+            html={popupSession.html}
+            title={popupSession.title}
+            kind={popupSession.kind}
+            zoom={popupSession.zoom}
+            iframeRef={iframeRef}
+            forwardBoundaryWheel={false}
+          />
+        )}
         onClose={() => {
           if (requiresInteractivePreview) {
             popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
