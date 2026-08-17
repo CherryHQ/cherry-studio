@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { redactRecord } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpFactory')
 
@@ -11,7 +11,7 @@ export async function createInMemoryMcpServer(
   envs: Record<string, string> = {}
 ): Promise<Server> {
   logger.debug(
-    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(sanitizeEnvForLogging(envs))}`
+    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(redactRecord(envs))}`
   )
   switch (name) {
     case BuiltinMcpServerNames.memory: {
