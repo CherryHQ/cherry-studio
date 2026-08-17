@@ -7468,6 +7468,8 @@
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / to open the input quick panel",
         "newline_shortcuts": "Line break shortcut",
+        "paste_long_text_as_file": "Paste long text as file",
+        "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "steer_shortcuts": "Steer shortcut",

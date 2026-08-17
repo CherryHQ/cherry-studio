@@ -7433,6 +7433,8 @@
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
         "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
+        "paste_long_text_as_file": "[to be translated]:Paste long text as file",
+        "paste_long_text_threshold": "[to be translated]:Paste long text length",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать оценочное число токенов",
         "title": "Настройки ввода"

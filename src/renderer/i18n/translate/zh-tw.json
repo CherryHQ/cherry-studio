@@ -7433,6 +7433,8 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 觸發輸入快速面板",
+        "paste_long_text_as_file": "[to be translated]:Paste long text as file",
+        "paste_long_text_threshold": "[to be translated]:Paste long text length",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"

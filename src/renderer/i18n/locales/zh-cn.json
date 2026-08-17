@@ -7468,6 +7468,8 @@
         "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 触发输入快捷面板",
         "newline_shortcuts": "换行快捷键",
+        "paste_long_text_as_file": "长文本粘贴为文件",
+        "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "steer_shortcuts": "引导快捷键",
