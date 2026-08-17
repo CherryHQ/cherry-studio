@@ -590,10 +590,11 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       standbySize: 0,
       // A capture session opens one window per display; 4 covers realistic setups.
       recycleMaxSize: 4,
-      // Bursts shed one idle window per minute back toward the floor.
-      decayInterval: 60,
-      // Release the whole recycle buffer after 15 minutes without a capture.
-      inactivityTimeout: 900,
+      // No decay: a display count does not drift, so shedding one window a minute only
+      // guarantees that the next capture is cold again. The buffer is kept whole and
+      // released whole, 10 minutes after the last capture.
+      decayInterval: 0,
+      inactivityTimeout: 600,
       warmup: 'lazy'
     }
   }

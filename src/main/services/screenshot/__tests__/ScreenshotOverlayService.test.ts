@@ -54,9 +54,9 @@ const electron = vi.hoisted(() => ({
   clipboard: { writeImage: vi.fn() },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
   // isEmpty() is what distinguishes a decoded image from the empty one
-  // createFromDataURL hands back for undecodable input.
+  // createFromBuffer hands back for undecodable input.
   nativeImage: {
-    createFromDataURL: vi.fn(() => ({ isEmpty: (): boolean => false, toPNG: () => Buffer.from([137, 80]) }))
+    createFromBuffer: vi.fn(() => ({ isEmpty: (): boolean => false }))
   }
 }))
 vi.mock('electron', () => ({
@@ -73,6 +73,9 @@ vi.mock('electron', () => ({
     getPrimaryDisplay: () => electron.primaryDisplay ?? electron.displays[0]
   }
 }))
+
+/** A stand-in for an encoded PNG; only its identity matters to these assertions. */
+const PNG_BYTES = new Uint8Array([137, 80, 78, 71])
 
 const { writeFileSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn() }))
 vi.mock('node:fs', async (importOriginal) => {
@@ -837,9 +840,9 @@ describe('ScreenshotOverlayService', () => {
       singleDisplaySetup()
       await service.startCapture()
 
-      service.commit({ dataUrl: 'data:image/png;base64,AAAA' })
+      service.commit({ pngBytes: PNG_BYTES })
 
-      expect(electron.nativeImage.createFromDataURL).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+      expect(electron.nativeImage.createFromBuffer).toHaveBeenCalledWith(Buffer.from(PNG_BYTES))
       expect(electron.clipboard.writeImage).toHaveBeenCalled()
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
@@ -851,40 +854,34 @@ describe('ScreenshotOverlayService', () => {
         throw new Error('clipboard busy')
       })
 
-      service.commit({ dataUrl: 'data:image/png;base64,AAAA' })
+      service.commit({ pngBytes: PNG_BYTES })
 
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
-    it('leaves the clipboard untouched when the result data URL cannot be decoded', async () => {
+    it('leaves the clipboard untouched when the result bytes cannot be decoded', async () => {
       singleDisplaySetup()
       await service.startCapture()
-      electron.nativeImage.createFromDataURL.mockReturnValueOnce({
-        isEmpty: () => true,
-        toPNG: () => Buffer.alloc(0)
-      })
+      electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
 
-      service.commit({ dataUrl: 'data:image/png;base64,truncated' })
+      service.commit({ pngBytes: new Uint8Array([1, 2]) })
 
-      // createFromDataURL returns an EMPTY image instead of throwing, so writing it
+      // createFromBuffer returns an EMPTY image instead of throwing, so writing it
       // replaces the clipboard with nothing while the user is told it was copied.
       expect(electron.clipboard.writeImage).not.toHaveBeenCalled()
       expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('clipboard'))
       expect(mockMainLoggerService.error).toHaveBeenCalled()
     })
 
-    it('writes no file when the result data URL cannot be decoded', async () => {
+    it('writes no file when the result bytes cannot be decoded', async () => {
       singleDisplaySetup()
       await service.startCapture()
       electron.dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/shot.png' })
-      electron.nativeImage.createFromDataURL.mockReturnValueOnce({
-        isEmpty: () => true,
-        toPNG: () => Buffer.alloc(0)
-      })
+      electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
 
-      await service.save({ dataUrl: 'data:image/png;base64,truncated' })
+      await service.save({ pngBytes: new Uint8Array([1, 2]) })
 
-      // toPNG() on an empty image yields a 0-byte .png that the log calls saved.
+      // Undecodable bytes written straight through would be a corrupt .png the log calls saved.
       expect(writeFileSyncMock).not.toHaveBeenCalled()
       expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('saved'))
       expect(mockMainLoggerService.error).toHaveBeenCalled()
@@ -900,7 +897,7 @@ describe('ScreenshotOverlayService', () => {
         return { canceled: false, filePath: '/tmp/shot.png' }
       })
 
-      await service.save({ dataUrl: 'data:image/png;base64,AAAA' })
+      await service.save({ pngBytes: PNG_BYTES })
 
       expect(writeFileSyncMock).not.toHaveBeenCalled()
     })
@@ -910,7 +907,7 @@ describe('ScreenshotOverlayService', () => {
       await service.startCapture()
       electron.dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/shot.png' })
 
-      await service.save({ dataUrl: 'data:image/png;base64,AAAA' })
+      await service.save({ pngBytes: PNG_BYTES })
 
       // A parent window would render this as a sheet, and a sheet is invisible on a
       // transparent frameless overlay — the user would see a frozen screen instead.
@@ -918,7 +915,8 @@ describe('ScreenshotOverlayService', () => {
       expect(electron.dialog.showSaveDialog.mock.calls[0]).toHaveLength(1)
       expect(fakeWindow('overlay-0-0').hide).toHaveBeenCalled()
       expect(electron.app.focus).toHaveBeenCalledWith({ steal: true })
-      expect(writeFileSyncMock).toHaveBeenCalledWith('/tmp/shot.png', expect.any(Buffer))
+      // The renderer's own PNG, not a round-trip through nativeImage's encoder.
+      expect(writeFileSyncMock).toHaveBeenCalledWith('/tmp/shot.png', PNG_BYTES)
     })
 
     it('restores the overlays when the macOS save dialog is cancelled', async () => {
@@ -927,7 +925,7 @@ describe('ScreenshotOverlayService', () => {
       service.markOverlayActive('overlay-0-0')
       electron.dialog.showSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined })
 
-      await service.save({ dataUrl: 'data:image/png;base64,AAAA' })
+      await service.save({ pngBytes: PNG_BYTES })
 
       // Left hidden, the session would be stuck: nothing visible on screen, yet the
       // re-entrance guard still blocks every new capture.
@@ -951,7 +949,7 @@ describe('ScreenshotOverlayService', () => {
       service.markOverlayActive('overlay-1920-0')
       electron.dialog.showSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined })
 
-      await service.save({ dataUrl: 'data:image/png;base64,AAAA' })
+      await service.save({ pngBytes: PNG_BYTES })
 
       // Modal ownership is what puts the dialog on the display the user selected on;
       // a parentless dialog opens on the primary monitor instead.

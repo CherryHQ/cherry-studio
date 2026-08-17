@@ -2,6 +2,7 @@ import type { ScreenshotResultData } from '@shared/types/screenshot'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+import { uint8ArraySchema } from './common'
 
 /**
  * Screenshot IPC — overlay windows report their outcome back to the main process.
@@ -12,12 +13,11 @@ import { defineRoute } from '../define'
  */
 
 /**
- * Max accepted result payload. A 4K full-screen PNG data URL lands around 20–30 MB;
- * 48 MB leaves headroom for a dense annotated capture on a large HiDPI display while
- * still bounding what a compromised renderer can make the main process allocate in
- * one call (`nativeImage.createFromDataURL` materializes the whole thing).
+ * Max accepted result payload. A 4K full-screen PNG lands around 15–25 MB; 48 MB leaves
+ * headroom for a dense annotated capture on a large HiDPI display while still bounding
+ * what a compromised renderer can make the main process allocate in one call.
  */
-const MAX_RESULT_DATA_URL_BYTES = 48 * 1024 * 1024
+const MAX_RESULT_BYTES = 48 * 1024 * 1024
 
 /**
  * Widest OCR region accepted, per side. A selection cannot exceed the display it
@@ -28,10 +28,12 @@ const MAX_OCR_REGION_SIDE = 8192
 
 /** Runtime form of {@link ScreenshotResultData}; the annotation binds the two structurally. */
 const screenshotResultSchema: z.ZodType<ScreenshotResultData> = z.object({
-  dataUrl: z
-    .string()
-    .startsWith('data:image/png;base64,')
-    .max(MAX_RESULT_DATA_URL_BYTES, 'screenshot result exceeds the size cap')
+  // Raw bytes rather than a data URL: base64 adds a third to a payload that is already
+  // tens of MB, plus an encode in the renderer and a decode in main.
+  pngBytes: uint8ArraySchema.refine(
+    (bytes) => bytes.byteLength <= MAX_RESULT_BYTES,
+    'screenshot result exceeds the size cap'
+  )
 })
 
 /** One recognized text run with its box in the capture's physical pixel space. */

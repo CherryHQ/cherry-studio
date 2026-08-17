@@ -19,6 +19,7 @@ import {
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
+import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { captureAllMonitors, listMonitors, listWindows } from './screenCapture'
@@ -430,10 +431,10 @@ export class ScreenshotOverlayService extends BaseService {
   /** Copy the overlay's result to the clipboard and end the session. */
   public commit(result: ScreenshotResultData): void {
     try {
-      const image = nativeImage.createFromDataURL(result.dataUrl)
-      // createFromDataURL never throws — undecodable input yields an EMPTY image, and
+      const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
+      // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
-      if (image.isEmpty()) throw new Error('the result data URL could not be decoded')
+      if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
       clipboard.writeImage(image)
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
@@ -459,7 +460,8 @@ export class ScreenshotOverlayService extends BaseService {
     const generation = this.sessionGeneration
     try {
       const saveOptions: Electron.SaveDialogOptions = {
-        defaultPath: `screenshot-${Date.now()}.png`,
+        // Local time, not an epoch: the name is what the user scans in a file list.
+        defaultPath: `cherry_screenshot_${dayjs().format('YYYYMMDD_HHmmss')}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       }
 
@@ -484,10 +486,13 @@ export class ScreenshotOverlayService extends BaseService {
       if (generation !== this.sessionGeneration) return
 
       try {
-        const image = nativeImage.createFromDataURL(result.dataUrl)
-        // An undecodable data URL yields an EMPTY image, which writes a 0-byte .png.
-        if (image.isEmpty()) throw new Error('the result data URL could not be decoded')
-        writeFileSync(dialogResult.filePath, image.toPNG())
+        // Decoded only to validate: undecodable input yields an EMPTY image, which used
+        // to be written as a 0-byte .png. The renderer's own bytes are what lands on
+        // disk, so the file is never round-tripped through another PNG encoder.
+        if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+          throw new Error('the result bytes could not be decoded')
+        }
+        writeFileSync(dialogResult.filePath, result.pngBytes)
         logger.info('Screenshot saved to file')
       } catch (error) {
         // Logged, not rethrown: a failed write must not skip the teardown below.

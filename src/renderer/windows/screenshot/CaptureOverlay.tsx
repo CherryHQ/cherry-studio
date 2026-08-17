@@ -24,7 +24,7 @@ import { useTextInput } from './hooks/useTextInput'
 import { initialState, overlayReducer } from './reducer'
 import type { OverlayAction, OverlayState, SelectionRect } from './types'
 import { findWindowAtPoint } from './utils/findWindowAtPoint'
-import { generateSelectionDataUrl } from './utils/generateBlob'
+import { generateSelectionPng } from './utils/generateBlob'
 
 const logger = loggerService.withContext('CaptureOverlay')
 
@@ -207,13 +207,13 @@ const CaptureOverlay: FC = () => {
     async (action: 'commit' | 'save') => {
       if (!imageRef.current || !state.selection || !initData) return
       try {
-        const dataUrl = await generateSelectionDataUrl(
+        const pngBytes = await generateSelectionPng(
           imageRef.current,
           state.selection,
           initData.display.scaleFactor,
           annotationCanvasRef.current
         )
-        await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { dataUrl })
+        await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { pngBytes })
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
       }

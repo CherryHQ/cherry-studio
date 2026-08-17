@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AnchorHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ScreenshotSettings from '../ScreenshotSettings'
 
 type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
+
+type ConflictListener = (payload: { key: string; hasConflict: boolean }) => void
+let conflictListener: ConflictListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -83,6 +86,19 @@ describe('ScreenshotSettings', () => {
       enabled: true
     })
     platform.isMac = true
+
+    // The row subscribes on mount; tests that need a conflict call the captured listener.
+    conflictListener = null
+    window.api = {
+      shortcut: {
+        onRegistrationConflict: (callback: ConflictListener) => {
+          conflictListener = callback
+          return () => {
+            conflictListener = null
+          }
+        }
+      }
+    } as unknown as typeof window.api
   })
 
   it('keeps the auto-OCR switch inoperable until the OCR model is ready', async () => {
@@ -138,6 +154,32 @@ describe('ScreenshotSettings', () => {
 
     expect(screen.getByText('⌘⇧A')).toBeInTheDocument()
     expect(screen.getByText('settings.screenshot.shortcut.disabled')).toBeInTheDocument()
+  })
+
+  it('flags a shortcut the OS refused to register, which the badge alone would hide', async () => {
+    stubIpc({ permission: 'authorized' })
+    render(<ScreenshotSettings />)
+
+    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
+
+    // Another application already owns the accelerator. The binding is still displayed,
+    // so without this the row claims a working shortcut that in fact does nothing.
+    act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: true }))
+    expect(screen.getByLabelText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: false }))
+    expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
+  })
+
+  it('ignores a conflict reported for a different shortcut', async () => {
+    stubIpc({ permission: 'authorized' })
+    render(<ScreenshotSettings />)
+
+    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    act(() => conflictListener?.({ key: 'shortcut.app.search', hasConflict: true }))
+
+    expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
   })
 
   it('says the shortcut is unset rather than showing an empty badge', async () => {

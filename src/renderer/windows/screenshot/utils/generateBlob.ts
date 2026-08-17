@@ -1,7 +1,7 @@
 import type { SelectionRect } from '../types'
 
 /**
- * Crop the capture to the selection, composite the annotation layer, and encode a PNG data URL.
+ * Crop the capture to the selection, composite the annotation layer, and encode a PNG.
  *
  * Crops at PHYSICAL resolution so the export keeps the display's full detail; the
  * selection arrives in logical pixels and is scaled here.
@@ -11,12 +11,12 @@ import type { SelectionRect } from '../types'
  * encode below throw `SecurityError` — which presents as "the overlay looks right
  * but Copy and Save do nothing".
  */
-export async function generateSelectionDataUrl(
+export async function generateSelectionPng(
   image: HTMLImageElement,
   selection: SelectionRect,
   scaleFactor: number,
   annotationCanvas?: HTMLCanvasElement | null
-): Promise<string> {
+): Promise<Uint8Array> {
   const sx = Math.round(selection.x * scaleFactor)
   const sy = Math.round(selection.y * scaleFactor)
   const sw = Math.round(selection.width * scaleFactor)
@@ -46,14 +46,7 @@ export async function generateSelectionDataUrl(
     }, 'image/png')
   })
 
-  return await blobToDataUrl(blob)
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read the screenshot blob'))
-    reader.readAsDataURL(blob)
-  })
+  // Bytes, not a data URL: Electron structured-clones a Uint8Array over IPC as-is, so
+  // base64 would only add a third to the payload plus an encode here and a decode in main.
+  return new Uint8Array(await blob.arrayBuffer())
 }

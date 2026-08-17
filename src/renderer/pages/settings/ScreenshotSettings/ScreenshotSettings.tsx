@@ -1,4 +1,4 @@
-import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -12,13 +12,17 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import type { OutputFor } from '@shared/ipc/types'
+import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
 import { Link } from '@tanstack/react-router'
+import { TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ScreenshotSettings')
+
+const CAPTURE_SHORTCUT_KEY = commandShortcutPreferenceKey('screenshot.capture')
 
 type ScreenCaptureStatus = OutputFor<'system.mac.screen_capture_status'>
 
@@ -62,6 +66,20 @@ const ScreenshotSettings: FC = () => {
 
   const captureShortcut = formatShortcutDisplay(captureBinding.binding, isMac)
   const captureShortcutEnabled = captureBinding.enabled
+
+  /**
+   * Whether the OS refused to register the capture accelerator.
+   *
+   * Main only emits on the transition, so a page opened after the fact shows nothing —
+   * the same limitation the shortcut list has. The case that matters is covered: turning
+   * the feature on triggers the registration attempt while the user is looking at this row.
+   */
+  const [shortcutConflict, setShortcutConflict] = useState(false)
+  useEffect(() => {
+    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict }) => {
+      if (key === CAPTURE_SHORTCUT_KEY) setShortcutConflict(hasConflict)
+    })
+  }, [])
 
   const [permissionStatus, setPermissionStatus] = useState<ScreenCaptureStatus | null>(null)
   const [restartRequired, setRestartRequired] = useState(false)
@@ -154,6 +172,18 @@ const ScreenshotSettings: FC = () => {
           <div className="flex shrink-0 items-center gap-2">
             {captureShortcut ? (
               <>
+                {/* The badge alone would read as "bound, therefore working" — the whole
+                    point of this state is that the binding exists and does nothing. */}
+                {shortcutConflict && (
+                  <NormalTooltip content={t('settings.shortcuts.occupied_by_other_application')}>
+                    {/* aria-label because lucide icons are aria-hidden and a tooltip is not
+                        an accessible name — the warning would exist only for sighted users. */}
+                    <TriangleAlert
+                      aria-label={t('settings.shortcuts.occupied_by_other_application')}
+                      className="size-4 shrink-0 text-destructive"
+                    />
+                  </NormalTooltip>
+                )}
                 <Badge variant={captureShortcutEnabled ? 'default' : 'outline'}>{captureShortcut}</Badge>
                 {/* Spelled out, not left to the badge variant: nobody reads filled-vs-outline
                     as on-vs-off, and a bound-but-disabled shortcut looks like a working one. */}

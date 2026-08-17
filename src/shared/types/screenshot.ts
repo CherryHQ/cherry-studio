@@ -43,6 +43,6 @@ export interface ScreenshotInitData {
  * from the image itself if a consumer ever needs it.
  */
 export interface ScreenshotResultData {
-  /** PNG data URL of the cropped, annotated selection. */
-  dataUrl: string
+  /** Encoded PNG of the cropped, annotated selection. */
+  pngBytes: Uint8Array
 }

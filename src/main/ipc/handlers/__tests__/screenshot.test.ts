@@ -27,7 +27,7 @@ beforeEach(() => {
 })
 
 const ctx = (senderId: string | null) => ({ senderId })
-const captureResult = { dataUrl: 'data:image/png;base64,AAAA' }
+const captureResult = { pngBytes: new Uint8Array([137, 80, 78, 71]) }
 const ocrInput = { mediaId: 'media-1', region: { x: 0, y: 0, width: 10, height: 10 } }
 
 /** Every route that consults a predicate, with the input its schema declares. */

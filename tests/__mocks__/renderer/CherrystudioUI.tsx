@@ -140,6 +140,9 @@ export const MockCherrystudioUI = {
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
+  // Content deliberately dropped: a tooltip is not an accessible name, so a trigger that
+  // depends on it for meaning is a bug the test should catch, not one the mock hides.
+  NormalTooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   Scrollbar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   Select: ({ children, onValueChange, value, ...props }: any) => (
