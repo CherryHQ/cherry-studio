@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -128,12 +128,13 @@ import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
-  useResourceList,
   useResourceListActions,
+  useResourceListControlsState,
   useResourceListGroupState,
-  useResourceListRowState
+  useResourceListRowState,
+  useResourceListView
 } from '../ResourceList'
-import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
+import { type ResourceListItemBase, useResourceListUiStore } from '../ResourceListContext'
 import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from '../resourceListLayout'
 import { ResourceListRemoteGroupService } from '../ResourceListRemoteGroups'
 
@@ -178,16 +179,21 @@ function chevronFor(groupHeaderButton: HTMLElement): HTMLElement {
 }
 
 function Inspector() {
-  const { state, view } = useResourceList<TestItem>()
+  const controls = useResourceListControlsState()
+  const store = useResourceListUiStore()
+  const listbox = useSyncExternalStore(store.subscribeListbox, store.getListboxSnapshot, store.getListboxSnapshot)
+  const view = useResourceListView<TestItem>()
   return (
     <output data-testid="inspector">
       {JSON.stringify({
-        activeId: state.activeId,
-        query: state.query,
-        filters: state.filters,
-        collapsedGroups: state.collapsedGroups,
-        selectedId: state.selectedId,
-        renamingId: state.renamingId,
+        activeId: listbox.activeId,
+        query: controls.query,
+        filters: controls.filters,
+        collapsedGroups: [
+          ...view.sections.filter((section) => section.collapsed).map((section) => section.section.id),
+          ...view.groups.filter((group) => group.collapsed).map((group) => group.group.id)
+        ],
+        selectedId: listbox.selectedId,
         names: view.items.map((item) => item.name),
         visibleNames: view.visibleItems.map((item) => item.name),
         groups: view.groups.map((group) => group.group.id),
@@ -469,7 +475,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function ActionProbe() {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       actionRefs.push(actions)
       return (
         <button type="button" onClick={() => actions.toggleFilter('pinned')}>
@@ -508,14 +514,13 @@ describe('ResourceList', () => {
     const renderCounts = new Map<string, number>()
     const Provider = ResourceList.Provider<TestItem>
 
-    function Row({ context, item }: { context: ResourceListContextValue<TestItem>; item: TestItem }) {
+    function Row({ item }: { item: TestItem }) {
       const rowState = useResourceListRowState(item.id)
       renderCounts.set(item.id, (renderCounts.get(item.id) ?? 0) + 1)
 
       return (
         <ResourceList.Item item={item}>
           <span data-testid={`${item.id}-state`}>{rowState.selected ? 'selected' : 'idle'}</span>
-          <span data-testid={`${item.id}-context-selected`}>{context.state.selectedId ?? 'none'}</span>
         </ResourceList.Item>
       )
     }
@@ -523,7 +528,7 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS}>
         <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={(item, context) => <Row context={context} item={item} />} />
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
     )
@@ -536,7 +541,6 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByTestId('alpha-state').closest('[role="option"]') as HTMLElement)
     expect(screen.getByTestId('alpha-state')).toHaveTextContent('selected')
-    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('alpha')
     expect(Object.fromEntries(renderCounts)).toEqual({
       alpha: 2,
       beta: 1,
@@ -546,8 +550,6 @@ describe('ResourceList', () => {
     fireEvent.click(screen.getByTestId('beta-state').closest('[role="option"]') as HTMLElement)
     expect(screen.getByTestId('alpha-state')).toHaveTextContent('idle')
     expect(screen.getByTestId('beta-state')).toHaveTextContent('selected')
-    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('beta')
-    expect(screen.getByTestId('beta-context-selected')).toHaveTextContent('beta')
     expect(Object.fromEntries(renderCounts)).toEqual({
       alpha: 3,
       beta: 2,
@@ -839,7 +841,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
@@ -859,7 +861,6 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS} onRenameItem={onRenameItem}>
         <ResourceList.Frame>
-          <Inspector />
           <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
@@ -872,9 +873,7 @@ describe('ResourceList', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(onRenameItem).toHaveBeenCalledWith('alpha', 'Renamed Alpha')
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      renamingId: null
-    })
+    expect(screen.queryByLabelText('Rename Alpha')).not.toBeInTheDocument()
   })
 
   it('keeps inline rename open while an IME is composing so the pinyin buffer is never committed', () => {
@@ -882,7 +881,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
@@ -985,7 +984,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       const rowState = useResourceListRowState(item.id)
 
       return (
@@ -1002,7 +1001,6 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS} onRenameItem={onRenameItem}>
         <ResourceList.Frame>
-          <Inspector />
           <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
@@ -1015,9 +1013,6 @@ describe('ResourceList', () => {
 
     expect(onRenameItem).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Rename Alpha')).not.toBeInTheDocument()
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      renamingId: null
-    })
   })
 
   it('renders context menu actions from resource item composition', async () => {
@@ -1034,7 +1029,7 @@ describe('ResourceList', () => {
     ]
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceListActionContextMenu
           item={item}

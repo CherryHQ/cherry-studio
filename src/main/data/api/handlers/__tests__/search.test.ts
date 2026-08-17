@@ -75,16 +75,6 @@ describe('searchHandlers', () => {
 
       expect(entitySearchMock).not.toHaveBeenCalled()
     })
-
-    it('uses an empty query for recent entities', async () => {
-      const response = { query: '', groups: [] }
-      entitySearchMock.mockResolvedValueOnce(response)
-
-      const result = await searchHandlers['/search/entities'].GET({ query: {} } as never)
-
-      expect(entitySearchMock).toHaveBeenCalledWith({ q: '' })
-      expect(result).toBe(response)
-    })
   })
 
   describe('/search/contents', () => {

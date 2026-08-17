@@ -204,14 +204,6 @@ export type ResourceListView<T extends ResourceListItemBase> = {
   sections: ResourceListViewSection<T>[]
 }
 
-export type ResourceListContextValue<T extends ResourceListItemBase> = {
-  state: ResourceListState
-  actions: ResourceListActionMap
-  meta: ResourceListMeta<T>
-  sourceItems: readonly T[]
-  view: ResourceListView<T>
-}
-
 export type ResourceListControlsState = Pick<ResourceListState, 'filters' | 'query' | 'sort' | 'status'>
 
 export type ResourceListItemAccessors<T extends ResourceListItemBase> = Pick<
@@ -223,24 +215,14 @@ export function getResourceListOptionDomId(itemId: string) {
   return `resource-list-option-${encodeURIComponent(itemId)}`
 }
 
-export const ResourceListContext = createContext<ResourceListContextValue<ResourceListItemBase> | null>(null)
 export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)
 export const ResourceListControlsContext = createContext<ResourceListControlsState | null>(null)
 export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<ResourceListItemBase> | null>(
   null
 )
 export const ResourceListMetaContext = createContext<ResourceListMeta<ResourceListItemBase> | null>(null)
-export const ResourceListSourceItemsContext = createContext<readonly ResourceListItemBase[] | null>(null)
 export const ResourceListUiStoreContext = createContext<ResourceListUiService | null>(null)
 export const ResourceListViewContext = createContext<ResourceListView<ResourceListItemBase> | null>(null)
-
-export function useResourceList<T extends ResourceListItemBase = ResourceListItemBase>() {
-  const context = use(ResourceListContext)
-  if (!context) {
-    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
-  }
-  return context as unknown as ResourceListContextValue<T>
-}
 
 export function useResourceListActions() {
   const actions = use(ResourceListActionsContext)
@@ -272,14 +254,6 @@ export function useResourceListMeta<T extends ResourceListItemBase = ResourceLis
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
   return meta as unknown as ResourceListMeta<T>
-}
-
-export function useResourceListSourceItems<T extends ResourceListItemBase = ResourceListItemBase>() {
-  const sourceItems = use(ResourceListSourceItemsContext)
-  if (!sourceItems) {
-    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
-  }
-  return sourceItems as readonly T[]
 }
 
 export function useResourceListUiStore() {

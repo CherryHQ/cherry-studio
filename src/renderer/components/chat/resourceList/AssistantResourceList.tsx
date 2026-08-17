@@ -116,7 +116,7 @@ export function AssistantResourceList({
   } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
-  const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
+  const { deleteTopicsByAssistantId } = useTopicMutations()
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -289,13 +289,12 @@ export function AssistantResourceList({
 
       try {
         await toggleAssistantPin(assistantId)
-        await refreshAssistants()
       } catch (err) {
         logger.error('Failed to toggle assistant pin from classic-layout rail', { assistantId, err })
         toast.error(t('common.error'))
       }
     },
-    [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
+    [isAssistantPinActionDisabled, t, toggleAssistantPin]
   )
 
   const handleClearAssistantTopics = useCallback(
@@ -323,7 +322,6 @@ export function AssistantResourceList({
         if ((topicCountByAssistantIdRef.current.get(assistantId) ?? 0) === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await refreshTopics()
         await onCreateTopicAfterClear?.(assistantId)
 
         toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
@@ -339,7 +337,6 @@ export function AssistantResourceList({
       deleteTopicsByAssistantId,
       deletingAssistantId,
       onCreateTopicAfterClear,
-      refreshTopics,
       t,
       topicCountByAssistantId
     ]
@@ -369,8 +366,6 @@ export function AssistantResourceList({
           await onActiveAssistantDeleted?.(assistantId)
         }
 
-        await refreshAssistants()
-        await refreshTopics()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
@@ -379,16 +374,7 @@ export function AssistantResourceList({
         setDeletingAssistantId(null)
       }
     },
-    [
-      activeAssistantId,
-      closeConversationTabs,
-      deleteAssistant,
-      deletingAssistantId,
-      onActiveAssistantDeleted,
-      refreshAssistants,
-      refreshTopics,
-      t
-    ]
+    [activeAssistantId, closeConversationTabs, deleteAssistant, deletingAssistantId, onActiveAssistantDeleted, t]
   )
 
   const getContextMenuActions = useCallback(

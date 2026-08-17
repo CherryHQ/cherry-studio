@@ -148,8 +148,6 @@ export class ResourceListUiService {
     return next
   }
 
-  getUiSnapshot = () => this.state
-
   getListboxSnapshot = (): ResourceListListboxStateSnapshot => {
     const { activeId, selectedId } = this.state
     if (this.listboxSnapshot.activeId === activeId && this.listboxSnapshot.selectedId === selectedId) {

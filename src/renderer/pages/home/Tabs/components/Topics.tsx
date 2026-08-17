@@ -325,8 +325,7 @@ export function Topics({
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
-    moveTopic,
-    refreshTopics
+    moveTopic
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
@@ -1224,13 +1223,12 @@ export function Topics({
 
       try {
         await toggleAssistantPin(assistantId)
-        await refreshAssistants()
       } catch (err) {
         logger.error('Failed to toggle assistant pin from topic group', { assistantId, err })
         toast.error(t('common.error'))
       }
     },
-    [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
+    [isAssistantPinActionDisabled, t, toggleAssistantPin]
   )
 
   const handleDeleteAssistantTopics = useCallback(
@@ -1255,7 +1253,6 @@ export function Topics({
         if (!confirmed) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await refreshTopics()
         await onCreateTopicAfterClear?.({ assistantId })
         toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
@@ -1266,7 +1263,7 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, globalTopicCountByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
+    [deleteTopicsByAssistantId, globalTopicCountByAssistantId, onCreateTopicAfterClear, t]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -1293,8 +1290,6 @@ export function Topics({
           await onActiveAssistantDeleted?.(assistantId)
         }
 
-        await refreshAssistants()
-        await refreshTopics()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete assistant from topic group', { assistantId, err })
@@ -1303,16 +1298,7 @@ export function Topics({
         setDeletingAssistantId(null)
       }
     },
-    [
-      activeTopic?.assistantId,
-      closeConversationTabs,
-      deleteAssistant,
-      deletingAssistantId,
-      onActiveAssistantDeleted,
-      refreshAssistants,
-      refreshTopics,
-      t
-    ]
+    [activeTopic?.assistantId, closeConversationTabs, deleteAssistant, deletingAssistantId, onActiveAssistantDeleted, t]
   )
 
   const getGroupHeaderAction = useCallback(

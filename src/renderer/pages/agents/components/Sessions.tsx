@@ -1659,9 +1659,6 @@ const Sessions = ({
           }
         }
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reloadSessionViews()
-        await refetchWorkspaces()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from session group', { agentId, err })
@@ -1679,9 +1676,6 @@ const Sessions = ({
       deletingAgentId,
       loadLatestSession,
       onActiveAgentDeleted,
-      refetchAgents,
-      refetchWorkspaces,
-      reloadSessionViews,
       setControlledActiveSessionId,
       t
     ]
@@ -1818,16 +1812,9 @@ const Sessions = ({
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
         toast.error(t('common.error'))
-        return
-      }
-
-      try {
-        await refetchAgents()
-      } catch (err) {
-        logger.warn('Failed to refresh agents after toggling pin from session group', { agentId, err })
       }
     },
-    [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
+    [isAgentPinActionDisabled, t, toggleAgentPin]
   )
 
   const handleSelectSession = useCallback(

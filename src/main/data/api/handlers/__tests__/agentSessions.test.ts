@@ -5,7 +5,6 @@ const {
   createSessionMock,
   getByIdMock,
   getLatestActiveMock,
-  statsMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
@@ -19,7 +18,6 @@ const {
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
-  statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -36,7 +34,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
     create: createSessionMock,
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
-    stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
@@ -83,20 +80,6 @@ describe('agentSessionHandlers', () => {
     })
   })
 
-  describe('/agent-sessions/stats', () => {
-    it('parses stats query and delegates to agentSessionService.stats', async () => {
-      const stats = { total: 0, pinnedCount: 0, byAgent: [] }
-      statsMock.mockReturnValueOnce(stats)
-
-      const result = await agentSessionHandlers['/agent-sessions/stats'].GET({
-        query: { agentId: 'unlinked' }
-      } as never)
-
-      expect(statsMock).toHaveBeenCalledWith({ agentId: 'unlinked' })
-      expect(result).toBe(stats)
-    })
-  })
-
   describe('/agent-sessions/latest', () => {
     it('wraps the latest session from AgentSessionService', async () => {
       const session = { id: 'session-latest' }
@@ -104,15 +87,6 @@ describe('agentSessionHandlers', () => {
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
       expect(getLatestActiveMock).toHaveBeenCalledWith({})
-    })
-
-    it('forwards a concrete agent scope', async () => {
-      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
-      getLatestActiveMock.mockReturnValueOnce(null)
-
-      await agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId } } as never)
-
-      expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId })
     })
 
     it('returns { session: null } when there are no sessions', async () => {

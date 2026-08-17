@@ -3,8 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } 
 
 import {
   ResourceListActionsContext,
-  ResourceListContext,
-  type ResourceListContextValue,
   ResourceListControlsContext,
   type ResourceListControlsState,
   type ResourceListDragCapabilities,
@@ -22,7 +20,6 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   type ResourceListSortOption,
-  ResourceListSourceItemsContext,
   type ResourceListState,
   type ResourceListStatus,
   ResourceListUiStoreContext,
@@ -1052,48 +1049,15 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     [viewGroups, viewItems, viewSections, visibleItems]
   )
 
-  const legacyState = useMemo<ResourceListState>(
-    () => ({
-      ...state,
-      filters: [...effectiveFilters],
-      query: effectiveQuery,
-      sort: effectiveSort,
-      collapsedGroups: [
-        ...viewSections.filter((section) => section.collapsed).map((section) => section.section.id),
-        ...viewGroups.filter((group) => group.collapsed).map((group) => group.group.id)
-      ],
-      selectedId: effectiveSelectedId,
-      status
-    }),
-    [effectiveFilters, effectiveQuery, effectiveSelectedId, effectiveSort, state, status, viewGroups, viewSections]
-  )
-
-  const context = useMemo<ResourceListContextValue<T>>(
-    () => ({
-      state: legacyState,
-      actions,
-      meta,
-      sourceItems: items,
-      view
-    }),
-    [actions, items, legacyState, meta, view]
-  )
-
   return (
     <ResourceListUiStoreContext value={uiStore}>
       <ResourceListActionsContext value={actions}>
         <ResourceListItemAccessorsContext
           value={itemAccessors as unknown as ResourceListItemAccessors<ResourceListItemBase>}>
           <ResourceListMetaContext value={meta as unknown as ResourceListMeta<ResourceListItemBase>}>
-            <ResourceListSourceItemsContext value={items}>
-              <ResourceListViewContext value={view as unknown as ResourceListView<ResourceListItemBase>}>
-                <ResourceListControlsContext value={controlsState}>
-                  <ResourceListContext value={context as unknown as ResourceListContextValue<ResourceListItemBase>}>
-                    {children}
-                  </ResourceListContext>
-                </ResourceListControlsContext>
-              </ResourceListViewContext>
-            </ResourceListSourceItemsContext>
+            <ResourceListViewContext value={view as unknown as ResourceListView<ResourceListItemBase>}>
+              <ResourceListControlsContext value={controlsState}>{children}</ResourceListControlsContext>
+            </ResourceListViewContext>
           </ResourceListMetaContext>
         </ResourceListItemAccessorsContext>
       </ResourceListActionsContext>

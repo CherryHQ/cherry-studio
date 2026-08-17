@@ -19,7 +19,6 @@ export {
 } from './resourceEntityIcon'
 export type {
   ResourceListActionMap,
-  ResourceListContextValue,
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
@@ -44,7 +43,6 @@ export type {
 } from './ResourceList'
 export {
   ResourceList,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,

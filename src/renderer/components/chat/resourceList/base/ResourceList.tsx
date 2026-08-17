@@ -9,9 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   getResourceListOptionDomId,
-  type ResourceListContextValue,
   type ResourceListItemBase,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,
@@ -40,7 +38,6 @@ import { VirtualDraggableItems, VirtualItems } from './ResourceListVirtual'
 
 export type {
   ResourceListActionMap,
-  ResourceListContextValue,
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
@@ -640,7 +637,7 @@ type BodyProps<T extends ResourceListItemBase> = {
   listRef?: Ref<HTMLDivElement>
   /** Invoked when the virtual scroller approaches its bottom. */
   onEndReached?: () => void
-  renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
+  renderItem: (item: T) => ReactNode
   virtualClassName?: string
   /** Accessible name forwarded to the listbox scroller in both the plain and draggable paths. */
   ariaLabel?: string
@@ -796,7 +793,6 @@ const ResourceList = {
 
 export {
   ResourceList,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,
