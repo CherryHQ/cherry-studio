@@ -1178,26 +1178,28 @@ const ChatComposerInner = ({
   )
 
   const createEmptyTopic = useCallback(
-    (payload?: AddNewTopicPayload) => {
+    async (payload?: AddNewTopicPayload) => {
       if (isAssistantLoading || hasMissingPersistedAssistant) return
-      void onCreateEmptyTopic?.(payload ?? (selectedAssistantId ? { assistantId: selectedAssistantId } : undefined))
+      await onCreateEmptyTopic?.(payload ?? (selectedAssistantId ? { assistantId: selectedAssistantId } : undefined))
+      actionsRef.current.focus('end')
     },
-    [hasMissingPersistedAssistant, isAssistantLoading, onCreateEmptyTopic, selectedAssistantId]
+    [hasMissingPersistedAssistant, isAssistantLoading, onCreateEmptyTopic, selectedAssistantId, actionsRef]
   )
 
   const addNewTopic = useCallback(
-    (payload?: AddNewTopicPayload) => {
+    async (payload?: AddNewTopicPayload) => {
       if (onCreateEmptyTopic) {
-        createEmptyTopic(payload)
+        await createEmptyTopic(payload)
         return
       }
-      void onNewTopic?.(payload)
+      await onNewTopic?.(payload)
+      actionsRef.current.focus('end')
     },
-    [createEmptyTopic, onCreateEmptyTopic, onNewTopic]
+    [createEmptyTopic, onCreateEmptyTopic, onNewTopic, actionsRef]
   )
 
   const handleNewTopicShortcut = useCallback(() => {
-    addNewTopic()
+    void addNewTopic()
   }, [addNewTopic])
   const hasNewTopicAction = Boolean(onCreateEmptyTopic || onNewTopic)
   const newTopicDisabled = Boolean(onCreateEmptyTopic) && (isAssistantLoading || hasMissingPersistedAssistant)
@@ -1229,7 +1231,7 @@ const ChatComposerInner = ({
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
         action: () => {
-          addNewTopic()
+          void addNewTopic()
         }
       })
     }
@@ -1247,7 +1249,7 @@ const ChatComposerInner = ({
               disabled: newTopicDisabled,
               customizePlacement: 'leading' as const,
               requiresPanel: false,
-              onSelect: () => addNewTopic()
+              onSelect: () => void addNewTopic()
             }
           ]
         : []),

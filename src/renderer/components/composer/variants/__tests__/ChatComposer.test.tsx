@@ -3135,6 +3135,34 @@ describe('ChatComposer', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
+  it('focuses the input after a new topic shortcut fires the parent action (regression: #18712)', async () => {
+    const onCreateEmptyTopic = vi.fn().mockResolvedValue(undefined)
+    mocks.focusComposer.mockReset()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    act(() => {
+      mocks.commandHandlers.get('topic.create')?.()
+    })
+
+    await waitFor(() => expect(onCreateEmptyTopic).toHaveBeenCalledOnce())
+    expect(mocks.focusComposer).toHaveBeenCalledWith('end')
+  })
+
+  it('focuses the input after a new topic shortcut through onNewTopic (regression: #18712)', async () => {
+    const onNewTopic = vi.fn().mockResolvedValue(undefined)
+    mocks.focusComposer.mockReset()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
+
+    act(() => {
+      mocks.commandHandlers.get('topic.create')?.()
+    })
+
+    await waitFor(() => expect(onNewTopic).toHaveBeenCalledOnce())
+    expect(mocks.focusComposer).toHaveBeenCalledWith('end')
+  })
+
   it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
