@@ -1088,6 +1088,10 @@
           "description": "Exécuter des commandes shell",
           "label": "Exécuter des commandes shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
@@ -1095,6 +1099,10 @@
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
@@ -1107,6 +1115,22 @@
         "read": {
           "description": "Lire des fichiers",
           "label": "Lire des fichiers"
+        },
+        "read_image": {
+          "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
+          "label": "Lire une image"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Écrire des fichiers",
@@ -3526,11 +3550,8 @@
             "label": "Mode d’exécution",
             "option": {
               "claude_code": "Avancé : Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rapide : Pi"
-            },
-            "selected": {
-              "claude_code": "Avancé",
-              "pi": "Rapide"
             }
           },
           "small_model": {

@@ -17,6 +17,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
+import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
 import { Mutex } from 'async-mutex'
 
 import {
@@ -329,14 +330,7 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 }
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
-  let sanitized = secret ? value.split(secret).join('[REDACTED]') : value
-  sanitized = sanitized
-    .replace(
-      /(["']?)(api_?key|token|auth|authorization|secret|password)\1(\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\r\n,;}\]]+)/gi,
-      (_match, quote: string, key: string, separator: string) => `${quote}${key}${quote}${separator}[REDACTED]`
-    )
-    .replace(/\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi, (_match, scheme: string) => `${scheme} [REDACTED]`)
-  return sanitized.slice(0, DIAGNOSTIC_LIMIT)
+  return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
 }
 
 function parseReadyUrl(output: string): string | undefined {
