@@ -1000,6 +1000,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
     })
 
+    it('routes a preset-derived Doubao instance (UUID id, custom host) through Doubao config (REGRESSION #18537)', async () => {
+      // A user-added Ark provider carries a UUID id + presetProviderId 'doubao'. Keying the
+      // image override on a bare `id === 'doubao'` left this instance on openai-compatible,
+      // whose image model POSTs multipart /images/edits once a reference image is attached
+      // — 404 on Ark, while text-to-image kept working on /images/generations.
+      const host = 'https://ark.cn-beijing.volces.com/api/plan/v3'
+      const provider = makeProvider({
+        id: 'a1b2c3-uuid',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: host, adapterFamily: 'openai-compatible' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'a1b2c3-uuid',
+        apiModelId: 'doubao-seedream-5-0-lite',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('doubao')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(host)
+    })
+
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
       const provider = makeProvider({
         id: 'doubao',
