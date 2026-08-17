@@ -7,9 +7,8 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
-import { useMcpServer } from '@renderer/hooks/useMcpServer'
+import { useMcpServer, useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
@@ -228,33 +227,24 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
-  const invalidateCache = useInvalidateCache()
-  const onDeleteMcpServer = useCallback(
-    async (serverToDelete: McpServer) => {
-      try {
-        const confirmed = await popup.confirm({
-          title: t('settings.mcp.deleteServer'),
-          content: t('settings.mcp.deleteServerConfirm'),
-          centered: true,
-          okButtonProps: { danger: true }
-        })
-        if (!confirmed) return
+  const { removeMcpServer } = useMcpServerMutations(server.id)
+  const onDeleteMcpServer = useCallback(async () => {
+    try {
+      const confirmed = await popup.confirm({
+        title: t('settings.mcp.deleteServer'),
+        content: t('settings.mcp.deleteServerConfirm'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) return
 
-        await ipcApi.request('mcp.server.remove', { serverId: serverToDelete.id })
-        // The delete is committed once the IPC call returns — a failed cache
-        // refresh must not surface as a delete failure.
-        await invalidateCache('/mcp-servers').catch((error) =>
-          logger.warn('Failed to refresh MCP server cache after delete', error as Error)
-        )
-        toast.success(t('settings.mcp.deleteSuccess'))
-        void navigate({ to: '/settings/mcp' })
-      } catch (error: any) {
-        toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-      }
-    },
-
-    [invalidateCache, t, navigate]
-  )
+      await removeMcpServer()
+      toast.success(t('settings.mcp.deleteSuccess'))
+      void navigate({ to: '/settings/mcp' })
+    } catch (error: any) {
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+    }
+  }, [removeMcpServer, t, navigate])
 
   const onToggleActive = async (active: boolean) => {
     if (!server) return
@@ -567,7 +557,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => onDeleteMcpServer(server)}
+                  onClick={() => void onDeleteMcpServer()}
                   className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}

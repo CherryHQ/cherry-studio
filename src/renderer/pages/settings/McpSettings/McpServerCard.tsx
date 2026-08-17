@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
@@ -32,8 +31,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMcpServer } = useMcpServerMutations(server.id)
-  const invalidateCache = useInvalidateCache()
+  const { updateMcpServer, removeMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
@@ -114,17 +112,12 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await ipcApi.request('mcp.server.remove', { serverId: server.id })
-      // The delete is committed once the IPC call returns — a failed cache
-      // refresh must not surface as a delete failure.
-      await invalidateCache('/mcp-servers').catch((error) =>
-        logger.warn('Failed to refresh MCP server cache after delete', error as Error)
-      )
+      await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
-  }, [server, invalidateCache, t])
+  }, [removeMcpServer, t])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {

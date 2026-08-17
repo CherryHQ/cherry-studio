@@ -28,7 +28,10 @@ const mocks = vi.hoisted(() => ({
 let currentServer: McpServer
 let currentSearch: { autoEnable?: 'true' }
 
-vi.mock('@renderer/hooks/useMcpServer', () => ({
+// Keep the real useMcpServerMutations so the delete tests exercise the actual
+// remove flow (IPC channel + cache invalidation), not a stand-in.
+vi.mock('@renderer/hooks/useMcpServer', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useMcpServer: mockUseMcpServer
 }))
 

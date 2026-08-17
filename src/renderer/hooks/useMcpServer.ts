@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { McpTool } from '@renderer/types/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { CreateMcpServerDto, ListMcpServersQuery } from '@shared/data/api/schemas/mcpServers'
@@ -45,11 +46,9 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
 }
 
 /**
- * Single MCP server hook — read + update. Deletion goes through the
- * `mcp.server.remove` IPC channel (main orchestrates runtime cleanup + row
- * deletion), not DataApi. Fetches via the list endpoint with an id filter
- * (separate SWR cache entry from the unfiltered list). Mutations use
- * refresh: ['/mcp-servers'] to auto-invalidate all /mcp-servers caches.
+ * Single MCP server hook — read + update. Fetches via the list endpoint with
+ * an id filter (separate SWR cache entry from the unfiltered list). Mutations
+ * use refresh: ['/mcp-servers'] to auto-invalidate all /mcp-servers caches.
  */
 export const useMcpServer = (id: string) => {
   const { data, isLoading } = useQuery('/mcp-servers', {
@@ -80,6 +79,9 @@ export const useIsToolAutoApproved = (tool: McpTool): boolean => {
 /**
  * Mutation-only hook for a single MCP server — no query, no N+1.
  * Use when server data is already available from a parent (e.g. from useMcpServers list).
+ *
+ * Removal goes through the `mcp.server.remove` IPC channel (main orchestrates
+ * runtime cleanup + row deletion), not DataApi.
  */
 export const useMcpServerMutations = (id: string) => {
   const path = `/mcp-servers/${id}` as const
@@ -88,5 +90,16 @@ export const useMcpServerMutations = (id: string) => {
     refresh: ['/mcp-servers']
   })
 
-  return { updateMcpServer }
+  const invalidateCache = useInvalidateCache()
+
+  const removeMcpServer = useCallback(async () => {
+    await ipcApi.request('mcp.server.remove', { serverId: id })
+    // The delete is committed once the IPC call returns — a failed cache
+    // refresh must not surface as a delete failure.
+    await invalidateCache('/mcp-servers').catch((error) =>
+      loggerService.withContext('useMcpServer').warn('Failed to refresh MCP server cache after delete', error as Error)
+    )
+  }, [id, invalidateCache])
+
+  return { updateMcpServer, removeMcpServer }
 }
