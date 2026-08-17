@@ -74,7 +74,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({
   if (isProcessing) {
     if (stalled) {
       const stallKey = stalledReason ? STALL_LABEL_KEYS[stalledReason] : undefined
-      const stallLabel = stallKey ? t(stallKey) : t('message.tools.placeholder.stalled')
+      const stallLabel = stallKey ? t(stallKey) : t('message.tools.placeholder.stalled.generic')
       return (
         <div
           className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-amber-500 leading-5"
