@@ -1822,6 +1822,67 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
+  it('settles a detached deferred placeholder when a model clear invalidates the session', async () => {
+    const suspended = createDeferred<void>()
+    mocks.suspendUnadmittedRuntimeTurn.mockImplementationOnce(() => suspended.promise)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const deferredTurn = entry.currentTurn
+    ;(service as any).applyRuntimeStateEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    })
+    ;(service as any).deferUnadmittedTurnForReceiveOnly(entry, deferredTurn)
+
+    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      status: 'paused',
+      data: { parts: [] }
+    })
+
+    suspended.resolve()
+    await suspended.promise
+    await Promise.resolve()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
+
+  it('settles a detached deferred placeholder when an invalid reconcile invalidates the session', async () => {
+    const suspended = createDeferred<void>()
+    mocks.suspendUnadmittedRuntimeTurn.mockImplementationOnce(() => suspended.promise)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const deferredTurn = entry.currentTurn
+    ;(service as any).applyRuntimeStateEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    })
+    ;(service as any).deferUnadmittedTurnForReceiveOnly(entry, deferredTurn)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('invalid') }
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { instructions: 'be terse' },
+      { id: 'agent-1', model: baseTurnInput.modelId }
+    )
+
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      status: 'paused',
+      data: { parts: [] }
+    })
+    suspended.resolve()
+  })
+
   it('keeps the live connection across a steer roll when the agent model changes mid-roll', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -3345,16 +3406,13 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      messageId: 'assistant-1',
       runtimeResumeToken: 'resume-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [{ type: 'text', text: 'hi' }] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'hi' }] },
+      modelId: 'claude-code::claude-sonnet-4-5'
     })
     expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
       id: 'assistant-1',
@@ -3387,16 +3445,13 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: undefined
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      messageId: 'assistant-1',
       runtimeResumeToken: 'resume-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'paused',
-        data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
+      status: 'paused',
+      data: { parts: [] },
+      modelId: 'claude-code::claude-sonnet-4-5'
     })
   })
 
@@ -4914,16 +4969,13 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      messageId: 'assistant-1',
       runtimeResumeToken: 'resume-init',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'error',
-        data: { parts: [{ type: 'data-error', data: { name: 'Error', message: 'boom' } }] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
+      status: 'error',
+      data: { parts: [{ type: 'data-error', data: { name: 'Error', message: 'boom' } }] },
+      modelId: 'claude-code::claude-sonnet-4-5'
     })
   })
 
@@ -4943,15 +4995,12 @@ describe('AgentSessionRuntimeService', () => {
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
     })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
+    expect(mocks.settlePendingAssistantMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      message: {
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
+      messageId: 'assistant-1',
+      status: 'success',
+      data: { parts: [] },
+      modelId: 'claude-code::claude-sonnet-4-5'
     })
   })
 

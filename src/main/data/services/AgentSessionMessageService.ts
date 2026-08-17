@@ -623,13 +623,15 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  /** Settle a runtime-owned placeholder without upserting or overwriting a newer terminal row. */
+  /** Settle a stream/runtime-owned placeholder without upserting or overwriting a newer terminal row. */
   settlePendingAssistantMessage(params: {
     sessionId: string
     messageId: string
     runtimeResumeToken?: string
-    status: 'paused' | 'error'
+    status: 'success' | 'paused' | 'error'
     data: AgentSessionMessageEntity['data']
+    modelId?: AgentSessionMessageEntity['modelId']
+    runtimeStats?: MessageRuntimeStatsInput
   }): boolean {
     const settled = application.get('DbService').withWriteTx((tx) => {
       const existing = this.findExistingMessageRow(tx, params.sessionId, params.messageId)
@@ -642,6 +644,10 @@ export class AgentSessionMessageService {
           status: params.status,
           data: params.data,
           ...(params.runtimeResumeToken ? { runtimeResumeToken: params.runtimeResumeToken } : {}),
+          ...(params.modelId !== undefined ? { modelId: params.modelId } : {}),
+          ...(params.runtimeStats
+            ? { stats: mergeMessageRuntimeStats(existing.stats, params.runtimeStats) ?? null }
+            : {}),
           updatedAt
         })
         .where(

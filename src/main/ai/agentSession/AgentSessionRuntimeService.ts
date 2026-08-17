@@ -3293,6 +3293,19 @@ export class AgentSessionRuntimeService extends BaseService {
         )
     }
     void this.finishBackgroundFlows(entry)
+    // Runtime-owned placeholders have no stream-side settler left; without a queued recovery the
+    // machine reset below would abandon their pending rows. Keep any recovery Stop already enqueued.
+    for (const runtimeOwnedTurn of this.runtimeOwnedTurns(entry)) {
+      if (this.blockedRuntimeTerminalRecoveries.has(`${entry.sessionId}:${runtimeOwnedTurn.assistantMessageId}`)) {
+        continue
+      }
+      this.enqueueRuntimeTerminalRecovery(
+        entry,
+        runtimeOwnedTurn,
+        'paused',
+        this.bufferedChunksForRuntimeOwnedTurn(entry, runtimeOwnedTurn)
+      )
+    }
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
