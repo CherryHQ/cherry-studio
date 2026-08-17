@@ -20,7 +20,7 @@ import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
 import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const FILE_MANAGER_TARGET = 'file_manager' as const
@@ -44,6 +44,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
   const openTargetPath = fileTargetPath ?? workdir
   const { data: externalApps } = useExternalApps({ enabled: true })
   const [lastUsedTarget, setLastUsedTarget] = usePersistCache('agent.open_external_app.last_used_target')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const availableEditors = useMemo(() => {
     if (!externalApps) {
@@ -138,14 +139,20 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
           <MenuItem
             label={defaultAppName}
             icon={<FileText size={16} />}
-            onClick={() => void openFileWithDefaultApp()}
+            onClick={() => {
+              setMenuOpen(false)
+              void openFileWithDefaultApp()
+            }}
           />
         )}
         <MenuItem
           label={fileManagerName}
           icon={renderFileManagerIcon()}
           active={selectedTarget === FILE_MANAGER_TARGET}
-          onClick={() => void openFileManager()}
+          onClick={() => {
+            setMenuOpen(false)
+            void openFileManager()
+          }}
         />
         {availableEditors.map((app) => (
           <MenuItem
@@ -153,7 +160,10 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
             label={app.name}
             icon={getEditorIcon(app)}
             active={selectedTarget === app.id}
-            onClick={() => void openInEditor(app)}
+            onClick={() => {
+              setMenuOpen(false)
+              void openInEditor(app)
+            }}
           />
         ))}
       </MenuList>
@@ -163,7 +173,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
   if (menuTrigger) {
     const trigger = <PopoverTrigger asChild>{menuTrigger}</PopoverTrigger>
     return (
-      <Popover>
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         {tooltip ? <NormalTooltip content={tooltip}>{trigger}</NormalTooltip> : trigger}
         {menu}
       </Popover>
@@ -199,7 +209,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
           {primaryIcon}
         </Button>
       </NormalTooltip>
-      <Popover>
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"

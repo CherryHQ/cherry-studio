@@ -5,6 +5,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
+import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -217,20 +218,18 @@ export class SubWindowService extends BaseService {
   }
 
   /**
-   * Re-attaches a tab from a detached sub-window back into the main window: broadcasts the
-   * Tab to the main window (which re-absorbs it) and closes the caller sub-window. The two
-   * guards are load-bearing: skip the whole thing when no main window exists (else the tab
-   * would be lost), and only close the caller when it truly is a SubWindow (never the main
-   * window). `senderId` is the calling window resolved by IpcContext.
+   * Re-attaches a tab from a detached sub-window back into the main window. Delivery is
+   * delegated to openTabInMainWindow, which handles both the live path (directed
+   * `tab.attached` event + raise the window, covering close-to-tray) and the cold path
+   * (rebuild the main window around the tab via `tab-attach` init data). We then close the
+   * caller sub-window — but only when it truly is a SubWindow (never the main window).
+   * `senderId` is the calling window resolved by IpcContext.
    */
   public attachTab(tab: Tab, senderId: WindowId | null): void {
-    const wm = application.get('WindowManager')
-    if (wm.getWindowsByType(WindowType.Main).length === 0) {
-      logger.warn('tab attach skipped: main window not available')
-      return
+    openTabInMainWindow(tab)
+    if (this.isSubWindowSender(senderId)) {
+      application.get('WindowManager').close(senderId)
     }
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'tab.attached', tab)
-    if (this.isSubWindowSender(senderId)) wm.close(senderId)
   }
 
   /**

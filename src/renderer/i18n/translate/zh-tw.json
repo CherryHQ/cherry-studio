@@ -554,11 +554,6 @@
           "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
           "label": "環境變數"
         },
-        "maxTurns": {
-          "description": "設定 Agent 自動執行的請求／回覆輪次數。",
-          "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
-          "label": "對話輪次上限"
-        },
         "permissionMode": {
           "description": "控制 Agent 在需要授權時的處理方式。",
           "label": "權限模式",
@@ -673,7 +668,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "警告：所有工具都會在無核准情況下執行。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1088,6 +1083,58 @@
         "Write": {
           "description": "建立或覆寫檔案",
           "label": "寫入檔案"
+        },
+        "bash": {
+          "description": "執行 Shell 命令",
+          "label": "執行 Shell 命令"
+        },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
+        "edit": {
+          "description": "編輯檔案",
+          "label": "編輯檔案"
+        },
+        "find": {
+          "description": "尋找檔案",
+          "label": "尋找檔案"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
+        },
+        "grep": {
+          "description": "搜尋檔案內容",
+          "label": "搜尋檔案內容"
+        },
+        "ls": {
+          "description": "列出目錄內容",
+          "label": "列出目錄內容"
+        },
+        "read": {
+          "description": "讀取檔案",
+          "label": "讀取檔案"
+        },
+        "read_image": {
+          "description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",
+          "label": "讀取圖片"
+        },
+        "skill": {
+          "description": "載入啟用技能的完整指令",
+          "label": "載入技能指令"
+        },
+        "todo_write": {
+          "description": "管理任務清單",
+          "label": "管理任務清單"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
+        },
+        "write": {
+          "description": "寫入檔案",
+          "label": "寫入檔案"
         }
       }
     },
@@ -1155,9 +1202,9 @@
       "stopSuccess": "API 閘道停止成功"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "啟用",
+      "description": "此智能體使用的模型必須透過 Cherry Studio 的本機 API Gateway 橋接。啟用後閘道會在之後啟動時自動執行；您隨時可以在設定中再次關閉。",
+      "title": "啟用 API Gateway？"
     },
     "status": {
       "running": "執行中",
@@ -2180,6 +2227,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2202,6 +2250,43 @@
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
     "disable": "停用",
     "edit_config": "編輯設定",
@@ -2252,6 +2337,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2261,8 +2347,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
@@ -2502,7 +2590,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "此模型必須透過 Cherry Studio 的本機 API Gateway 橋接，但閘道目前為停用狀態。請啟用它才能執行此智能體。",
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
@@ -2889,6 +2977,13 @@
       "title": "保持活躍時間"
     },
     "title": "GPUStack"
+  },
+  "help": {
+    "feedback": "問題回饋",
+    "guide": "使用指南",
+    "star": "GitHub 按讚",
+    "title": "幫助",
+    "whats_new": "新功能"
   },
   "history": {
     "continue_chat": "繼續聊天",
@@ -3349,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理側邊欄",
     "minapps": "小程式",
     "miniApps": "小程式",
@@ -3421,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
           },
-          "max_turns": {
-            "help": "0 表示使用預設值",
-            "label": "最大對話回合數"
-          },
           "mcps": {
             "add": "新增 MCP 伺服器",
             "empty": "無綁定",
@@ -3452,6 +3544,15 @@
           "plan_model": {
             "hint": "任務分解與規劃",
             "label": "計畫模型"
+          },
+          "runtime": {
+            "immutable_hint": "建立後不可切換",
+            "label": "執行模式",
+            "option": {
+              "claude_code": "增強：Claude Agent",
+              "dsh": "DeepSeek Harness",
+              "pi": "快速：Pi"
+            }
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
@@ -3860,10 +3961,17 @@
     "skill_marketplace": {
       "empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
       "empty_title": "搜尋技能",
+      "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "從 GitHub 安裝",
+      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_label": "GitHub SKILL.md 連結",
+      "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
       "no_results_title": "未找到技能",
       "search_failed_description": "搜尋失敗，請稍後再試。",
+      "search_label": "搜尋技能",
       "search_placeholder": "搜尋技能...",
+      "source_label": "技能來源",
       "title": "線上搜尋技能"
     },
     "sort": {
@@ -3890,13 +3998,6 @@
       "placeholder": "新標籤名稱..."
     },
     "tag_sync_failed": "同步標籤失敗",
-    "time_ago": {
-      "days": "{{count}} 天前",
-      "hours": "{{count}} 小時前",
-      "just_now": "剛才",
-      "minutes": "{{count}} 分鐘前",
-      "months": "{{count}} 個月前"
-    },
     "title": "資源庫",
     "toolbar": {
       "add_group_placeholder": "群組名稱...",
@@ -5946,7 +6047,7 @@
           "title": "診斷包"
         },
         "errors": {
-          "busy": "另一個診斷包正在匯出",
+          "busy": "已有其他診斷包操作正在進行",
           "copy_failed": "無法複製支援電子郵件",
           "destination_conflict": "所選儲存位置與診斷資料衝突，請選擇其他資料夾。",
           "email_client_failed": "無法開啟電子郵件應用程式。您可以改為複製支援電子郵件。",
@@ -5995,6 +6096,48 @@
           "title": "已匯出診斷包"
         },
         "unknown": "未知",
+        "upload": {
+          "actions": {
+            "consent_upload": "同意並上傳",
+            "open_form": "開啟表單",
+            "uploading": "正在上傳..."
+          },
+          "dialog": {
+            "description": "產生診斷包並匿名傳送給 Cherry Studio 團隊。",
+            "title": "上傳診斷包"
+          },
+          "errors": {
+            "open_form_failed": "無法開啟回饋表單",
+            "upload_failed": "無法產生或儲存診斷包"
+          },
+          "manual": {
+            "description": "ZIP 已儲存至下載資料夾，並已開啟匿名表單。請在表單中選取該檔案以完成提交。",
+            "title": "需要手動上傳"
+          },
+          "privacy": {
+            "description": "診斷包一律包含應用程式與裝置資訊。所選記錄與詳細活動資料可能包含您輸入的內容、檔案位置、請求與回應內容，以及服務連線資訊。診斷包將匿名傳送至私人飛書表單，大小上限為 {{size}}。點選「同意並上傳」即表示您同意產生並傳送此診斷包。",
+            "title": "隱私權說明"
+          },
+          "reasons": {
+            "attachment_upload_failed": "無法自動上傳附件。",
+            "form_changed": "回饋表單結構已變更，無法安全驗證。",
+            "form_unavailable": "回饋表單目前無法使用。",
+            "network_failed": "網路請求未能完成。",
+            "submission_rejected": "回饋表單拒絕了本次提交。"
+          },
+          "success": {
+            "description": "檔案大小 {{size}} · 已收集 {{included}} 個檔案 · 未收集 {{omitted}} 個檔案",
+            "title": "診斷包已上傳"
+          },
+          "unknown": {
+            "description": "ZIP 已儲存至下載資料夾，但伺服器回應中斷，可能已經提交成功。開啟表單前請先確認，避免重複提交。",
+            "title": "可能已提交"
+          },
+          "unknown_without_copy": {
+            "description": "伺服器回應中斷，且診斷包無法儲存至下載資料夾。請勿再次上傳，否則可能重複提交同一份意見回饋。",
+            "title": "可能已提交，但未能儲存本機副本"
+          }
+        },
         "warning": "部分診斷資訊目前無法取得，匯出的診斷包可能不完整。"
       },
       "downloading": "正在下載...",
@@ -6003,24 +6146,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "與 Cherry 支援對話，取得使用協助或提交回饋。",
-          "title": "使用 Agent"
+          "description": "使用內建的問題回饋 Agent 取得 Cherry Studio 使用協助或提交回饋。",
+          "title": "向問題回饋助手求助"
         },
-        "agent_error": "無法開啟 Cherry 支援以提供意見回饋。請再試一次。",
+        "agent_error": "無法開啟問題回饋助手，請再試一次。",
         "button": "回饋",
+        "diagnostics": {
+          "description": "確認最近的診斷資訊後，一鍵匿名上傳。",
+          "title": "上傳診斷包"
+        },
         "dialog": {
           "description": "選擇分享回饋的方式，幫助我們讓 Cherry Studio 變得更好。",
           "title": "選擇回饋管道"
         },
         "github": {
           "description": "在 GitHub 上建立錯誤回報或功能請求。",
+          "error": "無法開啟 GitHub Issue，請再試一次。",
           "title": "GitHub 問題"
         },
         "recommended": "推薦",
-        "survey": {
-          "description": "透過我們的飛書問卷分享回饋。",
-          "title": "意見調查"
-        },
         "title": "回饋"
       },
       "label": "關於與回饋",
@@ -7040,6 +7184,7 @@
         "no": "無描述",
         "nowledge_mem": "需要在本機執行 Nowledge Mem 應用程式。它會將 AI 對話、工具、筆記、Agent 與檔案儲存為電腦上的私人記憶。請從 https://mem.nowledge.co/ 下載。",
         "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
+        "qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。需要設定 QVERIS_API_KEY 環境變數。",
         "sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
       "command": "指令",
@@ -7159,6 +7304,10 @@
       "providerPlaceholder": "供應商名稱",
       "providerUrl": "供應商網址",
       "providers": "供應商",
+      "qveris": {
+        "get_api_key": "取得 API Key",
+        "missing_api_key": "QVeris 需要 API Key。<link>註冊或登入以取得 API Key</link>，然後將其填入 QVERIS_API_KEY。"
+      },
       "registry": "套件管理源",
       "registryDefault": "預設",
       "registryOptions": {
@@ -7653,7 +7802,8 @@
       "assistant": "助理訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知"
+      "title": "通知",
+      "update": "應用程式更新"
     },
     "openai": {
       "service_tier": {
@@ -8888,5 +9038,18 @@
     "quit": "結束",
     "show_window": "顯示視窗",
     "visualization": "視覺化"
+  },
+  "xlsx_preview": {
+    "chart": "圖表",
+    "chart_unsupported": "暫不支援此圖表類型",
+    "error": {
+      "description": "無法預覽此試算表。"
+    },
+    "formula_not_evaluated": "公式無法求值",
+    "sheet_tabs_label": "工作表",
+    "too_large": {
+      "description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
+      "title": "檔案過大，無法預覽"
+    }
   }
 }

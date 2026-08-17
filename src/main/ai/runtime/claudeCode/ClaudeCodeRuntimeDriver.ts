@@ -19,6 +19,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -41,6 +42,8 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
+import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -52,7 +55,6 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import {
-  ApiGatewayNotRunningError,
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
@@ -275,42 +277,8 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-class AsyncEventQueue<T> implements AsyncIterable<T> {
-  private readonly items: T[] = []
-  private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiters.shift()
-    if (waiter) {
-      waiter({ value: item, done: false })
-      return
-    }
-    this.items.push(item)
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return {
-      next: () => {
-        const item = this.items.shift()
-        if (item) return Promise.resolve({ value: item, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
-        return new Promise<IteratorResult<T>>((resolve) => {
-          this.waiters.push(resolve)
-        })
-      }
-    }
-  }
-}
+// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
+export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly messages: SDKUserMessage[] = []
@@ -1078,7 +1046,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({
       type: 'usage',
       invocation: {
-        requestId: pending.requestId,
+        requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
         ...(usage ? { usage } : {}),

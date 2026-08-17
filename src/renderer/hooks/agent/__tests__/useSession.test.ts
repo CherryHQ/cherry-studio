@@ -391,6 +391,21 @@ describe('useSessions', () => {
     })
   })
 
+  it('refetches session pins after a pin membership notification', () => {
+    const refetchPins = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/pins', {
+      data: [],
+      refetch: refetchPins
+    })
+
+    renderHook(() => useSessions('agent-1'))
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    expect(refetchPins).toHaveBeenCalledOnce()
+  })
+
   it('flattens items from a single page', async () => {
     const items = [
       { id: 's-1', name: 'Session 1' },

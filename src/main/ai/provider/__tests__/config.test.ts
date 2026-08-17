@@ -273,6 +273,99 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/google')
     })
 
+    it('lets the Vertex SDK derive the resource path when the official bare host is configured', async () => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://aiplatform.googleapis.com',
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex')
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+      expect(settings.baseURL).toBeUndefined()
+    })
+
+    it.each([
+      {
+        // Every spelling below is wire-identical to the bare official host, so
+        // keeping it as an override would send a request with no
+        // /projects/{project}/locations/{location} path — the reported 404.
+        name: 'an explicit default HTTPS port',
+        baseUrl: 'https://aiplatform.googleapis.com:443',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'the trailing-sharp no-version contract',
+        baseUrl: 'https://aiplatform.googleapis.com#',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'the HTTP spelling of the official host',
+        baseUrl: 'http://aiplatform.googleapis.com',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'a regional official host',
+        baseUrl: 'https://us-central1-aiplatform.googleapis.com',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'a non-default reverse-proxy port',
+        baseUrl: 'https://aiplatform.googleapis.com:8443',
+        expectedBaseUrl: 'https://aiplatform.googleapis.com:8443/v1/publishers/google'
+      },
+      {
+        name: 'a pinned resource path',
+        baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1',
+        expectedBaseUrl:
+          'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google'
+      },
+      {
+        name: 'a third-party proxy host',
+        baseUrl: 'https://custom.googleapis.com/vertex',
+        expectedBaseUrl: 'https://custom.googleapis.com/vertex/v1/publishers/google'
+      }
+    ])('routes $name', async ({ baseUrl, expectedBaseUrl }) => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl,
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.baseURL).toBe(expectedBaseUrl)
+    })
+
     it('lifts snake_case-only credentials (private_key/client_email) to camelCase clientEmail (REGRESSION)', async () => {
       // Service-account JSON stored with snake_case keys must surface as camelCase
       // `clientEmail` on googleCredentials; otherwise @ai-sdk/google-vertex/edge

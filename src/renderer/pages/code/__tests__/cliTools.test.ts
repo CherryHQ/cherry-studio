@@ -1,7 +1,8 @@
-import { CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
+import type { Provider } from '@shared/data/types/provider'
+import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 
 describe('CLI_TOOLS', () => {
   it('exposes every CodeCli enum value with a renderable icon component', () => {
@@ -34,5 +35,58 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
     for (const tool of PROVIDERLESS_CLI_TOOLS) {
       expect(LOGIN_CAPABLE_CLI_TOOLS.has(tool)).toBe(false)
     }
+  })
+})
+
+describe('DeepSeek Harness provider support', () => {
+  const provider = (partial: Record<string, unknown>): Provider =>
+    ({
+      id: 'provider',
+      name: 'Provider',
+      authType: 'api-key',
+      apiKeys: [],
+      endpointConfigs: {},
+      ...partial
+    }) as unknown as Provider
+
+  it('offers the Unified Gateway and providers with usable API-key credentials', () => {
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.DEEPSEEK_HARNESS)).toBe(true)
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.DEEPSEEK_HARNESS]([
+      provider({
+        id: 'api-key',
+        apiKeys: [{ id: 'key', isEnabled: true }],
+        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'keyless',
+        authOptional: true,
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://127.0.0.1:11434' } }
+      }),
+      provider({
+        id: 'missing-key',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'oauth-with-api-key',
+        authType: 'oauth',
+        apiKeys: [{ id: 'key', isEnabled: true }],
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
+      }),
+      provider({
+        id: 'oauth-only',
+        authType: 'oauth',
+        authMethods: ['oauth'],
+        authOptional: true,
+        apiKeys: [{ id: 'stale-key', isEnabled: true }],
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
+      }),
+      provider({
+        id: 'gemini-only',
+        apiKeys: [{ id: 'key', isEnabled: true }],
+        endpointConfigs: { 'google-generate-content': { baseUrl: 'https://google.example' } }
+      })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['api-key', 'keyless', 'oauth-with-api-key'])
   })
 })
