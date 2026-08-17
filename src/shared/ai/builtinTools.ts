@@ -58,8 +58,8 @@ export const KB_LIST_MAX_LIMIT = 50
 //   - omit `baseId`  → list the user's knowledge bases (name / group / item count / sample sources),
 //                       optionally filtered by `query` / `groupId`.
 //   - pass `baseId`  → outline that one base's folder/document structure (its organization tree),
-//                       optionally capped by `maxDepth`. Each readable leaf carries a `conceptId`
-//                       for kb_read.
+//                       optionally capped by `maxDepth` or narrowed to titles containing `query`.
+//                       Each readable leaf carries a `conceptId` for kb_read.
 //
 // One shape for both consumers (AI-SDK tool + MCP / Claude Code bridge): unused fields are simply
 // omitted. See the `kb_*` note at the top of this file.
@@ -71,7 +71,10 @@ export const kbListInputSchema = z.object({
     .max(200)
     .optional()
     .describe(
-      'List mode only: case-insensitive substring filter against the knowledge base name or source names such as filenames, URLs, and note titles.'
+      'Case-insensitive substring filter. Without `baseId`: filters the listed bases by their name or ' +
+        'source names such as filenames, URLs, and note titles. With `baseId` (outline mode): narrows the ' +
+        "tree to documents/folders whose titles contain the query, keeping each match's ancestor folders " +
+        "and a matching folder's contents."
     ),
   groupId: z
     .string()

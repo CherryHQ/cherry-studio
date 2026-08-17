@@ -164,7 +164,7 @@ export class KnowledgeService extends BaseService {
     return await this.conceptService.refreshConcepts(baseId, conceptIds)
   }
 
-  getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): KnowledgeOrganizationTree {
+  getOrganizationTree(baseId: string, options: { maxDepth?: number; query?: string } = {}): KnowledgeOrganizationTree {
     return this.conceptService.getOrganizationTree(baseId, options)
   }
 }
