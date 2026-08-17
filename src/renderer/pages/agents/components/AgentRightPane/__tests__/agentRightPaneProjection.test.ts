@@ -1056,9 +1056,9 @@ describe('agent right pane projections', () => {
     ])
   })
 
-  // An interrupted turn kills its subagents without a completion event, so the persisted parts end
-  // at in_progress forever. Liveness — not the events — decides whether a row still spins.
-  it('stops a run task the session is no longer running', () => {
+  // Turn completion and detached membership are separate SDK messages. Until the task declares
+  // detachment, the gap between them must remain neutral rather than flashing a false failure.
+  it('keeps an unknown foreground-to-background handoff pending', () => {
     const workflow = {
       runId: 'run-1',
       taskId: 'workflow-1',
@@ -1125,18 +1125,18 @@ describe('agent right pane projections', () => {
     )
     expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'workflow-1', status: 'in_progress' })])
 
-    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, {}, [], {
+    const handoff = buildAgentRightPaneStatus(messages, { m1: parts }, {}, [], {
       activeMessageIds: new Set()
     })
-    expect(stale.runTasks).toEqual([
+    expect(handoff.runTasks).toEqual([
       expect.objectContaining({
         id: 'workflow-1',
-        status: 'error',
+        status: 'pending',
         activeText: undefined,
         workflow: expect.objectContaining({
           workflowProgress: [
             expect.objectContaining({ type: 'workflow_phase', title: 'Review' }),
-            expect.objectContaining({ label: 'running-agent', state: 'interrupted' }),
+            expect.objectContaining({ label: 'running-agent', state: 'running' }),
             expect.objectContaining({ label: 'queued-agent', state: 'queued' }),
             expect.objectContaining({ label: 'done-agent', state: 'done' })
           ]

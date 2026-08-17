@@ -35,7 +35,6 @@ export const AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY = (sessionId: string) =>
  */
 export type AgentSessionTaskEvents = Record<string, AgentTaskEventPartData>
 
-export const TERMINAL_TASK_STATUSES = new Set<AgentTaskEventPartData['status']>(['completed', 'stopped', 'error'])
 const LATE_NONTERMINAL_ENRICHMENT_FIELDS = [
   'createdAt',
   'toolUseId',
@@ -45,6 +44,10 @@ const LATE_NONTERMINAL_ENRICHMENT_FIELDS = [
   'workflowName'
 ] as const satisfies ReadonlyArray<keyof AgentTaskEventPartData>
 
+export function isTerminalAgentSessionTaskStatus(status: AgentTaskEventPartData['status'] | undefined): boolean {
+  return status === 'completed' || status === 'stopped' || status === 'error'
+}
+
 /** Merge a lifecycle edge while preserving task identity and the first terminal transition. */
 export function mergeAgentSessionTaskEvent(
   existing: AgentTaskEventPartData | undefined,
@@ -53,8 +56,8 @@ export function mergeAgentSessionTaskEvent(
   if (!existing) return incoming
 
   const merged = { ...existing }
-  const existingIsTerminal = TERMINAL_TASK_STATUSES.has(existing.status)
-  const incomingIsTerminal = TERMINAL_TASK_STATUSES.has(incoming.status)
+  const existingIsTerminal = isTerminalAgentSessionTaskStatus(existing.status)
+  const incomingIsTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
   if (existingIsTerminal && !incomingIsTerminal) {
     for (const field of LATE_NONTERMINAL_ENRICHMENT_FIELDS) {
       const value = incoming[field]

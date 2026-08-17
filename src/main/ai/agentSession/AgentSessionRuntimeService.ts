@@ -25,8 +25,8 @@ import {
   AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
   type AgentSessionBackgroundTasks,
   type AgentSessionTaskEvents,
-  mergeAgentSessionTaskEvent,
-  TERMINAL_TASK_STATUSES
+  isTerminalAgentSessionTaskStatus,
+  mergeAgentSessionTaskEvent
 } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
@@ -110,7 +110,8 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
-export const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
+const TASK_EVENTS_PUBLISH_THROTTLE_MS = 100
+const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
 const MAX_PENDING_TASK_EVENT_HANDOFFS = 256
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
@@ -227,6 +228,12 @@ type WorkflowCheckpoint = {
   timer?: ReturnType<typeof setTimeout>
 }
 
+type TaskEventsPublishState = {
+  events: AgentSessionTaskEvents
+  lastPublishedAt?: number
+  timer?: ReturnType<typeof setTimeout>
+}
+
 type SteerContinuationReservation = {
   assistantMessageId: string
   userMessageId: string
@@ -278,8 +285,10 @@ type AgentSessionRuntimeEntry = {
   workflowSnapshotPersistedTaskIds?: Set<string>
   /** Tasks whose terminal workflow snapshot is already scheduled for transcript persistence. */
   terminalWorkflowSnapshotPersistedTaskIds?: Set<string>
-  /** Tasks whose terminal notification guarantees no later detached output. */
-  terminalNotificationTaskIds?: Set<string>
+  /** Tasks whose higher-priority terminal notification workflow snapshot was scheduled. */
+  terminalNotificationWorkflowSnapshotPersistedTaskIds?: Set<string>
+  /** Tasks whose status has reached a terminal state and can finalize detached output. */
+  terminalTaskIds?: Set<string>
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
@@ -290,6 +299,8 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowFlush?: Promise<void>
   /** Latest crash-recovery checkpoint per workflow task. */
   workflowCheckpoints?: Map<string, WorkflowCheckpoint>
+  /** Mutable latest task events plus a trailing shared-cache publish. */
+  taskEventsPublish?: TaskEventsPublishState
   /** Allows final detached-flow persistence to finish after this entry leaves the live map. */
   closing?: boolean
 }
@@ -2218,12 +2229,10 @@ export class AgentSessionRuntimeService extends BaseService {
       .map(([taskId]) => taskId)
     if (taskIds.length === 0) return
 
-    const events: AgentSessionTaskEvents =
-      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    const events = this.getBackgroundTaskEvents(entry)
     if (
       taskIds.some(
-        (taskId) =>
-          !TERMINAL_TASK_STATUSES.has(events[taskId]?.status) || !entry.terminalNotificationTaskIds?.has(taskId)
+        (taskId) => !isTerminalAgentSessionTaskStatus(events[taskId]?.status) || !entry.terminalTaskIds?.has(taskId)
       )
     ) {
       return
@@ -2242,7 +2251,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.pendingTaskEventChunksByTaskId?.delete(taskId)
       entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
       entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
-      entry.terminalNotificationTaskIds?.delete(taskId)
+      entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+      entry.terminalTaskIds?.delete(taskId)
       const checkpoint = entry.workflowCheckpoints?.get(taskId)
       if (checkpoint?.timer) clearTimeout(checkpoint.timer)
       entry.workflowCheckpoints?.delete(taskId)
@@ -2285,12 +2295,15 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
     }
-    for (const taskId of entry.terminalNotificationTaskIds ?? []) {
-      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationTaskIds?.delete(taskId)
+    for (const taskId of entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)
     }
     for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
       if (retainedTaskIds.has(taskId)) continue
-      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      if (checkpoint.timer) this.writeWorkflowCheckpoint(entry, taskId, checkpoint)
       entry.workflowCheckpoints?.delete(taskId)
     }
     for (const messageId of entry.persistedFlowMessageIds ?? []) {
@@ -2342,6 +2355,43 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  private getBackgroundTaskEvents(entry: AgentSessionRuntimeEntry): AgentSessionTaskEvents {
+    const existing = entry.taskEventsPublish
+    if (existing) return existing.events
+
+    const cached: AgentSessionTaskEvents =
+      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    const state: TaskEventsPublishState = { events: { ...cached } }
+    entry.taskEventsPublish = state
+    return state.events
+  }
+
+  private scheduleTaskEventsPublish(entry: AgentSessionRuntimeEntry, immediate: boolean): void {
+    const state = entry.taskEventsPublish
+    if (!state) return
+    const elapsed = Date.now() - (state.lastPublishedAt ?? 0)
+    if (immediate || elapsed >= TASK_EVENTS_PUBLISH_THROTTLE_MS) {
+      this.publishTaskEvents(entry, state)
+      return
+    }
+    state.timer ??= setTimeout(() => this.publishTaskEvents(entry, state), TASK_EVENTS_PUBLISH_THROTTLE_MS - elapsed)
+    state.timer.unref?.()
+  }
+
+  private publishTaskEvents(entry: AgentSessionRuntimeEntry, state: TaskEventsPublishState): void {
+    if (entry.taskEventsPublish !== state || !this.isCurrentEntry(entry)) return
+    if (state.timer) clearTimeout(state.timer)
+    state.timer = undefined
+    state.lastPublishedAt = Date.now()
+    application.get('CacheService').setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), { ...state.events })
+  }
+
+  private clearTaskEventsPublish(entry: AgentSessionRuntimeEntry): void {
+    const state = entry.taskEventsPublish
+    if (state?.timer) clearTimeout(state.timer)
+    entry.taskEventsPublish = undefined
+  }
+
   /** Keep the latest lifecycle edge per task and append turn-out edges to the spawning message. */
   private publishBackgroundTaskEvent(
     entry: AgentSessionRuntimeEntry,
@@ -2349,13 +2399,13 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
-    const cache = application.get('CacheService')
-    const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
-    const events: AgentSessionTaskEvents = cache.getShared(key) ?? {}
+    const events = this.getBackgroundTaskEvents(entry)
     const merged = mergeAgentSessionTaskEvent(events[data.taskId], data)
-    cache.setShared(key, { ...events, [data.taskId]: merged })
-    if (data.event === 'notification' && TERMINAL_TASK_STATUSES.has(data.status)) {
-      ;(entry.terminalNotificationTaskIds ??= new Set()).add(data.taskId)
+    events[data.taskId] = merged
+    const terminal = isTerminalAgentSessionTaskStatus(data.status)
+    this.scheduleTaskEventsPublish(entry, terminal)
+    if (terminal) {
+      ;(entry.terminalTaskIds ??= new Set()).add(data.taskId)
     }
 
     if (merged.toolUseId) this.rememberBackgroundTaskToolCall(entry, merged.taskId, merged.toolUseId)
@@ -2367,7 +2417,7 @@ export class AgentSessionRuntimeService extends BaseService {
     } as UIMessageChunk)
     const messageId = entry.taskMessageIdsByTaskId?.get(merged.taskId)
     if (messageId && data.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, merged)
-    if (messageId && entry.terminalNotificationTaskIds?.has(merged.taskId)) {
+    if (messageId && entry.terminalTaskIds?.has(merged.taskId)) {
       this.finishSettledBackgroundFlowMessage(entry, messageId)
     }
   }
@@ -2379,11 +2429,11 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     const checkpoints = entry.workflowCheckpoints ?? new Map<string, WorkflowCheckpoint>()
     entry.workflowCheckpoints = checkpoints
-    const terminal = event.event === 'notification' && TERMINAL_TASK_STATUSES.has(event.status)
+    const terminal = isTerminalAgentSessionTaskStatus(event.status)
     const existing = checkpoints.get(event.taskId)
     if (existing?.event === event) return
     const checkpoint = existing ?? { messageId, event }
-    if (checkpoint.event.event === 'notification' && TERMINAL_TASK_STATUSES.has(checkpoint.event.status) && !terminal) {
+    if (isTerminalAgentSessionTaskStatus(checkpoint.event.status) && !terminal) {
       return
     }
     checkpoint.messageId = messageId
@@ -2442,17 +2492,21 @@ export class AgentSessionRuntimeService extends BaseService {
     merged: AgentTaskEventPartData
   ): AgentTaskEventPartData {
     if (incoming.workflow) {
-      const isTerminalNotification = incoming.event === 'notification' && TERMINAL_TASK_STATUSES.has(incoming.status)
-      const terminalNotificationPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
+      const isTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
+      const terminalPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
+      const isTerminalNotification = isTerminal && incoming.event === 'notification'
       const persisted = isTerminalNotification
-        ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
-        : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
-      if ((!isTerminalNotification && terminalNotificationPersisted) || persisted.has(merged.taskId)) {
+        ? (entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
+        : isTerminal
+          ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
+          : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
+      if ((!isTerminal && terminalPersisted) || persisted.has(merged.taskId)) {
         const withoutWorkflow = { ...merged }
         delete withoutWorkflow.workflow
         return withoutWorkflow
       }
       persisted.add(merged.taskId)
+      if (isTerminal) (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>()).add(merged.taskId)
       return merged
     }
 
@@ -2492,8 +2546,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     taskMessageIds.set(taskId, messageId)
 
-    const events: AgentSessionTaskEvents =
-      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    const events = this.getBackgroundTaskEvents(entry)
     if (events[taskId]?.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, events[taskId])
 
     const pending = entry.pendingTaskEventChunksByTaskId?.get(taskId)
@@ -2671,12 +2724,15 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
     }
-    for (const taskId of entry.terminalNotificationTaskIds ?? []) {
-      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationTaskIds?.delete(taskId)
+    for (const taskId of entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)
     }
     for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
       if (retainedTaskIds.has(taskId)) continue
-      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      if (checkpoint.timer) this.writeWorkflowCheckpoint(entry, taskId, checkpoint, true)
       entry.workflowCheckpoints?.delete(taskId)
     }
     entry.pendingTaskEventChunksByTaskId?.clear()
@@ -2686,6 +2742,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
     }
     const cache = application.get('CacheService')
+    this.clearTaskEventsPublish(entry)
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -3416,6 +3473,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     entry.closing = true
     this.clearIdleTimer(entry)
+    this.clearTaskEventsPublish(entry)
     for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
       if (checkpoint.timer) this.writeWorkflowCheckpoint(entry, taskId, checkpoint)
     }

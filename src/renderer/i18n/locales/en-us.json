@@ -265,7 +265,6 @@
         "task_progress_compact": "Step {{current}}/{{total}}",
         "tasks": "Tasks",
         "time": "Time",
-        "toggle_workflow": "Toggle {{name}} details",
         "tools": "Tools",
         "tools_active": "Active",
         "tools_done": "Done",

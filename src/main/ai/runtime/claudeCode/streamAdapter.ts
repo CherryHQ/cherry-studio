@@ -42,8 +42,12 @@ import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import {
+  type AgentSessionBackgroundTask,
+  isTerminalAgentSessionTaskStatus
+} from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { parseClaudeCodeBackgroundBashReceipt } from '@shared/ai/claudeCodeInternalProtocol'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -102,9 +106,11 @@ const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
 const MAX_WORKFLOW_SNAPSHOT_BYTES = 1_048_576
-const MAX_AGENT_TRANSCRIPT_READ_BYTES = 256 * 1024
+const AGENT_TRANSCRIPT_READ_CHUNK_BYTES = 256 * 1024
+const MAX_AGENT_TRANSCRIPT_READ_BYTES_PER_PASS = 512 * 1024
 const TERMINAL_TASK_RECONCILE_DELAY_MS = 1000
-const TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS = 5
+const TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS = 3
+const CLAUDE_PROJECT_DIRECTORY_INDEX_TTL_MS = 30_000
 const BACKGROUND_BASH_HEAD_BYTES = 32 * 1024
 const BACKGROUND_BASH_TAIL_BYTES = 32 * 1024
 const BACKGROUND_BASH_POLL_INTERVAL_MS = 1000
@@ -243,6 +249,13 @@ type PendingTerminalWorkflowState = {
 type PendingTerminalAgentState = PendingTerminalWorkflowState & {
   sdkSessionId: string
 }
+
+type ClaudeProjectDirectoryIndex = {
+  projectDirectories: string[]
+  scannedAt: number
+}
+
+const claudeProjectDirectoryIndexes = new Map<string, ClaudeProjectDirectoryIndex>()
 
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
@@ -597,10 +610,6 @@ function getSdkMessageTimestamp(message: SDKMessage): string {
   return new Date().toISOString()
 }
 
-function isTerminalTaskStatus(status: AgentTaskEventPartData['status']): boolean {
-  return status === 'completed' || status === 'stopped' || status === 'error'
-}
-
 function hasWorkflowStatsChanged(
   previous: AgentTaskEventPartData['workflow'] | undefined,
   next: NonNullable<AgentTaskEventPartData['workflow']>
@@ -667,6 +676,34 @@ function readUtf8FileWithinLimit(
     }
   } finally {
     closeSync(fd)
+  }
+}
+
+function getClaudeProjectDirectories(claudeConfigDir: string): readonly string[] {
+  const indexKey = path.resolve(claudeConfigDir, 'projects')
+  const cached = claudeProjectDirectoryIndexes.get(indexKey)
+  if (cached && Date.now() - cached.scannedAt < CLAUDE_PROJECT_DIRECTORY_INDEX_TTL_MS) {
+    return cached.projectDirectories
+  }
+
+  try {
+    const projectsDir = realpathSync(indexKey)
+    const projectDirectories: string[] = []
+    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      try {
+        const projectDir = realpathSync(path.join(projectsDir, entry.name))
+        if (path.dirname(projectDir) === projectsDir) projectDirectories.push(projectDir)
+      } catch {
+        // A project directory can disappear while Claude rotates its local session state.
+      }
+    }
+    claudeProjectDirectoryIndexes.set(indexKey, { projectDirectories, scannedAt: Date.now() })
+    return projectDirectories
+  } catch {
+    const projectDirectories = cached?.projectDirectories ?? []
+    claudeProjectDirectoryIndexes.set(indexKey, { projectDirectories, scannedAt: Date.now() })
+    return projectDirectories
   }
 }
 
@@ -780,11 +817,17 @@ function readAgentTranscriptStats(
     }
     if (cache.readOffset >= stat.size && cache.sizeBytes === stat.size && cache.mtimeMs === stat.mtimeMs) return cache
 
-    while (cache.readOffset < stat.size) {
-      const length = Math.min(MAX_AGENT_TRANSCRIPT_READ_BYTES, stat.size - cache.readOffset)
+    let bytesReadThisPass = 0
+    while (cache.readOffset < stat.size && bytesReadThisPass < MAX_AGENT_TRANSCRIPT_READ_BYTES_PER_PASS) {
+      const length = Math.min(
+        AGENT_TRANSCRIPT_READ_CHUNK_BYTES,
+        stat.size - cache.readOffset,
+        MAX_AGENT_TRANSCRIPT_READ_BYTES_PER_PASS - bytesReadThisPass
+      )
       const chunk = readBufferAt(fd, length, cache.readOffset)
       if (chunk.length === 0) break
       cache.readOffset += chunk.length
+      bytesReadThisPass += chunk.length
 
       const buffer = cache.pendingLine.length > 0 ? Buffer.concat([cache.pendingLine, chunk]) : chunk
       const completeEnd = buffer.lastIndexOf(0x0a)
@@ -845,23 +888,8 @@ function readBackgroundBashOutputFile(filePath: string): {
 function extractBackgroundBashReceipt(content: unknown): { taskId: string; outputFile: string } | undefined {
   const texts = getTextContent(content)
   for (let index = texts.length - 1; index >= 0; index -= 1) {
-    const lines = texts[index].split(/\r?\n/)
-    for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
-      const line = lines[lineIndex].trim()
-      const match = /^Command running in background with ID:\s*([^.\r\n]+)\.\s*Output is being written to:\s*/i.exec(
-        line
-      )
-      if (!match) continue
-      const taskId = match[1].trim()
-      const pathStart = match[0].length
-      const expectedBasename = `${taskId}.output`
-      const pathEnd = line.lastIndexOf(expectedBasename)
-      if (!taskId || pathEnd < pathStart) continue
-      return {
-        taskId,
-        outputFile: line.slice(pathStart, pathEnd + expectedBasename.length).trim()
-      }
-    }
+    const receipt = parseClaudeCodeBackgroundBashReceipt(texts[index])
+    if (receipt) return receipt
   }
   return undefined
 }
@@ -894,6 +922,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly localWorkflowRuntimeProgresses = new Map<string, unknown[]>()
   private readonly persistedWorkflowSnapshotTaskIds = new Set<string>()
   private readonly persistedTerminalWorkflowSnapshotTaskIds = new Set<string>()
+  private readonly persistedTerminalNotificationWorkflowSnapshotTaskIds = new Set<string>()
   private readonly workflowSnapshotCache = new Map<string, WorkflowSnapshotCacheEntry>()
   private readonly workflowTranscriptStatsCaches = new Map<string, Map<string, AgentTranscriptStatsCacheEntry>>()
   private readonly pendingTerminalWorkflowEvents = new Map<string, PendingTerminalWorkflowState>()
@@ -2164,6 +2193,7 @@ export class ClaudeCodeStreamAdapter {
     this.localWorkflowRuntimeProgresses.clear()
     this.persistedWorkflowSnapshotTaskIds.clear()
     this.persistedTerminalWorkflowSnapshotTaskIds.clear()
+    this.persistedTerminalNotificationWorkflowSnapshotTaskIds.clear()
     this.workflowSnapshotCache.clear()
     this.workflowTranscriptStatsCaches.clear()
     this.pendingTerminalWorkflowEvents.clear()
@@ -2200,7 +2230,7 @@ export class ClaudeCodeStreamAdapter {
         createdAt: string
         completedAt?: string
       })
-    if (isTerminalTaskStatus(status) && !timeline.completedAt) timeline.completedAt = eventTimestamp
+    if (isTerminalAgentSessionTaskStatus(status) && !timeline.completedAt) timeline.completedAt = eventTimestamp
     this.taskTimelines.set(taskId, timeline)
     return timeline
   }
@@ -2296,12 +2326,8 @@ export class ClaudeCodeStreamAdapter {
     if (!this.claudeConfigDir || !SAFE_TRANSCRIPT_ID.test(sdkSessionId)) return undefined
 
     try {
-      const projectsDir = realpathSync(path.join(this.claudeConfigDir, 'projects'))
-      for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue
+      for (const projectDir of getClaudeProjectDirectories(this.claudeConfigDir)) {
         try {
-          const projectDir = realpathSync(path.join(projectsDir, entry.name))
-          if (path.dirname(projectDir) !== projectsDir) continue
           const sessionTranscriptPath = realpathSync(path.join(projectDir, `${sdkSessionId}.jsonl`))
           if (path.dirname(sessionTranscriptPath) !== projectDir || !statSync(sessionTranscriptPath).isFile()) continue
           this.claudeSessionProjectDirectories.set(sdkSessionId, projectDir)
@@ -2465,25 +2491,24 @@ export class ClaudeCodeStreamAdapter {
     if (!pending) return
     const workflow = this.readLocalWorkflowSnapshot(taskId, true)
     const terminalTotalTokens = pending.eventData.workflow?.totalTokens
-    const snapshotTotalTokens = workflow?.totalTokens
-    if (
-      terminalTotalTokens !== undefined &&
-      snapshotTotalTokens !== terminalTotalTokens &&
-      pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS
-    ) {
-      // The CLI is still writing the snapshot: keep waiting until its context size matches
-      // the terminal event's, then retry after the reconcile delay (bounded by the attempt cap).
-      pending.attempts += 1
-      const timer = setTimeout(() => this.reconcileTerminalWorkflowStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
-      timer.unref?.()
-      pending.timer = timer
-      return
-    }
-    if (workflow && hasWorkflowStatsChanged(pending.eventData.workflow, workflow)) {
+    const snapshotMatchesTerminalContext =
+      terminalTotalTokens === undefined || workflow?.totalTokens === terminalTotalTokens
+    if (workflow && snapshotMatchesTerminalContext && hasWorkflowStatsChanged(pending.eventData.workflow, workflow)) {
       this.statusSink.emit({
         type: 'background-task-event',
         data: { ...pending.eventData, workflow }
       })
+      this.finishTerminalTaskReconciliation(taskId)
+      return
+    }
+    pending.attempts += 1
+    if (pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS) {
+      // A terminal edge can race the CLI's final snapshot write. Keep the task state until either
+      // fresh statistics appear or the bounded retry window expires.
+      const timer = setTimeout(() => this.reconcileTerminalWorkflowStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
+      timer.unref?.()
+      pending.timer = timer
+      return
     }
     this.finishTerminalTaskReconciliation(taskId)
   }
@@ -2501,26 +2526,22 @@ export class ClaudeCodeStreamAdapter {
     if (!pending) return
     const transcriptStats = this.readAgentTaskTranscriptStats(taskId, pending.sdkSessionId)
     const usage = this.getAgentUsage(transcriptStats, pending.eventData.usage, true)
-    const terminalContextTokens = pending.eventData.usage?.contextTokens
-    const readContextTokens = usage?.contextTokens
-    if (
-      terminalContextTokens !== undefined &&
-      readContextTokens !== terminalContextTokens &&
-      pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS
-    ) {
-      // The transcript is still being written: keep waiting until its context size matches
-      // the terminal event's, then retry after the reconcile delay (bounded by the attempt cap).
-      pending.attempts += 1
-      const timer = setTimeout(() => this.reconcileTerminalAgentStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
-      timer.unref?.()
-      pending.timer = timer
-      return
-    }
     if (usage && hasAgentUsageChanged(pending.eventData.usage, usage)) {
       this.statusSink.emit({
         type: 'background-task-event',
         data: { ...pending.eventData, usage }
       })
+      this.finishTerminalTaskReconciliation(taskId)
+      return
+    }
+    pending.attempts += 1
+    if (pending.attempts < TERMINAL_TASK_RECONCILE_MAX_ATTEMPTS) {
+      // Reported terminal context is authoritative and may not equal the latest transcript line.
+      // Retry based on whether any externally visible usage changed instead of comparing the two.
+      const timer = setTimeout(() => this.reconcileTerminalAgentStats(taskId), TERMINAL_TASK_RECONCILE_DELAY_MS)
+      timer.unref?.()
+      pending.timer = timer
+      return
     }
     this.finishTerminalTaskReconciliation(taskId)
   }
@@ -2590,7 +2611,7 @@ export class ClaudeCodeStreamAdapter {
       this.localWorkflowRuntimeProgresses.set(baseEventData.taskId, reportedWorkflowProgress)
     }
     const runtimeWorkflowProgress = this.localWorkflowRuntimeProgresses.get(baseEventData.taskId)
-    const isTerminal = isTerminalTaskStatus(baseEventData.status)
+    const isTerminal = isTerminalAgentSessionTaskStatus(baseEventData.status)
     // A terminal transition can arrive as task_notification or as task_updated with a terminal
     // patch.status; both settle the task, so terminal bookkeeping keys off the status, not the subtype.
     const shouldReconcileTerminalWorkflow =
@@ -2599,15 +2620,20 @@ export class ClaudeCodeStreamAdapter {
         this.localWorkflowLaunches.has(baseEventData.taskId))
     const shouldReconcileTerminalAgent = baseEventData.status === 'completed' && isAgentTask
     const shouldReconcileTerminalTask = shouldReconcileTerminalWorkflow || shouldReconcileTerminalAgent
-    const workflowSnapshot =
-      this.readLocalWorkflowSnapshot(baseEventData.taskId, isTerminal) ??
-      this.updateLocalWorkflowLiveSnapshot(
-        baseEventData,
-        // Claude Code emits this field at runtime although the SDK declaration currently omits it.
-        runtimeWorkflowProgress
-          ? this.fillLocalWorkflowTranscriptStats(baseEventData.taskId, runtimeWorkflowProgress)
-          : undefined
-      )
+    const liveWorkflow = runtimeWorkflowProgress
+      ? this.updateLocalWorkflowLiveSnapshot(
+          baseEventData,
+          // Claude Code emits this field at runtime although the SDK declaration currently omits it.
+          this.fillLocalWorkflowTranscriptStats(baseEventData.taskId, runtimeWorkflowProgress)
+        )
+      : undefined
+    const workflowSnapshot = isTerminal
+      ? (this.readLocalWorkflowSnapshot(baseEventData.taskId, true) ??
+        liveWorkflow ??
+        this.updateLocalWorkflowLiveSnapshot(baseEventData))
+      : (liveWorkflow ??
+        this.readLocalWorkflowSnapshot(baseEventData.taskId, false) ??
+        this.updateLocalWorkflowLiveSnapshot(baseEventData))
     const workflow =
       workflowSnapshot && isTerminal && baseEventData.usage
         ? {
@@ -2680,17 +2706,20 @@ export class ClaudeCodeStreamAdapter {
 
     let persistedEventData = eventData
     if (workflow) {
+      const terminalSnapshotPersisted = this.persistedTerminalWorkflowSnapshotTaskIds.has(eventData.taskId)
       const isTerminalNotification = isTerminal && message.subtype === 'task_notification'
-      const terminalNotificationPersisted = this.persistedTerminalWorkflowSnapshotTaskIds.has(eventData.taskId)
       const persistedTaskIds = isTerminalNotification
-        ? this.persistedTerminalWorkflowSnapshotTaskIds
-        : this.persistedWorkflowSnapshotTaskIds
-      if ((!isTerminalNotification && terminalNotificationPersisted) || persistedTaskIds.has(eventData.taskId)) {
+        ? this.persistedTerminalNotificationWorkflowSnapshotTaskIds
+        : isTerminal
+          ? this.persistedTerminalWorkflowSnapshotTaskIds
+          : this.persistedWorkflowSnapshotTaskIds
+      if ((!isTerminal && terminalSnapshotPersisted) || persistedTaskIds.has(eventData.taskId)) {
         const withoutWorkflow = { ...eventData }
         delete withoutWorkflow.workflow
         persistedEventData = withoutWorkflow
       } else {
         persistedTaskIds.add(eventData.taskId)
+        if (isTerminal) this.persistedTerminalWorkflowSnapshotTaskIds.add(eventData.taskId)
       }
     }
 
@@ -2718,6 +2747,7 @@ export class ClaudeCodeStreamAdapter {
     this.localWorkflowRuntimeProgresses.delete(taskId)
     this.persistedWorkflowSnapshotTaskIds.delete(taskId)
     this.persistedTerminalWorkflowSnapshotTaskIds.delete(taskId)
+    this.persistedTerminalNotificationWorkflowSnapshotTaskIds.delete(taskId)
     this.workflowSnapshotCache.delete(taskId)
     this.workflowTranscriptStatsCaches.delete(taskId)
     this.pendingTerminalWorkflowEvents.delete(taskId)

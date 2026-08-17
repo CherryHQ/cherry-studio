@@ -265,7 +265,6 @@
         "task_progress_compact": "步骤 {{current}}/{{total}}",
         "tasks": "任务",
         "time": "时间",
-        "toggle_workflow": "展开或折叠 {{name}} 的详情",
         "tools": "工具",
         "tools_active": "活跃",
         "tools_done": "完成",
