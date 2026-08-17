@@ -7,6 +7,7 @@ export interface CodeCliToolPreset {
   packageName: string
   install: 'registry' | 'npm'
   miseTool: string
+  misePrerelease?: boolean
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
@@ -37,6 +38,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   }),
   defineCodeCliTool({ id: CodeCli.OPEN_CODE, executable: 'opencode', packageName: 'opencode-ai', install: 'registry' }),
   defineCodeCliTool({ id: CodeCli.OPENCLAW, executable: 'openclaw', packageName: 'openclaw', install: 'npm' }),
+  defineCodeCliTool({
+    id: CodeCli.DEEPSEEK_HARNESS,
+    executable: 'dsh',
+    packageName: '@deepseek-ai/dsh',
+    install: 'npm',
+    misePrerelease: true
+  }),
   defineCodeCliTool({
     id: CodeCli.GEMINI_CLI,
     executable: 'gemini',

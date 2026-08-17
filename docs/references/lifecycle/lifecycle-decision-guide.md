@@ -22,7 +22,7 @@
 | -------------------- | ------------------------------------------------------------------ |
 | Event listeners      | `nativeTheme.on()`, `powerMonitor.on()`, `autoUpdater.on()`        |
 | Global shortcuts     | `globalShortcut.register()`                                        |
-| Subscriptions        | `preferenceService.subscribeChange()`, `configManager.subscribe()` |
+| Subscriptions        | `preferenceService.subscribeChange()`                               |
 | Session interceptors | `session.webRequest.onHeadersReceived()`                           |
 | IPC handlers         | `ipcMain.handle()` registration (see below)                        |
 | Global API mutations | Monkey-patching global APIs                                        |

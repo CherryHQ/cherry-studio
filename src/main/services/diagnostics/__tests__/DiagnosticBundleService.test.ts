@@ -1,4 +1,4 @@
-import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -14,6 +14,10 @@ const electronMocks = vi.hoisted(() => ({
   showSaveDialog: vi.fn()
 }))
 
+const uploadMocks = vi.hoisted(() => ({
+  upload: vi.fn()
+}))
+
 vi.mock('electron', () => ({
   app: {
     getLocale: electronMocks.getLocale,
@@ -22,6 +26,10 @@ vi.mock('electron', () => ({
     isPackaged: true
   },
   dialog: { showSaveDialog: electronMocks.showSaveDialog }
+}))
+
+vi.mock('../FeishuAnonymousFormClient', () => ({
+  feishuAnonymousFormClient: uploadMocks
 }))
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
@@ -39,6 +47,7 @@ describe('DiagnosticBundleService', () => {
   let crashDumpsDir: string
   let appTempDir: string
   let userDataDir: string
+  let downloadsDir: string
   let destination: string
   const parentWindow = {}
   const preferenceService = { get: vi.fn(() => 'en-US') }
@@ -51,8 +60,16 @@ describe('DiagnosticBundleService', () => {
     crashDumpsDir = path.join(workDir, 'crashes')
     appTempDir = path.join(workDir, 'temp')
     userDataDir = path.join(workDir, 'user-data')
+    downloadsDir = path.join(workDir, 'downloads')
     destination = path.join(workDir, 'bundle.zip')
-    await Promise.all([mkdir(logsDir), mkdir(tracesDir), mkdir(crashDumpsDir), mkdir(appTempDir), mkdir(userDataDir)])
+    await Promise.all([
+      mkdir(logsDir),
+      mkdir(tracesDir),
+      mkdir(crashDumpsDir),
+      mkdir(appTempDir),
+      mkdir(userDataDir),
+      mkdir(downloadsDir)
+    ])
 
     vi.mocked(application.getPath).mockImplementation((key: string, fileName?: string) => {
       const roots: Record<string, string> = {
@@ -60,7 +77,8 @@ describe('DiagnosticBundleService', () => {
         'app.logs': logsDir,
         'app.temp': appTempDir,
         'app.userdata': userDataDir,
-        'feature.trace': tracesDir
+        'feature.trace': tracesDir,
+        'sys.downloads': downloadsDir
       }
       const root = roots[key] ?? workDir
       return fileName ? path.join(root, fileName) : root
@@ -74,6 +92,7 @@ describe('DiagnosticBundleService', () => {
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: destination })
     electronMocks.getLocale.mockReturnValue('en-US')
     electronMocks.getVersion.mockReturnValue('2.0.0-test')
+    uploadMocks.upload.mockResolvedValue({ status: 'uploaded' })
   })
 
   afterEach(async () => {
@@ -99,11 +118,17 @@ describe('DiagnosticBundleService', () => {
     const oldLog = `${JSON.stringify({ message: 'old', timestamp: new Date(now - 2 * 86_400_000).toISOString() })}\n`
     await writeFile(path.join(logsDir, logFileName), `${oldLog}${recentLog}`)
 
-    const topicDir = path.join(tracesDir, 'topic:private')
+    // `:` and `*` exercise archive-name sanitisation but are unwriteable on Windows.
+    const isWin = process.platform === 'win32'
+    const topicDir = path.join(tracesDir, isWin ? 'topic-private' : 'topic:private')
     await mkdir(topicDir)
     const traceLine = `${JSON.stringify({ id: 'span', startTime: now - 2_000, value: 'raw trace' })}\n`
-    await writeFile(path.join(topicDir, 'trace*one'), traceLine)
-    await writeFile(path.join(crashDumpsDir, 'private-crash-name.dmp'), 'dump')
+    await writeFile(path.join(topicDir, isWin ? 'trace-one' : 'trace*one'), traceLine)
+    // The inventory filters by mtime against a range the service closes at its own Date.now(),
+    // which Windows can read a few ms behind the clock the filesystem stamped the file with.
+    const crashDumpPath = path.join(crashDumpsDir, 'private-crash-name.dmp')
+    await writeFile(crashDumpPath, 'dump')
+    await utimes(crashDumpPath, new Date(now - 1_000), new Date(now - 1_000))
 
     const service = new DiagnosticBundleService()
     const result = await service.exportBundle({ includeLogs: true, includeTraces: true, range: '24h' }, 'main-window')
@@ -223,6 +248,112 @@ describe('DiagnosticBundleService', () => {
     ).resolves.toEqual({ status: 'busy' })
     resolveDialog({ canceled: true, filePath: '' })
     await expect(first).resolves.toEqual({ status: 'canceled' })
+  })
+
+  it('builds an upload bundle with automatic delivery marked in the manifest', async () => {
+    let uploadedManifest: Record<string, unknown> | undefined
+    uploadMocks.upload.mockImplementationOnce(async ({ filePath: uploadPath }) => {
+      const zip = await readZip(uploadPath)
+      uploadedManifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      return { status: 'uploaded' }
+    })
+    const service = new DiagnosticBundleService()
+
+    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+
+    expect(result).toMatchObject({ status: 'uploaded', includedFileCount: 0, omittedFileCount: 0 })
+    expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
+    expect(await readdir(appTempDir)).toEqual([])
+    expect(await readdir(downloadsDir)).toEqual([])
+  })
+
+  it('preserves a failed upload in Downloads with a unique bundle filename', async () => {
+    uploadMocks.upload.mockResolvedValueOnce({
+      reason: 'form_changed',
+      status: 'manual_upload_required'
+    })
+    const service = new DiagnosticBundleService()
+
+    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+
+    expect(result).toMatchObject({ reason: 'form_changed', status: 'manual_upload_required' })
+    if (result.status !== 'manual_upload_required') throw new Error('Expected manual upload fallback')
+    expect(path.dirname(result.filePath)).toBe(downloadsDir)
+    expect(result.fileName).toMatch(
+      /^cherry-studio-diagnostics-\d{8}-\d{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.zip$/
+    )
+    const zip = await readZip(result.filePath)
+    const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+    expect(manifest.privacy.uploadedAutomatically).toBe(true)
+    expect(await readdir(appTempDir)).toEqual([])
+  })
+
+  it('preserves the bundle without retrying when submission status is unknown', async () => {
+    uploadMocks.upload.mockResolvedValueOnce({ status: 'submission_unknown' })
+    const service = new DiagnosticBundleService()
+
+    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+
+    expect(result).toMatchObject({ status: 'submission_unknown', includedFileCount: 0 })
+    if (result.status !== 'submission_unknown') throw new Error('Expected unknown submission status')
+    await expect(access(result.filePath)).resolves.toBeUndefined()
+    expect(uploadMocks.upload).toHaveBeenCalledOnce()
+  })
+
+  it('serializes local export and anonymous upload operations', async () => {
+    let resolveUpload: (value: { status: 'uploaded' }) => void = () => undefined
+    uploadMocks.upload.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve
+        })
+    )
+    const service = new DiagnosticBundleService()
+    const first = service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+
+    await vi.waitFor(() => expect(uploadMocks.upload).toHaveBeenCalledOnce())
+    await expect(
+      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+    ).resolves.toEqual({ status: 'busy' })
+    resolveUpload({ status: 'uploaded' })
+    await expect(first).resolves.toMatchObject({ status: 'uploaded' })
+  })
+
+  it('uses a stable diagnostics error when upload bundle construction fails', async () => {
+    await rm(appTempDir, { recursive: true })
+    await writeFile(appTempDir, 'not a directory')
+    const service = new DiagnosticBundleService()
+
+    await expect(
+      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.BUNDLE_BUILD_FAILED })
+    expect(uploadMocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('uses a stable diagnostics error when a failed upload cannot be preserved', async () => {
+    uploadMocks.upload.mockResolvedValueOnce({
+      reason: 'network_failed',
+      status: 'manual_upload_required'
+    })
+    await rm(downloadsDir, { recursive: true })
+    const service = new DiagnosticBundleService()
+
+    await expect(
+      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.FALLBACK_SAVE_FAILED })
+    expect(await readdir(appTempDir)).toEqual([])
+  })
+
+  it('uses a distinct stable error when an uncertain submission cannot be preserved', async () => {
+    uploadMocks.upload.mockResolvedValueOnce({ status: 'submission_unknown' })
+    await rm(downloadsDir, { recursive: true })
+    const service = new DiagnosticBundleService()
+
+    await expect(
+      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED })
+    expect(uploadMocks.upload).toHaveBeenCalledOnce()
+    expect(await readdir(appTempDir)).toEqual([])
   })
 
   it('refuses to save a bundle inside a diagnostic source directory', async () => {

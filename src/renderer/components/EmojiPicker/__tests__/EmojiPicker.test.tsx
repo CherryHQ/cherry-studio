@@ -171,7 +171,8 @@ describe('EmojiPicker', () => {
 
   const renderResolvedPicker = async (onEmojiClick = vi.fn()) => {
     const view = render(<EmojiPicker onEmojiClick={onEmojiClick} />)
-    await screen.findByTestId('emoji-picker-react')
+    // The picker chunk is lazy; under a loaded worker pool it resolves past the 1s default.
+    await screen.findByTestId('emoji-picker-react', undefined, { timeout: 10_000 })
     return view
   }
 

@@ -25,6 +25,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 const { lookupModelMock } = vi.hoisted(() => ({
   // `list()` enriches every row by calling `lookupModel`. Default to an
   // empty registry hit (no preset / override) so the enrichment is a no-op
@@ -375,6 +378,38 @@ describe('ModelService.update', () => {
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
     expect(row.name).toBe('My GPT-4o')
     expect(row.pricing).toBeNull()
+  })
+
+  it('keeps an input-token tier as a sparse pricing delta over a flat registry baseline', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    const pricing = {
+      input: { perMillionTokens: 5, currency: 'USD' as const },
+      output: { perMillionTokens: 15, currency: 'USD' as const },
+      inputTokenTiers: [
+        {
+          minInputTokens: 200_000,
+          input: { perMillionTokens: 10, currency: 'USD' as const },
+          output: { perMillionTokens: 30, currency: 'USD' as const }
+        }
+      ]
+    }
+
+    modelService.update('openai', 'gpt-4o', { pricing })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toEqual(pricing)
   })
 
   it('stores model group edits in the sparse group column', async () => {
@@ -1722,12 +1757,14 @@ describe('ModelService.delete', () => {
       ])
     const targetPin = pinService.pin({ entityType: 'model', entityId: targetModelId })
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    notifyDataApiDataChangeMock.mockClear()
 
     modelService.delete('openai', 'gpt-4o')
 
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {

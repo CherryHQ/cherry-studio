@@ -37,6 +37,7 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
+import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -230,7 +231,7 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
- * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, MCP definitions, credential
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
@@ -379,7 +380,6 @@ async function deriveConnectionConfigFromSnapshot(
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
-    maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
@@ -669,7 +669,8 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
-    const config = application.get('ApiGatewayService').getCurrentConfig()
+    const apiGatewayService = application.get('ApiGatewayService')
+    const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
     // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
@@ -679,7 +680,10 @@ function deriveRouteFacts(
     return {
       branch: 'gateway',
       baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([typeof gatewayKey === 'string' ? gatewayKey : '']),
+      credentialsFingerprint: fingerprintCredentials([
+        typeof gatewayKey === 'string' ? gatewayKey : '',
+        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
+      ]),
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -758,7 +762,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
+        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
       }
     }
     case 'direct': {
@@ -841,28 +845,6 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
     resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
     ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   )
-}
-
-async function resolveApiGatewayRuntime(sessionId: string): Promise<{
-  baseUrl: string
-  apiKey: string
-  usageHeaders: Record<string, string>
-  internalRequestToken: string
-}> {
-  const apiGatewayService = application.get('ApiGatewayService')
-  const apiKey = await apiGatewayService.ensureValidApiKey()
-  if (!apiGatewayService.isRunning()) {
-    await apiGatewayService.start()
-  }
-  const config = apiGatewayService.getCurrentConfig()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
-  return {
-    baseUrl: `http://${host}:${port}`,
-    apiKey,
-    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
-    internalRequestToken: apiGatewayService.getInternalRequestToken()
-  }
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {

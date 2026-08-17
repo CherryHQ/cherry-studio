@@ -3157,135 +3157,7 @@
       "providerId": "cerebras"
     },
     {
-      "modelId": "deepseek-chat",
-      "providerId": "cherryin",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "deepseek-reasoner",
-      "providerId": "cherryin",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "deepseek-v3-1",
-      "providerId": "cherryin",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
+      "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "providerId": "cherryin",
       "reasoningContracts": {
@@ -3327,6 +3199,81 @@
           }
         }
       }
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-122b-a10b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-122b-a10b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-27b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-27b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-35b-a3b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-35b-a3b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-35b-a3b(free)",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-35b-a3b-free",
+      "modelVariants": ["35b", "free"],
+      "name": "Qwen3.5 35B A3B (Free)",
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-397b-a17b",
+      "capabilities": {
+        "remove": ["audio-recognition"]
+      },
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "qwen3-5-397b-a17b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-4b(free)",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-4b",
+      "modelVariants": ["4b", "free"],
+      "name": "Qwen3.5 4B (Free)",
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-9b(free)",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-9b",
+      "modelVariants": ["9b", "free"],
+      "providerId": "cherryin",
+      "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
     {
       "modelId": "claude-fable-5",
@@ -4501,6 +4448,164 @@
         }
       },
       "modelId": "qwen-image",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-image-3.0",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-image-3.0-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0-pro",
       "providerId": "dashscope"
     },
     {
@@ -8368,7 +8473,7 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -8377,9 +8482,9 @@
             "auto": {
               "effortMap": {
                 "auto": "high",
-                "low": "high",
+                "low": "low",
                 "medium": "high",
-                "minimal": "high",
+                "minimal": "low",
                 "xhigh": "max"
               },
               "operations": [
@@ -8400,9 +8505,9 @@
             },
             "effort": {
               "effortMap": {
-                "low": "high",
+                "low": "low",
                 "medium": "high",
-                "minimal": "high",
+                "minimal": "low",
                 "xhigh": "max"
               },
               "operations": [
@@ -8428,6 +8533,54 @@
                   "value": {
                     "source": "literal",
                     "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "high",
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "effortMap": {
+                "low": "low",
+                "medium": "high",
+                "minimal": "low",
+                "xhigh": "max"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
                   }
                 }
               ]
@@ -36282,5 +36435,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c4793157a9e14350"
+  "version": "1262159b75dd6986"
 }

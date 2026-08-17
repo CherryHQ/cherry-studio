@@ -257,8 +257,10 @@ describe('CodeCliService', () => {
 
     const { codeCliService } = await loadModules()
 
+    const path = (await import('node:path')).default
+
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
-    expect(fs.existsSync).toHaveBeenCalledWith('/home/me/.claude/.credentials.json')
+    expect(fs.existsSync).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
   })
 
   // A broken rc file makes the shell env probe throw. That is NOT "not signed
@@ -434,7 +436,9 @@ describe('CodeCliService', () => {
 
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
   // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
-  describe('run (launch command shell-quotes the directory)', () => {
+  // Skipped on win32: `process.platform` is pinned to darwin below, but `node:path` still follows
+  // the host, so the assembled command mixes `\` separators and `;` PATH delimiters into sh syntax.
+  describe.skipIf(process.platform === 'win32')('run (launch command shell-quotes the directory)', () => {
     const originalPlatform = process.platform
 
     beforeEach(async () => {
@@ -920,6 +924,23 @@ describe('CodeCliService', () => {
       })
 
       expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code' })
+    })
+
+    it('routes DeepSeek Harness launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.DEEPSEEK_HARNESS,
+        model: 'claude-sonnet',
+        providerId: 'anthropic',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      })
     })
 
     it('rejects a normal CLI launch when the model is empty', async () => {
