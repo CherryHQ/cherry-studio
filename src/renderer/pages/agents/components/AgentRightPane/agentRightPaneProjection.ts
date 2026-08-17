@@ -10,6 +10,7 @@ import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -42,7 +43,8 @@ export interface AgentToolFlowProjection {
 }
 
 /**
- * An item on the main agent's own plan, written via `TaskCreate` / `TaskUpdate` / `TaskList`.
+ * An item on the main agent's own plan — written incrementally through the task ledger
+ * (`TaskCreate` / `TaskUpdate` / `TaskList`) or as a full-list `TodoWrite` snapshot.
  * Completion is meaningful here, so this is the only list with a done/total ratio.
  */
 export interface AgentStatusTask {
@@ -351,7 +353,12 @@ export function buildAgentToolFlowProjection(
   }
 }
 
-function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMessagePart, fallbackId: string): void {
+/** Applies one task-ledger tool part; returns whether the part was a ledger write. */
+function applyTaskToolPart(
+  taskMap: Map<string, AgentStatusTask>,
+  part: CherryMessagePart,
+  fallbackId: string
+): boolean {
   const toolName = getToolNameFromPart(part)
   const input = getToolPartInput(part)
   const output = getToolPartOutput(part)
@@ -364,7 +371,7 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
     const title = (outputTask ? getTaskTitle(outputTask) : undefined) ?? getTaskTitle(inputRecord, id) ?? id
     const activeText = getTaskActiveText(inputRecord)
     taskMap.set(id, { id, title, activeText, status: 'pending' })
-    return
+    return true
   }
 
   if (toolName === AgentToolsType.TaskUpdate) {
@@ -378,7 +385,7 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
       activeText: getTaskActiveText(inputRecord) ?? existing?.activeText,
       status: status ?? existing?.status ?? 'pending'
     })
-    return
+    return true
   }
 
   if (toolName === AgentToolsType.TaskList) {
@@ -394,7 +401,10 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
         status: normalizeTaskStatus(task.status) ?? 'pending'
       })
     }
+    return true
   }
+
+  return false
 }
 
 function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | undefined {
@@ -403,6 +413,31 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
     if (!taskMap.has(id)) return id
   }
   return undefined
+}
+
+// Keyed on the canonical TodoWrite identity: every runtime's native todo tool normalizes onto
+// it through the transport-tagged tool-name mapping, so no runtime is special-cased here.
+function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined {
+  if (getCanonicalToolName(part) !== AgentToolsType.TodoWrite || getToolPartState(part) !== 'output-available') {
+    return undefined
+  }
+
+  const input = getToolPartInput(part)
+  if (!isRecord(input) || !Array.isArray(input.todos)) return undefined
+
+  return input.todos.flatMap((todo, index) => {
+    if (!isRecord(todo) || typeof todo.content !== 'string') return []
+    const title = todo.content.trim()
+    if (!title) return []
+
+    return [
+      {
+        id: `todo:${index}:${title}`,
+        title,
+        status: (typeof todo.status === 'string' ? normalizeTaskStatus(todo.status) : undefined) ?? 'pending'
+      }
+    ]
+  })
 }
 
 const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
@@ -469,6 +504,7 @@ export function buildAgentRightPaneStatus(
   liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
+  let todoSnapshotTasks: AgentStatusTask[] | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
@@ -482,7 +518,11 @@ export function buildAgentRightPaneStatus(
 
       if (!isToolUIPart(part)) return
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
-      applyTaskToolPart(taskMap, part, fallbackId)
+      // The plan has two writers — the incremental task ledger and full-list todo snapshots —
+      // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
+      if (applyTaskToolPart(taskMap, part, fallbackId)) todoSnapshotTasks = undefined
+      const todoSnapshot = getTodoSnapshot(part)
+      if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
 
       const toolName = getToolNameFromPart(part)
       if (isReportArtifactsTool(toolName)) {
@@ -531,7 +571,7 @@ export function buildAgentRightPaneStatus(
     taskMap.delete(id)
   }
 
-  const tasks = Array.from(taskMap.values())
+  const tasks = todoSnapshotTasks ?? Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
   return {

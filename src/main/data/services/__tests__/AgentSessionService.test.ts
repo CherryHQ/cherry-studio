@@ -8,6 +8,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -198,6 +199,66 @@ describe('AgentSessionService', () => {
       expect(latest?.workspace.id).toBe(workspace.id)
     })
 
+    it('returns latest activity within a live or unlinked agent scope', async () => {
+      const workspace = await createWorkspace('latest-owner-scope')
+      await dbh.db.insert(agentTable).values([
+        {
+          id: 'agent-other-scope',
+          type: 'claude-code',
+          name: 'Other Agent',
+          instructions: 'Other instructions',
+          model: null,
+          orderKey: 'a1'
+        },
+        {
+          id: 'agent-deleted-scope',
+          type: 'claude-code',
+          name: 'Deleted Agent',
+          instructions: 'Deleted instructions',
+          model: null,
+          orderKey: 'a2',
+          deletedAt: 100
+        }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-scoped',
+          agentId: 'agent-session-test',
+          name: 'Scoped',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'session-other',
+          agentId: 'agent-other-scope',
+          name: 'Other',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 500
+        },
+        {
+          id: 'session-unassigned',
+          agentId: null,
+          name: 'Unassigned',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          lastActivityAt: 200
+        },
+        {
+          id: 'session-deleted-owner',
+          agentId: 'agent-deleted-scope',
+          name: 'Deleted owner',
+          workspaceId: workspace.id,
+          orderKey: 'a3',
+          lastActivityAt: 300
+        }
+      ])
+
+      expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('session-scoped')
+      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-deleted-owner')
+    })
+
     it('does not treat task relation changes as session activity', async () => {
       const workspace = await createWorkspace('relation-recency')
       const task = createTaskSchedule()
@@ -235,6 +296,155 @@ describe('AgentSessionService', () => {
 
     it('returns null when there are no sessions', () => {
       expect(agentSessionService.getLatestActive()).toBeNull()
+    })
+  })
+
+  describe('reuseOrCreatePlaceholder', () => {
+    it('filters by exact workspace and message emptiness, ordered by updatedAt', async () => {
+      const userWorkspace = await createWorkspace('reusable-user')
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'reusable-system-workspace',
+        name: 'System',
+        path: workspacePath('reusable-system'),
+        type: 'system',
+        orderKey: 'a1'
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'reusable-system-workspace-old',
+        name: 'System old',
+        path: workspacePath('reusable-system-old'),
+        type: 'system',
+        orderKey: 'a2'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'user-created-later',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a0',
+          createdAt: 300,
+          updatedAt: 200
+        },
+        {
+          id: 'user-updated-later',
+          agentId: 'agent-session-test',
+          name: '  ',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a1',
+          createdAt: 100,
+          updatedAt: 400
+        },
+        {
+          id: 'user-with-message',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a2',
+          updatedAt: 900
+        },
+        {
+          id: 'system-empty',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: 'reusable-system-workspace',
+          orderKey: 'a3',
+          updatedAt: 800
+        },
+        {
+          id: 'system-empty-old',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: 'reusable-system-workspace-old',
+          orderKey: 'a4',
+          updatedAt: 600
+        },
+        {
+          id: 'manually-named',
+          agentId: 'agent-session-test',
+          name: '',
+          isNameManuallyEdited: true,
+          workspaceId: userWorkspace.id,
+          orderKey: 'a5',
+          updatedAt: 700
+        }
+      ])
+      await insertSessionMessage('user-with-message', 'message-prevents-reuse')
+
+      expect(
+        agentSessionService.reuseOrCreatePlaceholder({
+          agentId: 'agent-session-test',
+          workspace: { type: 'user', workspaceId: userWorkspace.id }
+        })
+      ).toMatchObject({ session: { id: 'user-updated-later' }, created: false, deletedDuplicateSessionIds: [] })
+      expect(
+        agentSessionService.reuseOrCreatePlaceholder({
+          agentId: 'agent-session-test',
+          workspace: { type: 'system' }
+        })
+      ).toMatchObject({
+        session: { id: 'system-empty' },
+        created: false,
+        deletedDuplicateSessionIds: ['system-empty-old']
+      })
+      expect(() => agentSessionService.getById('system-empty-old')).toThrow()
+    })
+
+    it('creates at most one reusable placeholder for repeated exact targets', async () => {
+      const userWorkspace = await createWorkspace('create-reusable-user')
+
+      const first = agentSessionService.reuseOrCreatePlaceholder({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+      const second = agentSessionService.reuseOrCreatePlaceholder({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+
+      expect(first.created).toBe(true)
+      expect(second).toMatchObject({
+        session: { id: first.session.id },
+        created: false,
+        deletedDuplicateSessionIds: []
+      })
+    })
+
+    it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {
+      const retained = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      const duplicate = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 200 }).where(eq(agentSessionTable.id, retained.id))
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 100 }).where(eq(agentSessionTable.id, duplicate.id))
+      pinService.pin({ entityType: 'session', entityId: duplicate.id })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentSessionService.reuseOrCreatePlaceholder({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+
+      expect(result).toMatchObject({
+        session: { id: retained.id },
+        created: false,
+        deletedDuplicateSessionIds: [duplicate.id]
+      })
+      expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, duplicate.id))).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
   })
 

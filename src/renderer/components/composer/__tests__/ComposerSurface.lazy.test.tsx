@@ -136,19 +136,39 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('swaps in the rich runtime while idle, before the user can type into the fallback', async () => {
+    const idleCallbacks: Array<() => void> = []
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => idleCallbacks.push(callback))
+    vi.stubGlobal('cancelIdleCallback', () => {})
+
+    render(<Harness text="" />)
+    expect(mocks.runtimeLoads).toBe(0)
+
+    act(() => idleCallbacks.forEach((callback) => callback()))
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
+    render(<Harness text="" />)
+
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('')
+    expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
     expect(input).toHaveValue('draft')
-    expect(mocks.runtimeLoads).toBe(0)
 
+    // Focus starts the runtime load; a composition begun before the swap commits keeps the
+    // textarea mounted, so the committed characters survive into the runtime.
     fireEvent.focus(input)
-    expect(mocks.runtimeLoads).toBe(0)
-
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'draft text', selectionStart: 10, selectionEnd: 10 } })
-    await waitFor(() => expect(mocks.runtimeLoads).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('draft text')
 
     fireEvent.compositionEnd(input, { currentTarget: { selectionStart: 10, selectionEnd: 10 } })

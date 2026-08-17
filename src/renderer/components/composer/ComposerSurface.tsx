@@ -106,6 +106,15 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
 
+  // Swap while the app is idle rather than under the user's first keystroke: a swap that lands
+  // between a keydown and its character insertion drops that character, and no hand-off inside
+  // the runtime can recover it. Idle work stays off the first-paint path this fallback protects.
+  useEffect(() => {
+    if (Runtime || !window.requestIdleCallback) return
+    const idleId = window.requestIdleCallback(() => requestRuntime())
+    return () => window.cancelIdleCallback(idleId)
+  }, [Runtime, requestRuntime])
+
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
 
@@ -258,6 +267,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }}
           onFocus={() => {
             props.onFocus?.()
+            // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+            // would otherwise commit before the keystroke's input event, dropping the character.
+            requestRuntime()
           }}
           onSelect={updateSelection}
           onPaste={(event) => {
