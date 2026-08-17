@@ -1510,6 +1510,31 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('disables reasoning on the text-generation probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'test',
+        prompt: 'hi',
+        reasoningEffort: 'none'
+      })
+    )
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })

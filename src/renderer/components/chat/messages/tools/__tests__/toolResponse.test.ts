@@ -252,24 +252,47 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('webSearch')
   })
 
-  it('resolves pi tool metadata to a lowercase builtin tool', () => {
+  it.each([
+    ['pi-agent', 'bash', 'Bash'],
+    ['dsh-agent', 'bash', 'Bash'],
+    ['dsh-agent', 'pwsh', 'Bash'],
+    ['dsh-agent', 'read', 'Read'],
+    ['dsh-agent', 'write', 'Write'],
+    ['dsh-agent', 'edit', 'Edit'],
+    ['dsh-agent', 'skill', 'Skill'],
+    ['dsh-agent', 'todo_write', 'TodoWrite']
+  ])('maps %s builtin %s to the shared %s renderer identity', (transport, toolName, expectedName) => {
     const part = {
       type: 'dynamic-tool',
-      toolName: 'bash',
-      toolCallId: 'pi-call-1',
+      toolName,
+      toolCallId: `${transport}-${toolName}`,
       state: 'output-available',
       input: { command: 'ls' },
       output: 'ok',
       callProviderMetadata: {
-        cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'bash' } },
-        pi: { toolName: 'bash' }
+        cherry: { transport, tool: { type: 'builtin', name: toolName } }
       }
     } as unknown as CherryMessagePart
 
     const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('done')
     expect(response?.tool.type).toBe('provider')
-    expect(response?.tool.name).toBe('bash')
+    expect(response?.tool.name).toBe(expectedName)
+  })
+
+  it('does not reinterpret an untagged lowercase dynamic tool as an agent builtin', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'read',
+      toolCallId: 'external-read',
+      state: 'output-available',
+      input: {},
+      output: 'ok'
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('mcp')
+    expect(response?.tool.name).toBe('read')
   })
 
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
@@ -353,6 +376,26 @@ describe('toolResponse adapter', () => {
       output: 'ok',
       callProviderMetadata: {
         'claude-code': {
+          parentToolCallId: 'parent-call'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.parentToolUseId).toBe('parent-call')
+  })
+
+  it('extracts parent tool id from the runtime-neutral cherry metadata (dsh subagents)', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'read',
+      toolCallId: 'child-call',
+      state: 'output-available',
+      input: { file_path: '/tmp/a.ts' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: {
+          transport: 'dsh-agent',
           parentToolCallId: 'parent-call'
         }
       }
