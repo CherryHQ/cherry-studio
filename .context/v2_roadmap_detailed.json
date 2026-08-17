@@ -1,22 +1,23 @@
 {
-  "generated_at": "2026-08-16T19:30:00Z",
-  "date": "2026-08-16",
+  "generated_at": "2026-08-17T18:00:00Z",
+  "date": "2026-08-17",
   "v2_status": {
-    "latest_release": "v2.0.5",
-    "next_release": "v2.0.6 (PR #18704 open today)",
-    "branch_model": "main-based; v2 branch has no open PRs — effectively retired as separate branch",
-    "open_prs_to_main": "est. 435+",
+    "latest_release": "v2.0.6 (released 2026-08-17 - PR #18704 merged)",
+    "next_release": "v2.0.7 (not yet announced)",
+    "branch_model": "main-based; v2 branch has no open PRs - retired as separate branch",
+    "open_prs_to_main": "est. 440+",
     "open_prs_to_v2": 0,
-    "total_open_prs": 439,
-    "last_v2_branch_merge": "2026-05-28"
+    "total_open_prs": "est. 445+",
+    "last_v2_branch_merge": "2026-05-28",
+    "release_gap": "v2.0.5 to v2.0.6 in 1 day - fastest release cadence yet"
   },
   "open_blocked_v2": [
     {
       "number": 5442,
-      "title": "[功能]: LLMOps 观察框架（如 Langfuse）支持",
+      "title": "[Feature]: LLMOps observability framework (e.g. Langfuse) support",
       "label": "Blocked: v2",
       "comments": 7,
-      "note": "v2 shipped but issue still open — needs re-evaluation"
+      "note": "v2 shipped but issue still open - needs re-evaluation"
     },
     {
       "number": 12786,
@@ -33,137 +34,167 @@
     },
     {
       "number": 9011,
-      "title": "显示推理 tokens 数量 (Show reasoning token count)",
+      "title": "Show reasoning token count",
       "labels": ["feature", "v2", "Blocked: v2"],
       "comments": 4,
-      "note": "Created 2025-08-09, still blocked"
+      "note": "Created 2025-08-09, still blocked on v2 - v2 shipped, needs re-classification"
     }
   ],
-  "recent_main_highlights_today_aug16": [
-    "fix(ui-markdown): keep styles entry in bundle — regression fix (#18711)",
-    "fix(agent-composer): stop UNC workspace paths from failing space scan (#18709)",
-    "feat(pi-runtime): add TypeScript-guided code mode tools (#18708)",
-    "chore: release v2.0.6 PR opened (#18704)",
-    "fix(composer): stop losing pasted text at input limit (#18703)",
-    "fix(image-generation): stop forcing response_format on OpenAI — fixes #18702 reports",
-    "perf(code-viewer): share selection listener — deduplication (#18701)",
-    "fix(provider-registry): keep CherryIN Grok 4.1 Fast off main list (#18699)",
-    "fix(api-gateway): keep Agent SDK system messages out of context (#18697)",
-    "fix(agent-migration): stop uncopyable memory entry from aborting migration (#18694)"
+  "recent_main_highlights_today_aug17": [
+    "fix(security): gate legacy IPC senders, zip-slip containment, unsafe-extension open guard (#18751) - addresses 8-day-old #18273",
+    "fix(security): consent-gate HTML preview iframes, fail closed sandbox defaults (#18764, draft)",
+    "fix(citations): parse DSH web search results (#18762) - addresses #18754 DSH cite markers",
+    "fix(topics): prevent old title flash after rename (#18760) - addresses #18734 same-day",
+    "fix(migration): clear stale Agent attachment refs on retry (#18757)",
+    "fix(composer): focus input after creating a new topic (#18739) - addresses #18712/#18722 same-day",
+    "fix(api-gateway): skip think:true for Ollama when SDK default triggers auto reasoning (#18744)",
+    "fix(ai-transport): cap attach-replay chunks to prevent renderer freeze on long agent streams (#18743)",
+    "feat(agent-status): enhance agent status sidebar for workflow, subagent, background command (#18749)",
+    "feat(web-search): add OpenAI Codex subscription web search (#18747, draft)",
+    "feat(screenshot): add interactive screen capture with annotation and OCR (#18725)",
+    "perf(paintings): cache unchanged history hydration (#18720) - closes #18622, addresses #17316"
   ],
   "active_tracks_today": [
     {
-      "track": "v2.0.6 Release Prep",
+      "track": "Security Hardening",
       "priority": "CRITICAL",
-      "notes": "PR #18704 open. Needs LaTeX fix (#18698+#18665) and zip-slip security fix (#18273) before merging"
+      "notes": "Major progress today. PR #18751 addresses 8-day-old zip-slip (#18273) plus IPC sender gating and unsafe-extension open guard. PR #18764 (draft) adds HTML preview iframe sandboxing. Both need review and merge.",
+      "open_items": [
+        "#18273 - zip-slip: PR #18751 open, pending merge",
+        "HTML preview sandbox - PR #18764 draft, pending review"
+      ]
     },
     {
-      "track": "Performance & Rendering",
+      "track": "v2.0.6 Release + Post-Release",
       "priority": "HIGH",
-      "new_issues_today_aug16": 2,
-      "key_new": [
-        "#18622 — Deduplicate CodeViewer document selection listeners (PR #18701 fixes this)",
-        "#18356 — UI scrolling/pagination lag after 20k tokens accumulate (still open)"
-      ],
-      "key_open": [
-        "#18621 — Split tab actions from tab state invalidation",
-        "#18620 — Parallelize and deduplicate Shiki asset loading",
-        "#18619 — Stabilize useMultiplePreferences subscriptions",
-        "#18465 — Streaming snapshots rerender Home composer tree",
-        "#18464 — MCP settings eagerly fetch inactive capability tabs"
+      "notes": "v2.0.6 released today. Post-release issues already arriving: Homebrew formula missing (#18759), LaTeX regression status unknown, Agent max_tokens compat regression (#18765).",
+      "post_release_issues": [
+        "#18759 - Homebrew v2.0.6 formula missing - packaging action needed",
+        "#18765 - Agent max_tokens to max_completion_tokens for OpenAI-compatible gateways",
+        "#18665/#18698 - LaTeX copy regression: verify if v2.0.6 fixed or escalate to v2.0.7"
+      ]
+    },
+    {
+      "track": "DSH Runtime (New Cluster)",
+      "priority": "HIGH",
+      "notes": "3 DSH bugs opened in 1 hour by same user. PR #18762 targets citation markers. #18755 and #18756 need separate investigation.",
+      "key_issues": [
+        "#18754 - DSH cite:id markers not rendered - PR #18762 in progress",
+        "#18755 - DSH starts new answer without user input (phantom processing)",
+        "#18756 - Code Mate DSH rejects CherryIN enterprise reasoning models (Unified Gateway error)"
       ]
     },
     {
       "track": "Data & Migration",
-      "priority": "CRITICAL",
+      "priority": "HIGH",
       "key_open": [
-        "#18273 — SECURITY: Backup restore zip-slip (7 days old, UNADDRESSED — block v2.0.6)",
-        "#18614 — Data migration: rename knowledge base material names",
-        "#18612 — RFC: versioned data migration (DB + disk simultaneously)",
-        "#18373 — Data directory relocation leaves stale absolute paths",
-        "#18272 — Knowledge material filenames not sanitized"
+        "#18273 - SECURITY: zip-slip backup restore - PR #18751 IN PROGRESS (merge priority)",
+        "#18614 - Data migration: rename knowledge base material names",
+        "#18612 - RFC: versioned data migration (DB + disk simultaneously)",
+        "#18373 - Data directory relocation leaves stale absolute paths",
+        "#18272 - Knowledge material filenames not sanitized"
       ]
     },
     {
       "track": "Agent & Assistant",
       "priority": "HIGH",
-      "new_issues_today_aug16": 2,
+      "new_issues_today_aug17": 3,
       "key_new": [
-        "#18700 — Agent topic name modification causes complete freeze (NEW)",
-        "#18696 — API Error 400 with grok-4-1-fast-* + Claude Code Runtime (NEW)"
+        "#18741 - DeepSeek V4 session corruption: No tool output after long conversation (HTTP 400, unrecoverable)",
+        "#18765 - Agent sends max_tokens to OpenAI gateways - 400 (should be max_completion_tokens)",
+        "#18763 - Pi Agent ignores custom proxy when TUN disabled"
       ],
       "key_open": [
-        "#18683 — TypeError in knowledgeListModelOutput (kb_list tool crash)",
-        "#18643 — Agent runtime + Ollama: all tool calls return 500",
-        "#18607 — Scheduled tasks skip missed runs after v2 upgrade (regression)",
-        "#18547 — Pi agent integration UX optimization",
-        "#18336 — Agent Feishu channel WebSocket inbound messages never arrive (P1)"
+        "#18683 - TypeError in knowledgeListModelOutput (kb_list tool crash)",
+        "#18643 - Agent runtime + Ollama: all tool calls return 500",
+        "#18607 - Scheduled tasks skip missed runs after v2 upgrade",
+        "#18336 - Agent Feishu channel WebSocket inbound messages never arrive (P1)"
       ]
     },
     {
       "track": "UI/UX Regressions",
       "priority": "HIGH",
-      "new_issues_today_aug16": 4,
+      "new_issues_today_aug17": 3,
       "key_new": [
-        "#18706 — AI-generated content can no longer be edited (Discussion, REGRESSION)",
-        "#18707 — Up/down arrow keys cannot scroll chat window",
-        "#18698 — LaTeX formula copying broken (2nd report in 2 days)",
-        "#18705 — Interface disappears and freezes"
+        "#18734 - Topic rename double-click broken; old title overlaps - PR #18760 already open",
+        "#18732 - Local Qwen cannot disable thinking mode",
+        "#18719 - Feature request: unify Chat and Agent into single session list"
+      ],
+      "resolved_today": [
+        "#18712 - Input focus missing after new chat - CLOSED (PR #18739 merged)"
       ],
       "top_existing_regressions": [
-        "#18665 — Math formula superscripts garbled in v2.0.5 (v1.9.3 fine)",
-        "#18243 — AI messages cannot be edited (3 comments)",
-        "#18484 — Assistant responses cannot be uniformly edited/saved",
-        "#18457 — Collapse thinking setting ignored",
-        "#18099 — Restore Save-only option for editing historical messages",
-        "#18327 — Token/s and TTFT display missing since v2.0",
-        "#18196 — Regenerate Conversation button removed in v2"
+        "#18665/#18698 - Math/LaTeX copy broken in v2.0.5 (verify v2.0.6)",
+        "#18243 - AI messages cannot be edited (3 comments, no resolution)",
+        "#18099 - Save-only edit option removed from v2",
+        "#18196 - Regenerate Conversation button removed",
+        "#18327 - Token/s and TTFT display missing since v2.0"
       ]
     },
     {
       "track": "Connectivity & Provider",
       "priority": "HIGH",
-      "new_issues_today_aug16": 1,
+      "new_issues_today_aug17": 2,
       "key_new": [
-        "#18695 — Agent mode 400 Bad Request with images to Ollama Gemma 4"
+        "#18765 - max_tokens vs max_completion_tokens: OpenAI gateway compat regression",
+        "#18763 - Pi Agent ignores custom proxy (TUN disabled)"
       ],
       "key_open": [
-        "#18708 — feat(pi-runtime): TypeScript code mode tools (PR today)",
-        "#18590 — Restore LAN Transfer for PC ↔ Mobile sync",
-        "#18608 — Custom Provider incorrectly appends /v1/chat/completions",
-        "#18571 — Custom headers in v2.0.5 don't take effect",
-        "#18408 — Custom API address ignored, requests routed to Anthropic"
+        "#18590 - Restore LAN Transfer for PC to Mobile sync",
+        "#18608 - Custom Provider incorrectly appends /v1/chat/completions",
+        "#18571 - Custom headers in v2.0.5 don't take effect",
+        "#18408 - Custom API address ignored, requests routed to Anthropic"
       ]
     },
     {
       "track": "MCP",
       "priority": "MEDIUM-HIGH",
+      "key_new": [
+        "#18761 - File system MCP stops writing without error (needs-repro)"
+      ],
       "key_open": [
-        "#18528 — MCP subprocess on Windows doesn't inherit latest PATH (-32000 Connection closed)",
-        "#18437 — Deferred MCP tools reminder list causes context overflow",
-        "#18344 — Built-in @cherry/fetch denies private-network-resolving domains",
-        "#18131 — MCP server connected but no tools mounted (9 comments, 9 days)"
+        "#18528 - MCP subprocess on Windows doesn't inherit latest PATH (-32000 Connection closed)",
+        "#18437 - Deferred MCP tools reminder list causes context overflow",
+        "#18344 - Built-in @cherry/fetch denies private-network-resolving domains",
+        "#18131 - MCP server connected but no tools mounted (9 comments, 10 days)"
+      ]
+    },
+    {
+      "track": "Performance",
+      "priority": "MEDIUM",
+      "resolved_today": [
+        "#18622 - Deduplicate CodeViewer selection listeners - CLOSED (PR #18720 merged)"
+      ],
+      "key_open": [
+        "#18356 - UI scrolling/pagination lag after 20k tokens",
+        "#18621 - Split tab actions from tab state invalidation",
+        "#18620 - Parallelize and deduplicate Shiki asset loading",
+        "#18619 - Stabilize useMultiplePreferences subscriptions",
+        "#17316 - Painting history rehydrates every unchanged record"
       ]
     }
   ],
   "top_open_feature_requests": [
-    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)", "comments": 0},
-    {"number": 18547, "title": "Pi agent UX — flatten engine selection, smart approval default"},
-    {"number": 18590, "title": "Restore LAN Transfer for PC ↔ Mobile sync"},
-    {"number": 18710, "title": "Support for OpenRouter Presets (NEW TODAY)", "comments": 0},
+    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)", "age_days": 102},
+    {"number": 18725, "title": "Interactive screen capture with annotation and OCR - PR #18725 open", "age_days": 0},
+    {"number": 18747, "title": "OpenAI Codex subscription web search - PR #18747 draft", "age_days": 0},
+    {"number": 18590, "title": "Restore LAN Transfer for PC to Mobile sync", "age_days": 3},
+    {"number": 18710, "title": "Support for OpenRouter Presets", "age_days": 1},
     {"number": 18442, "title": "Knowledge base: add jpg, bmp, Office format support"},
     {"number": 18268, "title": "Agent session start/end hooks for cross-session continuity"},
     {"number": 18267, "title": "Knowledge base refresh when source files change"},
-    {"number": 18476, "title": "Add Huawei Cloud MaaS as preset model provider"},
     {"number": 18409, "title": "Allow customizing tools exempt from per-call approval in bypassPermissions mode"},
     {"number": 18432, "title": "Upgrade DashScope provider experience to QwenCloud"}
   ],
   "security_watch": {
-    "open": [
-      "#18273 — zip-slip in backup restore (7 days, CRITICAL, still unaddressed — BLOCK v2.0.6 release)"
+    "open_in_progress": [
+      "#18273 - zip-slip in backup restore (8 days, CRITICAL) - PR #18751 NOW OPEN, merge urgently"
+    ],
+    "open_draft": [
+      "HTML preview iframe sandbox - PR #18764 (draft) opened today"
     ],
     "closed_last_7d": [
-      "#18648 — MCP env secrets logged in plaintext (closed 2026-08-15, same day)"
+      "#18648 - MCP env secrets logged in plaintext (closed 2026-08-15)"
     ]
   }
 }

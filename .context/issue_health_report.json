@@ -1,44 +1,44 @@
 {
-  "generated_at": "2026-08-16T19:30:00Z",
-  "date": "2026-08-16",
+  "generated_at": "2026-08-17T18:00:00Z",
+  "date": "2026-08-17",
   "total_open": 881,
-  "delta_from_yesterday": "+5",
+  "delta_from_yesterday": 0,
   "health_distribution": {
     "active": {
-      "count": 192,
-      "pct": 21.8,
-      "definition": "updated in last 7 days (>=2026-08-09)"
+      "count": 194,
+      "pct": 22.0,
+      "definition": "updated in last 7 days (>=2026-08-10)"
     },
     "aging": {
-      "count": 263,
-      "pct": 29.8,
-      "definition": "updated 7-30 days ago (2026-07-17..2026-08-08)"
+      "count": 258,
+      "pct": 29.3,
+      "definition": "updated 7-30 days ago (2026-07-18..2026-08-09)"
     },
     "stale": {
-      "count": 197,
-      "pct": 22.4,
-      "definition": "updated 30-90 days ago (2026-05-17..2026-07-16)"
+      "count": 199,
+      "pct": 22.6,
+      "definition": "updated 30-90 days ago (2026-05-18..2026-07-17)"
     },
     "zombie": {
-      "count": 229,
-      "pct": 26.0,
-      "definition": "not updated in 90+ days (<=2026-05-16)"
+      "count": 230,
+      "pct": 26.1,
+      "definition": "not updated in 90+ days (<=2026-05-17)"
     }
   },
   "label_health": {
-    "unlabeled_open": 109,
-    "unlabeled_pct": 12.4,
-    "note": "Slight improvement from 113 yesterday — 4 issues labeled",
-    "inactive_labeled": 130,
+    "unlabeled_open": 113,
+    "unlabeled_pct": 12.8,
+    "note": "Slight increase from 109 yesterday (+4 net unlabeled) - 7 new unlabeled opened, 2 unlabeled closed, 1 labeled",
+    "inactive_labeled": 119,
     "p1_labeled": 3,
     "top_backlog_labels": {
-      "UI/UX": "est. 320+",
-      "Models": "est. 180+",
-      "Assistant": "est. 60+",
+      "UI/UX": "est. 315+",
+      "Models": "est. 178+",
       "Performance": "est. 60+",
-      "MCP": "est. 45+",
-      "RAG": "est. 30+",
+      "MCP": "est. 44+",
       "Connectivity": "est. 40+",
+      "RAG": "est. 30+",
+      "Assistant": "est. 24+",
       "Data": "est. 20+"
     }
   },
@@ -47,37 +47,54 @@
       "number": 18273,
       "title": "Backup restore: zip-slip path traversal vulnerability",
       "severity": "SECURITY",
-      "age_days": 7,
-      "status": "OPEN — critical, 7 days unaddressed"
+      "age_days": 8,
+      "status": "ACTIVE PR - PR #18751 (zip-slip containment) now open, fix in progress",
+      "fix_pr": 18751
+    },
+    {
+      "number": null,
+      "title": "HTML preview iframe consent-gating (new today)",
+      "severity": "SECURITY",
+      "age_days": 0,
+      "status": "PR #18764 (draft) opened today - proactive hardening"
     }
   ],
   "high_comment_active_issues": [
-    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 9, "labels": ["needs-more-info", "MCP"]},
-    {"number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8, "age_days": 2, "labels": ["UI/UX"]},
-    {"number": 17629, "title": "Processes remain running after closing window (tray disabled)", "comments": 7, "age_days": 17},
-    {"number": 5442, "title": "LLMOps/Langfuse observability support", "comments": 7, "age_days": 476, "labels": ["feature", "Models", "Blocked: v2"]},
-    {"number": 18683, "title": "TypeError in knowledgeListModelOutput (kb_list tool call)", "comments": 2, "age_days": 0, "labels": ["RAG"]}
+    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 10, "labels": ["needs-more-info", "MCP"]},
+    {"number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8, "age_days": 3, "labels": ["UI/UX"]},
+    {"number": 17629, "title": "Processes remain running after closing window (tray disabled)", "comments": 7, "age_days": 18},
+    {"number": 18741, "title": "DeepSeek V4 no tool output - session permanently broken (HTTP 400)", "comments": 3, "age_days": 0}
   ],
   "regression_watch_v2": [
-    {"number": 18698, "title": "LaTeX formula copying issue (v2.0.5)", "opened": "2026-08-16"},
-    {"number": 18665, "title": "Math formula superscripts garbled in v2.0.5 (v1.9.3 fine)", "opened": "2026-08-15"},
-    {"number": 18706, "title": "AI-generated content can no longer be edited (v2)", "opened": "2026-08-16"},
+    {"number": 18734, "title": "Double-clicking title cannot rename; old title overlaps (v2.0.5)", "opened": "2026-08-17", "note": "NEW TODAY - fix PR #18760 already open"},
+    {"number": 18765, "title": "Agent sends max_tokens instead of max_completion_tokens to OpenAI-compatible gateways", "opened": "2026-08-17", "note": "NEW TODAY - API compatibility regression"},
+    {"number": 18698, "title": "LaTeX formula copying issue (v2.0.5)", "opened": "2026-08-16", "note": "Unconfirmed if v2.0.6 fixes this"},
+    {"number": 18665, "title": "Math formula superscripts garbled in v2.0.5 (v1.9.3 fine)", "opened": "2026-08-15", "note": "Unconfirmed if v2.0.6 fixes this"},
     {"number": 18607, "title": "Scheduled tasks skip missed runs after v2 upgrade", "opened": "2026-08-14"},
-    {"number": 18644, "title": "Migration from 1.9.3 to 2.0.2 failed", "opened": "2026-08-15"},
     {"number": 18099, "title": "\"Save only\" option removed in v2.x (was in v1.9.13)", "opened": "2026-08-07"},
     {"number": 18196, "title": "Regenerate Conversation button removed in v2", "opened": "2026-08-08"}
   ],
+  "new_cluster_aug17": {
+    "name": "DSH Runtime Bugs",
+    "issues": [
+      {"number": 18754, "title": "DSH agent shows raw [cite:id] markers instead of clickable sources", "fix_pr": 18762},
+      {"number": 18755, "title": "DSH shows 'Processed' then starts new answer without user input"},
+      {"number": 18756, "title": "Code Mate DSH rejects CherryIN enterprise reasoning models - Unified Gateway error"}
+    ],
+    "note": "3 DSH-related bugs opened in 1 hour on Aug 17 by same user (lianshuang-photo). PR #18762 already targets #18754. Likely common root cause in DSH runtime dispatch."
+  },
   "triage_recommendations": [
-    "CRITICAL: #18273 zip-slip security in backup restore — 7 days old, STILL unaddressed — escalate",
-    "REGRESSION CLUSTER: LaTeX/math copy broken (#18665 + #18698) — 2 reports in 2 days, likely needs hotfix in v2.0.6",
-    "REGRESSION: #18706 AI message editing removed — high user frustration, multiple threads",
-    "v2.0.6 release PR #18704 open — verify LaTeX fix + zip-slip security before merging",
-    "109 (~12.4%) open issues have no category label — continue batch-triage",
-    "229 zombie issues (>90 days) — review for auto-close with 'inactive' bot",
-    "MCP #18131 at 9 comments, needs-more-info, 9 days old — close or escalate to v2.0.6",
-    "Agent + Ollama (#18643) and Agent Feishu (#18336) both runtime failures — co-triage"
+    "SECURITY: PR #18751 (zip-slip) now open - review and merge ASAP; #18273 is 8 days old",
+    "REGRESSION: LaTeX/math copy cluster (#18665 + #18698) - verify if v2.0.6 release (today) includes a fix, else hotfix needed",
+    "NEW P1: #18741 DeepSeek V4 session permanently broken after long conversation - same-day, 3 comments, escalate",
+    "API COMPAT REGRESSION: #18765 Agent sends max_tokens to OpenAI gateways causing GPT-5.x 400 - check if v2.0.6 addresses",
+    "DSH CLUSTER: #18754+#18755+#18756 opened same hour - co-triage for common root cause, PR #18762 targets #18754",
+    "HOMEBREW GAP: #18759 Homebrew formula missing for v2.0.6 - packaging team action required",
+    "AI EDITING: #18706 discussion closed, but #18243+#18099+#18484 still open - needs roadmap answer",
+    "113 (~12.8%) open issues unlabeled - slight degradation, continue batch triage",
+    "230 zombie issues (>90 days) - bot auto-closed 11 today, continue bot triage passes"
   ],
-  "closed_last_30d": 561,
-  "close_rate_per_day_30d": 18.7,
-  "close_velocity_note": "High close velocity maintained (561/30d). v2.0.6 release PR open — prepare for another close spike post-release."
+  "closed_last_30d": 581,
+  "close_rate_per_day_30d": 19.4,
+  "close_velocity_note": "Strong velocity maintained (581/30d, +20 today). v2.0.6 released - expect close spike in next 24-48h as release fixes land."
 }

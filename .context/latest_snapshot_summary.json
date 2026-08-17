@@ -1,90 +1,100 @@
 {
-  "generated_at": "2026-08-16T19:30:00Z",
-  "date": "2026-08-16",
+  "generated_at": "2026-08-17T18:00:00Z",
+  "date": "2026-08-17",
   "source": "github_mcp",
   "open_issues": {
     "total": 881,
-    "delta_from_yesterday": "+5",
-    "unlabeled_count": 109,
-    "unlabeled_pct": 12.4,
-    "inactive_labeled": 130,
+    "delta_from_yesterday": 0,
+    "unlabeled_count": 113,
+    "unlabeled_pct": 12.8,
+    "inactive_labeled": 119,
+    "note": "20 issues closed today (11 by inactive bot), 13 new opened; net 0 delta. v2.0.6 released today.",
     "label_breakdown": {
-      "UI/UX": "highest (est. 320+)",
-      "Models": "2nd (est. 180+)",
+      "UI/UX": "highest (est. 315+)",
+      "Models": "2nd (est. 178+)",
       "Performance": "est. 60+",
-      "MCP": "est. 45+",
+      "MCP": "est. 44+",
       "Connectivity": "est. 40+",
       "RAG": "est. 30+",
-      "Assistant": "est. 25+",
+      "Assistant": "est. 24+",
       "Data": "est. 20+",
       "Docs": "est. 15+",
       "Agent": "est. 15+",
-      "inactive": 130,
-      "needs-repro": "est. 25+",
-      "needs-more-info": "est. 8+",
+      "inactive": 119,
+      "needs-repro": "est. 23+",
+      "needs-more-info": "est. 7+",
       "Planned": "est. 5+",
       "P1": 3
     }
   },
   "open_prs": {
-    "total": 439,
-    "targeting_main": "est. 435+",
+    "total": "est. 445+",
+    "targeting_main": "est. 440+",
     "targeting_v2": 0,
-    "targeting_v1": 0,
-    "targeting_other": "est. 4+",
-    "drafts": "est. 20+",
-    "recent_prs_today_aug16": [
-      {"number": 18711, "title": "fix(ui-markdown): keep styles entry in bundle so formats render", "base": "main"},
-      {"number": 18709, "title": "fix(agent-composer): stop UNC workspace paths from failing space scan", "base": "main"},
-      {"number": 18708, "title": "feat(pi-runtime): add TypeScript-guided code mode tools", "base": "main"},
-      {"number": 18704, "title": "chore: release v2.0.6", "base": "main"},
-      {"number": 18703, "title": "fix(composer): stop losing pasted text at the input limit", "base": "main"},
-      {"number": 18702, "title": "fix(image-generation): stop forcing response_format on OpenAI", "base": "main"},
-      {"number": 18701, "title": "perf(code-viewer): share selection listener (deduplicate listeners)", "base": "main"},
-      {"number": 18699, "title": "fix(provider-registry): keep CherryIN Grok 4.1 Fast off the main list", "base": "main"},
-      {"number": 18697, "title": "fix(api-gateway): keep Agent SDK system messages out of the context", "base": "main"},
-      {"number": 18694, "title": "fix(agent-migration): stop uncopyable memory entry from aborting migration", "base": "main"}
+    "targeting_other": "est. 5+",
+    "drafts": 8,
+    "new_prs_today_aug17": [
+      {"number": 18764, "title": "fix(security): consent-gate HTML preview iframes, fail closed sandbox defaults", "base": "main", "draft": true},
+      {"number": 18762, "title": "fix(citations): parse DSH web search results", "base": "main"},
+      {"number": 18760, "title": "fix(topics): prevent old title flash after rename", "base": "main"},
+      {"number": 18757, "title": "fix(migration): clear stale Agent attachment refs on retry", "base": "main"},
+      {"number": 18752, "title": "fix(file-preview): add horizontal padding and enable wrapping for text previews", "base": "main"},
+      {"number": 18751, "title": "fix(security): gate legacy IPC senders, unsafe-extension open guard, zip-slip containment", "base": "main"},
+      {"number": 18750, "title": "ci(i18n): require complete translations in pull requests", "base": "main"},
+      {"number": 18749, "title": "feat(agent-status): enhance agent status sidebar for workflow, subagent and background command", "base": "main"},
+      {"number": 18747, "title": "feat(web-search): add OpenAI Codex subscription web search", "base": "main", "draft": true},
+      {"number": 18744, "title": "fix(api-gateway): skip think:true for Ollama when SDK default triggers auto reasoning", "base": "main"},
+      {"number": 18743, "title": "fix(ai-transport): cap attach-replay chunks to prevent renderer freeze on long agent streams", "base": "main"},
+      {"number": 18739, "title": "fix(composer): focus input after creating a new topic", "base": "main"},
+      {"number": 18735, "title": "fix(ai-provider): dispatch image + DashScope routing by preset, not raw provider id", "base": "main"},
+      {"number": 18727, "title": "fix(agent-migration): skip unavailable virtual drive workspaces", "base": "main"},
+      {"number": 18725, "title": "feat(screenshot): add interactive screen capture with annotation and OCR", "base": "main"},
+      {"number": 18720, "title": "perf(paintings): cache unchanged history hydration", "base": "main"},
+      {"number": 18716, "title": "fix(dsh-runtime): bind send_message anchors by their target subagent id", "base": "main"}
     ]
   },
   "v2_branch_prs": {
     "open": 0,
     "merged_last_30d": 0,
-    "note": "v2 branch merged into main; no active PRs target v2 base. All development on main."
+    "note": "v2 branch fully merged into main; no active PRs target v2 base. All development on main.",
+    "latest_release": "v2.0.6 (released 2026-08-17 — PR #18704 merged)",
+    "homebrew_gap": "#18759 opened: Homebrew formula for v2.0.6 missing, users cannot install via brew"
   },
   "closed_last_30d": {
-    "issues": 561,
-    "delta_from_yesterday": "+6",
-    "close_rate_per_day": 18.7,
-    "notable_closes_recent": [
-      {"number": 18688, "title": "fix(shortcut): accept F13-F24 as shortcut keys", "closed_at": "2026-08-16", "label": "UI/UX"},
-      {"number": 18685, "title": "fix(composer): stop the deferred paste replay from being handled twice", "closed_at": "2026-08-16"},
-      {"number": 18664, "title": "fix(composer): swap the deferred composer while idle instead of mid-keystroke", "closed_at": "2026-08-16"},
-      {"number": 18648, "title": "[Security]: MCP server env secrets logged in plaintext", "closed_at": "2026-08-15", "label": "MCP"},
-      {"number": 18618, "title": "[Bug]: Parallelize backup dialog metadata IPC", "closed_at": "2026-08-14", "label": "Performance"}
+    "issues": 581,
+    "delta_from_yesterday": "+20",
+    "close_rate_per_day": 19.4,
+    "notable_closes_today_aug17": [
+      {"number": 18753, "title": "[Bug]: Generated images in Agent responses hidden inside collapsed tool history", "closed_at": "2026-08-17", "label": "UI/UX", "note": "Same-day close — PR fix landed"},
+      {"number": 18712, "title": "[Bug]: Message input bar not focused after creating new chat (Ctrl+N)", "closed_at": "2026-08-17", "label": "UI/UX", "note": "Fixed by PR #18739"},
+      {"number": 18745, "title": "[Feature]: Explain why CherryIN models are unavailable in Pi mode", "closed_at": "2026-08-17", "labels": ["UI/UX", "Models"]},
+      {"number": 18706, "title": "[Discussion]: Why can't I edit the AI-generated content anymore?", "closed_at": "2026-08-17", "labels": ["discussion", "UI/UX"], "note": "Hot discussion closed — #18243 remains open"},
+      {"number": 18622, "title": "[Bug]: Deduplicate CodeViewer document selection listeners", "closed_at": "2026-08-17", "label": "Performance", "note": "Fixed by PR #18720"}
     ]
   },
   "p1_urgent_open": [
-    {
-      "number": 18698,
-      "title": "[Bug]: LaTeX formula copying issue",
-      "labels": ["UI/UX"],
-      "severity": "REGRESSION",
-      "age_days": 0,
-      "note": "Duplicate cluster with #18665 — LaTeX/math copy broken in v2.0.5"
-    },
     {
       "number": 18665,
       "title": "[Bug] Severe distortion when copying math formula: superscripts lost/garbled (v2.0.5, v1.9.3 works)",
       "labels": ["UI/UX"],
       "severity": "REGRESSION",
-      "age_days": 1
+      "age_days": 2,
+      "note": "Still open after v2.0.6 release — confirm fix or mark as regression"
+    },
+    {
+      "number": 18698,
+      "title": "[Bug]: LaTeX formula copying issue",
+      "labels": ["UI/UX"],
+      "severity": "REGRESSION",
+      "age_days": 1,
+      "note": "2nd report in cluster — check if v2.0.6 addresses this"
     },
     {
       "number": 18683,
       "title": "[Bug]: TypeError in knowledgeListModelOutput when continuing chat containing kb_list tool call",
       "labels": ["RAG"],
       "severity": "P1",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 2
     },
     {
@@ -92,14 +102,31 @@
       "title": "[Bug]: Agent runtime + local Ollama model: all tool calls return 500",
       "labels": [],
       "severity": "P1",
-      "age_days": 1
+      "age_days": 2
+    },
+    {
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 shows 'No tool output found' after long conversation; session permanently broken (HTTP 400)",
+      "labels": [],
+      "severity": "P1",
+      "age_days": 0,
+      "comments": 3,
+      "note": "NEW TODAY — session corruption after long conversations"
+    },
+    {
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
+      "labels": ["Data"],
+      "severity": "SECURITY",
+      "age_days": 8,
+      "note": "PR #18751 (zip-slip containment) now open — fix in progress, not yet merged"
     },
     {
       "number": 18607,
       "title": "[Bug]: Scheduled tasks silently skip missed runs after v2 upgrade (regression — v1 caught up)",
       "labels": [],
       "severity": "REGRESSION",
-      "age_days": 2,
+      "age_days": 3,
       "comments": 1
     },
     {
@@ -107,23 +134,15 @@
       "title": "[Bug] Agent Feishu channel: WebSocket connects but inbound messages never reach the session (2.0.3)",
       "labels": ["BUG", "Connectivity"],
       "severity": "P1",
-      "age_days": 5,
+      "age_days": 6,
       "comments": 1
-    },
-    {
-      "number": 18273,
-      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "labels": ["Data"],
-      "severity": "SECURITY",
-      "age_days": 7,
-      "note": "Still open — critical security vulnerability (zip-slip / path traversal)"
     },
     {
       "number": 18131,
       "title": "[Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
       "labels": ["needs-more-info", "MCP"],
       "severity": "P1",
-      "age_days": 9,
+      "age_days": 10,
       "comments": 9
     },
     {
@@ -131,7 +150,7 @@
       "title": "[Bug]: Processes remain running in Task Manager after closing window (tray disabled)",
       "labels": [],
       "severity": "P1",
-      "age_days": 17,
+      "age_days": 18,
       "comments": 7
     },
     {
@@ -139,14 +158,14 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "severity": "P1-label",
-      "age_days": 101
+      "age_days": 102
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "severity": "P1-label",
-      "age_days": 151,
+      "age_days": 152,
       "comments": 8
     },
     {
@@ -154,26 +173,30 @@
       "title": "[Bug]: Azure OpenAI Resource not found, default use responses API (macOS)",
       "labels": ["P1", "Models"],
       "severity": "P1-label",
-      "age_days": 165,
+      "age_days": 166,
       "comments": 1
     }
   ],
-  "new_issues_today_aug16": [
-    {"number": 18710, "title": "[Feature]: Support for OpenRouter Presets", "labels": ["Models"]},
-    {"number": 18707, "title": "[Bug]: Unable to use up/down arrow keys to scroll the window view in chat", "labels": ["UI/UX"]},
-    {"number": 18706, "title": "[Discussion]: Why can't I edit the AI-generated content anymore?", "labels": ["help wanted", "discussion", "UI/UX"]},
-    {"number": 18705, "title": "[Bug]: Interface disappears and freezes", "labels": ["UI/UX"]},
-    {"number": 18700, "title": "[Bug]: In agent, modifying conversation topic name causes a complete freeze", "labels": ["UI/UX"]},
-    {"number": 18698, "title": "[Bug]: LaTeX formula copying issue", "labels": ["UI/UX"]},
-    {"number": 18695, "title": "[Bug]: Agent mode fails with 400 Bad Request when sending images to Ollama (Gemma 4)", "labels": ["Models"]},
-    {"number": 18696, "title": "[Bug]: API Error 400 when using grok-4-1-fast-* models with Claude Code Runtime Driver", "labels": ["Models"]},
-    {"number": 18691, "title": "Generated program is incomplete and cannot be used directly", "labels": []}
+  "new_issues_today_aug17": [
+    {"number": 18765, "title": "[Bug]: Agent mode sends max_tokens to OpenAI-compatible gateways - GPT-5.x 400: use max_completion_tokens instead", "labels": []},
+    {"number": 18763, "title": "Pi Agent does not honor custom proxy for OpenCode requests when TUN is disabled", "labels": []},
+    {"number": 18761, "title": "[Bug]: File system MCP displays normally, but suddenly cannot write", "labels": ["MCP", "needs-repro"]},
+    {"number": 18759, "title": "[Bug]: Homebrew does not work - v2.0.6 formula missing", "labels": []},
+    {"number": 18756, "title": "[Bug]: Code Mate DSH launch rejects CherryIN enterprise reasoning models with Unified Gateway error", "labels": ["Models"]},
+    {"number": 18755, "title": "[Bug]: DSH shows 'Processed' then starts a new answer without user input", "labels": ["Assistant", "UI/UX"]},
+    {"number": 18754, "title": "[Bug]: DSH agent shows raw [cite:id] markers instead of clickable sources", "labels": ["UI/UX"]},
+    {"number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found' - session permanently broken (HTTP 400)", "labels": []},
+    {"number": 18740, "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer", "labels": ["help wanted", "discussion", "UI/UX"]},
+    {"number": 18734, "title": "[Bug]: Double-clicking conversation title cannot rename; renamed title overlaps with old title (v2.0.5)", "labels": ["UI/UX"]},
+    {"number": 18732, "title": "[Bug]: Local Qwen cannot disable thinking mode", "labels": ["Models"]},
+    {"number": 18723, "title": "Prevent Margin Leaks & Surprise LLM Bills: Add a Hybrid Spend Firewall", "labels": []},
+    {"number": 18719, "title": "[Feature]: Merge Chat and Agent into a unified session list", "labels": ["UI/UX"]}
   ],
-  "notable_recently_closed": [
-    {"number": 18688, "title": "fix(shortcut): accept F13-F24 as shortcut keys", "closed_at": "2026-08-16"},
-    {"number": 18685, "title": "fix(composer): stop the deferred paste replay from being handled twice", "closed_at": "2026-08-16"},
-    {"number": 18664, "title": "fix(composer): swap deferred composer while idle", "closed_at": "2026-08-16"},
-    {"number": 18648, "title": "MCP env secrets logged in plaintext — SECURITY", "closed_at": "2026-08-15"},
-    {"number": 18397, "title": "Model context window not passed to Claude Code SDK", "closed_at": "2026-08-12"}
-  ]
+  "notable_security_update_aug17": {
+    "summary": "Two security fix PRs opened today - significant progress on the security backlog",
+    "prs": [
+      {"number": 18751, "title": "fix(security): gate legacy IPC senders, unsafe-extension open guard, zip-slip containment", "addresses": "#18273 (zip-slip, 8 days old)", "status": "open, not yet merged"},
+      {"number": 18764, "title": "fix(security): consent-gate HTML preview iframes, fail closed sandbox defaults", "status": "draft, open"}
+    ]
+  }
 }

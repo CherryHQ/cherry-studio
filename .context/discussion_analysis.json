@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-08-16T19:30:00Z",
-  "date": "2026-08-16",
+  "generated_at": "2026-08-17T18:00:00Z",
+  "date": "2026-08-17",
   "note": "Discussion data sourced from issues tagged discussion+help wanted; GitHub Discussions GraphQL requires separate auth",
   "discussion_labeled_open_issues": {
-    "total_with_discussion_label": 43,
+    "total_with_discussion_label": 42,
+    "note": "#18706 closed today (-1), #18740 opened today (+1), net 42",
     "sample_recent": [
-      {"number": 18706, "title": "[Discussion]: Why can't I edit the AI-generated content anymore?", "created": "2026-08-16", "comments": 0},
+      {"number": 18740, "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer", "created": "2026-08-17", "comments": 1},
       {"number": 18589, "title": "[Discussion]: Too much reverse optimization (UI/UX regression)", "created": "2026-08-14", "comments": 1},
       {"number": 18474, "title": "Code blocks are no longer rendered during streaming", "created": "2026-08-12", "comments": 1},
       {"number": 18363, "title": "AiStreamManager state-machine identity and ownership structure", "created": "2026-08-11", "comments": 1},
@@ -15,58 +16,72 @@
       {"number": 18241, "title": "How to collapse thinking content without aggregating tool calls", "created": "2026-08-09"}
     ]
   },
-  "hot_topics": [
-    "v2 regression: edit/save AI messages (#18706 NEW TODAY, #18243, #18484, #18099) — single biggest complaint thread",
-    "LaTeX/math formula copy broken in v2.0.5 (#18698 NEW TODAY + #18665 yesterday) — 2 reports in 2 days",
-    "v1→v2 migration failures — still arriving daily",
-    "Agent mode stability: freezes, process leaks, Feishu channel broken, Ollama 500s",
-    "Context compaction/auto-compact behavior — multiple issues with non-GPT tokenizers",
-    "MCP connectivity and tool visibility (#18131, #18528, #18437)",
-    "Performance regression: scrolling lag after 20k tokens, streaming renders",
-    "Scheduled task missed-run regression after v2 upgrade (#18607)"
-  ],
-  "v2_pain_points": [
-    "Cannot edit AI messages (#18706 NEW, #18243 3 comments, #18484) — top complaint",
-    "LaTeX formula superscripts garbled in v2.0.5 (#18698 + #18665) — cluster of 2, needs hotfix",
-    "Code blocks not rendered during streaming (#18474)",
-    "Minimize to tray / quit leaves orphan processes (#17629 7 comments, #18445)",
-    "Agent + Ollama tool calls all fail with 500 (#18643)",
-    "Scheduled tasks skip missed runs post-v2 upgrade (#18607)",
-    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context, TTFT display",
-    "V2 interface freeze: modifying topic name causes complete freeze (#18700 NEW)"
-  ],
-  "new_discussion_today_aug16": [
+  "closed_discussions_today": [
     {
       "number": 18706,
       "title": "[Discussion]: Why can't I edit the AI-generated content anymore?",
-      "type": "regression_discussion",
-      "description": "AI-generated content editing removed in v2; growing user frustration"
+      "closed": "2026-08-17",
+      "note": "Top discussion from yesterday now closed. Core issue persists in #18243 (3 comments), #18099, #18484."
+    }
+  ],
+  "hot_topics": [
+    "DSH runtime bugs cluster (#18754, #18755, #18756 - NEW TODAY) - cite markers, spurious responses, gateway rejections",
+    "AI message editing still open (#18243, #18099, #18484) despite #18706 closure - needs roadmap answer",
+    "LaTeX/math formula copy broken in v2.0.5 (#18698+#18665) - verify v2.0.6 fixes",
+    "Agent mode session corruption with DeepSeek V4 after long conversation (#18741 NEW TODAY, 3 comments)",
+    "v1 to v2 migration failures - daily arrivals continue (#18644, #18283)",
+    "Agent mode stability: process leaks, Feishu channel, Ollama 500s, max_tokens regression (#18765 NEW TODAY)",
+    "MCP connectivity and tool visibility (#18131, #18528, #18437, #18761 NEW TODAY)",
+    "Homebrew v2.0.6 packaging gap (#18759 NEW TODAY) - users cannot install via brew"
+  ],
+  "v2_pain_points": [
+    "Cannot edit AI messages (#18243 3 comments, #18099, #18484) - top complaint; #18706 closed as duplicate but root not fixed",
+    "LaTeX formula superscripts garbled in v2.0.5 (#18698+#18665) - 2 reports, check v2.0.6",
+    "DSH runtime: citation markers not rendered, spurious answers, model gateway rejections (#18754, #18755, #18756 - NEW CLUSTER)",
+    "Minimize to tray / quit leaves orphan processes (#17629 7 comments, #18445)",
+    "Agent + Ollama tool calls all fail with 500 (#18643)",
+    "Agent sends max_tokens to OpenAI-compatible gateways causing 400 (#18765 NEW)",
+    "Scheduled tasks skip missed runs post-v2 upgrade (#18607)",
+    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context, TTFT display",
+    "Topic rename double-click broken: old title ghost (#18734 NEW) - PR #18760 in progress",
+    "Homebrew v2.0.6 formula missing - packaging gap on day of release (#18759)"
+  ],
+  "new_discussion_today_aug17": [
+    {
+      "number": 18740,
+      "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer",
+      "type": "design_discussion",
+      "description": "UX design debate: tool approval interrupts the composer instead of overlaying above it. Comments already open."
     },
     {
-      "number": 18698,
-      "title": "[Bug]: LaTeX formula copying issue",
-      "type": "regression_bug",
-      "description": "Second report in 2 days for LaTeX copy broken in v2.0.5"
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 'No tool output found' after long conversation - permanently broken (HTTP 400)",
+      "type": "p1_bug",
+      "description": "Session corruption pattern: 3 comments within hours of opening. Session permanently unrecoverable."
     },
     {
-      "number": 18707,
-      "title": "[Bug]: Unable to use up/down arrow keys to scroll in chat",
-      "type": "regression_bug"
+      "number": 18765,
+      "title": "[Bug]: Agent sends max_tokens to OpenAI-compatible gateways - GPT-5.x rejects with 400",
+      "type": "api_compat_regression",
+      "description": "Anthropic-style max_tokens parameter causing 400 on OpenAI-compatible gateways; should be max_completion_tokens."
     }
   ],
   "sentiment": {
-    "overall": "Negative — growing frustration around AI message editing removal",
-    "detail": "The inability to edit AI messages in v2 is now the #1 user complaint with at least 4 separate issue threads (#18706, #18243, #18484, #18099). LaTeX formula regression (#18698+#18665) adds fuel. High PR velocity (439 open PRs) and upcoming v2.0.6 release are positive signals.",
+    "overall": "Mixed - security progress positive, but new DSH cluster and DeepSeek session corruption are emerging concerns",
+    "detail": "v2.0.6 released today with high PR velocity (17 PRs opened). Security situation improving: PR #18751 addresses the 8-day-old zip-slip vulnerability. Offset by 3 new DSH runtime bugs and a concerning session corruption report (#18741). AI message editing frustration continues despite #18706 closure.",
     "positive_signals": [
-      "High PR velocity: 439 open PRs, v2.0.6 release PR (#18704) open",
-      "10 PRs opened today — strong development momentum",
-      "Performance and bug-fix focus in today's PRs"
+      "v2.0.6 released today - high delivery cadence",
+      "17 PRs opened today including 2 security fixes (#18751, #18764)",
+      "Topic rename ghost fixed same day by PR #18760",
+      "Message focus after new chat fixed same day by PR #18739",
+      "zip-slip vulnerability finally has active fix PR after 8 days"
     ],
     "negative_signals": [
-      "Security issue #18273 (zip-slip) still open after 7 days",
-      "AI message editing cluster now 4 threads — systemic regression",
-      "LaTeX copy regression cluster: 2 issues in 48h (#18698, #18665)",
-      "229 zombie issues (>90 days) suggest backlog management gaps"
+      "New DSH bug cluster: 3 reports in 1 hour (#18754, #18755, #18756)",
+      "DeepSeek V4 session corruption (#18741) - 3 comments in hours, session unrecoverable",
+      "AI message editing (#18243) still without roadmap commitment",
+      "Homebrew v2.0.6 packaging missing on day of release (#18759)",
+      "Agent max_tokens API compat regression (#18765) - affects GPT-5.x users"
     ]
   }
 }
