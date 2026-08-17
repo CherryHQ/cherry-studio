@@ -69,7 +69,7 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 }
 
 const passthrough =
-  /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+  /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
 const usableEndKeys = (code: string): ShortcutToken | null => {
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
