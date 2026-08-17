@@ -67,9 +67,12 @@ function useExecutionOverlayMock(topicId: string, executions: ActiveExecution[])
         // Accumulates like the real service (`entry.optimisticMessages.set(...)`): a later
         // seed (e.g. the stream-open ack) must not drop earlier reservations (forked user).
         setSeed((prev) => {
-          const prevSeed = prev.topicId === topicId ? prev : { messages: [], executions: [], activeNodeOverride: null }
-          const merged = new Map(prevSeed.messages.map((message) => [message.id, message]))
-          for (const message of messages) merged.set(message.id, message)
+          const prevSeed =
+            prev.topicId === topicId
+              ? prev
+              : { messages: [] as CherryUIMessage[], executions: [] as ActiveExecution[], activeNodeOverride: null }
+          const merged = new Map<string, CherryUIMessage>()
+          for (const message of [...prevSeed.messages, ...messages]) merged.set(message.id, message)
           return {
             topicId,
             messages: [...merged.values()],
