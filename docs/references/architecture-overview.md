@@ -1,7 +1,5 @@
 # Architecture Overview
 
-> **Note**: `main` is undergoing a major v2 architecture refactoring (v1 and v2 coexist). This document is updated as it progresses; some sections describe the **target** architecture rather than the current state.
-
 This is the cross-process entry point to Cherry Studio's architecture: the Electron process model, data flow, the data systems, the monorepo structure, and a map to the detailed per-process and per-subsystem references. Per-process directory layout and dependency rules live in their own documents — this page does not duplicate them.
 
 ## Process Model

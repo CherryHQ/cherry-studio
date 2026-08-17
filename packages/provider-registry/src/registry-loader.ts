@@ -14,7 +14,7 @@ import type { ProviderConfig } from './schemas/provider'
 import { ProviderListSchema } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
-import { colonVariantTagToHyphen, normalizeModelId } from './utils/normalize'
+import { colonVariantTagToHyphen, extractParameterSize, normalizeModelId } from './utils/normalize'
 
 function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
   try {
@@ -223,8 +223,10 @@ export class RegistryLoader {
       return this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true })) ?? null
     }
     // Prefer the size-preserving key before the family key so distinct catalog sizes keep their metadata.
-    const sizedHit = this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true }))
+    const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })
+    const sizedHit = this.modelBySizedNorm!.get(sizedModelId)
     if (sizedHit) return sizedHit
+    if (extractParameterSize(sizedModelId)) return null
     return this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
   }
 
@@ -236,25 +238,22 @@ export class RegistryLoader {
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     this.loadProviderModels()
     const key = `${providerId}::${modelId}`
-    const normKey = `${providerId}::${normalizeModelId(modelId)}`
-    const sizedNormKey = `${providerId}::${normalizeModelId(modelId, { keepParameterSize: true })}`
     // BOTH exact lookups (canonical modelId, then provider apiModelId) must precede BOTH normalized
     // fallbacks. `normalizeModelId` strips size/date suffixes, so several distinct rows collapse to one
     // normalized key (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). If the normalized
     // canonical fallback ran before the exact apiModelId map, an exact SDK id like `google.gemma-3-27b-it`
     // would resolve through whichever same-family row was indexed first instead of its own row.
-    // The SIZE-PRESERVING fallbacks run before the size-agnostic ones for the same reason: a prefixed id
-    // that misses the exact keys (`nvidia/gpt-oss-20b`) must land on its own size's row, not the first
-    // same-family sibling (`gpt-oss-120b`) to claim the `gpt-oss` family key.
-    return (
-      this.overrideByKey!.get(key) ??
-      this.overrideByApiKey!.get(key) ??
-      this.overrideBySizedNormKey!.get(sizedNormKey) ??
-      this.overrideBySizedNormApiKey!.get(sizedNormKey) ??
-      this.overrideByNormKey!.get(normKey) ??
-      this.overrideByNormApiKey!.get(normKey) ??
-      null
-    )
+    const exact = this.overrideByKey!.get(key) ?? this.overrideByApiKey!.get(key)
+    if (exact) return exact
+
+    const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })
+    const sizedNormKey = `${providerId}::${sizedModelId}`
+    const sizedHit = this.overrideBySizedNormKey!.get(sizedNormKey) ?? this.overrideBySizedNormApiKey!.get(sizedNormKey)
+    if (sizedHit) return sizedHit
+    if (extractParameterSize(sizedModelId)) return null
+
+    const normKey = `${providerId}::${normalizeModelId(modelId)}`
+    return this.overrideByNormKey!.get(normKey) ?? this.overrideByNormApiKey!.get(normKey) ?? null
   }
 
   /** O(1) get all overrides for a provider. */
