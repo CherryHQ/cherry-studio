@@ -106,6 +106,10 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
   })
 
+  it.each(['xlsx', 'XLSX'])('registers the spreadsheet plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/workbook.${extension}`, filePreviewRegistry)?.id).toBe('spreadsheet')
+  })
+
   it.each(['html', 'htm'])('registers the HTML plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
   })
