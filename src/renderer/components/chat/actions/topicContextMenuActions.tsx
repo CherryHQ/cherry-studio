@@ -29,7 +29,6 @@ export type TopicExportMenuOptions = Record<
   | 'joplin'
   | 'markdown'
   | 'markdown_reason'
-  | 'notes'
   | 'notion'
   | 'obsidian'
   | 'plain_text'
@@ -175,10 +174,6 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-notes',
-  availability: ({ exportMenuOptions }) => ({
-    visible: exportMenuOptions.notes,
-    enabled: exportMenuOptions.notes
-  }),
   run: ({ onSaveToNotes, topic }) => onSaveToNotes(topic)
 })
 

@@ -308,5 +308,30 @@ describe('tool_invoke meta-tool', () => {
       const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
       expect(tool.inputExamples?.[0]?.input).toMatchObject({ name: expect.any(String), params: expect.any(Object) })
     })
+
+    it('serializes params as an open object — the wire schema must accept the inputExample', async () => {
+      // Regression pin: the SDK's zod conversion force-sets
+      // additionalProperties:false on every object node, which turned `params`
+      // into a dead schema (Anthropic validates input_examples against
+      // input_schema and 400s the whole request when defer exposes this tool).
+      // The hand-written jsonSchema() bypasses that post-processing.
+      const reg = makeRegistry()
+      const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
+      const { asSchema } = await import('ai')
+      const wire = asSchema(tool.inputSchema).jsonSchema as {
+        properties: { params: { additionalProperties?: unknown } }
+      }
+      expect(wire.properties.params.additionalProperties).toBe(true)
+    })
+
+    it('validate still rejects malformed input at runtime', async () => {
+      const reg = makeRegistry()
+      const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
+      const { asSchema } = await import('ai')
+      const schema = asSchema(tool.inputSchema)
+      expect(await schema.validate!({ name: 'x', params: { a: 1 } })).toMatchObject({ success: true })
+      expect(await schema.validate!({ params: {} })).toMatchObject({ success: false })
+      expect(await schema.validate!({ name: 1 })).toMatchObject({ success: false })
+    })
   })
 })

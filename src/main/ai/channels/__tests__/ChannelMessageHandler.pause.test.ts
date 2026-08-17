@@ -8,12 +8,12 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => {
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
   class MockAgentSessionWorkspaceError extends Error {}
   return {
     AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
     isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-    prepareClaudeCodeWorkspaceDirectory: vi.fn()
+    prepareAgentSessionWorkspaceDirectory: vi.fn()
   }
 })
 
@@ -299,7 +299,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     // The flushed-but-unadmitted batch is visible as active work.
     expect(handler.listActiveWork()).toEqual([
       {
-        id: expect.stringMatching(/^agent-1:channel-1:chat-1#\d+$/),
+        id: expect.stringMatching(/^agent-1:channel-1:chat-1:user-1#\d+$/),
         summary: 'flushed batch awaiting turn admission'
       }
     ])
@@ -309,7 +309,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     const result = await drain
 
     expect(result.stragglerIds).toHaveLength(1)
-    expect(result.stragglerIds[0]).toMatch(/^agent-1:channel-1:chat-1#\d+$/)
+    expect(result.stragglerIds[0]).toMatch(/^agent-1:channel-1:chat-1:user-1#\d+$/)
     // Timing out never aborts the straggler — its admission entry is still registered.
     expect(pendingAdmissionCount(handler)).toBe(1)
     hold.dispose()
@@ -343,7 +343,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     const turn = handler.handleIncoming(adapter, msg('Hi'))
     turn.catch(() => {})
 
-    expect(handler.listActiveWork()).toEqual([{ id: 'agent-1:channel-1:chat-1', summary: 'buffered=1' }])
+    expect(handler.listActiveWork()).toEqual([{ id: 'agent-1:channel-1:chat-1:user-1', summary: 'buffered=1' }])
 
     // Discard the pending batch so its debounce timer and promise don't outlive the test.
     handler.clearSessionTracker('agent-1')

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  listKnowledgeBasesMock,
+  listKnowledgeBasesCursorMock,
   getKnowledgeBaseByIdMock,
   updateKnowledgeBaseMock,
   listKnowledgeItemsMock,
   getKnowledgeItemByIdMock
 } = vi.hoisted(() => ({
-  listKnowledgeBasesMock: vi.fn(),
+  listKnowledgeBasesCursorMock: vi.fn(),
   getKnowledgeBaseByIdMock: vi.fn(),
   updateKnowledgeBaseMock: vi.fn(),
   listKnowledgeItemsMock: vi.fn(),
@@ -16,7 +16,7 @@ const {
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
-    list: listKnowledgeBasesMock,
+    listCursor: listKnowledgeBasesCursorMock,
     getById: getKnowledgeBaseByIdMock,
     update: updateKnowledgeBaseMock
   }
@@ -31,7 +31,6 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 
 import {
   KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_DEFAULT_PAGE,
   KNOWLEDGE_BASES_MAX_LIMIT,
   KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
   KNOWLEDGE_ITEMS_MAX_LIMIT
@@ -51,49 +50,46 @@ describe('knowledgeHandlers', () => {
     it('should apply default pagination when query is missing', async () => {
       const response = {
         items: [{ id: 'kb-1', name: 'Knowledge Base' }],
-        total: 1,
-        page: KNOWLEDGE_BASES_DEFAULT_PAGE
+        total: 1
       }
-      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({})
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
-        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
         limit: KNOWLEDGE_BASES_DEFAULT_LIMIT
       })
       expect(result).toEqual(response)
     })
 
-    it('should delegate explicit pagination to knowledgeBaseService.list', async () => {
+    it('should delegate explicit cursor pagination to knowledgeBaseService.listCursor', async () => {
       const response = {
         items: [{ id: 'kb-2', name: 'Knowledge Base 2' }],
         total: 3,
-        page: 2
+        nextCursor: 'cursor-3'
       }
-      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({
         query: {
-          page: 2,
+          cursor: 'cursor-2',
           limit: 10
         } as never
       } as never)
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
-        page: 2,
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
+        cursor: 'cursor-2',
         limit: 10
       })
       expect(result).toEqual(response)
     })
 
-    it('should delegate trimmed search to knowledgeBaseService.list', async () => {
+    it('should delegate trimmed search to knowledgeBaseService.listCursor', async () => {
       const response = {
         items: [{ id: 'kb-3', name: 'Research Notes' }],
-        total: 1,
-        page: 1
+        total: 1
       }
-      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({
         query: {
@@ -101,8 +97,7 @@ describe('knowledgeHandlers', () => {
         }
       } as never)
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
-        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
         limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
         search: 'research'
       })
@@ -118,7 +113,7 @@ describe('knowledgeHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(listKnowledgeBasesMock).not.toHaveBeenCalled()
+      expect(listKnowledgeBasesCursorMock).not.toHaveBeenCalled()
     })
   })
 

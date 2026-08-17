@@ -36,11 +36,8 @@ import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import officeParser from 'officeparser'
 import * as path from 'path'
-import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
-import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
@@ -421,11 +418,14 @@ class FileStorage {
     if (documentExts.includes(fileExtension)) {
       try {
         if (fileExtension === '.doc') {
+          const { default: WordExtractor } = await import('word-extractor')
           const extractor = new WordExtractor()
           const extracted = await extractor.extract(filePath)
           return extracted.getBody()
         }
 
+        // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
+        const { default: officeParser } = await import('officeparser')
         const data = await officeParser.parseOfficeAsync(filePath, {
           tempFilesLocation: this.tempDir
         })
@@ -635,6 +635,7 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
 
+    const { PDFDocument } = await import('pdf-lib')
     const pdfDoc = await PDFDocument.load(buffer)
     return pdfDoc.getPageCount()
   }
@@ -649,11 +650,6 @@ class FileStorage {
   public clear = async (): Promise<void> => {
     await fs.promises.rm(this.storageDir, { recursive: true })
     await fs.promises.mkdir(this.storageDir, { recursive: true })
-  }
-
-  public clearTemp = async (): Promise<void> => {
-    await fs.promises.rm(this.tempDir, { recursive: true })
-    await fs.promises.mkdir(this.tempDir, { recursive: true })
   }
 
   public open = async (

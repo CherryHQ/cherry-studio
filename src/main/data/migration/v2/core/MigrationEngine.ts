@@ -58,7 +58,6 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -246,11 +245,11 @@ export class MigrationEngine {
 
   /**
    * Execute full migration
-   * @param reduxData - Parsed Redux state data from Renderer
+   * @param reduxSource - Redux export directory in production; parsed data in focused tests
    * @param dexieExportPath - Path to exported Dexie files
    */
   async run(
-    reduxData: Record<string, unknown>,
+    reduxSource: Record<string, unknown> | string,
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
@@ -269,7 +268,7 @@ export class MigrationEngine {
       const context = await createMigrationContext(
         this.getDb(),
         this.paths,
-        reduxData,
+        reduxSource,
         dexieExportPath,
         localStorageExportPath
       )
@@ -319,8 +318,10 @@ export class MigrationEngine {
         // read on prepare failure; surface them on the success path too, alongside any
         // execute-phase warnings (e.g. knowledge files kept but not reindexable).
         const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
-        if (warnings.length > 0) {
-          logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
+        const warningMessages = [...(prepareResult.warningMessages ?? []), ...(executeResult.warningMessages ?? [])]
+        const warningCount = warnings.length + warningMessages.length
+        if (warningCount > 0) {
+          logger.warn(`${migrator.name} completed with ${warningCount} warning(s)`, { warnings, warningMessages })
         }
 
         // Record result
@@ -330,7 +331,8 @@ export class MigrationEngine {
           success: true,
           recordsProcessed: executeResult.processedCount,
           duration: Date.now() - migratorStartTime,
-          ...(warnings.length > 0 ? { warnings } : {})
+          ...(warnings.length > 0 ? { warnings } : {}),
+          ...(warningMessages.length > 0 ? { warningMessages } : {})
         })
 
         // Update progress: migrator completed
@@ -342,13 +344,6 @@ export class MigrationEngine {
 
       // Mark migration completed
       await this.markCompleted()
-
-      // Cleanup temporary files
-      await this.cleanupTempFiles(dexieExportPath)
-
-      if (localStorageExportPath) {
-        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
-      }
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
@@ -366,14 +361,32 @@ export class MigrationEngine {
 
       logger.error('Migration failed', err)
 
-      // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      // Mark migration as failed with error details. Wrap in its own try-catch
+      // so a secondary failure (e.g. DB in bad state) doesn't mask the original error.
+      try {
+        await this.markFailed(errorMessage)
+      } catch (markError) {
+        logger.error('Failed to record migration failure in database', markError as Error)
+      }
 
       return {
         success: false,
         migratorResults: results,
         totalDuration: Date.now() - startTime,
         error: errorMessage
+      }
+    } finally {
+      // A retry prepares fresh exports, and Skip marks migration completed permanently.
+      // Remove only the registered staging directories on both success and failure so
+      // failed attempts cannot leave large Redux/Dexie snapshots behind indefinitely.
+      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
+
+      if (localStorageExportPath) {
+        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
       }
     }
   }

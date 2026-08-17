@@ -215,6 +215,7 @@ const TranslateMenuPopover = ({
               type: 'item' as const,
               id: item.key,
               label: item.label,
+              enabled: item.enabled,
               onSelect: () => {
                 void item.onSelect()
               }
@@ -283,18 +284,20 @@ export function renderModelPickerToolbarAction({
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
-    <Tooltip content={action.label} delay={800}>
-      {actionContext.actions.renderRegenerateModelPicker?.({
-        message: actionContext.message,
-        messageParts: actionContext.messageParts,
-        trigger: (
-          <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
-            {action.icon}
-          </MessageActionButton>
-        ),
-        onOpenChange: onMenuOpenChange
-      }) ?? null}
-    </Tooltip>
+    <span className="contents" onClick={(event) => event.stopPropagation()}>
+      <Tooltip content={action.label} delay={800}>
+        {actionContext.actions.renderRegenerateModelPicker?.({
+          message: actionContext.message,
+          messageParts: actionContext.messageParts,
+          trigger: (
+            <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
+              {action.icon}
+            </MessageActionButton>
+          ),
+          onOpenChange: onMenuOpenChange
+        }) ?? null}
+      </Tooltip>
+    </span>
   )
 }
 
@@ -326,12 +329,19 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) {
+      actionContext.actions.requestTranslationLanguages?.()
+    }
+    onMenuOpenChange?.(open)
+  }
+
   return (
     <TranslateToolbarAction
       action={action}
       translationItems={translationItems}
       softHoverBg={softHoverBg}
-      onMenuOpenChange={onMenuOpenChange}
+      onMenuOpenChange={handleMenuOpenChange}
     />
   )
 }

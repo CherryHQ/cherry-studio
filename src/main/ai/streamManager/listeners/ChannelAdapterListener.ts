@@ -6,6 +6,7 @@ import type { UIMessageChunk } from 'ai'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('ChannelAdapterListener')
+const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
 
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
@@ -42,7 +43,9 @@ export class ChannelAdapterListener implements StreamListener {
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
-      void this.adapter.onTextUpdate(this.platformChatId, text).catch(() => {})
+      void this.adapter
+        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+        .catch(() => {})
     }
   }
 

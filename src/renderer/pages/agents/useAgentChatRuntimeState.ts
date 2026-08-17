@@ -1,12 +1,12 @@
 import {
+  createOverlayRefreshHandoff,
+  useMessageStreamingLayers
+} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type {
-  MessageListRuntime,
-  MessageStreamingLayers,
-  MessageToolApprovalInput
-} from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
@@ -18,7 +18,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -108,9 +107,6 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  localSendGeneration: number
-  bindMessageListRuntime: (runtime: MessageListRuntime) => void | (() => void)
-  captureLocalSendScrollEligibility: () => void
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -133,18 +129,6 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
-  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
-  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
-    messageListRuntimeRef.current = runtime
-    return () => {
-      if (messageListRuntimeRef.current === runtime) {
-        messageListRuntimeRef.current = null
-      }
-    }
-  }, [])
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
-  }, [])
   const {
     messages: uiMessages,
     isLoading,
@@ -183,7 +167,7 @@ export function useAgentChatRuntimeState({
     }),
     []
   )
-  const { localSendGeneration, send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
     ensureConversation,
@@ -204,62 +188,33 @@ export function useAgentChatRuntimeState({
     [deleteSessionMessage, setMessages]
   )
 
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of uiMessages) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
-    }
-    return next
-  }, [uiMessages])
-
   const {
     overlay,
     liveAssistants,
     reset: resetOverlay
   } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
-  const liveMessageIdCandidates = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...activeExecutions.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
-          ...liveAssistants.map((message) => message.id)
-        ])
-      ),
-    [activeExecutions, liveAssistants]
-  )
-  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
-  const streamingLayers = useMemo<MessageStreamingLayers>(
-    () => ({ historyPartsByMessageId: basePartsMap, liveMessageIds }),
-    [basePartsMap, liveMessageIds]
-  )
+  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
+    messages: uiMessages,
+    overlay,
+    executions: activeExecutions,
+    liveAssistants
+  })
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
 
-  // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
-  // the execution leaves `activeExecutions` at terminal, so a torn-down turn's
-  // live card would otherwise override the finalized DB row. Refresh then drop the
-  // overlay off the terminal status edge (excludes awaiting-approval, which keeps
-  // its card). `refresh()` before `reset()` avoids flashing the stale base parts.
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  })
+  // Deterministic overlay→DB handoff at terminal (see hook docs).
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
-
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const [messageId, parts] of Object.entries(overlay)) {
-      if (parts.length) next[messageId] = parts
-    }
-    return next
-  }, [basePartsMap, overlay])
 
   useEffect(() => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
@@ -348,9 +303,6 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    localSendGeneration,
-    bindMessageListRuntime,
-    captureLocalSendScrollEligibility,
     isPending,
     stop,
     sendMessage,

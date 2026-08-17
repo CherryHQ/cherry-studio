@@ -4,7 +4,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
@@ -56,7 +56,9 @@ export function Sidebar({
   const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const contextMenuOpenRef = useRef(false)
+  const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
@@ -94,13 +96,30 @@ export function Sidebar({
   const handleContextMenuOpenChange = useCallback(
     (open: boolean) => {
       contextMenuOpenRef.current = open
+      setContextMenuOpen(open)
 
       if (open) {
         clearHoverDismiss()
         return
       }
 
-      if (isFloating && !floatingPointerInsideRef.current) {
+      if (isFloating && !floatingPointerInsideRef.current && !footerOverlayOpenRef.current) {
+        scheduleHoverDismiss()
+      }
+    },
+    [clearHoverDismiss, isFloating, scheduleHoverDismiss]
+  )
+
+  const handleFooterOverlayOpenChange = useCallback(
+    (open: boolean) => {
+      footerOverlayOpenRef.current = open
+
+      if (open) {
+        clearHoverDismiss()
+        return
+      }
+
+      if (isFloating && !floatingPointerInsideRef.current && !contextMenuOpenRef.current) {
         scheduleHoverDismiss()
       }
     },
@@ -113,7 +132,14 @@ export function Sidebar({
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
-  const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
+  const footerProps = {
+    user,
+    actions,
+    extensionsLabel,
+    onExtensionsClick,
+    onOverlayOpenChange: handleFooterOverlayOpenChange
+  }
+  const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
 
   // --- Floating sidebar ---
   if (isFloating) {
@@ -121,13 +147,14 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            windowDragClassName,
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             floatingPointerInsideRef.current = false
-            if (!contextMenuOpenRef.current) {
+            if (!contextMenuOpenRef.current && !footerOverlayOpenRef.current) {
               scheduleHoverDismiss()
             }
           }}
@@ -135,7 +162,7 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
+          <div className={cn('flex h-14 shrink-0 items-center gap-2.5 px-4', windowDragClassName)}>
             {renderLogo()}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
           </div>
@@ -202,12 +229,17 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
+        windowDragClassName,
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
       <div
-        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
+        className={cn(
+          'flex shrink-0 items-center',
+          windowDragClassName,
+          layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'
+        )}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>

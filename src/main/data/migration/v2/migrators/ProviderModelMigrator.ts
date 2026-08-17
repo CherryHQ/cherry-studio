@@ -42,7 +42,12 @@ import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  buildProviderApiKeys,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
 import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
@@ -344,7 +349,9 @@ export class ProviderModelMigrator extends BaseMigrator {
     if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
 
     const hasExplicitCapabilitySelection =
-      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
     if (!presetProvider) {
       return {
         ...row,
@@ -431,6 +438,11 @@ export class ProviderModelMigrator extends BaseMigrator {
             logger.warn('Model with missing or empty id skipped', { providerId: provider.id, name: model?.name })
             continue
           }
+          if (!createModelId(provider.id, model.id)) {
+            skippedInvalidModels++
+            logger.warn('Model with invalid id skipped', { providerId: provider.id, modelId: model.id })
+            continue
+          }
           if (seenModelIds.has(model.id)) {
             skippedDuplicateModels++
             logger.warn('Duplicate model id skipped', { providerId: provider.id, modelId: model.id })
@@ -493,7 +505,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         warnings.push(`Skipped ${skippedInvalidId} provider(s) with missing or empty id`)
       }
       if (skippedInvalidModels > 0) {
-        warnings.push(`Skipped ${skippedInvalidModels} model(s) with missing or empty id`)
+        warnings.push(`Skipped ${skippedInvalidModels} model(s) with invalid id`)
       }
       if (skippedDuplicateModels > 0) {
         warnings.push(`Skipped ${skippedDuplicateModels} duplicate model(s)`)
@@ -716,6 +728,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {
+          if (buildProviderApiKeys(sourceProvider, this.settings).length === 0) {
+            logger.warn('Legacy provider API key contained no migratable entries; continuing without API keys', {
+              providerId: provider.providerId
+            })
+            continue
+          }
           errors.push({
             key: `missing_api_key_${provider.providerId}`,
             message: `Provider ${provider.providerId} should include migrated API keys`

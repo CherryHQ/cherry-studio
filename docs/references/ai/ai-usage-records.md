@@ -221,6 +221,13 @@ interface AiUsagePricingSnapshot {
   outputPerMillionTokens?: number
   cacheReadPerMillionTokens?: number
   cacheWritePerMillionTokens?: number
+  inputTokenTiers?: Array<{
+    minInputTokens: number
+    inputPerMillionTokens?: number
+    outputPerMillionTokens?: number
+    cacheReadPerMillionTokens?: number
+    cacheWritePerMillionTokens?: number
+  }>
   perImage?: { price: number; unit: 'image' | 'pixel' }
   capturedAt: string
 }
@@ -237,7 +244,13 @@ snapshot is used.
 Computed language cost is emitted only when every non-zero usage bucket can be
 priced. Cache read/write use their own rates or the input rate, and uncached
 input is derived by subtracting cache buckets when necessary so input is not
-charged twice. Per-image pricing is used only when a runtime model actually
+charged twice. When input-token pricing tiers are configured, the invocation's
+all-in input token count selects the tier with the greatest
+`minInputTokens` that does not exceed that count. That tier prices the whole
+invocation; tiers are not progressive. A count exactly on a boundary enters
+the new tier. If the input count is unavailable, tiered language cost remains
+unpriced rather than assuming the base tier. Per-image pricing is used only
+when a runtime model actually
 supplies `pricing.perImage`; current preset/settings producers normally do not,
 so image calls without provider-reported cost remain unpriced. Pixel pricing
 also stays unpriced without a reliable pixel count.
@@ -337,6 +350,10 @@ serial.
 ### Direct and external CLI
 
 The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Every emitted invocation id is globally namespaced by its driver (`claude-agent:`
+or `pi-agent:`) before it crosses the runtime contract; the host persists that id
+verbatim for cross-runtime idempotency.
+
 Each Claude SDK assistant message supplies provider request id, actual nested
 model, and usage:
 
@@ -357,6 +374,13 @@ model, and usage:
 The driver commits pending usage before emitting a steer boundary, so the old
 provider call attaches to the pre-steer message and the next call attaches to
 the continuation.
+
+Pi records one invocation when each provider stream completes, including the
+streams used by compaction. Provider `responseId` is preferred; session id plus
+message timestamp/model is the stable fallback. Error/aborted responses do not
+create records, duplicate completed ids are ignored, and Pi's
+input/cache/reasoning buckets are preserved rather than re-derived from the
+message-level running total.
 
 ### Gateway-backed Agent
 

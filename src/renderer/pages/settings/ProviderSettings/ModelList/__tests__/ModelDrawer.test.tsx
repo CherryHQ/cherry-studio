@@ -1,5 +1,6 @@
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
@@ -164,7 +165,8 @@ describe('Model drawers', () => {
     expect(createModelMock).not.toHaveBeenCalled()
   })
 
-  it('renders the New API model-purpose surface and keeps the default chat endpoint in create payload', async () => {
+  it('creates a New API model with multiple endpoint types', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
     })
@@ -172,21 +174,21 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.models.add.purpose.label')).toBeInTheDocument()
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    const endpointSelect = within(endpointField).getByRole('combobox')
+    expect(endpointSelect).toHaveTextContent('endpoint_type.openai')
+    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
-      target: { value: 'claude-4-sonnet' }
-    })
-    await act(async () => {
-      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
-    })
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'claude-4-sonnet')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       })
     )
   })
@@ -414,6 +416,44 @@ describe('Model drawers', () => {
         outputModalities: [MODALITY.IMAGE]
       })
     )
+  })
+
+  it('does not overwrite the saved chat endpoint when opening the edit drawer', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::custom-openai-model',
+            providerId: 'custom-provider',
+            name: 'Custom OpenAI Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toHaveTextContent(
+        'settings.provider.more_endpoints.openai_chat'
+      )
+    })
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('keeps model type, capabilities, and input modalities independently editable', async () => {
@@ -730,20 +770,21 @@ describe('Model drawers', () => {
     ])
   })
 
-  it('auto-saves cherryin endpoint type changes from the edit drawer', async () => {
+  it('auto-saves New API endpoint type changes from the edit drawer', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: { id: 'new-api', name: 'New API' }
     })
 
     render(
       <EditModelDrawer
-        providerId="cherryin"
+        providerId="new-api"
         open
         onClose={vi.fn()}
         model={
           {
-            id: 'cherryin::claude-4-sonnet',
-            providerId: 'cherryin',
+            id: 'new-api::claude-4-sonnet',
+            providerId: 'new-api',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
             capabilities: [],
@@ -758,16 +799,17 @@ describe('Model drawers', () => {
       />
     )
 
-    await act(async () => {
-      fireEvent.click(
-        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('button', {
-          name: 'endpoint_type.openai'
-        })
-      )
-    })
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    expect(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(updateModelMock).not.toHaveBeenCalled()
+
+    await user.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
 
     expect(updateModelMock).toHaveBeenCalledWith(
-      'cherryin',
+      'new-api',
       'claude-4-sonnet',
       expect.objectContaining({
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]

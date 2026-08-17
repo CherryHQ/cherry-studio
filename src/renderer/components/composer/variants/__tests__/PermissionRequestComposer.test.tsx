@@ -2,6 +2,7 @@ import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +17,6 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.pending': 'Waiting for confirmation',
         'agent.toolPermission.button.allow': 'Allow',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
@@ -223,19 +223,84 @@ describe('PermissionRequestComposer', () => {
   it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    const heading = screen.getByRole('heading', { name: 'Processing' })
-    expect(heading.parentElement?.children).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
   })
 
-  it('disables actions while a response is submitting', async () => {
-    const onRespond = vi.fn(() => new Promise<void>(() => undefined))
+  it('approves when Enter is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    fireEvent.keyDown(document, { key: 'Enter' })
 
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true
+    })
+  })
+
+  it('denies when Escape is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: false,
+      reason: 'User denied permission for this tool.'
+    })
+  })
+
+  it('ignores Enter and Escape typed into an editable control', () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    try {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(onRespond).not.toHaveBeenCalled()
+    } finally {
+      input.remove()
+    }
+  })
+
+  it('shows progress and resets actions when the next approval becomes active', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn(() => new Promise<void>(() => undefined))
+    const { rerender } = render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('status')).toHaveTextContent('Processing')
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
+
+    const nextPart = {
+      ...part,
+      toolCallId: 'call-2',
+      approval: { id: 'approval-2' }
+    } as unknown as CherryMessagePart
+    const nextRequest = makeRequest({
+      toolCallId: 'call-2',
+      approvalId: 'approval-2',
+      match: {
+        ...makeRequest().match,
+        part: nextPart,
+        toolCallId: 'call-2',
+        approvalId: 'approval-2'
+      }
+    })
+    rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
+
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
 
   it('re-enables the request when submitting the response fails', async () => {

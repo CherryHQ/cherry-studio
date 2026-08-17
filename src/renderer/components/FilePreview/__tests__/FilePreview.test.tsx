@@ -94,6 +94,7 @@ describe('FilePreview', () => {
 
     expect(await screen.findByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
+    expect(screen.getByText('file_preview.unsupported.title').closest('[data-ui~="file-preview.view"]')).not.toBeNull()
   })
 
   it('contains invalid paths in an inline state', () => {

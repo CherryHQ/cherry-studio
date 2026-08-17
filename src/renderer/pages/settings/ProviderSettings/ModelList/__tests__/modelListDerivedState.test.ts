@@ -41,7 +41,7 @@ const models = [
     name: 'Gamma',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.WEB_SEARCH],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     isEnabled: true
   },
   {

@@ -73,6 +73,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+  useInfiniteQuery: () => ({
+    pages: [{ items: [], total: 0 }],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn()
+  }),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))
@@ -100,15 +110,12 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: useProvidersMock
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
-  useAgentTools: () => ({ tools: [], isLoading: false, error: undefined })
-}))
-
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatusMap: () => ({})
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: () => {},
   useInstalledSkills: () => ({
     skills: [],
     loading: false
@@ -142,8 +149,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.placeholder': 'Describe this agent',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.label': 'Model',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
@@ -156,6 +161,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
+          'library.config.prompt.label': 'Prompt',
+          'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.agent.create_new': 'Create agent',
           'selector.agent.empty_text': 'No agents yet. Create one first.',
           'selector.agent.search_placeholder': 'Search agents',
@@ -173,7 +180,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.basic': 'Basic info',
           'library.config.dialogs.create.step.capability': 'Capabilities',
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
-          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.basic_tab': 'Basic',

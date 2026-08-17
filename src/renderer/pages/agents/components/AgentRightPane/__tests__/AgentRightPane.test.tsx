@@ -28,6 +28,7 @@ const {
   fileTreeModelStore,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
+  tracePaneModuleLoadMock,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock,
   useDirectoryTreeMock,
@@ -57,6 +58,7 @@ const {
     root: null as TreeDirRoot | null,
     version: 0
   },
+  tracePaneModuleLoadMock: vi.fn(),
   useArtifactFileTreeModelMock: vi.fn(),
   useCommandHandlerMock: vi.fn(),
   useDirectoryTreeMock: vi.fn(),
@@ -168,9 +170,8 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/ContextUsageSummary', () => ({
-  ContextUsageSummary: () => <div data-testid="context-usage" />,
-  getAgentContextUsageColor: () => 'success'
+vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
+  AgentContextUsageSummary: () => <div data-testid="context-usage" />
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
@@ -309,9 +310,10 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: () => <div data-testid="trace-pane" />
-}))
+vi.mock('@renderer/components/chat/trace/TracePane', () => {
+  tracePaneModuleLoadMock()
+  return { TracePane: () => <div data-testid="trace-pane" /> }
+})
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
@@ -709,6 +711,22 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('does not request a system workspace tree for a relative path', () => {
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="relative/workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { watchMissingRoot: true })
+  })
+
   it('hides conversation shortcuts when the conversation is unavailable', () => {
     render(
       <TestAgentRightPane
@@ -825,6 +843,26 @@ describe('AgentRightPane', () => {
       kind: 'path',
       path: '/workspace/report.md'
     })
+  })
+
+  it('rejects direct relative artifact opening from a relative workspace before metadata lookup', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="relative/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('ignores a stale artifact metadata resolution after the workspace switches', async () => {
@@ -979,6 +1017,38 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
   })
 
+  it('shows a dsh todo_write snapshot in the status shortcut preview', () => {
+    const todoPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'dsh-todos-1',
+      toolName: 'todo_write',
+      state: 'output-available',
+      input: {
+        todos: [
+          { content: 'Connect the task list', status: 'completed' },
+          { content: 'Verify the right pane', status: 'in_progress' }
+        ]
+      },
+      callProviderMetadata: {
+        cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: 'todo_write' } }
+      }
+    } as unknown as CherryMessagePart
+    const messages = [
+      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'success' } }
+    ] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [todoPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const preview = screen.getByTestId('status-shortcut-preview')
+    expect(within(preview).getByText('Connect the task list')).toHaveClass('line-through')
+    expect(within(preview).getByText('Verify the right pane')).toBeInTheDocument()
+  })
+
   it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
     const parts = [
       {
@@ -1028,6 +1098,91 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
+  it('keeps declared artifacts directly under the task plan instead of below the run sections', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'task-1',
+        toolName: 'TaskCreate',
+        state: 'input-available',
+        input: { subject: 'Build the deck' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: { artifacts: [{ path: 'docs/index.html' }] }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'shell-1',
+          taskType: 'shell',
+          status: 'in_progress',
+          title: 'Screenshot each page'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const sectionOrder = [
+      screen.getByText('agent.right_pane.status.tasks'),
+      screen.getByText('agent.right_pane.info.artifacts'),
+      screen.getByTestId('context-usage'),
+      screen.getByText('agent.right_pane.info.shell_tasks')
+    ]
+
+    for (const [index, node] of sectionOrder.slice(0, -1).entries()) {
+      expect(node.compareDocumentPosition(sectionOrder[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(screen.getByText('index.html')).toBeInTheDocument()
+  })
+
+  it('hides the artifacts section when the workspace cannot open files', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'task-1',
+        toolName: 'TaskCreate',
+        state: 'input-available',
+        input: { subject: 'Build the deck' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: { artifacts: [{ path: 'docs/index.html' }] }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByText('agent.right_pane.status.tasks')).toBeInTheDocument()
+    expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
+  })
+
   it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
     ipcRequestMock.mockResolvedValue(false)
     renderStatusTasks([{ id: 'subagent-1', status: 'in_progress', title: 'Inspect task state' }])
@@ -1063,7 +1218,7 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps a visited trace capability mounted while inactive', () => {
+  it('loads trace on demand and unmounts it while inactive to release its retained tree', async () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -1071,11 +1226,16 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
+    expect(tracePaneModuleLoadMock).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    const tracePane = screen.getByTestId('trace-pane')
+    const tracePane = await screen.findByTestId('trace-pane')
+    expect(tracePaneModuleLoadMock).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
-    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
+    expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
   })
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {

@@ -2,7 +2,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -239,11 +239,18 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')
 
+  // Tracks the inputs of the last completed highlight so an <Activity> re-show
+  // (which re-runs this effect with unchanged inputs) skips the shiki pass.
+  const highlightedForRef = useRef<{ code: string; highlight: typeof highlightCode } | null>(null)
   useEffect(() => {
     if (!code) return
+    const last = highlightedForRef.current
+    if (last && last.code === code && last.highlight === highlightCode) return
     let cancelled = false
     void highlightCode(code, 'javascript').then((html) => {
-      if (!cancelled) setHighlighted(html)
+      if (cancelled) return
+      highlightedForRef.current = { code, highlight: highlightCode }
+      setHighlighted(html)
     })
     return () => {
       cancelled = true

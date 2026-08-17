@@ -11,7 +11,6 @@ import type { SelectionActionItem, TranslateLangCode } from '@shared/data/prefer
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { defaultLanguage } from '@shared/utils/languages'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -45,10 +44,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
+  // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
+  const effectivePreferredLangCode =
+    language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
+      ? BUILTIN_LANGUAGE.zhTW.langCode
+      : preferredLangCode
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const candidate = language || navigator.language || defaultLanguage
-    const lang = getLanguage(candidate)
+    const lang = getLanguage(effectivePreferredLangCode)
     if (lang) {
       return lang
     }
@@ -78,7 +81,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    const targetLang = getLanguage(preferredLangCode)
+    const targetLang = getLanguage(effectivePreferredLangCode)
     if (targetLang) {
       setTargetLanguage(targetLang)
       targetLangRef.current = targetLang
@@ -88,7 +91,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (alterLang) {
       setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded, preferredLangCode, alterLangCode])
+  }, [getLanguage, isLanguagesLoaded, effectivePreferredLangCode, alterLangCode])
 
   // Initialize values only once
   const initialize = useCallback(async () => {

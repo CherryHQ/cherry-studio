@@ -146,6 +146,7 @@ const SelectionToolbarView = ({
 }: SelectionToolbarViewProps) => {
   return (
     <div
+      data-ui="selection.toolbar"
       ref={ref}
       className={cn(
         'm-[2px_3px_5px_3px]! box-border inline-flex h-9 select-none flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)]',

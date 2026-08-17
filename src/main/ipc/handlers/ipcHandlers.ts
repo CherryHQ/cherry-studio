@@ -4,12 +4,16 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
+import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { channelHandlers } from './channel'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { deepSeekHarnessHandlers } from './deepSeekHarness'
+import { diagnosticsHandlers } from './diagnostics'
 import { exportHandlers } from './export'
+import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
@@ -47,12 +51,16 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
+  ...backupHandlers,
   ...binaryHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...deepSeekHarnessHandlers,
+  ...diagnosticsHandlers,
   ...exportHandlers,
+  ...externalAppHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,

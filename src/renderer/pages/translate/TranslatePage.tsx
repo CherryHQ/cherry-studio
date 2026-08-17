@@ -638,6 +638,7 @@ const TranslatePage: FC = () => {
 
   return (
     <div
+      data-ui="translate.view"
       className="relative flex h-full flex-col overflow-hidden bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -678,7 +679,7 @@ const TranslatePage: FC = () => {
               className={cn(
                 'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none',
                 couldTranslate
-                  ? 'bg-primary text-primary-foreground hover:opacity-90'
+                  ? 'bg-emerald-600 text-white hover:opacity-90'
                   : 'cursor-not-allowed bg-muted text-foreground-disabled'
               )}>
               <Languages size={14} className="lucide-custom" />

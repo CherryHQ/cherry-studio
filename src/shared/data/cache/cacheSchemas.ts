@@ -1,5 +1,8 @@
+import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { Currency } from '@shared/data/types/model'
+import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -122,6 +125,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -145,6 +150,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
   // Translate page state management
   /** Input text */
@@ -204,6 +211,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
@@ -221,6 +236,14 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
 
   // Translate page state management
   'translate.input': '',
@@ -262,7 +285,7 @@ export type SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
-  'agent.session.flow_parts.${sessionId}': CacheValueTypes.CacheAgentSessionFlowParts
+  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -311,7 +334,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
-  'agent.session.flow_parts.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -350,6 +373,8 @@ export type RendererPersistCacheSchema = {
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null
+  // Classic assistant rail group collapse, kept separate from topic display-mode groups.
+  'ui.assistant.entity_rail.expansion': string[]
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -365,6 +390,21 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  // Usage statistics view selections, persisted so leaving and re-entering the page restores
+  // them. The heatmap drill-down date stays component-local: a stored past date would reopen
+  // the page on an empty range.
+  'settings.usage.window': '30d' | '90d' | '365d'
+  'settings.usage.group_by': 'provider' | 'model' | 'apiKey' | 'source'
+  'settings.usage.chart_metric': 'tokens' | 'requests' | 'cost'
+  'settings.usage.chart_type': 'stack' | 'pie' | 'bar' | 'line'
+  'settings.usage.rollup': 'total' | 'daily' | 'weekly' | 'monthly'
+  'settings.usage.top_count': 5 | 10 | 20
+  'settings.usage.heatmap_metric': 'tokens' | 'cost'
+  'settings.usage.entry_sort_by': AiUsageRecordListSortBy
+  'settings.usage.entry_sort_order': AiUsageRecordSortOrder
+  // Null defers to the cost-total fallback (USD, else the first currency with usage).
+  'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -385,6 +425,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
   'ui.chat.right_pane_open_override': null,
+  'ui.assistant.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
@@ -395,6 +436,17 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
+  'settings.provider.filter_mode': 'all',
+  'settings.usage.window': '30d',
+  'settings.usage.group_by': 'provider',
+  'settings.usage.chart_metric': 'tokens',
+  'settings.usage.chart_type': 'bar',
+  'settings.usage.rollup': 'daily',
+  'settings.usage.top_count': 10,
+  'settings.usage.heatmap_metric': 'tokens',
+  'settings.usage.entry_sort_by': 'createdAt',
+  'settings.usage.entry_sort_order': 'desc',
+  'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
@@ -408,6 +460,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Last completed automatic-backup attempt (or manual backup) per backend.
+  // AutoBackupService owns this restart-safe scheduling baseline.
+  'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -419,6 +474,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

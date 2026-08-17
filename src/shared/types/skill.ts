@@ -10,7 +10,7 @@ import * as z from 'zod'
 // Search source registries
 // ============================================================================
 
-export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai'])
+export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai', 'github'])
 export type SkillSearchSource = z.infer<typeof SkillSearchSourceSchema>
 
 // ============================================================================

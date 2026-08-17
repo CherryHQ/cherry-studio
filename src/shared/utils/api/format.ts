@@ -208,6 +208,28 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
 }
 
 /**
+ * Whether a host is an official Vertex endpoint carrying no user override.
+ * The Vertex SDK owns the `/projects/{project}/locations/{location}` segment,
+ * so such a host is the default, not a base URL to send requests to.
+ * `URL` normalises the default `:443` away, leaving `port` set only for a real
+ * override; a lone trailing `#` parses to an empty hash and stays default.
+ */
+export function isBareVertexApiHost(host: string): boolean {
+  try {
+    const url = new URL(trim(host))
+    return (
+      url.hostname.endsWith('aiplatform.googleapis.com') &&
+      url.pathname === '/' &&
+      !url.port &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
  * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
  * append `/api`.
  */

@@ -470,4 +470,58 @@ describe('agentSessionRuntimeState', () => {
     expect(getAgentSessionRuntimeCurrentTurn(state)).toBe(receiveOnly)
     expect(isAgentSessionRuntimeAutonomous(state)).toBe(true)
   })
+
+  it('does not treat the current receive-only turn as a future continuation', () => {
+    const receiveOnly = turn('wake')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started'
+    }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'finished'
+    }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'runtime-terminal',
+      outcome: { status: 'success' }
+    }).state
+
+    expect(state.execution).toMatchObject({
+      kind: 'autonomous-turn',
+      ownership: 'released',
+      stream: 'awaiting-persistence'
+    })
+    expect(willAgentSessionRuntimeContinue(state)).toBe(false)
+  })
+
+  it('keeps a deferred user turn as a continuation after a receive-only turn', () => {
+    const deferred = turn('user')
+    const receiveOnly = turn('wake')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(deferred)
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      deferCurrentTurn: true
+    }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'finished'
+    }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'runtime-terminal',
+      outcome: { status: 'success' }
+    }).state
+
+    expect(state.execution).toMatchObject({
+      kind: 'autonomous-turn',
+      deferredTurn: deferred,
+      stream: 'awaiting-persistence'
+    })
+    expect(willAgentSessionRuntimeContinue(state)).toBe(true)
+  })
 })

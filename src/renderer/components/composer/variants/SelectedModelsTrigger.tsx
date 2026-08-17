@@ -84,9 +84,11 @@ export const SelectedModelsTrigger = ({
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
   const hasVisibleTriggerIcon = models.length > 0
 
-  const modelProviderNames = useMemo(() => {
-    return new Map(models.map((model) => [model.id, getProviderName(model, providers)]))
-  }, [models, providers])
+  const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
+  const modelProviderNames = useMemo(
+    () => new Map(models.map((model) => [model.id, getProviderName(model, providers)])),
+    [models, providers]
+  )
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -189,7 +191,7 @@ export const SelectedModelsTrigger = ({
         <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
           {models.map((model) => {
             const providerName = modelProviderNames.get(model.id) ?? model.providerId
-            const tags = getModelDisplayTags(model)
+            const tags = getModelDisplayTags(model, undefined, providerById.get(model.providerId))
             const hasTags = tags.length > 0
             const hasRightMeta = model.contextWindow != null
 
