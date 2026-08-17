@@ -7162,7 +7162,7 @@
         "memory": "以本機知識圖譜實作持久記憶，讓模型能在不同對話間記住使用者的相關資訊。需要設定 MEMORY_FILE_PATH 環境變數。",
         "no": "無描述",
         "nowledge_mem": "需要在本機執行 Nowledge Mem 應用程式。它會將 AI 對話、工具、筆記、Agent 與檔案儲存為電腦上的私人記憶。請從 https://mem.nowledge.co/ 下載。",
-        "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
+        "python": "在安全的瀏覽器沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件。無法存取主機上的檔案或本機磁碟。",
         "sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
       "command": "指令",

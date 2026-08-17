@@ -45,7 +45,7 @@ class PythonServer {
         tools: [
           {
             name: 'python_execute',
-            description: `Execute Python code using Pyodide in a secure browser sandbox. It cannot access local files. Supports most Python standard library and scientific packages.
+            description: `Execute Python code using Pyodide in a secure browser sandbox. It cannot access files on the host machine or local disk. Supports most Python standard library and scientific packages.
 The code will be executed with Python 3.12.
 Dependencies may be defined via PEP 723 script metadata, e.g. to install "pydantic", the script should start
 with a comment of the form:

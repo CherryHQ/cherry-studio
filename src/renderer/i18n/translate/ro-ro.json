@@ -7162,7 +7162,7 @@
         "memory": "Implementare de memorie persistentă bazată pe un graf de cunoștințe local. Aceasta permite modelului să rețină informații legate de utilizator între conversații diferite. Necesită configurarea variabilei de mediu MEMORY_FILE_PATH.",
         "no": "Fără descriere",
         "nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
-        "python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",
+        "python": "Execută cod Python într-un sandbox sigur al browserului. Rulează Python cu Pyodide, cu suport pentru majoritatea bibliotecilor standard și a pachetelor de calcul științific. Nu poate accesa fișierele de pe computerul gazdă sau discul local.",
         "sequentialthinking": "O implementare de server MCP care oferă instrumente pentru rezolvarea dinamică și reflexivă a problemelor prin procese de gândire structurată"
       },
       "command": "Comandă",
