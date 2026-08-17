@@ -62,6 +62,7 @@ const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSes
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
 const agentSessionDeliveryService = {
   deleteSessions: vi.fn(),
+  reuseOrCreateSession: vi.fn(),
   deleteAgent: vi.fn(),
   deleteAgentSessions: vi.fn(),
   deleteWorkspace: vi.fn()
@@ -129,6 +130,23 @@ describe('aiHandlers', () => {
       deletedIds: ['session-1']
     })
     expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
+    const response = {
+      session: { id: 'session-retained' },
+      created: false,
+      deletedDuplicateSessionIds: ['session-duplicate']
+    }
+    agentSessionDeliveryService.reuseOrCreateSession.mockResolvedValue(response)
+
+    await expect(
+      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
+    ).resolves.toBe(response)
+    expect(agentSessionDeliveryService.reuseOrCreateSession).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      workspace: { type: 'system' }
+    })
   })
 
   it('delegates mixed-effect Agent deletion to the delivery owner', async () => {

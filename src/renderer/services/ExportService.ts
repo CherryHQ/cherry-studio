@@ -606,6 +606,19 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 }
 
+// Reasoning content comes from the message itself, not from the body markdown,
+// so callers can produce these blocks concurrently with the body conversion.
+const convertThinkingBlocksFor = async (message: ExportableMessage, reasoningEnabled: boolean): Promise<any[]> => {
+  if (!reasoningEnabled) {
+    return []
+  }
+  const thinkingContent = stripCitationMarkers(getThinkingContent(message))
+  if (!thinkingContent) {
+    return []
+  }
+  return convertThinkingToNotionBlocks(thinkingContent)
+}
+
 const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boolean> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -705,28 +718,25 @@ export const exportMessagesToNotion = async (title: string, messages: Exportable
 
     const titleBlocks = await convertMarkdownToNotionBlocks(`# ${title}`)
 
-    // 为每个消息创建blocks
-    const allBlocks: any[] = [...titleBlocks]
-
-    for (const message of messages) {
-      // 将单个消息转换为markdown
-      const messageMarkdown = await messageToMarkdown(message, excludeCitationsInExport)
-      const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
-
-      if (notionExportReasoning) {
-        const thinkingContent = stripCitationMarkers(getThinkingContent(message))
-        if (thinkingContent) {
-          const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
-          if (messageBlocks.length > 0) {
-            messageBlocks.splice(1, 0, ...thinkingBlocks)
-          } else {
-            messageBlocks.push(...thinkingBlocks)
-          }
+    // Body and reasoning conversions take independent inputs, so they run
+    // concurrently per message and across messages; map+Promise.all keeps input order.
+    const convertMessage = async (message: ExportableMessage): Promise<any[]> => {
+      const [messageBlocks, thinkingBlocks] = await Promise.all([
+        messageToMarkdown(message, excludeCitationsInExport).then(convertMarkdownToNotionBlocks),
+        convertThinkingBlocksFor(message, notionExportReasoning)
+      ])
+      if (thinkingBlocks.length > 0) {
+        if (messageBlocks.length > 0) {
+          messageBlocks.splice(1, 0, ...thinkingBlocks)
+        } else {
+          messageBlocks.push(...thinkingBlocks)
         }
       }
-
-      allBlocks.push(...messageBlocks)
+      return messageBlocks
     }
+
+    const messageBlocksList = await Promise.all(messages.map(convertMessage))
+    const allBlocks: any[] = [...titleBlocks, ...messageBlocksList.flat()]
 
     return executeNotionExport(title, allBlocks)
   })

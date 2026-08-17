@@ -293,7 +293,8 @@ export const useMiniAppPopup = () => {
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       openTab(`/app/mini-app/${app.appId}`, {
         title: app.name,
-        icon: app.logoSrc ?? app.logo
+        icon: app.logoSrc ?? app.logo,
+        metadata: { transientMiniApp: true }
       })
     },
     [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]

@@ -4,6 +4,8 @@
 
 Cherry Studio clients check for updates through the managed release service at `https://releases.cherry-ai.com`. The client selects an update channel and sends application, client, platform, and region metadata. The release service owns target-version selection, regional mirrors, rollout policy, and required upgrade gateways.
 
+The in-app release history follows the same managed path. Stable release preparation updates `resources/cherry-studio/release-history.json`, the release workflow publishes that generated file as a release asset, and clients fetch `/release-history.json` through the managed release service. The service selects GitHub or GitCode according to the request region. Each build also bundles the file as an offline fallback.
+
 ## Update Feed Configuration
 
 - Packaged builds use `publish.url` from `electron-builder.yml`. electron-builder writes this value to the packaged `app-update.yml`.

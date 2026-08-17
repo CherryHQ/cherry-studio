@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
   resolveCrash: vi.fn(),
+  reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn(),
   deleteByAgentId: vi.fn(),
   deleteAgent: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
+    reuseOrCreatePlaceholderForDelivery: mocks.reuseOrCreate,
     deleteByIdsForDelivery: mocks.deleteByIds,
     deleteByAgentIdForDelivery: mocks.deleteByAgentId,
     deleteWorkspaceCascadeForDelivery: mocks.deleteWorkspace
@@ -178,6 +180,12 @@ describe('AgentSessionDeliveryService', () => {
     mocks.finalize.mockReturnValue(null)
     mocks.findByTurnRef.mockReturnValue(null)
     mocks.deleteByIds.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.reuseOrCreate.mockReturnValue({
+      session: { id: 'target' },
+      created: false,
+      deletedDuplicateSessionIds: [],
+      deliveryResults: []
+    })
     mocks.deleteByAgentId.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
     mocks.deleteAgent.mockReturnValue({
       deleted: true,
@@ -593,6 +601,26 @@ describe('AgentSessionDeliveryService', () => {
     await flush()
 
     expect(order).toEqual(['commit', 'close', 'kick-result'])
+  })
+
+  it('closes duplicate placeholder runtimes through the delivery owner', async () => {
+    mocks.reuseOrCreate.mockReturnValue({
+      session: { id: 'retained' },
+      created: false,
+      deletedDuplicateSessionIds: ['duplicate'],
+      deliveryResults: []
+    })
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    await expect(
+      service.reuseOrCreateSession({ agentId: 'agent-1', workspace: { type: 'system' } })
+    ).resolves.toMatchObject({
+      session: { id: 'retained' },
+      deletedDuplicateSessionIds: ['duplicate']
+    })
+
+    expect(mocks.closeSession).toHaveBeenCalledWith('duplicate')
   })
 
   it('keeps overlapping same-key deletions drain-visible until both settle', async () => {

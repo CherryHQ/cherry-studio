@@ -16,6 +16,10 @@ import {
   ScheduledTaskEntitySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
+import {
+  type ReusableAgentSessionPlaceholdersResponse,
+  ReuseOrCreateAgentSessionSchema
+} from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
@@ -157,6 +161,7 @@ export const aiRequestSchemas = {
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
@@ -305,6 +310,10 @@ export const aiRequestSchemas = {
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.reuse_or_create': defineRoute({
+    input: ReuseOrCreateAgentSessionSchema,
+    output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
   }),
   'ai.agent.workspace.delete': defineRoute({
     input: z.strictObject({ workspaceId: z.string().min(1) }),

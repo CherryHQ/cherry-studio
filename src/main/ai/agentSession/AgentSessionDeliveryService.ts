@@ -7,7 +7,11 @@ import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorks
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type {
+  AgentSessionEntity,
+  ReusableAgentSessionPlaceholdersResponse,
+  ReuseOrCreateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
@@ -108,6 +112,15 @@ export class AgentSessionDeliveryService extends BaseService {
     const work = this.deleteSessionsInternal(uniqueIds)
     this.track(
       `delete:${uniqueIds.join(',')}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  reuseOrCreateSession(input: ReuseOrCreateAgentSessionDto): Promise<ReusableAgentSessionPlaceholdersResponse> {
+    const work = this.reuseOrCreateSessionInternal(input)
+    this.track(
+      `reuse-or-create:${input.agentId}`,
       work.then(() => undefined)
     )
     return work
@@ -236,6 +249,19 @@ export class AgentSessionDeliveryService extends BaseService {
     const result = agentSessionService.deleteByIdsForDelivery(ids)
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
+  }
+
+  private async reuseOrCreateSessionInternal(
+    input: ReuseOrCreateAgentSessionDto
+  ): Promise<ReusableAgentSessionPlaceholdersResponse> {
+    this.assertWritesAvailable()
+    const result = agentSessionService.reuseOrCreatePlaceholderForDelivery(input)
+    await this.finishDeletion(result.deletedDuplicateSessionIds, result.deliveryResults)
+    return {
+      session: result.session,
+      created: result.created,
+      deletedDuplicateSessionIds: result.deletedDuplicateSessionIds
+    }
   }
 
   private async deleteAgentInternal(

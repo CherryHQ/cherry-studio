@@ -226,6 +226,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.reuse_or_create': (input) =>
+    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
 

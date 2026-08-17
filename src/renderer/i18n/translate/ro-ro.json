@@ -554,11 +554,6 @@
           "helper": "Introdu variabile de mediu personalizate (una pe linie, în formatul CHEIE=valoare)",
           "label": "Variabile de mediu"
         },
-        "maxTurns": {
-          "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
-          "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
-          "label": "Limită de schimburi în conversație"
-        },
         "permissionMode": {
           "description": "Controlează modul în care agentul gestionează acțiunile care necesită aprobare.",
           "label": "Mod de permisiune",
@@ -1093,6 +1088,10 @@
           "description": "Rulează comenzi shell",
           "label": "Rulează comenzi shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Editează fișiere",
           "label": "Editează fișiere"
@@ -1100,6 +1099,10 @@
         "find": {
           "description": "Găsește fișiere",
           "label": "Găsește fișiere"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Caută în conținutul fișierelor",
@@ -1112,6 +1115,22 @@
         "read": {
           "description": "Citește fișiere",
           "label": "Citește fișiere"
+        },
+        "read_image": {
+          "description": "Citește un fișier PNG, JPEG, WebP sau GIF cu un model capabil de analiză vizuală",
+          "label": "Citește imaginea"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Scrie fișiere",
@@ -2208,6 +2227,7 @@
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "CLI Gemini",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2250,43 @@
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
     "disable": "Dezactivare",
     "edit_config": "Editează Configurația",
@@ -2280,6 +2337,7 @@
     "no_tools": "Nu există instrumente disponibile",
     "not_installed": "Neinstalat",
     "open_provider_settings": "Deschide setările furnizorului",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2289,8 +2347,10 @@
     "search_provider_placeholder": "Furnizori de căutare…",
     "select_folder": "Selectează directorul",
     "select_provider_before_launch": "Selectează un furnizor înainte de a porni {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Selectează un instrument CLI din stânga pentru a începe configurarea",
     "set_custom_path": "Setează calea personalizată a terminalului",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
@@ -2918,6 +2978,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Ghid de utilizare",
+    "star": "Stea pe GitHub",
+    "title": "Ajutor",
+    "whats_new": "Noutăți"
+  },
   "history": {
     "continue_chat": "Continuă conversația",
     "error": {
@@ -3377,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gestionați bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
@@ -3449,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
           },
-          "max_turns": {
-            "help": "0 înseamnă să folosească valoarea implicită",
-            "label": "Număr maxim de runde de conversație"
-          },
           "mcps": {
             "add": "Adaugă server MCP",
             "empty": "Niciunul legat",
@@ -3486,11 +3550,8 @@
             "label": "Mod de rulare",
             "option": {
               "claude_code": "Avansat: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rapid: Pi"
-            },
-            "selected": {
-              "claude_code": "Avansat",
-              "pi": "Rapid"
             }
           },
           "small_model": {
@@ -5986,7 +6047,7 @@
           "title": "Pachet de diagnosticare"
         },
         "errors": {
-          "busy": "Se exportă deja un alt pachet de diagnosticare",
+          "busy": "Este deja în curs o altă operațiune cu un pachet de diagnosticare",
           "copy_failed": "Nu s-a putut copia adresa de e-mail pentru asistență",
           "destination_conflict": "Locația de salvare selectată intră în conflict cu datele de diagnosticare. Alege un alt director.",
           "email_client_failed": "Nu s-a putut deschide un client de e-mail. În schimb, poți copia adresa de e-mail pentru asistență.",
@@ -6035,6 +6096,48 @@
           "title": "Pachet de diagnosticare exportat"
         },
         "unknown": "Necunoscut",
+        "upload": {
+          "actions": {
+            "consent_upload": "Acceptă și încarcă",
+            "open_form": "Deschide formularul",
+            "uploading": "Se încarcă..."
+          },
+          "dialog": {
+            "description": "Creează un pachet de diagnosticare și trimite-l anonim echipei Cherry Studio.",
+            "title": "Încarcă pachetul de diagnosticare"
+          },
+          "errors": {
+            "open_form_failed": "Formularul de feedback nu a putut fi deschis",
+            "upload_failed": "Pachetul de diagnosticare nu a putut fi creat sau salvat"
+          },
+          "manual": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, iar formularul anonim a fost deschis. Selectează acolo fișierul salvat pentru a finaliza trimiterea.",
+            "title": "Este necesară încărcarea manuală"
+          },
+          "privacy": {
+            "description": "Pachetul include întotdeauna informații despre aplicație și dispozitiv. Jurnalele și înregistrările detaliate selectate pot conține informații introduse de tine, locații de fișiere, conținutul solicitărilor și răspunsurilor și informații despre conexiunile la servicii. Este trimis anonim către un formular Feishu privat și este limitat la {{size}}. Dacă apeși „Acceptă și încarcă”, ești de acord cu crearea și trimiterea acestui pachet.",
+            "title": "Notificare privind confidențialitatea"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Atașamentul nu a putut fi încărcat automat.",
+            "form_changed": "Structura formularului de feedback s-a modificat și nu a putut fi verificată în siguranță.",
+            "form_unavailable": "Formularul de feedback nu este disponibil momentan.",
+            "network_failed": "Solicitarea de rețea nu a putut fi finalizată.",
+            "submission_rejected": "Formularul de feedback a respins trimiterea."
+          },
+          "success": {
+            "description": "Dimensiune fișier {{size}} · {{included}} fișiere colectate · {{omitted}} fișiere necolectate",
+            "title": "Pachetul de diagnosticare a fost încărcat"
+          },
+          "unknown": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, dar răspunsul serverului a fost întrerupt. Este posibil ca trimiterea să fi fost deja finalizată. Verifică înainte de a deschide formularul pentru a evita trimiterea de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit"
+          },
+          "unknown_without_copy": {
+            "description": "Răspunsul serverului a fost întrerupt, iar fișierul ZIP de diagnosticare nu a putut fi salvat local. Nu reîncerca încărcarea, deoarece același feedback ar putea fi trimis de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit, dar nu a fost salvată nicio copie locală"
+          }
+        },
         "warning": "Unele informații de diagnosticare nu au fost disponibile. Este posibil ca pachetul exportat să fie incomplet."
       },
       "downloading": "Se descarcă...",
@@ -6043,24 +6146,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Cherry Support pentru ajutor sau pentru a împărtăși feedback-ul tău.",
-          "title": "Folosește agentul"
+          "description": "Discută cu Agentul Cherry Support integrat pentru ajutor cu Cherry Studio sau pentru a trimite feedback.",
+          "title": "Cere ajutor Cherry Support"
         },
-        "agent_error": "Nu se poate deschide Cherry Support pentru feedback. Încearcă din nou.",
+        "agent_error": "Cherry Support nu poate fi deschis. Încearcă din nou.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Verifică informațiile recente de diagnosticare, apoi încarcă-le anonim într-un singur pas.",
+          "title": "Încarcă pachetul de diagnosticare"
+        },
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
           "title": "Alege un canal de feedback"
         },
         "github": {
           "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "error": "Problemele GitHub nu au putut fi deschise. Încearcă din nou.",
           "title": "Problemă GitHub"
         },
         "recommended": "Recomandat",
-        "survey": {
-          "description": "Împărtășiți feedback-ul prin sondajul nostru Feishu.",
-          "title": "Sondaj de feedback"
-        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",

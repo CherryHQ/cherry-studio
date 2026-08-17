@@ -13,6 +13,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
@@ -35,8 +36,10 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/latest': {
-    GET: async () => {
-      return { session: agentSessionService.getLatestActive() }
+    GET: async ({ query }) => {
+      const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return { session: agentSessionService.getLatestActive(parsed.data) }
     }
   },
 

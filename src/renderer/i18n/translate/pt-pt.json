@@ -554,11 +554,6 @@
           "helper": "Introduza variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
           "label": "Variáveis de Ambiente"
         },
-        "maxTurns": {
-          "description": "Defina o número de ciclos de pedido/resposta executados automaticamente pelo agente.",
-          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
-          "label": "Limite máximo de turnos de conversação"
-        },
         "permissionMode": {
           "description": "Como o agente de controle lida com situações que exigem autorização.",
           "label": "Modo de permissão",
@@ -1093,6 +1088,10 @@
           "description": "Executar comandos do terminal",
           "label": "Executar comandos do terminal"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Editar ficheiros",
           "label": "Editar ficheiros"
@@ -1100,6 +1099,10 @@
         "find": {
           "description": "Procurar ficheiros",
           "label": "Procurar ficheiros"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Pesquisar conteúdos de ficheiros",
@@ -1112,6 +1115,22 @@
         "read": {
           "description": "Ler ficheiros",
           "label": "Ler ficheiros"
+        },
+        "read_image": {
+          "description": "Lê um ficheiro PNG, JPEG, WebP ou GIF com um modelo com capacidade visual",
+          "label": "Ler imagem"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Escrever ficheiros",
@@ -2208,6 +2227,7 @@
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "CLI do Gemini",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2250,43 @@
     "custom_path_error": "Falha ao definir caminho de terminal personalizado",
     "custom_path_required": "Este terminal requer a definição de um caminho personalizado",
     "custom_path_set": "Configuração personalizada do caminho do terminal bem-sucedida",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
     "disable": "Desativar",
     "edit_config": "Editar Config",
@@ -2280,6 +2337,7 @@
     "no_tools": "Nenhuma ferramenta disponível",
     "not_installed": "Não instalado",
     "open_provider_settings": "Abrir configurações do fornecedor",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2289,8 +2347,10 @@
     "search_provider_placeholder": "Fornecedores de pesquisa…",
     "select_folder": "Selecionar pasta",
     "select_provider_before_launch": "Selecione um fornecedor antes de iniciar {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Selecione uma ferramenta de CLI à esquerda para começar a configurar",
     "set_custom_path": "Definir caminho personalizado do terminal",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Fornecedores de serviço suportados",
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicação de terminal executar a CLI",
@@ -2918,6 +2978,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Guia do utilizador",
+    "star": "Estrela no GitHub",
+    "title": "Ajuda",
+    "whats_new": "Novidades"
+  },
   "history": {
     "continue_chat": "Continuar a conversar",
     "error": {
@@ -3377,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gerenciar Barra Lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
@@ -3449,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "Intervalo de batimentos (minutos)"
           },
-          "max_turns": {
-            "help": "0 significa usar o padrão",
-            "label": "Máximo de turnos de conversa"
-          },
           "mcps": {
             "add": "Adicionar servidor MCP",
             "empty": "Nenhum vinculado",
@@ -3486,11 +3550,8 @@
             "label": "Modo de execução",
             "option": {
               "claude_code": "Avançado: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rápido: Pi"
-            },
-            "selected": {
-              "claude_code": "Avançado",
-              "pi": "Rápido"
             }
           },
           "small_model": {
@@ -5986,7 +6047,7 @@
           "title": "Pacote de diagnóstico"
         },
         "errors": {
-          "busy": "Já está a ser exportado outro pacote de diagnóstico",
+          "busy": "Já está em curso outra operação com um pacote de diagnóstico",
           "copy_failed": "Não foi possível copiar o e-mail do suporte",
           "destination_conflict": "A localização escolhida para guardar entra em conflito com os dados de diagnóstico. Escolha outra pasta.",
           "email_client_failed": "Não foi possível abrir um cliente de e-mail. Em alternativa, pode copiar o e-mail do suporte.",
@@ -6035,6 +6096,48 @@
           "title": "Pacote de diagnóstico exportado"
         },
         "unknown": "Desconhecido",
+        "upload": {
+          "actions": {
+            "consent_upload": "Aceitar e carregar",
+            "open_form": "Abrir formulário",
+            "uploading": "A carregar..."
+          },
+          "dialog": {
+            "description": "Crie um pacote de diagnóstico e envie-o anonimamente para a equipa do Cherry Studio.",
+            "title": "Carregar pacote de diagnóstico"
+          },
+          "errors": {
+            "open_form_failed": "Não foi possível abrir o formulário de feedback",
+            "upload_failed": "Não foi possível criar ou guardar o pacote de diagnóstico"
+          },
+          "manual": {
+            "description": "O ficheiro ZIP foi guardado na pasta Transferências e o formulário anónimo foi aberto. Selecione o ficheiro guardado no formulário para concluir o envio.",
+            "title": "É necessário carregar manualmente"
+          },
+          "privacy": {
+            "description": "O pacote inclui sempre informações sobre a aplicação e o dispositivo. Os registos e dados detalhados selecionados podem conter texto introduzido por si, localizações de ficheiros, conteúdo de pedidos e respostas e informações sobre ligações a serviços. É enviado anonimamente para um formulário privado do Feishu e está limitado a {{size}}. Ao clicar em «Aceitar e carregar», autoriza a criação e o envio deste pacote.",
+            "title": "Aviso de privacidade"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Não foi possível carregar automaticamente o anexo.",
+            "form_changed": "A estrutura do formulário de feedback foi alterada e não pôde ser verificada em segurança.",
+            "form_unavailable": "O formulário de feedback não está disponível de momento.",
+            "network_failed": "Não foi possível concluir o pedido de rede.",
+            "submission_rejected": "O formulário de feedback rejeitou o envio."
+          },
+          "success": {
+            "description": "Tamanho do ficheiro {{size}} · {{included}} ficheiros recolhidos · {{omitted}} ficheiros não recolhidos",
+            "title": "Pacote de diagnóstico carregado"
+          },
+          "unknown": {
+            "description": "O ficheiro ZIP foi guardado na pasta Transferências, mas a resposta do servidor foi interrompida. O envio poderá já ter sido concluído. Verifique antes de abrir o formulário para evitar enviar duas vezes.",
+            "title": "O envio poderá ter sido concluído"
+          },
+          "unknown_without_copy": {
+            "description": "A resposta do servidor foi interrompida e não foi possível guardar localmente o ZIP de diagnóstico. Não tente carregar novamente, pois poderá enviar o mesmo comentário duas vezes.",
+            "title": "O envio poderá ter sido concluído, mas não foi guardada uma cópia local"
+          }
+        },
         "warning": "Algumas informações de diagnóstico não estavam disponíveis. O pacote exportado poderá estar incompleto."
       },
       "downloading": "A descarregar atualizações...",
@@ -6043,24 +6146,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Converse com o Cherry Support para obter ajuda ou partilhar comentários.",
-          "title": "Utilizar agente"
+          "description": "Converse com o Agent integrado Cherry Support para obter ajuda com o Cherry Studio ou partilhar feedback.",
+          "title": "Pedir ajuda ao Cherry Support"
         },
-        "agent_error": "Não foi possível abrir o Cherry Support para feedback. Por favor, tente novamente.",
+        "agent_error": "Não foi possível abrir o Cherry Support. Tente novamente.",
         "button": "Comentários",
+        "diagnostics": {
+          "description": "Reveja as informações de diagnóstico recentes e carregue-as anonimamente num só passo.",
+          "title": "Carregar pacote de diagnóstico"
+        },
         "dialog": {
           "description": "Escolha como partilhar feedback e ajude-nos a melhorar o Cherry Studio.",
           "title": "Escolha um canal de feedback"
         },
         "github": {
           "description": "Criar um relatório de bug ou pedido de recurso no GitHub.",
+          "error": "Não foi possível abrir os issues do GitHub. Tente novamente.",
           "title": "Issue do GitHub"
         },
         "recommended": "Recomendado",
-        "survey": {
-          "description": "Partilhe feedback através da nossa pesquisa Feishu.",
-          "title": "Pesquisa de feedback"
-        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
