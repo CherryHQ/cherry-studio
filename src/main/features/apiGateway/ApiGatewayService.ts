@@ -6,6 +6,7 @@ import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ApiGatewayConfig } from '@shared/types/apiGateway'
+import { REDACTED } from '@shared/utils/redaction'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { ApiGateway } from './server'
@@ -65,7 +66,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   protected async onReady(): Promise<void> {
     const config = this.getCurrentConfig()
     // Never log the raw API key — redact before emitting.
-    logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
+    logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? REDACTED : null })
     this.desiredEnabled = config.enabled
     this.reconciler.request()
     await this.reconciler.flush()

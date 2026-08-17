@@ -321,7 +321,7 @@ describe('DeepSeekHarnessService', () => {
 
     expect(result.success).toBe(false)
     if (!result.success) {
-      expect(result.message).toContain('[REDACTED]')
+      expect(result.message).toContain('<redacted>')
       expect(result.message).not.toContain('sk-direct')
     }
     expect(mocks.rollbackConfig).toHaveBeenCalledOnce()
