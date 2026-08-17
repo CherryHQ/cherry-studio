@@ -70,6 +70,11 @@ files:
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
+  - "!webui/node_modules/**"
+  - "!webui/src/**"
+  - "!webui/public/**"
+  - "!webui/{package.json,pnpm-lock.yaml,pnpm-workspace.yaml,index.html,tsconfig.json,tsconfig.node.json,tsconfig.app.json,vite.config.ts,env.d.ts}"
+  - "webui/dist/**/*"
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
 asarUnpack:
