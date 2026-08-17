@@ -120,7 +120,6 @@ export function useProviderModelPullReconcile(providerId: string) {
       (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
   }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
-  const localModels = useMemo(() => [...models], [models])
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
@@ -272,7 +271,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   return {
     allModels,
     provider,
-    localModels,
+    localModels: models,
     removableModelIds,
     defaultModelIds: defaultModelIdList,
     staleModelCount: staleModels.length,
