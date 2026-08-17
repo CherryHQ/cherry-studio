@@ -264,6 +264,22 @@ function shareSettledPartReferences(
   return reusedAny ? shared : next
 }
 
+function sameExecutionContribution(
+  previous: readonly ActiveExecution[] | undefined,
+  next: readonly ActiveExecution[]
+): boolean {
+  if (!previous || previous.length !== next.length) return false
+  return next.every((execution, index) => {
+    const before = previous[index]
+    return (
+      before.executionId === execution.executionId &&
+      before.attemptId === execution.attemptId &&
+      before.anchorMessageId === execution.anchorMessageId &&
+      before.seedFromEmpty === execution.seedFromEmpty
+    )
+  })
+}
+
 function computeView(
   snapshots: ReadonlyMap<AttemptId, CherryUIMessage>,
   settlements: ReadonlyMap<AttemptId, Pick<ExecutionFinishEvent, 'isAbort' | 'isError'>>,
@@ -340,6 +356,7 @@ export class ExecutionStreamOverlayService {
   ): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
+    const previousContribution = entry.desired.get(consumer)?.executions
     entry.desired.set(consumer, { executions, getSeedMessages })
 
     const candidates = new Map<AttemptId, ExecutionCandidate>()
@@ -401,7 +418,11 @@ export class ExecutionStreamOverlayService {
       const { executionId, anchorMessageId } = item.execution
       this.#startReader(entry, attemptId, executionId, anchorMessageId, item.seedFromEmpty, item.seed.getSeedMessages)
     }
-    this.#publishView(entry)
+    // Publish only on a content-level contribution change. The hook's sync effect re-runs on
+    // every consumer render (fresh `activeExecutions` identity); an unconditional publish here
+    // hands useSyncExternalStore a new view each time — an allocate-until-OOM render loop.
+    // Snapshot-affecting paths above publish through #commitSnapshots on their own.
+    if (!sameExecutionContribution(previousContribution, executions)) this.#publishView(entry)
   }
 
   subscribe(topicId: string, listener: () => void): () => void {

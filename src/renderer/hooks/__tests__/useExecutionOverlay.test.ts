@@ -145,9 +145,11 @@ let TOPIC = 'topic-0'
 const A = 'openai::gpt-4o' as UniqueModelId
 const B = 'anthropic::claude' as UniqueModelId
 
-const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecution => ({
+// Runtime contract: every attempt is unique and monotonic, so concurrent executions and
+// successive turns must carry distinct attemptIds (readers/settlement key on attemptId).
+const exec = (executionId: UniqueModelId, anchorMessageId?: string, attemptId = 1): ActiveExecution => ({
   executionId,
-  attemptId: 1,
+  attemptId,
   anchorMessageId
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
@@ -219,7 +221,9 @@ afterEach(() => {
 describe('useExecutionOverlay', () => {
   it('N1 — anchored overlay isolation: each execution lands only on its own anchor', async () => {
     const ui = [asst('anchor-a'), asst('anchor-b')]
-    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], ui))
+    const { result } = renderHook(() =>
+      useExecutionOverlay(TOPIC, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], ui)
+    )
 
     streamText(A, 'tA', 'helloA')
     streamText(B, 'tB', 'helloB')
@@ -244,14 +248,17 @@ describe('useExecutionOverlay', () => {
 
     // Turn 1 done → execution leaves activeExecutions.
     rerender({ execs: [], ui: ui1 })
-    // Turn 2 for the SAME model, a fresh placeholder anchor.
+    // Turn 2 for the SAME model, a fresh placeholder anchor — and a fresh attempt.
     const ui2 = [asst('anchor-1', [{ type: 'text', text: 'round-1' }]), asst('anchor-2')]
-    rerender({ execs: [exec(A, 'anchor-2')], ui: ui2 })
+    rerender({ execs: [exec(A, 'anchor-2', 2)], ui: ui2 })
 
     streamText(A, 't2', 'round-2')
     await waitFor(() => expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2'))
     // No "round-1 + round-2" on the new anchor; old anchor not re-streamed.
     expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2')
+    // The settled round-1 frame is retained until the status-edge handoff disposes it
+    // (the service does NOT self-clean on terminal while a consumer is mounted).
+    act(() => result.current.disposeOverlay('anchor-1'))
     expect(result.current.overlay['anchor-1']).toBeUndefined()
   })
 
@@ -267,13 +274,15 @@ describe('useExecutionOverlay', () => {
 
     const ui2 = [asst('anchor-1', [{ type: 'text', text: 'round-1' }]), asst('anchor-2')]
     await act(async () => {
-      rerender({ execs: [exec(A, 'anchor-2')], ui: ui2 })
+      rerender({ execs: [exec(A, 'anchor-2', 2)], ui: ui2 })
       await Promise.resolve()
     })
 
     streamText(A, 't2', 'round-2', { anchorMessageId: 'anchor-2' })
     await waitFor(() => expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2'))
-    expect(result.current.overlay['anchor-1']).toBeUndefined()
+    // Attempt 1 never reached its terminal fence, so its reader and last frame survive the
+    // handoff window by design — but it is not re-streamed or polluted by round 2.
+    expect(textOf(result.current.overlay['anchor-1'])).toBe('round-1')
   })
 
   it('N3 — continue/tool seed: reader seeded from current DB anchor keeps prior parts', async () => {
@@ -357,7 +366,7 @@ describe('useExecutionOverlay', () => {
     let renderCount = 0
     const { result } = renderHook(() => {
       renderCount += 1
-      return useExecutionOverlay(TOPIC, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], ui)
+      return useExecutionOverlay(TOPIC, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], ui)
     })
 
     await act(async () => {
