@@ -14,24 +14,21 @@ import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import {
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport, SSEClientTransportOptions, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions,
+  StreamableHTTPClientTransportOptions,
   StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-// Import notification schemas from MCP SDK
-import {
+import type {
   CancelledNotificationSchema,
-  type GetPromptResult,
+  GetPromptResult,
   LoggingMessageNotificationSchema,
-  type Progress,
+  Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -44,6 +41,7 @@ import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -57,6 +55,50 @@ import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
+
+type McpClientSdk = {
+  Client: typeof Client
+  SSEClientTransport: typeof SSEClientTransport
+  SseError: typeof SseError
+  StdioClientTransport: typeof StdioClientTransport
+  StreamableHTTPClientTransport: typeof StreamableHTTPClientTransport
+  StreamableHTTPError: typeof StreamableHTTPError
+  InMemoryTransport: typeof InMemoryTransport
+  CancelledNotificationSchema: typeof CancelledNotificationSchema
+  LoggingMessageNotificationSchema: typeof LoggingMessageNotificationSchema
+  PromptListChangedNotificationSchema: typeof PromptListChangedNotificationSchema
+  ResourceListChangedNotificationSchema: typeof ResourceListChangedNotificationSchema
+  ResourceUpdatedNotificationSchema: typeof ResourceUpdatedNotificationSchema
+  ToolListChangedNotificationSchema: typeof ToolListChangedNotificationSchema
+}
+
+let mcpClientSdkPromise: Promise<McpClientSdk> | undefined
+
+function loadMcpClientSdk(): Promise<McpClientSdk> {
+  mcpClientSdkPromise ??= Promise.all([
+    import('@modelcontextprotocol/sdk/client/index.js'),
+    import('@modelcontextprotocol/sdk/client/sse.js'),
+    import('@modelcontextprotocol/sdk/client/stdio.js'),
+    import('@modelcontextprotocol/sdk/client/streamableHttp'),
+    import('@modelcontextprotocol/sdk/inMemory'),
+    import('@modelcontextprotocol/sdk/types.js')
+  ]).then(([client, sse, stdio, streamableHttp, inMemory, types]) => ({
+    Client: client.Client,
+    SSEClientTransport: sse.SSEClientTransport,
+    SseError: sse.SseError,
+    StdioClientTransport: stdio.StdioClientTransport,
+    StreamableHTTPClientTransport: streamableHttp.StreamableHTTPClientTransport,
+    StreamableHTTPError: streamableHttp.StreamableHTTPError,
+    InMemoryTransport: inMemory.InMemoryTransport,
+    CancelledNotificationSchema: types.CancelledNotificationSchema,
+    LoggingMessageNotificationSchema: types.LoggingMessageNotificationSchema,
+    PromptListChangedNotificationSchema: types.PromptListChangedNotificationSchema,
+    ResourceListChangedNotificationSchema: types.ResourceListChangedNotificationSchema,
+    ResourceUpdatedNotificationSchema: types.ResourceUpdatedNotificationSchema,
+    ToolListChangedNotificationSchema: types.ToolListChangedNotificationSchema
+  }))
+  return mcpClientSdkPromise
+}
 
 function buildStdioEnvironment(
   loginShellEnv: Record<string, string>,
@@ -177,47 +219,20 @@ function getTransportCandidates(server: McpServer): McpServerType[] | null {
 // Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
 // streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
 // instead of being masked by a confusing fallback failure.
-function isTransportFallbackError(error: unknown): boolean {
-  if (error instanceof SseError) return error.code === 405
-  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
+function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
+  if (error instanceof sdk.SseError) return error.code === 405
+  if (error instanceof sdk.StreamableHTTPError) return error.code === 405 || error.code === 404
   return false
 }
 
-// Redact potentially sensitive fields in objects (headers, tokens, api keys)
-export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
-  const MAX_STRING = 300
-
-  // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
-  // or HTTP request<->response cross-references) can't drive unbounded recursion → stack
-  // overflow inside the logger. This runs on caught Errors and server-controlled payloads.
-  const redact = (val: any, seen: WeakSet<object>): any => {
-    if (val == null) return val
-    if (typeof val === 'string') {
-      return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
-    }
-    if (typeof val === 'object') {
-      if (seen.has(val)) return '[Circular]'
-      seen.add(val)
-    }
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    if (typeof val === 'object') {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
-          out[k] = '<redacted>'
-        } else {
-          out[k] = redact(v, seen)
-        }
-      }
-      return out
-    }
-    return val
-  }
-
-  return redact(input, new WeakSet())
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
-
 // Create a context-aware logger for a server
 function getServerLogger(server: McpServer, extra?: Record<string, any>) {
   const base = {
@@ -248,7 +263,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -258,7 +273,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -446,8 +465,9 @@ export class McpRuntimeService extends BaseService {
     // Create a promise for the initialization process
     const initPromise = (async () => {
       try {
+        const sdk = await loadMcpClientSdk()
         // Create new client instance for each connection
-        const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
+        const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
         let args = [...(server.args || [])]
 
@@ -487,14 +507,14 @@ export class McpRuntimeService extends BaseService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
+            return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
           if (isInMemoryBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
-            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+            const [clientTransport, serverTransport] = sdk.InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
-            const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
+            const inMemoryServer = await createInMemoryMcpServer(server.name, args, server.env || {})
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
@@ -518,9 +538,9 @@ export class McpRuntimeService extends BaseService {
               }
               // redact headers before logging
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
-                options: redactSensitive(options)
+                options: redactDeep(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
+              return new sdk.StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (urlBasedType === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -533,7 +553,7 @@ export class McpRuntimeService extends BaseService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl), options)
+              return new sdk.SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -694,7 +714,7 @@ export class McpRuntimeService extends BaseService {
               })
             }
 
-            const stdioTransport = new StdioClientTransport(transportOptions)
+            const stdioTransport = new sdk.StdioClientTransport(transportOptions)
             const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
             stdioTransport.stderr?.on('data', (data: Buffer) => {
               const msg = stderrDecoder.decode(data, { stream: true })
@@ -813,7 +833,7 @@ export class McpRuntimeService extends BaseService {
               lastError = error
               // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
               // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-              if (!candidates || !isTransportFallbackError(error)) {
+              if (!candidates || !isTransportFallbackError(error, sdk)) {
                 break
               }
               // No alternative transport left to try.
@@ -822,7 +842,7 @@ export class McpRuntimeService extends BaseService {
               }
               const fallbackType = candidates[i + 1]
               getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
-                error: redactSensitive(error)
+                error: redactDeep(error)
               })
               // Close the whole client (not just the transport) so the SDK resets its internal
               // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
@@ -854,7 +874,7 @@ export class McpRuntimeService extends BaseService {
           this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
+          this.setupNotificationHandlers(client, server, sdk)
 
           // Clear existing cache to ensure fresh data
           this.clearServerCache(server)
@@ -874,7 +894,7 @@ export class McpRuntimeService extends BaseService {
             timestamp: Date.now(),
             level: 'error',
             message: `Error activating server: ${(error as Error)?.message}`,
-            data: redactSensitive(error),
+            data: redactDeep(error),
             source: 'client'
           })
           throw error
@@ -894,47 +914,51 @@ export class McpRuntimeService extends BaseService {
   /**
    * Set up notification handlers for MCP client
    */
-  private setupNotificationHandlers(client: Client, server: McpServer) {
+  private setupNotificationHandlers(client: Client, server: McpServer, sdk: McpClientSdk) {
     const serverKey = this.getServerKey(server)
     const cacheService = application.get('CacheService')
 
     try {
       // Set up tools list changed notification handler
-      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
         this._onToolListChanged.fire({ serverId: server.id })
       })
 
       // Set up resources list changed notification handler
-      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceListChangedNotificationSchema, async () => {
         logger.debug(`Resources list changed for server: ${server.name}`)
         // Clear resources cache
         cacheService.delete(`mcp:list_resources:${serverKey}`)
       })
 
       // Set up prompts list changed notification handler
-      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.PromptListChangedNotificationSchema, async () => {
         logger.debug(`Prompts list changed for server: ${server.name}`)
         // Clear prompts cache
         cacheService.delete(`mcp:list_prompts:${serverKey}`)
       })
 
       // Set up resource updated notification handler
-      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
+      client.setNotificationHandler(sdk.ResourceUpdatedNotificationSchema, async () => {
         logger.debug(`Resource updated for server: ${server.name}`)
         // Clear resource-specific caches
         this.clearResourceCaches(serverKey)
       })
 
       // Set up cancelled notification handler
-      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+      client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
+        logger.debug(
+          `Operation cancelled for server: ${server.name}`,
+          redactDeep(notification.params) as Record<string, unknown>
+        )
       })
 
       // Set up logging message notification handler
-      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
+      client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactDeep(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -942,7 +966,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
@@ -970,7 +994,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -1025,13 +1049,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 
@@ -1160,7 +1184,7 @@ export class McpRuntimeService extends BaseService {
         timestamp: Date.now(),
         level: 'error',
         message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactSensitive(error),
+        data: redactDeep(error),
         source: 'connectivity'
       })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
@@ -1212,7 +1236,7 @@ export class McpRuntimeService extends BaseService {
           throw getAbortReason(effectiveSignal)
         }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
-          args: redactSensitive(args)
+          args: redactDeep(args)
         })
         if (typeof args === 'string') {
           if (args.trim() === '') {
@@ -1518,7 +1542,7 @@ export class McpRuntimeService extends BaseService {
 
       // Try to get server information which may include version
       const serverInfo = client.getServerVersion()
-      getServerLogger(server).debug(`Server info`, redactSensitive(serverInfo))
+      getServerLogger(server).debug(`Server info`, redactDeep(serverInfo) as Record<string, unknown>)
 
       if (serverInfo && serverInfo.version) {
         getServerLogger(server).debug(`Server version`, { version: serverInfo.version })

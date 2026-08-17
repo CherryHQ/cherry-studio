@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Asesor integrado de Cherry Studio. Diagnosticar problemas, guiar operaciones, recopilar preguntas frecuentes, enviar errores/solicitudes de funciones y buscar/crear Habilidades"
+      },
+      "cherry_support": {
+        "description": "Agente de soporte oficial de Cherry Studio para configuración, diagnóstico, preguntas frecuentes y comentarios"
       }
     },
     "channels": {
@@ -550,11 +553,6 @@
           "description": "Establece variables de entorno personalizadas para el tiempo de ejecución del agente.",
           "helper": "Introduce variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
           "label": "Variables de entorno"
-        },
-        "maxTurns": {
-          "description": "Establece el número de rondas de solicitud/respuesta que el agente ejecutará automáticamente.",
-          "helper": "Cuanto mayor es el valor, más tiempo puede funcionar de forma autónoma; cuanto menor es el valor, más fácil es de controlar.",
-          "label": "Límite máximo de turnos de conversación"
         },
         "permissionMode": {
           "description": "Cómo el agente de control maneja las situaciones que requieren autorización.",
@@ -1085,6 +1083,58 @@
         "Write": {
           "description": "Crea o sobrescribe archivos",
           "label": "Escribir"
+        },
+        "bash": {
+          "description": "Ejecutar comandos de shell",
+          "label": "Ejecutar comandos de shell"
+        },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
+        "edit": {
+          "description": "Editar archivos",
+          "label": "Editar archivos"
+        },
+        "find": {
+          "description": "Buscar archivos",
+          "label": "Buscar archivos"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
+        },
+        "grep": {
+          "description": "Buscar contenido en archivos",
+          "label": "Buscar contenido en archivos"
+        },
+        "ls": {
+          "description": "Listar contenido del directorio",
+          "label": "Listar contenido del directorio"
+        },
+        "read": {
+          "description": "Leer archivos",
+          "label": "Leer archivos"
+        },
+        "read_image": {
+          "description": "Lee un archivo PNG, JPEG, WebP o GIF con un modelo con capacidad visual",
+          "label": "Leer imagen"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
+        },
+        "write": {
+          "description": "Escribir archivos",
+          "label": "Escribir archivos"
         }
       }
     },
@@ -1150,6 +1200,11 @@
       "startSuccess": "Servidor API iniciado exitosamente",
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
+    },
+    "required": {
+      "confirm": "Habilitar",
+      "description": "El modelo de este agente debe ser puenteado a través de la API Gateway local de Cherry Studio. Habilitarlo también inicia la puerta de enlace automáticamente en futuros lanzamientos; puede desactivarla nuevamente en Configuración.",
+      "title": "¿Habilitar la API Gateway?"
     },
     "status": {
       "running": "Ejecutándose",
@@ -2172,6 +2227,7 @@
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "CLI de Gemini",
       "github_copilot_cli": "CLI de GitHub Copilot",
       "kimi_code": "Código Kimi",
@@ -2194,6 +2250,43 @@
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "Este terminal necesita una ruta personalizada",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
     "disable": "Desactivar",
     "edit_config": "Editar Configuración",
@@ -2244,6 +2337,7 @@
     "no_tools": "No hay herramientas disponibles",
     "not_installed": "No instalado",
     "open_provider_settings": "Configuración del proveedor abierto",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2253,8 +2347,10 @@
     "search_provider_placeholder": "Proveedores de búsqueda…",
     "select_folder": "Seleccionar carpeta",
     "select_provider_before_launch": "Seleccione un proveedor antes de lanzar {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Seleccione una herramienta CLI de la izquierda para comenzar la configuración",
     "set_custom_path": "Establecer ruta de terminal personalizada",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
     "terminal_hint": "Elige qué aplicación de terminal utilizar para ejecutar la CLI",
@@ -2494,6 +2590,7 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
+    "api_gateway_required": "Este modelo debe ser puenteado a través de la API Gateway local de Cherry Studio, que actualmente está deshabilitada. Habilítela para ejecutar este agente.",
     "availableProviders": "Proveedores disponibles",
     "availableTools": "Herramientas disponibles",
     "backup": {
@@ -2880,6 +2977,13 @@
       "title": "Tiempo de Actividad"
     },
     "title": "GPUStack"
+  },
+  "help": {
+    "feedback": "Comentarios",
+    "guide": "Guía de usuario",
+    "star": "Estrella en GitHub",
+    "title": "Ayuda",
+    "whats_new": "Novedades"
   },
   "history": {
     "continue_chat": "Continuar chat",
@@ -3340,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Administrar barra lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicaciones",
@@ -3412,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "Intervalo de latidos (minutos)"
           },
-          "max_turns": {
-            "help": "0 significa usar el valor predeterminado",
-            "label": "Máximo de turnos de conversación"
-          },
           "mcps": {
             "add": "Agregar servidor MCP",
             "empty": "Ninguno vinculado",
@@ -3443,6 +3544,15 @@
           "plan_model": {
             "hint": "Descomposición y planificación de tareas",
             "label": "Modelo de plan (opcional)"
+          },
+          "runtime": {
+            "immutable_hint": "No se puede cambiar después de la creación",
+            "label": "Modo de ejecución",
+            "option": {
+              "claude_code": "Avanzado: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
+              "pi": "Rápido: Pi"
+            }
           },
           "small_model": {
             "hint": "Verificaciones ligeras y formato",
@@ -3546,7 +3656,7 @@
             "hint": "Longitud de respuesta de las mayúsculas cuando está habilitada"
           },
           "max_tool_calls": {
-            "hint": "Limita los bucles de llamadas a herramientas cuando está habilitado"
+            "hint": "Limita las rondas de llamadas a herramientas cuando está activado; de lo contrario, se usa el límite predeterminado de {{count}} rondas"
           },
           "model": {
             "hint": "Anula el modelo predeterminado global para este asistente"
@@ -3851,10 +3961,17 @@
     "skill_marketplace": {
       "empty_description": "Busca en los registros en línea para encontrar habilidades instalables.",
       "empty_title": "Buscar habilidades",
+      "github_empty_description": "Pega un enlace al archivo SKILL.md de una habilidad, por ejemplo github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Instalar desde GitHub",
+      "github_url_invalid": "Pega un enlace de GitHub que termine con SKILL.md",
+      "github_url_label": "URL del SKILL.md en GitHub",
+      "github_url_placeholder": "Enlace de GitHub que termina en /SKILL.md",
       "no_results_description": "Prueba otra palabra clave o importa un archivo ZIP local o una carpeta.",
       "no_results_title": "No se encontraron habilidades",
       "search_failed_description": "La búsqueda falló. Por favor, inténtelo de nuevo más tarde.",
+      "search_label": "Buscar habilidades",
       "search_placeholder": "Buscar habilidades...",
+      "source_label": "Origen de la habilidad",
       "title": "Búsqueda de habilidades en línea"
     },
     "sort": {
@@ -3881,13 +3998,6 @@
       "placeholder": "Nuevo nombre de etiqueta..."
     },
     "tag_sync_failed": "Error al sincronizar etiquetas",
-    "time_ago": {
-      "days": "hace {{count}} día(s)",
-      "hours": "{{count}} hora(s) atrás",
-      "just_now": "Ahora mismo",
-      "minutes": "hace {{count}} minuto(s)",
-      "months": "hace {{count}} mes(es)"
-    },
     "title": "Biblioteca",
     "toolbar": {
       "add_group_placeholder": "Nombre del grupo...",
@@ -4812,7 +4922,7 @@
     },
     "installed_at": "OpenClaw instalado en",
     "migration": {
-      "description": "Se ha detectado una versión desactualizada de OpenClaw instalada a través de npm. Por favor, reinstala para obtener la última versión oficial.",
+      "description": "Se detectó una instalación externa de OpenClaw en PATH, pero Cherry Studio usa su propio binario gestionado de OpenClaw. Instala la versión gestionada para continuar.",
       "install_button": "Reinstalar OpenClaw",
       "title": "OpenClaw Necesita Actualización"
     },
@@ -5937,7 +6047,7 @@
           "title": "Paquete de diagnóstico"
         },
         "errors": {
-          "busy": "Ya se está exportando otro paquete de diagnóstico",
+          "busy": "Ya hay otra operación de paquete de diagnóstico en curso",
           "copy_failed": "No se pudo copiar el correo de soporte",
           "destination_conflict": "La ubicación elegida para guardar entra en conflicto con los datos de diagnóstico. Elige otra carpeta.",
           "email_client_failed": "No se pudo abrir un cliente de correo. Puedes copiar el correo de soporte en su lugar.",
@@ -5986,6 +6096,48 @@
           "title": "Paquete de diagnóstico exportado"
         },
         "unknown": "Desconocido",
+        "upload": {
+          "actions": {
+            "consent_upload": "Aceptar y subir",
+            "open_form": "Abrir formulario",
+            "uploading": "Subiendo..."
+          },
+          "dialog": {
+            "description": "Crea un paquete de diagnóstico y envíalo de forma anónima al equipo de Cherry Studio.",
+            "title": "Subir paquete de diagnóstico"
+          },
+          "errors": {
+            "open_form_failed": "No se pudo abrir el formulario de comentarios",
+            "upload_failed": "No se pudo crear ni guardar el paquete de diagnóstico"
+          },
+          "manual": {
+            "description": "El archivo ZIP se guardó en Descargas y se abrió el formulario anónimo. Selecciona allí el archivo guardado para completar el envío.",
+            "title": "Se requiere una carga manual"
+          },
+          "privacy": {
+            "description": "El paquete siempre incluye información de la aplicación y del dispositivo. Los registros y datos detallados seleccionados pueden contener texto que hayas introducido, ubicaciones de archivos, contenido de solicitudes y respuestas e información sobre conexiones de servicios. Se envía de forma anónima a un formulario privado de Feishu y tiene un límite de {{size}}. Al hacer clic en «Aceptar y subir», aceptas que se cree y envíe este paquete.",
+            "title": "Aviso de privacidad"
+          },
+          "reasons": {
+            "attachment_upload_failed": "No se pudo subir automáticamente el archivo adjunto.",
+            "form_changed": "La estructura del formulario de comentarios cambió y no se pudo verificar de forma segura.",
+            "form_unavailable": "El formulario de comentarios no está disponible en este momento.",
+            "network_failed": "No se pudo completar la solicitud de red.",
+            "submission_rejected": "El formulario de comentarios rechazó el envío."
+          },
+          "success": {
+            "description": "Tamaño del archivo {{size}} · {{included}} archivos recopilados · {{omitted}} archivos no recopilados",
+            "title": "Paquete de diagnóstico subido"
+          },
+          "unknown": {
+            "description": "El archivo ZIP se guardó en Descargas, pero la respuesta del servidor se interrumpió. Puede que ya se haya enviado. Compruébalo antes de abrir el formulario para evitar enviarlo dos veces.",
+            "title": "Es posible que el envío haya finalizado"
+          },
+          "unknown_without_copy": {
+            "description": "La respuesta del servidor se interrumpió y el ZIP de diagnóstico no se pudo guardar localmente. No vuelvas a intentar la carga, ya que podrías enviar los mismos comentarios dos veces.",
+            "title": "Es posible que el envío se haya completado, pero no se guardó ninguna copia local"
+          }
+        },
         "warning": "Parte de la información de diagnóstico no estaba disponible. El paquete exportado puede estar incompleto."
       },
       "downloading": "Descargando actualización...",
@@ -5994,24 +6146,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatea con Cherry Assistant para compartir tus comentarios.",
-          "title": "Usar Agente"
+          "description": "Chatea con el Agent integrado de Cherry Support para obtener ayuda con Cherry Studio o compartir comentarios.",
+          "title": "Preguntar a Cherry Support"
         },
-        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Inténtalo de nuevo.",
+        "agent_error": "No se puede abrir Cherry Support. Inténtalo de nuevo.",
         "button": "Enviar feedback",
+        "diagnostics": {
+          "description": "Revisa la información de diagnóstico reciente y súbela de forma anónima en un solo paso.",
+          "title": "Subir paquete de diagnóstico"
+        },
         "dialog": {
           "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
           "title": "Elige un canal de retroalimentación"
         },
         "github": {
           "description": "Crea un informe de error o una solicitud de funcionalidad en GitHub.",
+          "error": "No se pudieron abrir los issues de GitHub. Inténtalo de nuevo.",
           "title": "Problema de GitHub"
         },
         "recommended": "Recomendado",
-        "survey": {
-          "description": "Comparta sus comentarios a través de nuestra encuesta de Feishu.",
-          "title": "Encuesta de retroalimentación"
-        },
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
@@ -6763,7 +6916,7 @@
       "removeDefinitionOnlyDependents": "Las herramientas instaladas dependen de ello: {{dependents}}.",
       "removeError": "Error al eliminar la herramienta",
       "removeErrorHint": "El comando de limpieza falló. Copia el registro a continuación para solucionar problemas o compártelo para obtener ayuda.",
-      "removeRuntimeConfirmMessage": "¿Estás seguro de que quieres eliminar \"{{name}}\"? Desinstalar este runtime puede romper las herramientas npm o pip que dependen de él.",
+      "removeRuntimeConfirmMessage": "¿Quitar \"{{name}}\" de Cherry Studio? Cherry solo eliminará la copia exacta gestionada por mise. Los entornos de ejecución del sistema e integrados en la aplicación nunca se modifican. Las herramientas npm o pip instaladas pueden bloquear la eliminación si dependen de este entorno de ejecución.",
       "runtimeDependency": "Tiempo de ejecución",
       "runtimeDependencyHint": "Tiempo de ejecución para herramientas npm/pip",
       "searchFailed": "La búsqueda ha fallado; consulta los registros",
@@ -7622,7 +7775,6 @@
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
-        "model": "Modelo de Denominación",
         "prompt": "Sugerencias para nombramiento de temas"
       },
       "translate_model": "Modelo de traducción",
@@ -7645,7 +7797,8 @@
       "assistant": "Notificaciones del agente y del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
-      "title": "Notificaciones"
+      "title": "Notificaciones",
+      "update": "Actualización de la aplicación"
     },
     "openai": {
       "service_tier": {
@@ -8817,7 +8970,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
+      "placeholder": "Introduce texto..."
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

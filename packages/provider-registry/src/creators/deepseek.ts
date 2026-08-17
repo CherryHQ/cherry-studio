@@ -7,6 +7,19 @@ export default defineCreator({
   fetchModels: openaiCompatible('deepseek', 'DEEPSEEK_API_KEY'),
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
+  models: [
+    {
+      id: 'deepseek-v4-pro',
+      name: 'DeepSeek V4 Pro',
+      family: 'deepseek-thinking',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      contextWindow: 1048576,
+      maxOutputTokens: 393216,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      openWeights: true
+    }
+  ],
   reasoningFamilies: [
     { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'high', 'max'] },
     // v3.x hybrid inference (thinking / non-thinking at one endpoint).

@@ -74,7 +74,7 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { findLatestUpdated, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -320,6 +320,7 @@ export function Topics({
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
     topics: apiTopics,
+    orderSignature,
     isLoadingAll,
     isFullyLoaded,
     isRefreshing,
@@ -394,11 +395,8 @@ export function Topics({
     targetAssistantId: string | null
   } | null>(null)
   const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
+    () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
+    [orderSignature, topicPinnedIds]
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
@@ -609,8 +607,22 @@ export function Topics({
         return
       }
 
+      // The unlinked assistant group is a display fallback for orphaned topics, not a real assistant:
+      // deleting its last topic must not seed a fresh unlinked topic (which would keep the group alive
+      // forever). Fall back to the latest remaining topic of any assistant; when none remain, let the
+      // replacement resolve to a real assistant instead.
+      if (!topic.assistantId) {
+        const fallback = findLatestUpdated(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+        if (fallback) {
+          setActiveTopic(fallback)
+          return
+        }
+        await onNewTopic?.({ excludeReuseTopicId: topic.id })
+        return
+      }
+
       // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
-      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
+      await onNewTopic?.({ assistantId: topic.assistantId, excludeReuseTopicId: topic.id })
     },
     [onNewTopic, removeTopic, setActiveTopic, t]
   )
@@ -1312,9 +1324,8 @@ export function Topics({
       const assistantChanged = targetAssistantId !== currentAssistantId
 
       try {
-        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
-        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
-        // until after both writes so the optimistic overlay clears once, at the final position.
+        // `moveTopic` owns the atomic write and cache orchestration so the open conversation
+        // follows the new assistant and the optimistic overlay settles at the final position.
         await moveTopic(payload.activeId, {
           assistantId: assistantChanged ? targetAssistantId : undefined,
           anchor

@@ -6,6 +6,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -18,7 +19,7 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -34,14 +35,8 @@ import {
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-
-function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
-}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -56,6 +51,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -106,7 +103,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
-  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+  const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
   const openableMiniAppById = useMemo(() => {
     const appById = new Map<string, (typeof miniApps)[number]>()
     for (const app of miniApps) {
@@ -172,6 +169,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')
+  }, [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
@@ -288,8 +289,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
     ),
     onEntriesReorder: handleReorder
   }
@@ -312,6 +318,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

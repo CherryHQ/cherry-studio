@@ -9,6 +9,8 @@ const TEMPLATE_PATH = path.join(
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-assistant-guide/skill-zh-cn-template.md'
 )
 const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent-template.json')
+const SUPPORT_AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-support/agent-template.json')
+const SUPPORT_AGENT_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-support/agent.json')
 const SOUL_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/SOUL.md')
 const USER_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/USER.md')
 const MARKETPLACE_PATH = path.join(
@@ -226,5 +228,34 @@ describe('Cherry Assistant guide', () => {
     expect(supportingPrompts).not.toContain('mcp__cherry__browser')
     expect(supportingPrompts).not.toContain('mcp__assistant__browser')
     expect(supportingPrompts).not.toContain('q={query}')
+  })
+
+  it('generates a dedicated Cherry Support identity with only the four support skills', () => {
+    const template = JSON.parse(fs.readFileSync(SUPPORT_AGENT_TEMPLATE_PATH, 'utf-8'))
+    const generated = JSON.parse(fs.readFileSync(SUPPORT_AGENT_PATH, 'utf-8'))
+
+    expect(generated).toEqual(
+      expect.objectContaining({
+        name: { 'en-US': 'Cherry Support', 'zh-CN': '产品反馈' },
+        configuration: expect.objectContaining({
+          avatar: '🧰',
+          permission_mode: 'acceptEdits',
+          bootstrap_completed: true,
+          builtin_role: 'support'
+        }),
+        skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
+      })
+    )
+    expect(generated.instructions['en-US']).toContain('Your scope has four parts')
+    expect(generated.instructions['en-US']).toContain('Never introduce yourself as a general-purpose AI')
+    expect(generated.instructions['en-US']).toContain('direct the user to Cherry Assistant')
+    expect(generated.instructions['zh-CN']).toContain('答疑解惑')
+    expect(generated.instructions['zh-CN']).toContain('使用帮助')
+    expect(generated.instructions['zh-CN']).toContain('问题排查')
+    expect(generated.instructions['zh-CN']).toContain('反馈整理与提交')
+    expect(generated.instructions['zh-CN']).toContain('绝不要把自己介绍成通用 AI、编程 Agent 或任务代理')
+    expect(generated.instructions['zh-CN']).toContain('自我介绍为产品反馈')
+    expect(generated).not.toHaveProperty('_generated_note')
+    expect(generated).toEqual(Object.fromEntries(Object.entries(template).filter(([key]) => !key.startsWith('_'))))
   })
 })

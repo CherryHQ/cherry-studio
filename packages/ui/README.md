@@ -220,23 +220,28 @@ pnpm icons:generate
 # General icons
 pnpm icons:generate --type=icons
 
-# Provider icons, Avatars, barrels, and catalogs
+# Provider icons, Avatars, barrels, catalogs, and per-icon loaders
 pnpm icons:generate --type=providers
 
-# Model icons, Avatars, barrels, and catalogs
+# Model icons, Avatars, barrels, and per-icon loaders
 pnpm icons:generate --type=models
 ```
 
 | Type        | SVG source                            | Generated output                                                                 |
 | ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
 | `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
-| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, and catalogs          |
-| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and catalogs             |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, catalogs, and loaders |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and loaders              |
+
+Import key-based lookup APIs from `@cherrystudio/ui/icons`. Static provider components intentionally use the
+separate `@cherrystudio/ui/icons/providers` entry so the ordinary lookup path does not evaluate the full provider barrel.
+Provider components are intentionally no longer re-exported from `@cherrystudio/ui/icons`; static consumers must use
+the provider entry explicitly.
 
 Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
 
 ```bash
-# Regenerate one provider and its Avatar/catalog entries
+# Regenerate one provider and its Avatar/catalog/loader entries
 pnpm icons:generate --type=providers --only=opencode
 
 # Regenerate multiple models
@@ -251,7 +256,7 @@ pnpm icons:generate --type=providers --force
 - `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
 - `--force` bypasses the SVG hash cache.
 
-Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
+Provider and Model generation runs the SVG component stage first and the Avatar plus lookup-artifact stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
 
 ## Package Surface
 

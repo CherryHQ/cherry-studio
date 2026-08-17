@@ -396,6 +396,45 @@ describe('Sidebar resize handle', () => {
     }
   })
 
+  it('keeps the floating sidebar open while a footer overlay is open', () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+    let onOverlayOpenChange: ((open: boolean) => void) | undefined
+
+    try {
+      const { container } = render(
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          active={{ activeItem: 'chat' }}
+          entries={entries}
+          actions={(_layout, handleOverlayOpenChange) => {
+            onOverlayOpenChange = handleOverlayOpenChange
+            return <button type="button">Help</button>
+          }}
+          isFloating
+          onDismiss={onDismiss}
+        />
+      )
+
+      const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
+
+      fireEvent.mouseEnter(panel)
+      act(() => onOverlayOpenChange?.(true))
+      fireEvent.mouseLeave(panel)
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).not.toHaveBeenCalled()
+
+      act(() => onOverlayOpenChange?.(false))
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('renders apps and direct mini app icons together in one full docked list', () => {
     render(
       <Sidebar

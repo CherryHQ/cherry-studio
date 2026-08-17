@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități"
+      },
+      "cherry_support": {
+        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
       }
     },
     "session": {

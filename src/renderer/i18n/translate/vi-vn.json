@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cố vấn tích hợp Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, và tìm kiếm/tạo Kỹ năng"
+      },
+      "cherry_support": {
+        "description": "Agent hỗ trợ chính thức của Cherry Studio cho hướng dẫn cấu hình, chẩn đoán, FAQ và phản hồi"
       }
     },
     "channels": {
@@ -550,11 +553,6 @@
           "description": "Đặt các biến môi trường tùy chỉnh cho môi trường chạy của Agent.",
           "helper": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
           "label": "Biến môi trường"
-        },
-        "maxTurns": {
-          "description": "Xác định số chu kỳ yêu cầu/phản hồi mà Agent có thể tự động hoàn thành.",
-          "helper": "Giá trị cao hơn cho phép các phiên hoạt động tự động kéo dài hơn; giá trị thấp hơn giữ cho các phiên ngắn.",
-          "label": "Giới hạn lượt hội thoại"
         },
         "permissionMode": {
           "description": "Kiểm soát cách Agent xử lý các hành động cần phê duyệt.",
@@ -1085,6 +1083,58 @@
         "Write": {
           "description": "Tạo hoặc ghi đè lên các tệp",
           "label": "Viết"
+        },
+        "bash": {
+          "description": "Chạy lệnh shell",
+          "label": "Chạy lệnh shell"
+        },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
+        "edit": {
+          "description": "Sửa tập tin",
+          "label": "Sửa tập tin"
+        },
+        "find": {
+          "description": "Tìm tập tin",
+          "label": "Tìm tập tin"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
+        },
+        "grep": {
+          "description": "Tìm kiếm nội dung tập tin",
+          "label": "Tìm kiếm nội dung tập tin"
+        },
+        "ls": {
+          "description": "Liệt kê nội dung thư mục",
+          "label": "Liệt kê nội dung thư mục"
+        },
+        "read": {
+          "description": "Đọc tập tin",
+          "label": "Đọc tập tin"
+        },
+        "read_image": {
+          "description": "Đọc tệp PNG, JPEG, WebP hoặc GIF bằng mô hình có khả năng thị giác",
+          "label": "Đọc hình ảnh"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
+        },
+        "write": {
+          "description": "Ghi tập tin",
+          "label": "Ghi tập tin"
         }
       }
     },
@@ -1150,6 +1200,11 @@
       "startSuccess": "Máy chủ API đã khởi động thành công",
       "stopError": "Không thể dừng Máy chủ API:",
       "stopSuccess": "Máy chủ API đã dừng thành công"
+    },
+    "required": {
+      "confirm": "Bật",
+      "description": "Mô hình của Agent này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio. Bật tính năng này cũng sẽ tự động khởi động máy chủ trong các lần chạy sau; bạn có thể tắt lại trong Cài đặt.",
+      "title": "Bật Máy chủ API?"
     },
     "status": {
       "running": "Chạy",
@@ -2172,6 +2227,7 @@
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Mã Kimi",
@@ -2194,6 +2250,43 @@
     "custom_path_error": "Không thể đặt đường dẫn terminal tùy chỉnh",
     "custom_path_required": "Terminal này yêu cầu đường dẫn tùy chỉnh",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
     "disable": "Tắt",
     "edit_config": "Chỉnh sửa cấu hình",
@@ -2244,6 +2337,7 @@
     "no_tools": "Không có công cụ nào khả dụng",
     "not_installed": "Chưa cài đặt",
     "open_provider_settings": "Mở cài đặt nhà cung cấp",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Chính thức"
     },
@@ -2253,8 +2347,10 @@
     "search_provider_placeholder": "Tìm kiếm nhà cung cấp…",
     "select_folder": "Chọn thư mục",
     "select_provider_before_launch": "Chọn một nhà cung cấp trước khi khởi chạy {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Chọn một công cụ CLI từ bên trái để bắt đầu cấu hình",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
@@ -2494,6 +2590,7 @@
     "openai-response": "Phản hồi của OpenAI"
   },
   "error": {
+    "api_gateway_required": "Mô hình này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio, nhưng máy chủ hiện đang bị tắt. Bật nó lên để chạy Agent này.",
     "availableProviders": "Nhà cung cấp có sẵn",
     "availableTools": "Công cụ có sẵn",
     "backup": {
@@ -2880,6 +2977,13 @@
       "title": "Thời gian giữ hoạt động"
     },
     "title": "GPUStack"
+  },
+  "help": {
+    "feedback": "Phản hồi",
+    "guide": "Hướng dẫn sử dụng",
+    "star": "Gắn sao trên GitHub",
+    "title": "Trợ giúp",
+    "whats_new": "Có gì mới"
   },
   "history": {
     "continue_chat": "Tiếp tục trò chuyện",
@@ -3340,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Quản lý Thanh bên",
     "minapps": "Mini-app",
     "miniApps": "Mini-app",
@@ -3412,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "Khoảng cách nhịp tim (phút)"
           },
-          "max_turns": {
-            "help": "0 có nghĩa là sử dụng giá trị mặc định",
-            "label": "Số lượt hội thoại tối đa"
-          },
           "mcps": {
             "add": "Thêm máy chủ MCP",
             "empty": "Không ràng buộc",
@@ -3443,6 +3544,15 @@
           "plan_model": {
             "hint": "Phân rã nhiệm vụ và lập kế hoạch",
             "label": "Mô hình kế hoạch (tùy chọn)"
+          },
+          "runtime": {
+            "immutable_hint": "Không thể thay đổi sau khi tạo",
+            "label": "Chế độ chạy",
+            "option": {
+              "claude_code": "Nâng cao: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
+              "pi": "Nhanh: Pi"
+            }
           },
           "small_model": {
             "hint": "Kiểm tra nhẹ và định dạng",
@@ -3546,7 +3656,7 @@
             "hint": "Giới hạn độ dài phản hồi của Caps khi được bật"
           },
           "max_tool_calls": {
-            "hint": "Giới hạn vòng lặp gọi công cụ khi được bật"
+            "hint": "Giới hạn số vòng gọi công cụ khi bật; nếu tắt sẽ dùng giới hạn mặc định {{count}} vòng"
           },
           "model": {
             "hint": "Ghi đè mô hình mặc định toàn cục cho trợ lý này"
@@ -3851,10 +3961,17 @@
     "skill_marketplace": {
       "empty_description": "Tìm kiếm trong các sổ đăng ký trực tuyến để tìm các kỹ năng có thể cài đặt.",
       "empty_title": "Tìm kiếm kỹ năng",
+      "github_empty_description": "Dán liên kết đến tập tin SKILL.md của một kỹ năng, ví dụ github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Cài đặt từ GitHub",
+      "github_url_invalid": "Hãy dán liên kết GitHub có kết thúc bằng SKILL.md",
+      "github_url_label": "URL SKILL.md trên GitHub",
+      "github_url_placeholder": "Liên kết GitHub, kết thúc bằng /SKILL.md",
       "no_results_description": "Thử một từ khóa khác hoặc nhập tệp ZIP hoặc thư mục cục bộ.",
       "no_results_title": "Không tìm thấy kỹ năng nào",
       "search_failed_description": "Tìm kiếm thất bại. Vui lòng thử lại sau.",
+      "search_label": "Tìm kiếm kỹ năng",
       "search_placeholder": "Kỹ năng tìm kiếm...",
+      "source_label": "Nguồn kỹ năng",
       "title": "Tìm kiếm kỹ năng trực tuyến"
     },
     "sort": {
@@ -3881,13 +3998,6 @@
       "placeholder": "Tên thẻ mới..."
     },
     "tag_sync_failed": "Không đồng bộ được thẻ",
-    "time_ago": {
-      "days": "{{count}} ngày trước",
-      "hours": "{{count}} giờ trước",
-      "just_now": "Vừa xong",
-      "minutes": "{{count}} phút trước",
-      "months": "{{count}} tháng trước"
-    },
     "title": "Thư viện",
     "toolbar": {
       "add_group_placeholder": "Tên nhóm...",
@@ -4812,7 +4922,7 @@
     },
     "installed_at": "OpenClaw đã được cài đặt tại",
     "migration": {
-      "description": "Đã phát hiện phiên bản OpenClaw lỗi thời được cài qua npm. Vui lòng cài lại để nhận phiên bản chính thức mới nhất.",
+      "description": "Đã phát hiện một bản cài đặt OpenClaw bên ngoài trong PATH, nhưng Cherry Studio chỉ sử dụng tệp nhị phân OpenClaw do chính nó quản lý. Hãy cài đặt phiên bản được quản lý để tiếp tục.",
       "install_button": "Cài đặt lại OpenClaw",
       "title": "OpenClaw Cần Cập Nhật"
     },
@@ -5937,7 +6047,7 @@
           "title": "Gói chẩn đoán"
         },
         "errors": {
-          "busy": "Một gói chẩn đoán khác đang được xuất",
+          "busy": "Một thao tác gói chẩn đoán khác đang được thực hiện",
           "copy_failed": "Không thể sao chép email hỗ trợ",
           "destination_conflict": "Vị trí lưu đã chọn xung đột với dữ liệu chẩn đoán. Hãy chọn thư mục khác.",
           "email_client_failed": "Không thể mở ứng dụng email. Bạn có thể sao chép email hỗ trợ để thay thế.",
@@ -5986,6 +6096,48 @@
           "title": "Đã xuất gói chẩn đoán"
         },
         "unknown": "Không xác định",
+        "upload": {
+          "actions": {
+            "consent_upload": "Đồng ý và tải lên",
+            "open_form": "Mở biểu mẫu",
+            "uploading": "Đang tải lên..."
+          },
+          "dialog": {
+            "description": "Tạo gói chẩn đoán và gửi ẩn danh cho nhóm Cherry Studio.",
+            "title": "Tải gói chẩn đoán lên"
+          },
+          "errors": {
+            "open_form_failed": "Không thể mở biểu mẫu phản hồi",
+            "upload_failed": "Không thể tạo hoặc lưu gói chẩn đoán"
+          },
+          "manual": {
+            "description": "Tệp ZIP đã được lưu vào thư mục Tải xuống và biểu mẫu ẩn danh đã được mở. Hãy chọn tệp đã lưu trong biểu mẫu để hoàn tất việc gửi.",
+            "title": "Cần tải lên thủ công"
+          },
+          "privacy": {
+            "description": "Gói chẩn đoán luôn bao gồm thông tin về ứng dụng và thiết bị. Nhật ký và bản ghi chi tiết đã chọn có thể chứa nội dung bạn nhập, vị trí tệp, nội dung yêu cầu và phản hồi cũng như thông tin kết nối dịch vụ. Gói được gửi ẩn danh đến một biểu mẫu Feishu riêng tư và có giới hạn {{size}}. Khi nhấp vào “Đồng ý và tải lên”, bạn đồng ý cho phép tạo và gửi gói này.",
+            "title": "Thông báo quyền riêng tư"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Không thể tự động tải tệp đính kèm lên.",
+            "form_changed": "Cấu trúc biểu mẫu phản hồi đã thay đổi và không thể xác minh an toàn.",
+            "form_unavailable": "Biểu mẫu phản hồi hiện không khả dụng.",
+            "network_failed": "Không thể hoàn tất yêu cầu mạng.",
+            "submission_rejected": "Biểu mẫu phản hồi đã từ chối nội dung gửi."
+          },
+          "success": {
+            "description": "Dung lượng tệp {{size}} · Đã thu thập {{included}} tệp · Không thu thập {{omitted}} tệp",
+            "title": "Đã tải gói chẩn đoán lên"
+          },
+          "unknown": {
+            "description": "Tệp ZIP đã được lưu vào thư mục Tải xuống nhưng phản hồi từ máy chủ bị gián đoạn. Có thể nội dung đã được gửi. Hãy kiểm tra trước khi mở biểu mẫu để tránh gửi hai lần.",
+            "title": "Có thể nội dung đã được gửi"
+          },
+          "unknown_without_copy": {
+            "description": "Phản hồi của máy chủ đã bị gián đoạn và không thể lưu tệp ZIP chẩn đoán trên máy. Đừng thử tải lên lại vì cùng một phản hồi có thể bị gửi hai lần.",
+            "title": "Nội dung có thể đã được gửi thành công nhưng không lưu được bản sao trên máy"
+          }
+        },
         "warning": "Một số thông tin chẩn đoán không khả dụng. Gói đã xuất có thể không đầy đủ."
       },
       "downloading": "Đang tải xuống...",
@@ -5994,24 +6146,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Trò chuyện với Cherry Assistant để chia sẻ phản hồi.",
-          "title": "Sử dụng Agent"
+          "description": "Trò chuyện với Agent Cherry Support tích hợp để được trợ giúp về Cherry Studio hoặc gửi phản hồi.",
+          "title": "Hỏi Cherry Support"
         },
-        "agent_error": "Không thể mở Cherry Assistant để gửi phản hồi. Vui lòng thử lại.",
+        "agent_error": "Không thể mở Cherry Support. Vui lòng thử lại.",
         "button": "Phản hồi",
+        "diagnostics": {
+          "description": "Xem lại thông tin chẩn đoán gần đây rồi tải lên ẩn danh chỉ trong một bước.",
+          "title": "Tải gói chẩn đoán lên"
+        },
         "dialog": {
           "description": "Chọn cách chia sẻ phản hồi và giúp chúng tôi cải thiện Cherry Studio tốt hơn.",
           "title": "Chọn kênh phản hồi"
         },
         "github": {
           "description": "Tạo báo cáo lỗi hoặc yêu cầu tính năng trên GitHub.",
+          "error": "Không thể mở GitHub Issues. Vui lòng thử lại.",
           "title": "Vấn đề GitHub"
         },
         "recommended": "Được đề xuất",
-        "survey": {
-          "description": "Chia sẻ phản hồi qua khảo sát Feishu của chúng tôi.",
-          "title": "Khảo sát phản hồi"
-        },
         "title": "Phản hồi"
       },
       "label": "Giới thiệu & Phản hồi",
@@ -7622,7 +7775,6 @@
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
-        "model": "Mô hình đặt tên",
         "prompt": "Lời nhắc đặt tên cuộc trò chuyện"
       },
       "translate_model": "Mô hình Dịch",
@@ -7645,7 +7797,8 @@
       "assistant": "Thông báo của Agent và Trợ lý",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
-      "title": "Thông báo"
+      "title": "Thông báo",
+      "update": "Cập nhật Ứng dụng"
     },
     "openai": {
       "service_tier": {
@@ -8817,7 +8970,7 @@
       "aborted": "Dịch bị hủy"
     },
     "input": {
-      "placeholder": "Văn bản, tệp văn bản hoặc hình ảnh (hỗ trợ OCR) có thể được dán hoặc kéo vào"
+      "placeholder": "Nhập văn bản..."
     },
     "language": {
       "not_pair": "Ngôn ngữ nguồn khác với ngôn ngữ đã đặt",

@@ -80,8 +80,8 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
 }
 
 /**
- * Single consumption point for main-window navigation, mounted once in MainWindowRuntime.
- * Three delivery legs feed the same routing split:
+ * Single consumption point for main-window init data + navigation events, mounted once in
+ * MainWindowRuntime. Delivery legs:
  *
  * - `OPEN_MAIN_ROUTE_EVENT` DOM event — the in-window fast path used by
  *   `openRoute()` callers living in this window (preventDefault = handled ACK).
@@ -90,13 +90,16 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  *   bookkeeping needed.
  * - Navigation init data — the cold-start path only (the window was created FOR
  *   this route); `requestId` dedupes replays of the same stored payload.
+ * - `tab-attach` init data — the cold-start path for a detached tab being
+ *   re-attached (openTabInMainWindow rebuilt the window around it); same
+ *   request-id dedupe, delivered to `attachTab`.
  *
  * Settings paths land in the singleton settings tab; everything else goes
  * through `openTab`'s exact-URL dedupe.
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { openTab } = useTabs()
+  const { attachTab, openTab } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -121,6 +124,17 @@ export function useMainWindowNavigation() {
     handleRoute(initData.to)
     void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
   }, [initData, handleRoute])
+
+  // Cold-start tab re-attach: the window was rebuilt around a detached tab. Same
+  // ack/dedupe discipline as navigation init data — the payload must not replay on reload.
+  useEffect(() => {
+    if (initData?.kind !== 'tab-attach') return
+    if (handledNavigationRequestIdRef.current === initData.requestId) return
+
+    handledNavigationRequestIdRef.current = initData.requestId
+    attachTab(initData.tab)
+    void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
+  }, [initData, attachTab])
 
   useMainRouteEventBridge(handleRoute)
 

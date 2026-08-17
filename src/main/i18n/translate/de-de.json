@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Integrierter Cherry-Studio-Berater. Diagnostiziert Probleme, gibt Bedienungshinweise, sammelt häufige Fragen, übermittelt Fehler und Funktionswünsche und sucht oder erstellt Fähigkeiten"
+      },
+      "cherry_support": {
+        "description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback"
       }
     },
     "session": {
