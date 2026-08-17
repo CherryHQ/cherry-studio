@@ -1,10 +1,22 @@
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import {
+  agentTaskService,
+  normalizeTaskSessionReuseRevision,
+  readTaskSessionReuse,
+  writeTaskSessionReuse
+} from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { triggersEqual, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
@@ -14,6 +26,33 @@ const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const DEFAULT_TIMEOUT_MINUTES = 2
+
+type AgentTaskJobInputTemplate = {
+  agentId: string
+  prompt: string
+  timeoutMinutes: number
+  workspace: AgentSessionWorkspaceSource
+  reuseRevision: number
+}
+
+function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
+  if (a.type !== b.type) return false
+  return a.type === AGENT_WORKSPACE_TYPE.USER ? a.workspaceId === (b as typeof a).workspaceId : true
+}
+
+function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
+  if (typeof value !== 'object' || value === null) return null
+  const template = value as Partial<AgentTaskJobInputTemplate>
+  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+  if (!workspace.success || typeof template.agentId !== 'string') return null
+  return {
+    agentId: template.agentId,
+    prompt: typeof template.prompt === 'string' ? template.prompt : '',
+    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_TIMEOUT_MINUTES,
+    workspace: workspace.data,
+    reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
+  }
+}
 
 /**
  * Sole command owner for agent scheduled tasks — the renderer (IpcApi
@@ -49,8 +88,15 @@ export class AgentJobsService extends BaseService {
           agentId,
           prompt: form.prompt,
           timeoutMinutes: form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES),
-          workspace: form.workspace
+          workspace: form.workspace,
+          reuseRevision: 0
         },
+        // Reuse configuration lives in metadata; the sticky session itself is
+        // a constrained relation owned by AgentSessionService.
+        metadata: writeTaskSessionReuse(undefined, {
+          enabled: form.reuseSession === true,
+          revision: 0
+        }),
         catchUpPolicy: { kind: 'skip-missed' }
       })
       if (channelIds.length > 0) {
@@ -85,19 +131,43 @@ export class AgentJobsService extends BaseService {
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
       (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
       patch.workspace !== undefined
-    if (templateChanged) {
-      // The armed callback re-reads the row before each fire, so a template
-      // write takes effect next fire without touching the timer.
-      schedulePatch.jobInputTemplate = {
-        agentId,
-        prompt: patch.prompt ?? existing.prompt,
-        timeoutMinutes: nextTimeoutMinutes,
-        workspace: patch.workspace ?? existing.workspace
-      }
-    }
+
+    const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
+    const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
+    // A bound session keeps its OWN workspace, so re-pointing the task at a
+    // different workspace would otherwise be silently ignored while the form
+    // still displays the new one. Drop the pointer instead: the next fire
+    // creates a session in the workspace the user actually picked.
+    const workspaceChanged =
+      nextReuseEnabled && patch.workspace !== undefined && !workspacesEqual(patch.workspace, existing.workspace)
+    const reuseConfigChanged = reuseChanged || workspaceChanged
 
     const jobManager = application.get('JobManager')
+    let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, taskId)
+      const currentReuse = readTaskSessionReuse(snapshot?.metadata)
+      const reuseRevision = currentReuse.revision + (reuseConfigChanged ? 1 : 0)
+      if (reuseConfigChanged) {
+        // Read-merge-write inside the tx: `updateTx` replaces `metadata`
+        // wholesale, so preserve unrelated schedule state.
+        schedulePatch.metadata = writeTaskSessionReuse(snapshot?.metadata, {
+          enabled: nextReuseEnabled,
+          revision: reuseRevision
+        })
+        bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
+      }
+      if (templateChanged || reuseConfigChanged) {
+        // The armed callback re-reads the row before each fire, so a template
+        // write takes effect next fire without touching the timer.
+        schedulePatch.jobInputTemplate = {
+          agentId,
+          prompt: patch.prompt ?? existing.prompt,
+          timeoutMinutes: nextTimeoutMinutes,
+          workspace: patch.workspace ?? existing.workspace,
+          reuseRevision
+        }
+      }
       jobManager.updateJobScheduleTx(tx, taskId, schedulePatch)
       if (patch.channelIds !== undefined) {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
@@ -106,6 +176,7 @@ export class AgentJobsService extends BaseService {
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
+    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
     return agentTaskService.getTask(agentId, taskId)
@@ -150,6 +221,43 @@ export class AgentJobsService extends BaseService {
     const existing = agentTaskService.getTask(agentId, taskId)
     if (!existing) return false
     return application.get('JobManager').triggerJobScheduleNowById(taskId)
+  }
+
+  /**
+   * Atomically bind a newly created sticky session only when the queued job's
+   * captured reuse configuration is still current. AgentSessionService owns
+   * the constrained relation; this command service only validates task state.
+   */
+  bindTaskSessionReuse(params: {
+    scheduleId: string
+    sessionId: string
+    agentId: string
+    workspace: AgentSessionWorkspaceSource
+    reuseRevision: number
+  }): boolean {
+    const bound = application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return false
+      const template = readAgentTaskJobInputTemplate(snapshot.jobInputTemplate)
+      const reuse = readTaskSessionReuse(snapshot.metadata)
+      if (
+        !template ||
+        template.agentId !== params.agentId ||
+        !workspacesEqual(template.workspace, params.workspace) ||
+        !reuse.enabled ||
+        reuse.revision !== params.reuseRevision ||
+        template.reuseRevision !== params.reuseRevision
+      ) {
+        return false
+      }
+      return agentSessionService.bindTaskScheduleTx(tx, {
+        sessionId: params.sessionId,
+        taskScheduleId: params.scheduleId,
+        expectedAgentId: params.agentId
+      })
+    })
+    if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
+    return bound
   }
 
   // Plain Errors on purpose: no renderer branch consumes an agent/channel

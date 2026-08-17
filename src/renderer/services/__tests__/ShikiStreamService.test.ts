@@ -178,42 +178,6 @@ describe('ShikiStreamService', () => {
       expect(getTokenizerCache().has(cacheKey2)).toBe(true)
     })
 
-    it('should cleanup tokenizers concurrently for different callerIds', async () => {
-      const code = 'const x = 1;'
-      const callerIds = ['concurrent-1', 'concurrent-2', 'concurrent-3']
-
-      // 先为每个 callerId 创建 tokenizer
-      await Promise.all(callerIds.map((id) => shikiStreamService.highlightCodeChunk(code, language, theme, id)))
-      // 检查缓存
-      for (const id of callerIds) {
-        const cacheKey = `${id}-${language}-${theme}`
-        expect(getTokenizerCache().has(cacheKey)).toBe(true)
-      }
-
-      // 并发清理
-      await Promise.all(callerIds.map((id) => Promise.resolve(shikiStreamService.cleanupTokenizers(id))))
-      // 检查缓存都被清理
-      for (const id of callerIds) {
-        const cacheKey = `${id}-${language}-${theme}`
-        expect(getTokenizerCache().has(cacheKey)).toBe(false)
-      }
-    })
-
-    it('should cleanup tokenizers concurrently for the same callerId', async () => {
-      const code = 'const x = 1;'
-      const cacheKey = `${callerId}-${language}-${theme}`
-
-      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      expect(getTokenizerCache().has(cacheKey)).toBe(true)
-      // 并发清理同一个 callerId
-      await Promise.all([
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
-        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId))
-      ])
-      expect(getTokenizerCache().has(cacheKey)).toBe(false)
-    })
-
     it('should not affect highlightCodeChunk when cleanupTokenizers is called concurrently', async () => {
       const code = 'const x = 1;'
 

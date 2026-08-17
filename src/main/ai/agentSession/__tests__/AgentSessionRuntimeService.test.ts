@@ -1,7 +1,10 @@
+import { EventEmitter } from 'node:events'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -9,11 +12,12 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  findPendingAssistantMessageIds: vi.fn(),
-  markMessagesError: vi.fn(),
+  findCrashOrphanedAssistantMessages: vi.fn(),
+  resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
@@ -22,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
+  closeWarmQueries: vi.fn(),
+  closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -46,8 +52,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
-    findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError
+    findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
+    resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
 
@@ -69,7 +75,7 @@ vi.mock('@application', () => ({
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
-const { toolApprovalRegistry } = await import('../../runtime/claudeCode')
+const { toolApprovalRegistry } = await import('../../runtime/toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -241,10 +247,11 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.findPendingAssistantMessageIds.mockReturnValue([])
-    mocks.markMessagesError.mockReturnValue(undefined)
+    mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
+    mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
+    mocks.closeWarmQueries.mockResolvedValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -252,6 +259,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          abort: mocks.abortStream,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
@@ -265,6 +273,8 @@ describe('AgentSessionRuntimeService', () => {
           getShared: mocks.cacheGetShared,
           deleteShared: mocks.cacheDeleteShared
         }
+      if (name === 'ClaudeCodeWarmQueryManager')
+        return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -283,8 +293,8 @@ describe('AgentSessionRuntimeService', () => {
 
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
-      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput: { command: 'sleep 10' } })
-      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1')
+      expect(resolve).toHaveBeenCalledWith({ approved: true })
+      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
 
     it('settles a persisted background interaction before resolving the requesting agent', () => {
@@ -310,7 +320,7 @@ describe('AgentSessionRuntimeService', () => {
         approved: true,
         updatedInput
       })
-      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput })
+      expect(resolve).toHaveBeenCalledWith({ approved: true, updatedInput })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
 
@@ -338,6 +348,15 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
+  })
+
+  it('aborts live streams before shutdown clears their pending approvals', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await (service as unknown as { onStop(): Promise<void> }).onStop()
+
+    expect(mocks.abortStream).toHaveBeenCalledWith('agent-session:session-1', 'agent-session-runtime-stop')
   })
 
   describe('isSessionBusy — inter-turn drain window (issue ①)', () => {
@@ -405,6 +424,52 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'idle', lastTurn: sourceTurn })
       expect(entry.runtimeState.launch).toEqual({ kind: 'scheduled', target: 'queued-turn' })
+    })
+
+    it('keeps a follow-up queued while the completed turn is awaiting persistence', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const sourceTurn = entry.currentTurn
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: sourceTurn,
+        stream: 'awaiting-persistence'
+      })
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(entry.runtimeState.queue.map((pendingTurn: any) => pendingTurn.message.id)).toEqual(['user-2'])
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: sourceTurn,
+        stream: 'awaiting-persistence'
+      })
+      expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+      await vi.waitFor(() => {
+        expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+        expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+      expect(entry.runtimeState.queue).toEqual([])
+      void service.closeSession('session-1')
     })
   })
 
@@ -491,7 +556,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'sdk-request-1',
+        requestId: 'claude-agent:sdk-request-1',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'current-turn',
         usage: {
@@ -546,7 +611,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'background-request',
+        requestId: 'claude-agent:background-request',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'stateless',
         usage: {
@@ -575,7 +640,7 @@ describe('AgentSessionRuntimeService', () => {
         })
       )
     )
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
   })
 
   it('ignores SDK usage when provider-call middleware owns the gateway route', () => {
@@ -763,6 +828,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
       entry.connection = connection
       entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
 
       // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
       // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
@@ -770,7 +836,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(connection.redirect).toHaveBeenCalled()
       expect(entry.pendingTurns).toEqual([])
 
-      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
       const sourceTurnId = entry.currentTurn.turnId
       // The driver echoes the redirected input verbatim, so its attributes ride the round-trip.
       ;(service as any).handleRuntimeEvent(entry, {
@@ -784,7 +849,7 @@ describe('AgentSessionRuntimeService', () => {
         .map((call) => call[0].message)
         .filter((m: any) => m.role === 'assistant')
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('refreshes the trace context before starting a steer continuation stream', async () => {
@@ -821,7 +886,7 @@ describe('AgentSessionRuntimeService', () => {
         mocks.startRuntimeTurn.mock.invocationCallOrder[0]
       )
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
@@ -844,6 +909,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
       entry.connection = connection
       entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
 
       service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
       expect(connection.redirect).toHaveBeenCalled()
@@ -913,7 +979,7 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('opens a headless turn plus interactive steer roll continuation as interactive', async () => {
@@ -923,7 +989,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.headless).toBe(false)
       expect(service.getInteractionState('session-1').currentTurn).toBe('interactive')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('opens an interactive turn plus headless steer roll continuation as interactive', async () => {
@@ -933,7 +999,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.headless).toBe(false)
       expect(service.getInteractionState('session-1').currentTurn).toBe('interactive')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('inherits the rolled turn knowledge scope when the continuation has no steer message', async () => {
@@ -950,7 +1016,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('inherits the rolled turn knowledge scope over a steer message carrying a different one', async () => {
@@ -973,40 +1039,74 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
       expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('marks crash-orphaned pending assistant messages as errored on init', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
+    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
+        {
+          id: 'stale-1',
+          sessionId: 'session-a',
+          data: {
+            parts: [
+              { type: 'text', text: 'partial answer' },
+              { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
+            ]
+          }
+        },
+        { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
+        { id: 'stale-3', sessionId: 'session-b', data: {} }
+      ])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.findPendingAssistantMessageIds).toHaveBeenCalledOnce()
-      expect(mocks.markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+      expect(mocks.findCrashOrphanedAssistantMessages).toHaveBeenCalledOnce()
+      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+        [
+          {
+            id: 'stale-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'partial answer' },
+                {
+                  type: 'tool-Bash',
+                  toolCallId: 'call-1',
+                  state: 'output-error',
+                  input: { command: 'ls' },
+                  errorText: 'Stream errored before tool completed'
+                }
+              ]
+            }
+          },
+          { id: 'stale-2', data: { parts: [] } },
+          { id: 'stale-3', data: { parts: [] } }
+        ],
+        ['session-a', 'session-b']
+      )
     })
 
-    it('does not mark anything when there are no stale messages', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue([])
+    it('does not resolve anything when there are no stale messages', async () => {
+      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
     })
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
       const failure = new Error('db down')
-      mocks.findPendingAssistantMessageIds.mockImplementation(() => {
+      mocks.findCrashOrphanedAssistantMessages.mockImplementation(() => {
         throw failure
       })
       const service = new AgentSessionRuntimeService()
 
       await expect((service as any).onInit()).resolves.toBeUndefined()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
       expect(mockMainLoggerService.error).toHaveBeenCalledWith(
         'Failed to reconcile stale pending agent-session messages',
         { error: failure }
@@ -1031,44 +1131,6 @@ describe('AgentSessionRuntimeService', () => {
       lastTerminalStatus: undefined,
       activeToolCount: 0
     })
-  })
-
-  it('relays first-turn greeting context to the runtime connection', async () => {
-    const connection = {
-      events: createAsyncQueue<any>().iterable,
-      send: vi.fn(),
-      close: vi.fn()
-    }
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({
-      ...baseTurnInput,
-      userMessage: userMessage('user-1'),
-      greetingContext: '我可以帮你完成什么任务？'
-    })
-    const reader = service
-      .openTurnStream({
-        sessionId: 'session-1',
-        turnId: handle.turnId,
-        signal: new AbortController().signal
-      })
-      .getReader()
-
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({
-        message: userMessage('user-1'),
-        greetingContext: '我可以帮你完成什么任务？',
-        systemReminder: false
-      })
-    )
-    await reader.cancel().catch(() => undefined)
   })
 
   it('aborts the current turn controller before the stream starts', () => {
@@ -1588,6 +1650,7 @@ describe('AgentSessionRuntimeService', () => {
       redirect: vi.fn().mockReturnValue(true)
     }
     entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
 
     await (service as any).handleAgentUpdated(
       'agent-1',
@@ -1613,6 +1676,7 @@ describe('AgentSessionRuntimeService', () => {
       redirect: vi.fn().mockReturnValue(true)
     }
     entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
 
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
@@ -1710,7 +1774,7 @@ describe('AgentSessionRuntimeService', () => {
     const updatePromise = (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
     expect(oldConnection.reconcile).toHaveBeenCalledOnce()
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     service.beginTurn(baseTurnInput)
     const newConnection = {
       close: vi.fn(),
@@ -1765,8 +1829,9 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    // Live patches were already applied inside reconcile (live-first); the spawn-frozen part waits
-    // for the next fresh turn's pull instead of dropping the in-flight stream.
+    // Safe live patches were already applied inside reconcile; the spawn-frozen part and any
+    // deferred permission-mode update wait for the next fresh turn's pull instead of dropping the
+    // in-flight stream.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
   })
@@ -2041,14 +2106,54 @@ describe('AgentSessionRuntimeService', () => {
         )
       })
       expect(mocks.cacheSetShared).toHaveBeenCalledWith(
-        'agent.session.flow_parts.session-1',
-        expect.objectContaining({
-          'assistant-1': expect.arrayContaining([
-            expect.objectContaining({ type: 'text', text: 'Found the regression' })
-          ])
-        }),
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Found the regression' })]),
         60_000
       )
+    })
+
+    it('publishes detached flow overlays under independent message keys', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const firstParts = [{ type: 'text', text: 'First flow' }]
+      const secondParts = [{ type: 'text', text: 'Second flow' }]
+
+      ;(service as any).publishBackgroundFlowParts(entry, {
+        messageId: 'assistant-1',
+        latest: { parts: firstParts }
+      })
+      ;(service as any).publishBackgroundFlowParts(entry, {
+        messageId: 'assistant-2',
+        latest: { parts: secondParts }
+      })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', firstParts)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-2', secondParts)
+    })
+
+    it('retains each latest flow overlay during session close handoff', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Latest flow' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      void service.closeSession('session-1')
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts, 60_000)
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
     })
 
     it('persists an out-of-turn interaction as an independent assistant message', () => {
@@ -2128,7 +2233,7 @@ describe('AgentSessionRuntimeService', () => {
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).not.toBe('unavailable')
 
-      interactive.closeSession('session-1')
+      void interactive.closeSession('session-1')
       interactive.beginTurn({ ...baseTurnInput, headless: true })
       const headlessEntry = getEntry(interactive)
       headlessEntry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
@@ -2260,7 +2365,7 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
 
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
     })
@@ -2299,6 +2404,70 @@ describe('AgentSessionRuntimeService', () => {
   // A runtime may generate content without a host-admitted prompt. It still needs a transcript turn,
   // but nothing may be sent back to the runtime because the generation is already running.
   describe('receive-only turn', () => {
+    it('queues a follow-up until an autonomous receive-only turn finishes and persists', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const redirect = vi.fn().mockReturnValue(true)
+      entry.connection = {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        redirect,
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      const receiveOnlyTurn = entry.currentTurn
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: receiveOnlyTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'autonomous-turn',
+        turn: receiveOnlyTurn,
+        stream: 'open'
+      })
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(entry.runtimeState.queue.map((pendingTurn: any) => pendingTurn.message.id)).toEqual(['user-2'])
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'autonomous-turn',
+        turn: receiveOnlyTurn,
+        stream: 'awaiting-persistence'
+      })
+      expect(entry.runtimeState.queue.map((pendingTurn: any) => pendingTurn.message.id)).toEqual(['user-2'])
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+
+      const receiveOnlyRuntimeInput = mocks.startRuntimeTurn.mock.calls[0][0]
+      void terminalListener(receiveOnlyRuntimeInput).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2)
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.runtimeState.queue).toEqual([])
+      void service.closeSession('session-1')
+    })
+
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -2349,7 +2518,7 @@ describe('AgentSessionRuntimeService', () => {
       // Receive-only: the generation is the SDK's own, so nothing goes to the CLI.
       expect(send).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -2365,7 +2534,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.currentTurn).toMatchObject({ headless: true })
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: entry.currentTurn })
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('replays an autonomous terminal that arrives before the receive-only turn is created', async () => {
@@ -2421,7 +2590,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
       expect(entry.currentTurn.turnId).toBe(deferredTurn.turnId)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('restores a deferred turn once when the receive-only placeholder cannot be saved', async () => {
@@ -2454,7 +2623,7 @@ describe('AgentSessionRuntimeService', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('does not start a receive-only stream after the session closes during trace refresh', async () => {
@@ -2478,7 +2647,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: expect.anything() })
       )
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       refreshed.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -2533,7 +2702,7 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('surfaces an early receive-only error and restores the deferred turn after connection loss', async () => {
@@ -2611,7 +2780,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.turnId).toBe(deferredTurn.turnId)
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', turn: entry.currentTurn })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('ignores a receive-only signal while an admitted turn is live', () => {
@@ -2701,7 +2870,7 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await originalReader.cancel().catch(() => undefined)
       await resumedReader.cancel().catch(() => undefined)
     })
@@ -2754,7 +2923,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.userMessage.id).toBe('user-3')
       expect(entry.runtimeState.queue).toEqual([])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
   })
 
@@ -2767,7 +2936,7 @@ describe('AgentSessionRuntimeService', () => {
     entry.connectionLoop = Promise.resolve()
     entry.runtimeState.launch = { kind: 'scheduled', target: 'queued-turn' }
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
 
     expect(connection.close).toHaveBeenCalled()
     expect(entry.connection).toBeUndefined()
@@ -2775,6 +2944,57 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.currentTurn).toBeUndefined()
     expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
     expect(service.inspect('session-1')).toBeUndefined()
+  })
+
+  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
+    ServiceContainer.reset()
+    const container = ServiceContainer.getInstance()
+    container.register(AgentSessionRuntimeService)
+
+    expect(container.getMetadata('AgentSessionRuntimeService')?.dependencies).toContain('ClaudeCodeProcessManager')
+  })
+
+  it('waits for every graceful connection close before service stop resolves', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.beginTurn({
+        ...baseTurnInput,
+        sessionId: 'session-2',
+        topicId: 'agent-session:session-2',
+        assistantMessageId: 'assistant-2'
+      })
+      const firstClose = createDeferred<void>()
+      const secondClose = createDeferred<void>()
+      const firstConnection = { close: vi.fn(() => firstClose.promise), send: vi.fn(), events: [] }
+      const secondConnection = { close: vi.fn(() => secondClose.promise), send: vi.fn(), events: [] }
+      getEntry(service).connection = firstConnection
+      const secondEntry = (service as any).entries.get('session-2')
+      secondEntry.runtimeState.connection = { kind: 'connected', connection: secondConnection, occupancy: {} }
+
+      const stopping = service._doStop()
+      let settled = false
+      void stopping.then(() => {
+        settled = true
+      })
+      await Promise.resolve()
+
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(secondConnection.close).toHaveBeenCalledOnce()
+      expect(settled).toBe(false)
+
+      firstClose.resolve()
+      await Promise.resolve()
+      expect(settled).toBe(false)
+
+      secondClose.resolve()
+      await expect(stopping).resolves.toBeUndefined()
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(service.inspect('session-2')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
@@ -2800,7 +3020,11 @@ describe('AgentSessionRuntimeService', () => {
 
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: userMessage('user-1'),
+      shouldAutoName: true
+    })
     getEntry(service).lastResumeToken = 'resume-1'
 
     await persistenceListener(handle).onDone({
@@ -2825,6 +3049,19 @@ describe('AgentSessionRuntimeService', () => {
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }]
     })
+  })
+
+  it('does not auto-name non-initial assistant turns', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await persistenceListener(handle).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
+    })
+
+    expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
   it('persists empty paused terminals to the active assistant placeholder', async () => {
@@ -3290,7 +3527,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
 
     // Context usage outlives the connection — no turn can run without one, so the last reading is
     // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
@@ -3478,7 +3715,7 @@ describe('AgentSessionRuntimeService', () => {
     // Warm: a turn ending does NOT tear the connection down — only closeSession / idle TTL does.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -3531,7 +3768,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
     expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -3668,13 +3905,31 @@ describe('AgentSessionRuntimeService', () => {
       expect(connect).toHaveBeenCalledOnce()
       expect(connection.close).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
     })
   })
 
   describe('steer redirect — real mid-turn injection (claude PreToolUse hook)', () => {
+    it('queues a normal live turn follow-up while its stream is unopened', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const redirect = vi.fn().mockReturnValue(true)
+      entry.connection = { events: [], send: vi.fn(), redirect, close: vi.fn() }
+      entry.connectionModelId = baseTurnInput.modelId
+
+      expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', stream: 'unopened' })
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(entry.runtimeState.queue.map((pendingTurn: any) => pendingTurn.message.id)).toEqual(['user-2'])
+      expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      void service.closeSession('session-1')
+    })
+
     it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
       const events = createAsyncQueue<any>()
       const redirect = vi.fn().mockReturnValue(true)
@@ -3713,7 +3968,7 @@ describe('AgentSessionRuntimeService', () => {
           steer: true
         }
       ])
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3770,7 +4025,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ knowledgeBaseIds: ['kb-2'] }))
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await firstReader.cancel().catch(() => undefined)
       await secondReader.cancel().catch(() => undefined)
     })
@@ -3804,7 +4059,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).toHaveBeenCalledWith({ message: reorderedScopeMessage, systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3856,7 +4111,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(connect).toHaveBeenCalledOnce()
       expect(connection.close).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await secondReader.cancel().catch(() => undefined)
     })
@@ -3894,7 +4149,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).toHaveBeenCalledWith({ message: sameEffectiveScopeMessage, systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3921,13 +4176,14 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
       )
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', stream: 'open' })
 
       // Steer on a live turn → redirect injects it into the running turn: not queued, no new turn.
       service.enqueueUserMessage('session-1', userMessage('user-2'))
       expect(redirect).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3968,7 +4224,7 @@ describe('AgentSessionRuntimeService', () => {
       // connection built for a different tool set.
       expect(getEntry(service).pendingTurns[0].knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4053,7 +4309,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4100,7 +4356,7 @@ describe('AgentSessionRuntimeService', () => {
       const execution = getEntry(service).runtimeState.execution
       expect(execution.kind).toBe('idle')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('rolls the turn at a steer-boundary: finalises A1a, opens A2 without re-sending, replays buffered chunks', async () => {
@@ -4151,7 +4407,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'pre-steer-request',
+          requestId: 'claude-agent:pre-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
@@ -4214,7 +4470,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'post-steer-request',
+          requestId: 'claude-agent:post-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 }
@@ -4234,7 +4490,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p3', delta: 'live' } })
       await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'live' }, done: false })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
     })
@@ -4265,7 +4521,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: true })
     )
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
   })
 
   it('flags a mid-turn follow-up as a steer (system-reminder) while a turn is live', async () => {
@@ -4292,7 +4548,7 @@ describe('AgentSessionRuntimeService', () => {
     // Arrives while the first turn is live → flagged as a steer.
     service.enqueueUserMessage('session-1', userMessage('user-2'))
     expect(getEntry(service).pendingTurns[0]?.steer).toBe(true)
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -4393,6 +4649,7 @@ describe('AgentSessionRuntimeService', () => {
     const entry = getEntry(service)
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
+    service.markTurnTerminal('session-1', 'success')
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high', fastMode: false })
 
     await (service as any).startNextTurn(entry)
@@ -4438,6 +4695,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
     await (service as any).handleAgentUpdated(
@@ -4513,6 +4771,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
     // The model was deleted while user-2 sat queued: its `user_model` row is gone and `agent.model` is
@@ -4540,11 +4799,44 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).pendingTurns).toEqual([])
   })
 
+  it('does not consume a queued turn when startNextTurn runs before runtime ownership is idle', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const pendingTurn = {
+      message: userMessage('user-2'),
+      reasoningEffort: 'default',
+      knowledgeBaseIds: [],
+      fastMode: false
+    }
+    entry.pendingTurns.push(pendingTurn)
+    const execution = entry.runtimeState.execution
+    mocks.getAgent.mockClear()
+    mocks.saveMessage.mockClear()
+    mocks.applicationGet.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+    mocks.terminateHeldTopicStream.mockClear()
+    mocks.broadcastTopicError.mockClear()
+
+    await (service as any).startNextTurn(entry)
+
+    expect(entry.runtimeState.execution).toBe(execution)
+    expect(entry.pendingTurns).toEqual([pendingTurn])
+    expect(mocks.getAgent).not.toHaveBeenCalled()
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.applicationGet).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
+    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
+    void service.closeSession('session-1')
+  })
+
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     const queued = userMessage('user-2')
+    service.markTurnTerminal('session-1', 'success')
     entry.pendingTurns.push({ message: queued, reasoningEffort: 'default', fastMode: false })
 
     const saveError = new Error('db down')
@@ -4559,13 +4851,13 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(entry.pendingTurns).toEqual([])
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
       entry.topicId,
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })
     )
-    expect(service.inspect('session-1')?.status).toBe('idle')
-    expect(entry.runtimeState.lastTerminal).toBe('error')
+    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
+    expect(service.isSessionBusy('session-1')).toBe(false)
   })
 
   it('abandons the roll and surfaces the error when the continuation placeholder save rejects (S5)', async () => {
@@ -4591,12 +4883,137 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     expect(entry.runtimeState.execution.kind).toBe('idle')
-    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
       entry.topicId,
       entry.modelId,
       expect.objectContaining({ message: expect.stringContaining('db down') })
     )
-    expect(service.inspect('session-1')?.status).toBe('idle')
-    expect(entry.runtimeState.lastTerminal).toBe('error')
+    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
+    expect(service.isSessionBusy('session-1')).toBe(false)
+  })
+
+  describe('warm lease ownership (multi-window)', () => {
+    class FakeWebContents extends EventEmitter {
+      private destroyedFlag = false
+
+      isDestroyed(): boolean {
+        return this.destroyedFlag
+      }
+
+      destroy(): void {
+        this.destroyedFlag = true
+        this.emit('destroyed')
+      }
+    }
+
+    const createWebContents = () => new FakeWebContents()
+    const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
+
+    let service: InstanceType<typeof AgentSessionRuntimeService>
+    let prime: MockInstance<(sessionId: string) => Promise<void>>
+    let releaseIdle: MockInstance<(sessionId: string) => void>
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      service = new AgentSessionRuntimeService()
+      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
+      releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps the shared connection while another window still holds the session', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      service.releaseWarmLease('session-1', asSender(windowB))
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('tears down only after the full grace period with no re-acquire', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.releaseWarmLease('session-1', asSender(windowA))
+
+      vi.advanceTimersByTime(9_999)
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(1)
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('a re-acquire within the grace period cancels the teardown and skips the redundant prime', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      expect(prime).toHaveBeenCalledTimes(1)
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.advanceTimersByTime(5_000)
+      service.acquireWarmLease('session-1', asSender(windowA))
+
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).not.toHaveBeenCalled()
+      expect(prime).toHaveBeenCalledTimes(1)
+    })
+
+    it('re-primes when a second window acquires so the catalog is republished for it', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      expect(prime).toHaveBeenCalledTimes(2)
+    })
+
+    it('reaps a destroyed window without a renderer release, deferring to remaining holders', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      windowA.destroy()
+      vi.runAllTimers()
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      windowB.destroy()
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('a destroyed window releases every session it held', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-2', asSender(windowA))
+
+      windowA.destroy()
+      vi.runAllTimers()
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-2')
+    })
+
+    it('an unmanaged sender primes without a lease and its release defers to managed holders', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', undefined)
+      expect(prime).toHaveBeenCalledTimes(2)
+
+      service.releaseWarmLease('session-1', undefined)
+      vi.runAllTimers()
+      expect(releaseIdle).not.toHaveBeenCalled()
+    })
   })
 })

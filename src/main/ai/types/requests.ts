@@ -1,5 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -26,6 +27,9 @@ export interface InProcessUsageContext {
   /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
   source: SourceSnapshot | null
 }
+
+/** Identifies which layer owns history shaping for an in-process AI request. */
+export type ContextOwner = 'cherry' | 'caller'
 
 /**
  * First-class per-request overrides for callers that have no assistant to derive
@@ -67,13 +71,14 @@ export interface AiBaseRequest {
    */
   knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions
+  /**
+   * Main-internal context ownership. Omitted means Cherry-managed; caller-owned
+   * requests bypass Cherry's history truncation, pruning, and compaction.
+   * This field is intentionally absent from renderer IPC schemas.
+   */
+  contextOwner?: ContextOwner
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
-  /**
-   * In-process only. Prevents developer telemetry from recording request inputs that contain
-   * synthetic sensitive context while retaining timing, usage, and output spans.
-   */
-  omitTelemetryInputs?: boolean
 }
 
 /**
@@ -96,5 +101,13 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
+  /**
+   * Context that must survive durable compaction (attachment allow-list,
+   * persisted-output blob paths), computed from the RAW message path before
+   * folding removes it from `messages`. Main-internal (the renderer sends the
+   * smaller AiStreamOpenRequest, so this never crosses IPC). Absent →
+   * consumers fall back to scanning `messages`.
+   */
+  retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
 }

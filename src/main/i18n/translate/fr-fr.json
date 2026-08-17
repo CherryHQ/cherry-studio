@@ -2,7 +2,10 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Conseiller intégré de Cherry Studio. Il diagnostique les problèmes, vous guide dans les opérations, recueille les FAQ, soumet les bugs et demandes de fonctionnalités, et recherche ou crée des Skills."
+      },
+      "cherry_support": {
+        "description": "Agent d'assistance officiel de Cherry Studio pour la configuration, le diagnostic, les FAQ et les commentaires"
       }
     },
     "session": {
@@ -22,10 +25,13 @@
         "count_tokens": "Estime le nombre de tokens d'entrée consommés par un ensemble de messages au format Anthropic.",
         "generate_content": "Génère du contenu via la méthode `generateContent` de Gemini. Les corps de requête et de réponse suivent le format de l'API Gemini ; `streamGenerateContent` est servi sur le même chemin.",
         "get_knowledge_base": "Récupère une base de connaissances par son ID.",
+        "get_mcp_server": "Obtenir les détails d'un serveur MCP et la liste de ses outils.",
         "health": "État du service, heure actuelle et version. Aucune authentification requise.",
         "info": "Nom et version de l'API ainsi que ses principaux endpoints. Aucune authentification requise.",
         "list_knowledge_bases": "Liste les bases de connaissances disponibles dans cette instance de Cherry Studio.",
+        "list_mcp_servers": "Lister les serveurs MCP activés dans Cherry Studio, chacun avec l'URL permettant de s'y connecter.",
         "list_models": "Liste les modèles disponibles via cette passerelle, au format models d'OpenAI.",
+        "mcp_proxy": "Point de terminaison Model Context Protocol pour un serveur MCP (Streamable HTTP). Utilisez cette URL dans n'importe quel client MCP pour accéder au serveur via Cherry Studio.",
         "messages": "Crée un message. Les corps de requête et de réponse suivent le format Anthropic Messages ; avec `stream: true`, la sortie est incrémentale.",
         "responses": "Crée une réponse. Les corps de requête et de réponse suivent le format OpenAI Responses.",
         "search_knowledge_bases": "Recherche dans une ou plusieurs bases de connaissances et renvoie les fragments de documents correspondants."
@@ -87,6 +93,10 @@
       "message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
       "title": "Réinitialiser les données de l’application"
     },
+    "diagnostic_bundle": {
+      "title": "Enregistrer l'archive de diagnostic",
+      "zip_filter": "Archive ZIP"
+    },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",
     "pdf_files": "Fichiers PDF",
@@ -96,6 +106,20 @@
     "save_file": "Enregistrer le fichier",
     "select_folder": "Sélectionner un dossier",
     "word_document": "Document Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "Le service actuel d’analyse de documents exige des fichiers inférieurs à {{maxSize}}. Compressez ou fractionnez ce fichier, puis ajoutez-le à nouveau.",
+      "pdf_page_limit_exceeded": "Ce PDF dépasse la limite de {{maxPages}} pages du service actuel d’analyse de documents. Fractionnez le PDF manuellement, puis ajoutez-le à nouveau."
+    }
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Le binaire OpenClaw utilisé par Cherry Studio est incompatible avec la configuration générée. Mettez OpenClaw à niveau.{{details}}",
+      "external_config_invalid": "OpenClaw a rejeté une configuration située en dehors de la section des fournisseurs gérée par Cherry Studio. Corrigez cette configuration ou mettez OpenClaw à niveau.{{details}}",
+      "more_issues": "et {{count}} autre(s) problème(s)",
+      "preflight_failed": "Cherry Studio n’a pas pu valider la configuration OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Échec de la génération de l'image",

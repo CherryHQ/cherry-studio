@@ -207,6 +207,33 @@ describe('AiSdkToAnthropicSse', () => {
       }
     })
 
+    it('should restore client tool names before emitting tool_use blocks', async () => {
+      const adapter = new AiSdkToAnthropicSse({
+        model: 'test:model',
+        toClientToolName: (toolName) =>
+          toolName === 'mcp__calendar__events_list_123456789abc' ? 'mcp__calendar__events.list' : toolName
+      })
+      const stream = createMockStream([
+        {
+          type: 'tool-input-available',
+          toolCallId: 'call_123',
+          toolName: 'mcp__calendar__events_list_123456789abc',
+          input: {}
+        },
+        createFinish('tool-calls')
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      const blockStart = events.find(
+        (event) => event.type === 'content_block_start' && event.content_block.type === 'tool_use'
+      )
+
+      expect(blockStart).toMatchObject({
+        type: 'content_block_start',
+        content_block: { type: 'tool_use', name: 'mcp__calendar__events.list' }
+      })
+    })
+
     it('should not create duplicate tool blocks', async () => {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
 

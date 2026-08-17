@@ -4,7 +4,6 @@ import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { Pin } from 'lucide-react'
 import { useState } from 'react'
@@ -31,8 +30,7 @@ export const SubWindowControls = () => {
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
     if (!tab) return
-    const payload = { ...tab, url: resolveSidebarAppTabEntryUrl(tab) }
-    ipcApi.request('tab.attach', payload).catch((err) => {
+    ipcApi.request('tab.attach', tab).catch((err) => {
       logger.error('Back to main window failed', err as Error)
     })
   }

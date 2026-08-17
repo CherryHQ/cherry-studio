@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -25,13 +32,6 @@
       "defaultValue": "",
       "status": "classified",
       "description": "Latest privacy policy version acknowledged by the user"
-    },
-    {
-      "targetKey": "feature.conversation_greeting.enabled",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Allow contextual greetings to contact IPInfo and the built-in CherryAI model after explicit opt-in"
     },
     {
       "targetKey": "app.window.position.x",
@@ -69,6 +69,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": "exa-mcp",
@@ -83,6 +90,13 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
+      "targetKey": "chat.web_search.client_tools_preferred",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": 2000,
@@ -92,9 +106,9 @@
     {
       "targetKey": "chat.web_search.compression.method",
       "type": "PreferenceTypes.WebSearchCompressionMethod",
-      "defaultValue": "none",
+      "defaultValue": "cutoff",
       "status": "classified",
-      "description": "Web search compression method (from complex migration)"
+      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
       "targetKey": "feature.code_cli.configs",
@@ -113,7 +127,7 @@
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-session", "skills"],
+      "defaultValue": ["composer:new-session", "skills", "permission-mode"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
@@ -173,11 +187,67 @@
       "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
-      "targetKey": "topic.naming.model_id",
+      "targetKey": "chat.retry.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.fallback_model_ids",
+      "type": "PreferenceTypes.RetryFallbackModelId[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.max_attempts",
+      "type": "number",
+      "defaultValue": 3,
+      "status": "classified",
+      "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.backoff_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.context_settings.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Master toggle for the context-build (chef) layer: truncation + compaction + compression"
+    },
+    {
+      "targetKey": "chat.context_settings.truncate_threshold",
+      "type": "number",
+      "defaultValue": 50000,
+      "status": "classified",
+      "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
+    },
+    {
+      "targetKey": "chat.context_settings.max_messages",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+    },
+    {
+      "targetKey": "chat.context_settings.compress.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable LLM history compression when the conversation exceeds the model context budget"
+    },
+    {
+      "targetKey": "chat.context_settings.compress.model_id",
       "type": "string",
       "defaultValue": null,
       "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+      "description": "Explicit compression model (UniqueModelId). null = use the current request model"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -575,11 +645,59 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.prev (unified command system)"
+    },
+    {
       "targetKey": "menu.presentation_mode",
       "type": "PreferenceTypes.MenuPresentationMode",
       "defaultValue": "cherry",
       "status": "classified",
       "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "targetKey": "feature.notes.line_breaks",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
     }
   ]
 }

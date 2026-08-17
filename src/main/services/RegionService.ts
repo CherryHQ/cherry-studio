@@ -29,15 +29,10 @@ type CachedEgressRegion = {
  * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
-  private inflight: Promise<string | null> | null = null
+  private inflight: Promise<string> | null = null
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
-    return (await this.getDetectedCountry()) ?? DEFAULT_COUNTRY
-  }
-
-  /** Egress country code when detection succeeds; `null` instead of the legacy CN fallback on failure. */
-  async getDetectedCountry(): Promise<string | null> {
     const proxyKey = application.get('ProxyService').appliedProxyKey
     const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
     if (cached && cached.proxyKey === proxyKey) {
@@ -57,14 +52,14 @@ class RegionService {
     return country.toLowerCase() === 'cn'
   }
 
-  private async detectAndCache(proxyKey: string | null): Promise<string | null> {
+  private async detectAndCache(proxyKey: string | null): Promise<string> {
     try {
       const country = await this.fetchCountry()
       application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)
-      return null
+      return DEFAULT_COUNTRY
     }
   }
 

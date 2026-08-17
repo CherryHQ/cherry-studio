@@ -411,6 +411,7 @@ export interface NewTopic {
   assistantId: string | null
   activeNodeId: string | null
   orderKey: string
+  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -464,7 +465,8 @@ export interface NewMessage {
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
+  const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
     name: oldTopic.name || '',
@@ -472,7 +474,8 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    createdAt: parseTimestamp(oldTopic.createdAt),
+    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
+    createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
 }
@@ -1326,8 +1329,10 @@ export function buildMessageTree(
     }
   }
 
-  // Build set of known message IDs for validating references
-  const knownIds = new Set(messages.map((m) => m.id))
+  // Only references to messages already processed in chronological order are
+  // safe parent edges. Accepting an ID that appears later can create a cycle
+  // when that later user message links back to a selected response.
+  const seenMessageIds = new Set<string>()
 
   // Track fallback parent for orphaned askId groups (user message deleted)
   // All messages in the same orphaned group share the previousMessageId at the time
@@ -1348,7 +1353,7 @@ export function buildMessageTree(
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
 
-      if (knownIds.has(msg.askId)) {
+      if (seenMessageIds.has(msg.askId)) {
         // Normal multi-model: parent is the user message
         parentId = msg.askId
       } else {
@@ -1381,6 +1386,7 @@ export function buildMessageTree(
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
+    seenMessageIds.add(msg.id)
 
     // Update tracking for next iteration
     previousMessageId = msg.id

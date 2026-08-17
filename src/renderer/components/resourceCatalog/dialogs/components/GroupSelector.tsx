@@ -23,6 +23,7 @@ interface Props {
   disabled?: boolean
   portalContainer?: HTMLElement | null
   onCreateGroup?: () => void
+  triggerClassName?: string
 }
 
 const GROUP_SELECT_VALUE_PREFIX = 'group:'
@@ -45,7 +46,8 @@ export const GroupSelector: FC<Props> = ({
   error,
   disabled,
   portalContainer,
-  onCreateGroup
+  onCreateGroup,
+  triggerClassName
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -88,6 +90,7 @@ export const GroupSelector: FC<Props> = ({
           size="sm"
           className={cn(
             'w-full',
+            triggerClassName,
             value &&
               '[&_svg]:transition-opacity group-focus-within/group-select:[&_svg]:opacity-0 group-hover/group-select:[&_svg]:opacity-0'
           )}

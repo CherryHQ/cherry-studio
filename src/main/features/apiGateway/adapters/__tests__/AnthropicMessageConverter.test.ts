@@ -1,4 +1,5 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
@@ -218,6 +219,79 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
 
   it('returns undefined when there are no tools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
+  })
+
+  it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {
+    const clientToolName = 'mcp__calendar__events.list'
+    const request = params({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'call_1', name: clientToolName, input: {} }]
+        }
+      ],
+      tools: [
+        {
+          name: clientToolName,
+          description: 'List calendar events',
+          input_schema: { type: 'object', properties: {}, required: null }
+        }
+      ] as MessageCreateParams['tools']
+    })
+
+    const messages = converter.toUIMessages(request)
+    const providerToolName = (messages[0].parts[0] as { toolName: string }).toolName
+    const tools = converter.toAiSdkTools(request)
+    const forwardedTool = tools?.[providerToolName]
+
+    expect(providerToolName).not.toBe(clientToolName)
+    expect(providerToolName).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
+    expect(forwardedTool?.strict).toBe(false)
+    expect((asSchema(forwardedTool!.inputSchema).jsonSchema as { required?: unknown }).required).not.toBeNull()
+    expect(converter.toClientToolName(providerToolName)).toBe(clientToolName)
+  })
+})
+
+describe('AnthropicMessageConverter tool_result media', () => {
+  const withToolResult = (content: unknown) =>
+    params({
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'shot', input: {} }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content }] }
+      ] as MessageCreateParams['messages']
+    })
+
+  const toolPartOutput = (p: MessageCreateParams) => {
+    const msgs = converter.toUIMessages(p)
+    const part = msgs.flatMap((m) => m.parts).find((x) => x.type === 'dynamic-tool') as { output?: unknown }
+    return part.output
+  }
+
+  // A nested tool_result image never rides inside the tool output — it is relocated into
+  // the carrying user message as a `file` part (covered by the relocation tests above),
+  // so the output keeps only text plus the anchor placeholder.
+  it('keeps the base64 payload out of the tool output when an image is relocated', () => {
+    const output = toolPartOutput(
+      withToolResult([
+        { type: 'text', text: 'here' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
+      ])
+    )
+    expect(typeof output).toBe('string')
+    expect(output as string).toContain('here')
+    expect(output as string).not.toContain('AAAA')
+    expect(output as string).not.toContain('data:image/png;base64')
+  })
+
+  it('keeps a text-only tool_result as a joined string (unchanged)', () => {
+    expect(
+      toolPartOutput(
+        withToolResult([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' }
+        ])
+      )
+    ).toBe('a\nb')
   })
 })
 

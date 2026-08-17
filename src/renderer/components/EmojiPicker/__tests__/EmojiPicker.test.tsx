@@ -171,7 +171,8 @@ describe('EmojiPicker', () => {
 
   const renderResolvedPicker = async (onEmojiClick = vi.fn()) => {
     const view = render(<EmojiPicker onEmojiClick={onEmojiClick} />)
-    await screen.findByTestId('emoji-picker-react')
+    // The picker chunk is lazy; under a loaded worker pool it resolves past the 1s default.
+    await screen.findByTestId('emoji-picker-react', undefined, { timeout: 10_000 })
     return view
   }
 
@@ -247,7 +248,7 @@ describe('EmojiPicker', () => {
       '--epr-search-input-text-color': 'var(--foreground)',
       '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
       '--epr-search-border-color': 'var(--input)',
-      '--epr-search-border-color-active': 'var(--ring)',
+      '--epr-search-border-color-active': 'var(--primary)',
       '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
       '--epr-emoji-hover-color': 'var(--accent)',
       '--epr-emoji-variation-indicator-color': 'var(--border)',

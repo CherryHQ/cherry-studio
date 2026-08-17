@@ -1,7 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -21,6 +20,7 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import { useScrollRuntimeNavigation } from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
@@ -28,7 +28,6 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
-  topic: Topic
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -54,7 +53,6 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
-  topic,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -70,9 +68,9 @@ const MessageGroup = ({
   const selection = useMessageListSelection()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
-  const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
+  const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -165,13 +163,15 @@ const MessageGroup = ({
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            if (!navigateWithScrollRuntime(messageElement)) {
+              scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            }
           }
         },
         200
       )
     },
-    [actions, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -225,11 +225,13 @@ const MessageGroup = ({
             return
           }
 
-          scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          if (!navigateWithScrollRuntime(element)) {
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          }
         }
       }
     )
-  }, [actions, captureMode, messages, setSelectedMessage])
+  }, [actions, captureMode, messages, navigateWithScrollRuntime, setSelectedMessage])
 
   useEffect(() => {
     if (captureMode) return
@@ -304,12 +306,11 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
-        showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
+        showModelIdentity: !isMultiModelGroup || multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
-        topic,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -359,7 +360,6 @@ const MessageGroup = ({
       isGrid,
       isGrouped,
       isMultiModelGroup,
-      topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,
@@ -379,7 +379,6 @@ const MessageGroup = ({
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
         $count={messageLength}
-        $gridColumns={gridColumns}
         className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
         onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
         {messages.map(renderMessage)}
@@ -417,17 +416,16 @@ const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
 const GridContainer = ({
   className,
   $count,
-  $gridColumns,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number; $gridColumns: number }) => {
+}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
   const gridTemplateColumns = isHorizontal
     ? `repeat(${$count}, minmax(420px, 1fr))`
     : isGrid
-      ? `repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr))`
+      ? 'repeat(2, minmax(0, 1fr))'
       : isFoldOrVertical
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined
@@ -519,7 +517,7 @@ function messagePartsShallowEqual(
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
-// Custom comparator: bail out only when topic / latest flag / derived model map /
+// Custom comparator: bail out only when latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
@@ -531,7 +529,6 @@ function messagePartsShallowEqual(
 // arrive as new objects.
 export default memo(MessageGroup, (prev, next) => {
   return (
-    prev.topic === next.topic &&
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&

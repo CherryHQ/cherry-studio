@@ -317,6 +317,16 @@ const CLAUDE_TOOL_REGISTRY = {
     mcpServer: 'cherry-tools',
     requiresKnowledgeScope: true
   },
+  // Converts a local document (pdf/office/epub/csv/…) the ordinary text tools cannot read. Its own
+  // toggle because it reads local files outside the workspace, so disabling Read must not leave a
+  // second, unrelated door open.
+  CherryToMarkdown: {
+    name: 'mcp__cherry-tools__to_markdown',
+    category: 'file',
+    exposure: 'user',
+    description: 'Markdown is easier for the agent to read',
+    mcpServer: 'cherry-tools'
+  },
   // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
   CherryCron: {
     name: 'mcp__cherry-tools__cron',
@@ -431,6 +441,7 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__web_fetch': 'Web Fetch',
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
+  'mcp__cherry-tools__to_markdown': 'File to Markdown',
   'mcp__agent-memory__memory': 'Memory',
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',

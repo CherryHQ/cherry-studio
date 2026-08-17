@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
-import { toKnowledgeItemRowViewModel } from './utils/selectors'
+import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
   item: KnowledgeItem
@@ -118,7 +118,7 @@ const KnowledgeItemRow = ({
   // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
   // be migrated); surface it as the badge tooltip.
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
-  const canReindex = item.status === 'completed' || item.status === 'failed'
+  const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
   // Every row's primary click views its original content in-app: files/URLs delegate
   // preview/fallback/error handling to `previewSource`, directories drill into their children, and
@@ -215,8 +215,7 @@ const KnowledgeItemRow = ({
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
           'group/row rounded-md px-2.5 py-1.5 transition-colors',
-          canActivate &&
-            'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
           selected ? 'bg-muted' : 'hover:bg-muted'

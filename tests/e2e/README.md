@@ -15,20 +15,8 @@ tests/e2e/
 │   ├── wait-helpers.ts       # 等待辅助函数
 │   ├── ui-locator.ts         # data-ui contract locator
 │   └── index.ts              # 工具导出
-├── pages/                    # 已有的共享 Page Objects（新测试不强制使用）
-│   ├── base.page.ts          # 基础页面对象类
-│   ├── sidebar.page.ts       # 侧边栏导航
-│   ├── home.page.ts          # 首页/聊天页
-│   ├── settings.page.ts      # 设置页
-│   ├── chat.page.ts          # 聊天交互
-│   └── index.ts              # 页面对象导出
 └── specs/                    # 测试用例
-    ├── app-launch.spec.ts    # 应用启动测试
-    ├── navigation.spec.ts    # 页面导航测试
-    ├── settings/             # 设置相关测试
-    │   └── general.spec.ts
-    └── conversation/         # 对话相关测试
-        └── basic-chat.spec.ts
+    └── app-launch.spec.ts    # 应用启动边界测试
 ```
 
 ---
@@ -53,7 +41,7 @@ pnpm test:e2e --headed
 pnpm playwright test tests/e2e/specs/app-launch.spec.ts
 
 # 运行匹配名称的测试
-pnpm playwright test -g "should launch"
+pnpm playwright test -g "reasonable size"
 
 # 调试模式（会暂停并打开调试器）
 pnpm playwright test --debug
@@ -75,8 +63,7 @@ Electron E2E 基础设施：
   [UI Semantic Contract](../../docs/references/ui-semantic-contract.md)中的稳定应用边界。
 - 运行参数以根目录 `playwright.config.ts` 为准。
 
-现有部分 specs、Page Objects 和 wait helpers 早于统一规范，不能作为新测试的规范依据；后续代码清理应在
-独立 PR 中进行。
+新增 E2E 应围绕跨进程的完整用户结果，直接使用稳定的语义定位器和可观察条件。
 
 ---
 
@@ -95,4 +82,3 @@ Electron E2E 基础设施：
 
 - [Playwright 官方文档](https://playwright.dev/docs/intro)
 - [Playwright Electron 测试](https://playwright.dev/docs/api/class-electron)
-- [Page Object Model](https://playwright.dev/docs/pom)

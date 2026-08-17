@@ -130,6 +130,43 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Hidden CDP browser surface for the built-in @cherry/browser MCP server.
+  // CdpBrowserController owns content (tab BrowserViews + tab bar), show timing,
+  // and close; the per-mode session partition (persist:default / private) is
+  // injected per open via wm.open({ options: { webPreferences } }).
+  [WindowType.McpBrowser]: {
+    type: WindowType.McpBrowser,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
+    windowOptions: {
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+        devTools: true
+      },
+      platformOverrides: {
+        // macOS keeps the native frame with window-controls overlay; Windows and
+        // Linux are frameless (the in-window tab bar renders its own controls).
+        mac: {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: 42 }, // WCO height (macOS)
+          trafficLightPosition: { x: 13, y: 13 }
+        },
+        win: { frame: false },
+        linux: { frame: false }
+      }
+    },
+    behavior: {
+      // Hidden-by-default helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
+    }
+  },
+
   // Detached tab window — multi-instance, one per user-detached Tab.
   // Placed adjacent to Main because a SubWindow is logically a Main spin-off
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
@@ -203,6 +240,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         // focus switches. Mirrors the Main window's choice above; do not remove.
         backgroundThrottling: false
       }
+    },
+    behavior: {
+      // SubWindow must NOT contribute to the macOS Dock — a warm-created standby
+      // instance (standbySize:1 + warmup:'eager') is always resident and hidden.
+      // Without this flag, windowContributesToDock() returns true for it, so
+      // updateDockVisibility()'s some() never resolves to hide, and the Dock icon
+      // stays visible on close-to-tray / tray-on-launch (see issue #18186).
+      macShowInDock: false
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)
@@ -271,7 +316,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // blur handler and its internal `isPinnedQuickAssistant` flag.
       // `new BrowserWindow({ alwaysOnTop: true })` cannot accept a level — the
       // floating level is applied by applyWindowBehavior on create, and kept
-      // across show cycles by the macReapplyAlwaysOnTop quirk below.
+      // across show cycles by the reapplyAlwaysOnTop quirk below.
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
@@ -283,9 +328,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       macShowInDock: false
     },
     quirks: {
-      // Re-apply the floating level after every show/showInactive — macOS silently
-      // demotes it across cycles. The actual level is read from `behavior.alwaysOnTop`.
-      macReapplyAlwaysOnTop: true
+      // Re-assert topmost after every show/showInactive — macOS silently demotes the
+      // level across cycles, Windows lets later topmost windows stack above.
+      // The actual level is read from `behavior.alwaysOnTop`.
+      reapplyAlwaysOnTop: true
     }
   },
 
@@ -386,7 +432,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     quirks: {
       macRestoreFocusOnHide: true,
       macClearHoverOnHide: true,
-      macReapplyAlwaysOnTop: true
+      reapplyAlwaysOnTop: true
     }
   },
 

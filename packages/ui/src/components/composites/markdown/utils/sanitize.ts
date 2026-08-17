@@ -52,6 +52,7 @@ export const SVG_ELEMENTS = [
 
 export const SVG_ATTRIBUTES = [
   'aria-label',
+  'ariaHidden',
   'baseFrequency',
   'className',
   'clipPath',
@@ -207,6 +208,18 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
     strip: mergeUnique(schema.strip, ['style']),
     attributes: {
       ...schema.attributes,
+      div: mergeUnique(schema.attributes?.div, [
+        [
+          'className',
+          'markdown-alert',
+          'markdown-alert-note',
+          'markdown-alert-tip',
+          'markdown-alert-important',
+          'markdown-alert-warning',
+          'markdown-alert-caution'
+        ]
+      ]),
+      p: mergeUnique(schema.attributes?.p, [['className', 'markdown-alert-title']]),
       span: mergeUnique(schema.attributes?.span, [
         'data-composer-token-index',
         'dataComposerTokenIndex',

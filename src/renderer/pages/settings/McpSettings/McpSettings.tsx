@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -18,29 +18,33 @@ import type { McpTool } from '@renderer/types/tool'
 import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import {
   buildMcpSchema,
-  MCP_FORM_DEFAULT_VALUES,
   McpEndpointField,
   McpFormGrid,
   type McpFormValues,
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
+  resolveMcpConfigInstallSource,
+  toMcpFormDefaultValues,
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
@@ -53,25 +57,32 @@ type McpTabItem = {
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
+type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
 // Module-level so the cache-miss fallback keeps a stable reference across renders.
 const EMPTY_MCP_TOOLS: McpTool[] = []
 
-const McpSettings: React.FC = () => {
+interface McpSettingsContentProps {
+  server: McpServer
+  updateMcpServer: ReturnType<typeof useMcpServer>['updateMcpServer']
+  deleteMcpServer: ReturnType<typeof useMcpServer>['deleteMcpServer']
+}
+
+const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
   const { t } = useTranslation()
-  const params = useParams({ strict: false })
-  const serverId = params.serverId
-  const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+  const search = useSearch({ strict: false }) as McpSettingsSearch
+  const serverId = server.id
+  const [initialFormValues] = useState(() => toMcpFormDefaultValues(server))
 
   const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
-  const [serverType, setServerType] = useState<McpServer['type']>('stdio')
+  const [serverType, setServerType] = useState<McpServerType | undefined>(initialFormValues.serverType)
   const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
-    defaultValues: MCP_FORM_DEFAULT_VALUES
+    defaultValues: initialFormValues
   })
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
@@ -84,52 +95,14 @@ const McpSettings: React.FC = () => {
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [resources, setResources] = useState<McpResource[]>([])
-  const registryState = useMcpRegistryState(form, () => setIsFormChanged(true))
-  const { syncFromServer: syncRegistryFromServer } = registryState
+  const registryState = useMcpRegistryState(form, () => setIsFormChanged(true), server)
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
-  const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
-  const fetchServerLogsRequestRef = useRef(0)
+  const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
   const { theme } = useTheme()
 
   const navigate = useNavigate()
-
-  // Initialize form values whenever the server changes
-  useEffect(() => {
-    if (!server) return
-    const serverType: McpServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
-    setServerType(serverType)
-
-    syncRegistryFromServer(server)
-
-    form.reset({
-      name: server.name,
-      description: server.description ?? '',
-      serverType: serverType,
-      baseUrl: server.baseUrl || '',
-      command: server.command || '',
-      registryUrl: server.registryUrl || '',
-      isActive: server.isActive,
-      longRunning: server.longRunning,
-      timeout: server.timeout,
-      args: server.args ? server.args.join('\n') : '',
-      env: server.env
-        ? Object.entries(server.env)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n')
-        : '',
-      headers: server.headers
-        ? Object.entries(server.headers)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n')
-        : '',
-      provider: server.provider || '',
-      providerUrl: server.providerUrl || '',
-      logoUrl: server.logoUrl || '',
-      tags: server.tags || []
-    })
-  }, [server, form, syncRegistryFromServer])
 
   // Watch for serverType changes
   const watchedServerType = form.watch('serverType')
@@ -194,48 +167,6 @@ const McpSettings: React.FC = () => {
     }
   }
 
-  const fetchServerLogs = async (serverId = server?.id) => {
-    if (!serverId) return
-    const requestId = ++fetchServerLogsRequestRef.current
-    try {
-      const history = await ipcApi.request('mcp.server.get_logs', { serverId })
-      if (requestId === fetchServerLogsRequestRef.current && serverId === server?.id) {
-        setLogs((prev) => mergeServerLogs(history, prev))
-      }
-    } catch (error) {
-      logger.warn('Failed to load server logs', error as Error)
-    }
-  }
-
-  useEffect(() => {
-    const unsubscribe = ipcApi.on('mcp.server.log', (log) => {
-      if (log.serverId && log.serverId !== server?.id) return
-      setLogs((prev) => {
-        const merged = [...prev, log]
-        if (merged.length > 200) {
-          return merged.slice(merged.length - 200)
-        }
-        return merged
-      })
-    })
-
-    return () => {
-      unsubscribe?.()
-    }
-  }, [server?.id])
-
-  useEffect(() => {
-    fetchServerLogsRequestRef.current += 1
-    setLogs([])
-  }, [server?.id])
-
-  useEffect(() => {
-    if (activeTab === 'logs') {
-      void fetchServerLogs()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, server?.id])
-
   useEffect(() => {
     if (server?.isActive) {
       void fetchTools()
@@ -245,10 +176,6 @@ const McpSettings: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
-
-  useEffect(() => {
-    setIsFormChanged(false)
-  }, [server?.id])
 
   // Save the form data
   const onSave = async () => {
@@ -265,6 +192,7 @@ const McpSettings: React.FC = () => {
       const mcpServer: McpServer = {
         ...server,
         ...toMcpServerFields(values),
+        installSource: resolveMcpConfigInstallSource(server),
         isActive: values.isActive ?? server.isActive,
         timeout: values.timeout || server.timeout,
         // Use nullish coalescing to allow empty strings (for deletion)
@@ -331,6 +259,15 @@ const McpSettings: React.FC = () => {
       return
     }
 
+    if (active && isQVerisApiKeyMissing(server)) {
+      void popup.error({
+        title: t('settings.mcp.startError'),
+        content: <QVerisApiKeyGuide />,
+        centered: true
+      })
+      return
+    }
+
     const isValid = await form.trigger()
     if (!isValid) {
       return
@@ -373,6 +310,7 @@ const McpSettings: React.FC = () => {
         await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
         setServerVersion(null)
       }
+      form.setValue('isActive', active)
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
@@ -383,6 +321,28 @@ const McpSettings: React.FC = () => {
       setLoadingServer(null)
     }
   }
+
+  const autoEnableProtocolServer = useEffectEvent(() => {
+    if (server && !server.isActive) {
+      void onToggleActive(true)
+    }
+  })
+
+  useEffect(() => {
+    if (search.autoEnable !== 'true' || !server) return
+    if (handledAutoEnableServerIdRef.current === server.id) return
+
+    handledAutoEnableServerIdRef.current = server.id
+    void navigate({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: server.id },
+      search: {},
+      replace: true
+    })
+
+    autoEnableProtocolServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
+  }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
@@ -428,10 +388,6 @@ const McpSettings: React.FC = () => {
     [server, updateMcpServer]
   )
 
-  if (!server || isServerLoading) {
-    return null
-  }
-
   const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
   const runtimeStatusLabel = {
     disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
@@ -445,7 +401,7 @@ const McpSettings: React.FC = () => {
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isInMemory: server.type === 'inMemory'
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
   }
 
   const tabs: McpTabItem[] = [
@@ -529,27 +485,7 @@ const McpSettings: React.FC = () => {
   tabs.push({
     key: 'logs',
     label: t('settings.mcp.logs', 'Logs'),
-    children: (
-      <LogList>
-        {logs.length === 0 && (
-          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-        )}
-        {logs.map((log, idx) => (
-          <LogItem key={`${log.timestamp}-${idx}`}>
-            <LogHeader>
-              <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-              <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                {log.level}
-              </Badge>
-              <LogMessage>{log.message}</LogMessage>
-            </LogHeader>
-            {log.data && (
-              <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-            )}
-          </LogItem>
-        ))}
-      </LogList>
-    )
+    children: activeTab === 'logs' ? <McpLogsTab serverId={server.id} /> : null
   })
 
   const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
@@ -659,6 +595,25 @@ const McpSettings: React.FC = () => {
   )
 }
 
+const McpSettings: React.FC = () => {
+  const params = useParams({ strict: false })
+  const serverId = params.serverId
+  const { server, isLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+
+  if (!server || isLoading) {
+    return null
+  }
+
+  return (
+    <McpSettingsContent
+      key={server.id}
+      server={server}
+      updateMcpServer={updateMcpServer}
+      deleteMcpServer={deleteMcpServer}
+    />
+  )
+}
+
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex h-full w-full min-w-0 flex-1 flex-col overflow-hidden', className)} {...props} />
 )
@@ -670,71 +625,6 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={className} {...props} />
 )
-
-const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
-)
-
-const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
-    {...props}
-  />
-)
-
-const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-wrap items-baseline gap-2', className)} {...props} />
-)
-
-const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
-)
-
-const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
-)
-
-const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
-  <pre
-    className={cn(
-      'wrap-break-word mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
-      className
-    )}
-    {...props}
-  />
-)
-
-function mapLogLevelClass(level: McpServerLogEntry['level']) {
-  switch (level) {
-    case 'error':
-    case 'stderr':
-      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
-    case 'warn':
-      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
-    case 'info':
-    case 'stdout':
-      return 'border-info-border bg-info-subtle text-info-subtle-foreground'
-    default:
-      return 'border-border-subtle bg-muted text-muted-foreground'
-  }
-}
-
-function mergeServerLogs(
-  history: McpServerLogEntry[],
-  current: (McpServerLogEntry & { serverId?: string })[]
-): (McpServerLogEntry & { serverId?: string })[] {
-  const seen = new Set<string>()
-  const merged: (McpServerLogEntry & { serverId?: string })[] = []
-
-  for (const log of [...history, ...current]) {
-    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    merged.push(log)
-  }
-
-  return merged.length > 200 ? merged.slice(merged.length - 200) : merged
-}
 
 const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
   <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />

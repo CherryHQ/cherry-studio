@@ -8,7 +8,6 @@ import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { nativeTheme, shell, systemPreferences } from 'electron'
-import fontList from 'font-list'
 
 const logger = loggerService.withContext('systemHandlers')
 
@@ -35,6 +34,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   },
   'system.get_fonts': async () => {
     try {
+      const { default: fontList } = await import('font-list')
       const fonts = await fontList.getFonts()
       return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
     } catch (error) {
@@ -43,7 +43,6 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     }
   },
   'system.get_ip_country': async () => regionService.getCountry(),
-  'system.ip_country.detect': async () => regionService.getDetectedCountry(),
   'system.mac.is_process_trusted': async () => (isMac ? systemPreferences.isTrustedAccessibilityClient(false) : false),
   'system.mac.request_process_trust': async () =>
     isMac ? systemPreferences.isTrustedAccessibilityClient(true) : false,

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
-  listSessionMessages: vi.fn(),
+  hasSessionMessages: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     saveMessages: mocks.saveMessages,
-    listSessionMessages: mocks.listSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages
   }
 }))
 
@@ -123,6 +123,7 @@ describe('AgentChatContextProvider', () => {
         updatedAt: '2026-01-01T00:00:00.000Z'
       }))
     )
+    mocks.hasSessionMessages.mockReturnValue(false)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
         return {
@@ -138,19 +139,17 @@ describe('AgentChatContextProvider', () => {
       turnId: 'turn-1'
     })
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
-    mocks.listSessionMessages.mockReturnValue({ items: [] })
   })
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq({ greetingContext: '   ' }))
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
     )
-    expect(mocks.listSessionMessages).not.toHaveBeenCalled()
     expect(mocks.saveMessages).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     const savedMessages = mocks.saveMessages.mock.calls[0][0].messages
@@ -195,7 +194,11 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       reasoningEffort: 'default',
       assistantMessageId: prepared.models[0].request.messageId,
-      userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
+      userMessage: expect.objectContaining({
+        id: prepared.reservedMessages?.find((message) => message.role === 'user')?.id,
+        role: 'user',
+        sessionId: 'session-1'
+      }),
       headless: false,
       traceId: 'a'.repeat(32),
       messageSnapshot: {
@@ -203,7 +206,8 @@ describe('AgentChatContextProvider', () => {
         name: 'My Agent',
         emoji: '🤖',
         model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-      }
+      },
+      shouldAutoName: true
     })
     expect(prepared.listeners).toEqual([
       subscriber,
@@ -236,10 +240,11 @@ describe('AgentChatContextProvider', () => {
       }
     )
     expect(prepared.models).toEqual([])
-    expect(prepared.userMessageId).toEqual(expect.any(String))
+    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id
+    expect(userMessageId).toEqual(expect.any(String))
     expect(prepared.reservedMessages).toEqual([
       expect.objectContaining({
-        id: prepared.userMessageId,
+        id: userMessageId,
         role: 'user',
         parts: [{ type: 'text', text: 'hello' }]
       })
@@ -247,23 +252,20 @@ describe('AgentChatContextProvider', () => {
     expect(prepared.listeners).toEqual([subscriber])
   })
 
-  it('relays greeting context only for an empty session and never persists it', async () => {
-    const greetingContext = '我可以帮你完成什么任务？'
-    await provider.prepareDispatch(makeSubscriber(), openReq({ greetingContext }))
+  it('rejects a late busy transition when the caller requires an idle session', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
 
-    expect(mocks.runtimeBeginTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({ greetingContext, userMessage: expect.objectContaining({ role: 'user' }) })
-    )
-    expect(mocks.saveMessages.mock.calls[0]?.[0].messages).toEqual([
-      expect.objectContaining({ role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }),
-      expect.objectContaining({ role: 'assistant', data: { parts: [] } })
-    ])
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), openReq(), {
+        hasLiveStream: false,
+        requireIdle: true,
+        expectedAgentId: 'agent-1'
+      })
+    ).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
 
-    mocks.listSessionMessages.mockReturnValue({ items: [{ id: 'existing-message' }] })
-    await provider.prepareDispatch(makeSubscriber(), openReq({ greetingContext }))
-
-    expect(mocks.listSessionMessages).toHaveBeenCalledTimes(2)
-    expect(mocks.runtimeBeginTurn.mock.calls[1]?.[0]).not.toHaveProperty('greetingContext')
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessages).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
   })
 
   it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {
@@ -333,17 +335,26 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
       parts: [{ type: 'text', text: 'hello session' }]
     })
+    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
   })
 
-  it('triggers first-user-message session rename after busy submit-message persists the user row', async () => {
+  it('does not auto-name a busy follow-up turn', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
 
     await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
 
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
-      parts: [{ type: 'text', text: 'busy hello' }]
-    })
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.hasSessionMessages).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-name a later idle turn in a session with messages', async () => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

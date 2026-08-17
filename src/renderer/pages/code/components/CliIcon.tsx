@@ -1,4 +1,5 @@
 import { cn } from '@renderer/utils/style'
+import { CodeCli } from '@shared/types/codeCli'
 import type { ComponentType, FC, SVGProps } from 'react'
 
 import { CLI_TOOLS } from '../constants/cliTools'
@@ -27,6 +28,12 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
         {id.charAt(0).toUpperCase()}
       </div>
     )
+  }
+
+  // The OpenClaw artwork occupies only the center of its 120×120 canvas.
+  // Crop that transparent margin so its optical size matches the other CLI icons.
+  if (id === CodeCli.OPENCLAW) {
+    return <Icon width={size} height={size} viewBox="20 20 80 80" className={className} />
   }
 
   return <Icon width={size} height={size} className={className} />

@@ -45,18 +45,21 @@ export class JobScheduleService {
   // ---------------- Read ----------------
 
   listAll(filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
-    const db = this.getDb()
+    return this.listAllTx(this.getDb(), filter)
+  }
+
+  listAllTx(tx: DbOrTx, filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
     const conditions: SQL[] = []
     if (filter.type) conditions.push(eq(jobScheduleTable.type, filter.type))
     if (filter.enabled !== undefined) conditions.push(eq(jobScheduleTable.enabled, filter.enabled))
 
     const baseQuery = conditions.length
-      ? db
+      ? tx
           .select()
           .from(jobScheduleTable)
           .where(and(...conditions))
           .orderBy(asc(jobScheduleTable.createdAt))
-      : db.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
+      : tx.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
 
     const rows =
       filter.limit !== undefined
@@ -79,7 +82,16 @@ export class JobScheduleService {
   }
 
   getById(id: string): JobScheduleSnapshot | null {
-    const [row] = this.getDb().select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.getDb(), id)
+  }
+
+  /**
+   * Transactional read — lets a caller inside `withWriteTx` do an atomic
+   * read-modify-write on a schedule row (e.g. merging into `metadata`, which
+   * `updateTx` replaces wholesale).
+   */
+  getByIdTx(tx: DbOrTx, id: string): JobScheduleSnapshot | null {
+    const [row] = tx.select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
     return row ? this.rowToSnapshot(row) : null
   }
 

@@ -304,6 +304,84 @@ describe('chatMessageFileRefTable — CASCADE FK', () => {
       })
     ).rejects.toThrow()
   })
+
+  it('accepts the tool_output role and enforces (entry, source, role) uniqueness', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: messageId,
+      role: 'tool_output',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    // Same triple again: plain insert violates the unique index …
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+
+    // … while onConflictDoNothing makes the provisional-ref write idempotent.
+    await dbh.db
+      .insert(chatMessageFileRefTable)
+      .values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      })
+      .onConflictDoNothing()
+
+    const rows = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].role).toBe('tool_output')
+  })
+
+  it('the same entry can carry attachment and tool_output refs on one message', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(chatMessageFileRefTable).values([
+      {
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      },
+      {
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      }
+    ])
+
+    const rows = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(rows.map((r) => r.role).sort()).toEqual(['attachment', 'tool_output'])
+  })
 })
 
 describe('paintingFileRefTable — CASCADE FK', () => {

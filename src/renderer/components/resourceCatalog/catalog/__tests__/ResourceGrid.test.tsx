@@ -329,8 +329,13 @@ vi.mock('@cherrystudio/ui', async () => {
 
       return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
     },
+    Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
+      <div data-testid="shared-scrollbar" {...props}>
+        {children}
+      </div>
+    ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -470,6 +475,21 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
+  it('keeps search in the library toolbar and places a local search beside the settings title', () => {
+    const { unmount } = renderResourceGrid()
+
+    expect(screen.getByPlaceholderText('library.toolbar.search_placeholder')).toBeInTheDocument()
+
+    unmount()
+    const onSearchChange = vi.fn()
+    renderResourceGrid({ activeResourceType: 'skill', onSearchChange, variant: 'settings', title: '技能' })
+
+    fireEvent.change(screen.getByPlaceholderText('library.toolbar.search_placeholder'), {
+      target: { value: 'creator' }
+    })
+    expect(onSearchChange).toHaveBeenCalledWith('creator')
+  })
+
   it('renders the optional toolbar leading slot', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>
@@ -483,6 +503,21 @@ describe('ResourceGrid empty state copy', () => {
 
     expect(screen.getByTestId('resource-grid-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+  })
+
+  it('keeps the settings grid single-column with a little more space below the header', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', title: '技能' })
+
+      const loadingGrid = screen.getByTestId('resource-grid-loading')
+      await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
+      expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
+    } finally {
+      clientWidthSpy.mockRestore()
+    }
   })
 
   it('uses the generic resource empty copy when there is no search', () => {
@@ -753,6 +788,29 @@ describe('ResourceGrid card actions', () => {
     rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
 
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
+  })
+
+  it('uses the neutral settings treatment without changing library Skill cards', () => {
+    const { rerender } = render(
+      <ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />
+    )
+
+    const settingsCard = screen.getByRole('button', { name: 'Skill' })
+    expect(settingsCard).toHaveClass('rounded-xl', 'border-border')
+    expect(settingsCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
+      'bg-secondary',
+      'text-secondary-foreground'
+    )
+    expect(settingsCard.querySelector('[aria-hidden="true"]')).toHaveClass('text-foreground-tertiary')
+
+    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
+
+    const libraryCard = screen.getByRole('button', { name: 'Skill' })
+    expect(libraryCard).toHaveClass('rounded-lg', 'border-border-subtle')
+    expect(libraryCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
+      'bg-warning-subtle',
+      'text-warning'
+    )
   })
 
   it('shows the overflow menu only for assistant cards', () => {

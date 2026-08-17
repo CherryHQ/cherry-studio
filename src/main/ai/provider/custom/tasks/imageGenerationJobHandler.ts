@@ -11,6 +11,7 @@ import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { resolveProviderAiSdkConfig } from '../../config'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
@@ -64,7 +65,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
     const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
-    const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
+    const sdkConfig = {
+      ...config,
+      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+    }
     // Built fresh every execution and held in memory only. Upstream persists this
     // to job metadata so a resumed run can still attribute its cost; with
     // `recovery: 'abandon'` no run outlives the process, so persisting it would be

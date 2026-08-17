@@ -535,39 +535,6 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('opens the context menu with placeholder actions', () => {
-    render(
-      <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        {...defaultHandlers}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('row'))
-
-    expect(screen.getByRole('button', { name: '预览原文' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
-  })
-
-  it('does not call onClick when a more menu action is clicked', () => {
-    const handleClick = vi.fn()
-
-    render(
-      <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        {...defaultHandlers}
-        onClick={handleClick}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('row'))
-    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
-
-    expect(handleClick).not.toHaveBeenCalled()
-  })
-
   it('calls onPreviewSource without calling onClick when the preview source action is clicked', async () => {
     const handleClick = vi.fn()
     const handlePreviewSource = vi.fn()

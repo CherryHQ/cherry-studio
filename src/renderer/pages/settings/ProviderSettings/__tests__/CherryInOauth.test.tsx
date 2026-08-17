@@ -41,7 +41,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@cherrystudio/ui/icons', () => ({
+vi.mock('@cherrystudio/ui/icons/providers', () => ({
   Cherryin: {
     Avatar: ({ size }: { size?: number }) => <div data-testid="cherryin-avatar">{size ?? 0}</div>
   }

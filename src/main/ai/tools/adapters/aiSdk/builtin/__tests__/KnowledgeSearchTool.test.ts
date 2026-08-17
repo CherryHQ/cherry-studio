@@ -65,6 +65,10 @@ describe('kb_search', () => {
     expect(entry.defer).toBe('never')
     // kb_search only reads — no per-call approval prompt (the auto-approve half of the carve-out).
     expect(entry.tool.needsApproval).toBeFalsy()
+    // Entity codec, not blanket truncatable:false — chunk content trims
+    // per-entity while id/baseId/conceptId/title anchors ride the skeleton.
+    expect(entry.truncatable).toBeUndefined()
+    expect(entry.codec).toBeDefined()
   })
 
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {

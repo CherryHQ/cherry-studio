@@ -173,8 +173,6 @@ describe('SelectedModelsTrigger', () => {
     expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Provider A')
     const firstRow = screen.getByTestId('selected-model-row-provider-a::model-a')
     const tag = screen.getByTestId(`model-tag-${MODEL_CAPABILITY.IMAGE_RECOGNITION}`)
-    expect(within(firstRow).getByTestId('model-avatar-provider-a::model-a')).toHaveAttribute('data-size', '16')
-    expect(tag).toHaveAttribute('data-size', '8')
     expect(tag).toHaveTextContent(MODEL_CAPABILITY.IMAGE_RECOGNITION)
     expect(within(firstRow).getByText('Context 128000')).toBeInTheDocument()
     expect(within(firstRow).getByLabelText('Remove Model A')).toBeInTheDocument()

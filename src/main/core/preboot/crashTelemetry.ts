@@ -76,6 +76,12 @@ function installProcessErrorHandlers(): void {
  */
 function hardenWebContents(): void {
   app.on('web-contents-created', (_, webContents) => {
+    // Owns every session's single `onHeadersReceived` slot: Electron keeps ONE
+    // listener per session, so a later registration elsewhere would silently
+    // replace this one — and with it the call-stack collection below. Nothing
+    // else may call `webRequest.onHeadersReceived`; if a second consumer ever
+    // appears, introduce a per-session coordinator instead (same doctrine as
+    // `ai/utils/customFetch.ts` for the `onBeforeSendHeaders` slot).
     webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {

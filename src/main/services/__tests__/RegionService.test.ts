@@ -79,7 +79,7 @@ describe('RegionService', () => {
       .mockRejectedValueOnce(new Error('network down'))
       .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
 
-    await expect(regionService.getDetectedCountry()).resolves.toBeNull()
+    await expect(regionService.getCountry()).resolves.toBe('CN')
     await expect(regionService.getCountry()).resolves.toBe('US')
     expect(netFetchMock).toHaveBeenCalledTimes(2)
   })

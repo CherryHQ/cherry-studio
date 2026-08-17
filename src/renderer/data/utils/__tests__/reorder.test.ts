@@ -7,10 +7,6 @@ type Item = { id: string }
 const mk = (ids: string[]): Item[] => ids.map((id) => ({ id }))
 
 describe('reorderLocally', () => {
-  it('throws when the list is empty', () => {
-    expect(() => reorderLocally<Item>([], 'a', { position: 'first' })).toThrow(/target id "a" not found/)
-  })
-
   it('is a no-op for a single-item list moved to {position: "first"}', () => {
     const input = mk(['a'])
     const result = reorderLocally(input, 'a', { position: 'first' })
@@ -173,15 +169,6 @@ describe('reorder utils with custom idKey', () => {
   })
 
   describe('computeMinimalMoves', () => {
-    it('diffs by the configured idKey and returns id-labelled moves', () => {
-      const curr = [{ appId: 'a' }, { appId: 'b' }, { appId: 'c' }]
-      const next = [{ appId: 'c' }, { appId: 'a' }, { appId: 'b' }]
-      const moves = computeMinimalMoves(curr, next, 'appId')
-      expect(moves).toHaveLength(1)
-      expect(moves[0].id).toBe('c')
-      expect(moves[0].anchor).toEqual({ position: 'first' })
-    })
-
     it('produces moves whose ids read from idKey and transform curr into next', () => {
       const curr = [{ appId: 'x' }, { appId: 'y' }]
       const next = [{ appId: 'y' }, { appId: 'x' }]

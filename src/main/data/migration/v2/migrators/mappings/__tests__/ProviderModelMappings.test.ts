@@ -4,6 +4,44 @@ import { describe, expect, it } from 'vitest'
 import { transformModel, transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
+  describe('transformModel', () => {
+    it('drops explicit v1 web-search selection from generic model capabilities', () => {
+      const enabled = transformModel(
+        {
+          id: 'private-model',
+          name: 'Private Model',
+          capabilities: [
+            { type: 'function_calling', isUserSelected: true },
+            { type: 'web_search', isUserSelected: true }
+          ]
+        } as never,
+        'custom-provider'
+      )
+      const disabled = transformModel(
+        {
+          id: 'private-model',
+          capabilities: [{ type: 'web_search', isUserSelected: false }]
+        } as never,
+        'custom-provider'
+      )
+
+      expect(enabled.capabilities).toEqual(['function-call'])
+      expect(disabled.capabilities).toEqual([])
+    })
+
+    it('leaves inferred v1 web-search entries to the v2 registry default', () => {
+      const result = transformModel(
+        {
+          id: 'claude-sonnet-4-6',
+          capabilities: [{ type: 'web_search' }]
+        } as never,
+        'anthropic'
+      )
+
+      expect(result.capabilities).toEqual([])
+    })
+  })
+
   describe('transformProvider', () => {
     it('maps custom-id Azure providers to azure-openai preset via type fallback', () => {
       const result = transformProvider(
@@ -94,6 +132,30 @@ describe('ProviderModelMappings', () => {
         }
       })
     })
+
+    it.each(['https://aiplatform.googleapis.com', 'https://us-central1-aiplatform.googleapis.com'])(
+      'drops the official VertexAI host %s instead of migrating it as an override',
+      (apiHost) => {
+        // v1 rebuilt the resource path from this host per request; carrying it
+        // over would persist an override that means "default" and 404 in v2.
+        const result = transformProvider(
+          {
+            id: 'vertexai',
+            name: 'VertexAI',
+            type: 'vertexai',
+            apiKey: '',
+            apiHost,
+            models: [],
+            enabled: true,
+            isSystem: true,
+            isVertex: true
+          } as never,
+          {}
+        )
+
+        expect(result.endpointConfigs).toBeNull()
+      }
+    )
 
     it('migrates Azure OpenAI as an Azure provider with an OpenAI-compatible endpoint', () => {
       const result = transformProvider(

@@ -21,8 +21,8 @@ function findTool(tools: ActionTool[], id: string) {
 }
 
 describe('useCopyTool', () => {
-  it('exposes and runs the source-copy action', () => {
-    const onCopySource = vi.fn()
+  it('exposes and runs the source-copy action', async () => {
+    const onCopySource = vi.fn().mockResolvedValue(true)
     const previewRef = { current: null }
     const { result } = renderHook(() => {
       const [tools, setTools] = useState<ActionTool[]>([])
@@ -36,20 +36,35 @@ describe('useCopyTool', () => {
     })
 
     expect(result.current.map((tool) => tool.id)).toEqual(['copy'])
-    act(() => findTool(result.current, 'copy').onClick?.())
+    await act(async () => findTool(result.current, 'copy').onClick?.())
 
     expect(onCopySource).toHaveBeenCalledOnce()
   })
 
-  it('adds an image-copy action backed by the preview handle', () => {
+  it('does not show success feedback when source copy fails', async () => {
+    const onCopySource = vi.fn().mockResolvedValue(false)
+    const previewRef = { current: null }
+    const { result } = renderHook(() => {
+      const [tools, setTools] = useState<ActionTool[]>([])
+      useCopyTool({ showPreviewTools: false, previewRef, onCopySource, setTools })
+      return tools
+    })
+    const initialIcon = findTool(result.current, 'copy').icon
+
+    await act(async () => findTool(result.current, 'copy').onClick?.())
+
+    expect(findTool(result.current, 'copy').icon).toEqual(initialIcon)
+  })
+
+  it('adds an image-copy action backed by the preview handle', async () => {
     const preview = {
       pan: vi.fn(),
       zoom: vi.fn(),
-      copy: vi.fn(),
+      copy: vi.fn().mockResolvedValue(true),
       download: vi.fn()
     } satisfies BasicPreviewHandles
     const previewRef: { current: BasicPreviewHandles | null } = { current: null }
-    const onCopySource = vi.fn()
+    const onCopySource = vi.fn().mockResolvedValue(true)
     const { result, rerender } = renderHook(
       ({ showPreviewTools }) => {
         const [tools, setTools] = useState<ActionTool[]>([])
@@ -66,7 +81,7 @@ describe('useCopyTool', () => {
 
     expect(result.current.map((tool) => tool.id)).toEqual(['copy-image', 'copy'])
     previewRef.current = preview
-    act(() => findTool(result.current, 'copy-image').onClick?.())
+    await act(async () => findTool(result.current, 'copy-image').onClick?.())
 
     expect(preview.copy).toHaveBeenCalledOnce()
 

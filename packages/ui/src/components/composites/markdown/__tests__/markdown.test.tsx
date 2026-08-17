@@ -35,6 +35,22 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('pre')).not.toBeNull()
   })
 
+  it('renders all GitHub alert types with their semantic classes', () => {
+    const alertTypes = ['note', 'tip', 'important', 'warning', 'caution']
+    const source = alertTypes.map((type) => `> [!${type.toUpperCase()}]\n> ${type} content`).join('\n\n')
+    const { container } = render(<Markdown id="alerts">{source}</Markdown>)
+
+    const alerts = container.querySelectorAll('.markdown-alert')
+    expect(alerts).toHaveLength(alertTypes.length)
+
+    alertTypes.forEach((type, index) => {
+      expect(alerts[index].classList.contains(`markdown-alert-${type}`)).toBe(true)
+      expect(alerts[index].querySelector('.markdown-alert-title')?.textContent).toContain(type.toUpperCase())
+      expect(alerts[index].querySelector('svg.octicon')?.getAttribute('aria-hidden')).toBe('true')
+      expect(alerts[index].textContent).toContain(`${type} content`)
+    })
+  })
+
   it('keeps generated SVG max-width through the full sanitize pipeline', () => {
     const { container } = render(
       <Markdown id="m3">{'<svg width="120" height="60"><rect width="120" height="60" /></svg>'}</Markdown>

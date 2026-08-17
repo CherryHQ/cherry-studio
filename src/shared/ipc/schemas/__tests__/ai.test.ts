@@ -1,3 +1,4 @@
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
 import { aiRequestSchemas } from '../ai'
@@ -24,11 +25,6 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genText.safeParse({ prompt: 'hi' }).success).toBe(true)
   })
 
-  it('accepts a cancellable text request id and rejects an empty one', () => {
-    expect(genText.safeParse({ requestId: 'greeting-1', prompt: 'hi' }).success).toBe(true)
-    expect(genText.safeParse({ requestId: '', prompt: 'hi' }).success).toBe(false)
-  })
-
   it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
@@ -36,6 +32,83 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     })
     expect(genImage.safeParse(input('openai::gpt-image')).success).toBe(true)
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
+  })
+})
+
+describe('ai.stream.open IPC schema', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+
+  it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'reserved-user',
+        userMessageParts: [{ type: 'text', text: 'continue branch' }],
+        targetMode: 'reserved-branch'
+      })
+    ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  it('rejects an unknown target mode', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        targetMode: 'current-stream'
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        mentionedModelIds: ['openai::gpt-4o']
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        mentionedModelIds: ['anthropic::claude-sonnet']
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects duplicate mentioned model ids before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
   })
 })
 
@@ -67,25 +140,21 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
-describe('ai.stream.open greeting context validation', () => {
-  const openStream = aiRequestSchemas['ai.stream.open'].input
-  const base = {
-    topicId: 'topic-1',
-    trigger: 'submit-message' as const,
-    userMessageParts: [{ type: 'text', text: 'yes' }]
-  }
+describe('ai.agent.support_session.create IPC schema', () => {
+  const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
+  const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output
 
-  it('accepts and trims a bounded plain-text greeting', () => {
-    expect(openStream.parse({ ...base, greetingContext: '  Want to play a game?  ' })).toMatchObject({
-      greetingContext: 'Want to play a game?'
-    })
+  it('accepts only a void command payload', () => {
+    expect(createSupportSession.safeParse(undefined).success).toBe(true)
+    expect(createSupportSession.safeParse({}).success).toBe(false)
   })
 
-  it.each([
-    ['overlong text', 'x'.repeat(121)],
-    ['markup', '**Want to play?**'],
-    ['bidirectional override', 'Safe link \u202Emoc.elpmaxe']
-  ])('rejects unsafe greeting context at the IPC boundary: %s', (_caseName, greetingContext) => {
-    expect(openStream.safeParse({ ...base, greetingContext }).success).toBe(false)
+  it('returns only the created session id', () => {
+    expect(createSupportSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+      sessionId: 'feedback-session'
+    })
+    expect(
+      createSupportSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-support' }).success
+    ).toBe(false)
   })
 })

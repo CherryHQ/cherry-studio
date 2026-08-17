@@ -31,8 +31,8 @@ export const historyFixedActionCellClassName =
   'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--border-subtle)]'
 export const historyFixedActionShadowClassName =
   '[--history-fixed-action-shadow:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)] [box-shadow:-8px_0_12px_-12px_var(--history-fixed-action-shadow)]'
-// DESIGN.md §82 sanctions this token-backed 0.5px hairline written as an arbitrary property (a real
-// `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
+// Use a token-backed 0.5px hairline arbitrary property because a real `border-b` renders 1px. Shared
+// by the header / filter bar / toolbar so the value stays in one place.
 export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--border-subtle)]'
 
 interface HistoryVirtualTableProps<TItem> {
@@ -199,7 +199,7 @@ export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) =
   <span
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
     title={title}
     onClick={(event) => {
       event.stopPropagation()

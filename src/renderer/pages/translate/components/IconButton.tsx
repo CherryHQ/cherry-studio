@@ -51,7 +51,7 @@ const IconButton = ({
       title={rest.title}
       className={cn(
         'flex shrink-0 items-center justify-center transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+        'focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-60',
         SIZE_CLASS[size],
         toneClass(tone, active),

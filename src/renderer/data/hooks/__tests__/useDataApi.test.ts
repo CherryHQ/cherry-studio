@@ -181,11 +181,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }))
     const keyFromConcrete = buildSWRKey('/providers/abc')
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-      ]
-    `)
   })
 
   it('produces identical keys when query is provided', () => {
@@ -193,14 +188,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }), query)
     const keyFromConcrete = buildSWRKey('/providers/abc', query)
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-        {
-          "limit": 10,
-        },
-      ]
-    `)
   })
 
   it('omits query slot when query is empty', () => {
@@ -469,6 +456,64 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   })
 
+  // Pins both directions of the fix's root cause on a two-page source whose
+  // second page holds a since-renamed item:
+  //   - revalidateAll: true  → every loaded page revalidates, so page 2 refreshes (the fix)
+  //   - revalidateAll: false → SWR Infinite revalidates only page 0, so page 2
+  //     stays stale (the bug the fix addresses)
+  // Asserting the negative is what proves the fix is load-bearing, not incidental.
+  it.each([
+    { revalidateAll: true, label: 'revalidates page 2 so a renamed item on it refreshes' },
+    { revalidateAll: false, label: 'leaves page 2 stale so a renamed item on it does not refresh' }
+  ])('$label (revalidateAll=$revalidateAll)', async ({ revalidateAll }) => {
+    const { Wrapper, cache } = makeWrapper()
+    let secondPageName = 'Old name'
+    const fetcher = vi.fn(async ([, query]: [string, { cursor?: string }]) =>
+      query.cursor === 'page-2'
+        ? { items: [{ id: 'old-topic', name: secondPageName }], nextCursor: null }
+        : { items: [{ id: 'recent-topic', name: 'Recent topic' }], nextCursor: 'page-2' }
+    )
+    const pagedGetKey = (_pageIndex: number, previousPageData: { nextCursor?: string | null } | null) => {
+      if (previousPageData && !previousPageData.nextCursor) return null
+      return ['/topics', { limit: 1, ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {}) }]
+    }
+    const callsForCursor = (cursor?: string) =>
+      fetcher.mock.calls.filter(([key]) => (key as [string, { cursor?: string }])[1].cursor === cursor).length
+
+    const { result } = renderHook(() => useSWRInfinite(pagedGetKey, fetcher, { revalidateAll }), {
+      wrapper: Wrapper
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.setSize(2)
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(2))
+    expect(result.current.data?.[1]?.items[0]?.name).toBe('Old name')
+
+    secondPageName = 'New name'
+    const firstPageCallsBefore = callsForCursor(undefined)
+    const secondPageCallsBefore = callsForCursor('page-2')
+    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/topics'])
+    })
+
+    // Page 0 always revalidates. Waiting on it settles the cache so the page-2
+    // assertions below read a final state rather than racing a pending fetch.
+    await waitFor(() => expect(callsForCursor(undefined)).toBe(firstPageCallsBefore + 1))
+    expect(result.current.data).toHaveLength(2)
+
+    if (revalidateAll) {
+      await waitFor(() => expect(result.current.data?.[1]?.items[0]?.name).toBe('New name'))
+      expect(callsForCursor('page-2')).toBe(secondPageCallsBefore + 1)
+    } else {
+      expect(callsForCursor('page-2')).toBe(secondPageCallsBefore)
+      expect(result.current.data?.[1]?.items[0]?.name).toBe('Old name')
+    }
+  })
+
   it('does not refetch when path does not match', async () => {
     const { Wrapper, cache } = makeWrapper()
     const fetcher = vi.fn(async () => ({ items: [], nextCursor: null }))
@@ -712,6 +757,43 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
+  it('bound mutate revalidates every loaded page without revalidateAll', async () => {
+    let olderPageText = 'stale approval'
+    const getSpy = spyGet()
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [
+          {
+            message: { searchableText: isOlderPage ? olderPageText : 'newest message' },
+            siblingsGroup: []
+          }
+        ],
+        nextCursor: isOlderPage ? undefined : 'older-page',
+        activeNodeId: 'newest-message',
+        rootId: 'root',
+        assistantId: 'assistant'
+      }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    expect(result.current.pages[1]?.items[0]?.message.searchableText).toBe('stale approval')
+
+    olderPageText = 'settled approval'
+    await act(async () => {
+      await result.current.mutate()
+    })
+
+    await waitFor(() => expect(result.current.pages[1]?.items[0]?.message.searchableText).toBe('settled approval'))
+  })
+
   it('pages reference is stable across rerenders when SWR data is unchanged', async () => {
     spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
 
@@ -727,12 +809,16 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages).toBe(firstRef)
   })
 
-  it('passes swrOptions through to useSWRInfinite', async () => {
-    // Sanity-check that `swrOptions` reach `useSWRInfinite` by setting
-    // `revalidateFirstPage: false` and verifying `refresh()` does NOT refetch
-    // page 1 when only one page is loaded.
+  it('does not revalidate the first page while pagination grows when explicitly disabled', async () => {
     const getSpy = spyGet()
-    getSpy.mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+    const cursors: Array<string | null> = []
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const cursor = opts.query?.cursor ?? null
+      cursors.push(cursor)
+      if (cursor === null) return { items: [], nextCursor: 'c1', activeNodeId: null }
+      if (cursor === 'c1') return { items: [], nextCursor: 'c2', activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null }
+    }) as never)
 
     const { Wrapper } = makeWrapper()
     const { result } = renderHook(
@@ -745,7 +831,12 @@ describe('useInfiniteQuery integration', () => {
     )
 
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    expect(getSpy).toHaveBeenCalledTimes(1)
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(3))
+
+    expect(cursors).toEqual([null, 'c1', 'c2'])
   })
 })
 

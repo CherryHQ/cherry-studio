@@ -29,8 +29,6 @@ export interface ProviderCapabilities {
   enableWebSearch: boolean
   /** Whether the model should generate images inline. */
   enableGenerateImage: boolean
-  /** Whether provider-native URL context should be enabled. */
-  enableUrlContext: boolean
 }
 
 /**

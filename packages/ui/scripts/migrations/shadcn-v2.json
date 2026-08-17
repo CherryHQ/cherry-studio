@@ -15,7 +15,6 @@
     "src/main/ai/mcp/servers/browser/tabbarHtml.ts",
     "resources/devtools/main-network/panel.css",
     "packages/ui/scripts/__tests__/**",
-    "scripts/__tests__/check-legacy-css-vars.test.ts",
     "**/dist/**",
     "**/node_modules/**",
     "**/*.snap"

@@ -10,11 +10,19 @@ import { getDirectorySize } from './fileOperations'
 
 const logger = loggerService.withContext('Utils:MarkdownParser')
 
-// Error handling types (used by markdownParser)
-export type PluginError =
-  | { type: 'FILE_NOT_FOUND'; path: string; message?: string }
-  | { type: 'INVALID_METADATA'; reason: string; path: string }
-  | { type: 'READ_FAILED'; path: string; reason: string }
+export type PluginErrorType = 'FILE_NOT_FOUND' | 'INVALID_METADATA' | 'READ_FAILED'
+
+export class PluginError extends Error {
+  constructor(
+    readonly type: PluginErrorType,
+    readonly path: string,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options)
+    this.name = 'PluginError'
+  }
+}
 
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 
@@ -299,11 +307,7 @@ export async function parseSkillMetadata(
 ): Promise<PluginMetadata> {
   // Input validation
   if (!skillFolderPath || !path.isAbsolute(skillFolderPath)) {
-    throw {
-      type: 'INVALID_METADATA',
-      reason: 'Skill folder path must be absolute',
-      path: skillFolderPath
-    } as PluginError
+    throw new PluginError('INVALID_METADATA', skillFolderPath, 'Skill folder path must be absolute')
   }
 
   // Look for SKILL.md or skill.md directly in this folder (no recursion)
@@ -312,24 +316,22 @@ export async function parseSkillMetadata(
   // Check if skill markdown exists
   if (!skillMdPath) {
     logger.error('SKILL.md or skill.md not found in skill folder', { skillFolderPath })
-    throw {
-      type: 'FILE_NOT_FOUND',
-      path: path.join(skillFolderPath, 'SKILL.md'),
-      message: 'SKILL.md or skill.md not found in skill folder'
-    } as PluginError
+    throw new PluginError(
+      'FILE_NOT_FOUND',
+      path.join(skillFolderPath, 'SKILL.md'),
+      'SKILL.md or skill.md not found in skill folder'
+    )
   }
 
   // Read SKILL.md content
   let content: string
   try {
     content = await fs.promises.readFile(skillMdPath, 'utf8')
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Failed to read SKILL.md', { skillMdPath, error })
-    throw {
-      type: 'READ_FAILED',
-      path: skillMdPath,
-      reason: error.message || 'Unknown error'
-    } as PluginError
+    throw new PluginError('READ_FAILED', skillMdPath, error instanceof Error ? error.message : 'Unknown error', {
+      cause: error
+    })
   }
 
   // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks

@@ -7,7 +7,7 @@ import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -295,6 +295,7 @@ const ExpandedToolResponseContent: FC<{
   const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
+  const highlightedForRef = useRef<{ response: unknown; highlight: typeof highlightCode } | null>(null)
 
   useEffect(() => {
     const argsTimer = window.setTimeout(() => setShowArgs(true), TOOL_ARGS_RENDER_DELAY_MS)
@@ -326,6 +327,11 @@ const ExpandedToolResponseContent: FC<{
   // Extract and highlight response when available
   useEffect(() => {
     if (!showResponse || !response) return
+    // Skip when the last completed highlight already covers these inputs — an
+    // <Activity> re-show re-runs this effect with an unchanged response, and
+    // the unconditional clear+shiki pass would flash and re-pay the highlight.
+    const last = highlightedForRef.current
+    if (last && last.response === response && last.highlight === highlightCode) return
 
     let cancelled = false
 
@@ -347,6 +353,7 @@ const ExpandedToolResponseContent: FC<{
       setOriginalLength(origLen)
       const result = await highlightCode(truncatedContent, 'json')
       if (cancelled) return
+      highlightedForRef.current = { response, highlight: highlightCode }
       setHighlightedResponse(result)
     }
 
@@ -492,7 +499,7 @@ const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWi
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
       className
     ]
       .filter(Boolean)

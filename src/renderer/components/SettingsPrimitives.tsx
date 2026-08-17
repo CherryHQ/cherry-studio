@@ -19,8 +19,8 @@ export const SettingContainer = ({
 
 // Canonical settings page container — mirrors the model service (Provider Settings) detail column:
 // outer p-6 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels)
-// keep SettingContainer instead. See DESIGN.md §4 "Settings Page Content Container".
+// Pages with their own internal split layout (Data / Integration / MCP / Channels)
+// keep SettingContainer instead.
 export const SettingsContentColumn = ({
   className,
   innerClassName,

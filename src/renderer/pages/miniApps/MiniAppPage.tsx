@@ -40,9 +40,8 @@ const MiniAppPage: FC = () => {
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
 
-  // Last-resort source for a transient app (no database row, opened via openSmartMiniApp):
-  // shared across windows and independent of any window's keep-alive LRU, so it survives
-  // both detaching this tab into a new window and eviction in the window it came from.
+  // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
+  // Every window's keep-alive entry is only a local snapshot of this cross-window value.
   const transientDescriptor = useSharedCacheValue(`mini_app.transient_descriptor.${appId ?? ''}` as const)
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
@@ -50,10 +49,11 @@ const MiniAppPage: FC = () => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
     if (found) return found
-    // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
+    // Prefer the shared transient descriptor over a window-local keep-alive snapshot.
+    // Reopening OpenClaw republishes its live URL; detached windows must observe it too.
+    if (transientDescriptor) return toTransientMiniApp(transientDescriptor)
     const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
-    if (cached) return cached
-    return transientDescriptor ? toTransientMiniApp(transientDescriptor) : null
+    return cached ?? null
   }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {
@@ -118,6 +118,12 @@ const MiniAppPage: FC = () => {
   // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
   const webviewCleanupRef = useRef<(() => void) | null>(null)
 
+  const detachWebview = useCallback(() => {
+    webviewCleanupRef.current?.()
+    webviewCleanupRef.current = null
+    webviewRef.current = null
+  }, [])
+
   const attachWebview = useCallback(() => {
     if (!app) return true // No app — stop monitoring
     const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
@@ -126,6 +132,7 @@ const MiniAppPage: FC = () => {
 
     if (webviewRef.current === el) return true // Already attached
 
+    detachWebview()
     webviewRef.current = el
     const handleInPageNav = (e: any) => setCurrentUrl(e.url)
     el.addEventListener('did-navigate-in-page', handleInPageNav)
@@ -133,13 +140,16 @@ const MiniAppPage: FC = () => {
       el.removeEventListener('did-navigate-in-page', handleInPageNav)
     }
     return true
-  }, [app])
+  }, [app, detachWebview])
 
   useEffect(() => {
-    if (!app) return
+    if (!app || !isReady) {
+      detachWebview()
+      return
+    }
 
     // Try immediate attachment first
-    if (attachWebview()) return () => webviewCleanupRef.current?.()
+    if (attachWebview()) return detachWebview
 
     // If not yet created, observe DOM changes (lightweight + auto-disconnect)
     const observer = new MutationObserver(() => {
@@ -151,31 +161,21 @@ const MiniAppPage: FC = () => {
 
     return () => {
       observer.disconnect()
-      webviewCleanupRef.current?.()
+      detachWebview()
     }
-  }, [app, attachWebview])
+  }, [app, attachWebview, detachWebview, isReady])
 
-  // Event-driven wait for load completion (replaces fixed 150ms polling)
+  // Keep local readiness synchronized across load, LRU eviction, and recreation.
   useEffect(() => {
-    if (!app) return
-    if (getWebviewLoaded(app.appId)) {
-      // Already loaded
-      if (!isReady) setIsReady(true)
+    if (!app) {
+      setIsReady(false)
       return
     }
-    let mounted = true
-    const unsubscribe = onWebviewStateChange(app.appId, (loaded) => {
-      if (!mounted) return
-      if (loaded) {
-        setIsReady(true)
-        unsubscribe()
-      }
-    })
-    return () => {
-      mounted = false
-      unsubscribe()
-    }
-  }, [app, isReady])
+
+    const unsubscribe = onWebviewStateChange(app.appId, setIsReady)
+    setIsReady(getWebviewLoaded(app.appId))
+    return unsubscribe
+  }, [app])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
@@ -220,13 +220,13 @@ const MiniAppPage: FC = () => {
   }
 
   const handleReload = () => {
-    if (!app) return
-    if (webviewRef.current) {
-      setWebviewLoaded(app.appId, false)
-      setIsReady(false)
-      webviewRef.current.src = app.url
-      setCurrentUrl(app.url)
-    }
+    if (!app || !isReady || !getWebviewLoaded(app.appId)) return
+    const webview = webviewRef.current
+    if (!webview?.isConnected) return
+
+    setWebviewLoaded(app.appId, false)
+    setIsReady(false)
+    webview.reload()
   }
 
   const handleOpenDevTools = () => {

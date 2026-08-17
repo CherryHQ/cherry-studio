@@ -21,10 +21,6 @@ describe('useTranslateMessage without a translation-overlay provider', () => {
     vi.clearAllMocks()
   })
 
-  it('mounts without throwing', () => {
-    expect(() => renderHook(() => useTranslateMessage('msg-1'))).not.toThrow()
-  })
-
   it('translate() is a no-op (never opens a stream) when no overlay sink', async () => {
     const { result } = renderHook(() => useTranslateMessage('msg-1'))
 

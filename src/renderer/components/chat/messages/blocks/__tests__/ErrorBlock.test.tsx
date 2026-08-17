@@ -6,7 +6,8 @@ import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
-  i18nKeys: new Set<string>()
+  i18nKeys: new Set<string>(),
+  language: 'en'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -39,7 +40,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: {
-      language: 'en',
+      language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
     }
   })
@@ -68,16 +69,12 @@ describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
+    mocks.language = 'en'
     vi.clearAllMocks()
   })
 
-  it.each([
-    ['tool call limit', 'tool_call_limit_reached'],
-    ['missing web search API host', 'web_search_api_host_missing'],
-    ['invalid web search API host', 'web_search_api_host_invalid'],
-    ['missing web search API key', 'web_search_api_key_missing'],
-    ['unavailable web search provider', 'web_search_provider_unavailable']
-  ])('renders a known app-owned i18nKey for %s without AI diagnosis', (_scenario, i18nKey) => {
+  it('renders a known app-owned i18nKey without AI diagnosis', () => {
+    const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = { diagnoseMessageError }
     mocks.i18nKeys.add(`error.${i18nKey}`)
@@ -214,5 +211,25 @@ describe('ErrorBlock', () => {
         language: 'en'
       })
     )
+  })
+
+  it('refreshes an AI summary when the app language changes', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
+    mocks.actions = { diagnoseMessageError }
+    const error = {
+      name: 'UnknownError',
+      message: 'unmapped provider failure',
+      stack: null,
+      i18nKey: 'missing_app_error'
+    }
+
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    expect(await screen.findByText('English summary')).toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={message} />)
+
+    expect(await screen.findByText('中文摘要')).toBeInTheDocument()
+    expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
   })
 })

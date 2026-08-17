@@ -10,6 +10,7 @@
  */
 
 import { registry, type ToolRegistry } from '../registry'
+import { createFsReadToolEntry } from './FsReadTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
 import { createKbReadToolEntry } from './KnowledgeReadTool'
@@ -20,6 +21,9 @@ import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
+  // Gated per request (see createFsReadToolEntry), and always confined to the
+  // request's persisted-output allow-list — an empty list denies every read.
+  reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
   reg.register(createKbReadToolEntry())

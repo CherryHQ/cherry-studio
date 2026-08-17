@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { isAbsolute, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,6 +10,20 @@ function isPathInside(childPath: string, parentDir: string): boolean {
   const rel = relative(parentDir, childPath)
   // `..` escapes the parent; an absolute `rel` means they share no common root.
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+}
+
+let cachedAppRoot: { input: string; realPath: string } | undefined
+
+function resolveAppRoot(appRootDir: string): string {
+  if (cachedAppRoot?.input === appRootDir) return cachedAppRoot.realPath
+
+  try {
+    const realPath = realpathSync.native(appRootDir)
+    cachedAppRoot = { input: appRootDir, realPath }
+    return realPath
+  } catch {
+    return appRootDir
+  }
 }
 
 /**
@@ -25,7 +40,9 @@ function isPathInside(childPath: string, parentDir: string): boolean {
  * that origin.
  *
  * A `file:` URL is trusted only when its path is **inside `appRootDir`** — not any
- * `file:` wholesale. Reaching IpcApi does not require the app preload (a
+ * `file:` wholesale. The app root is resolved to its real path first because Chromium
+ * canonicalizes renderer URLs while Electron may report a symlinked launch path.
+ * Reaching IpcApi does not require the app preload (a
  * `nodeIntegration` window can call `ipcRenderer.invoke` directly), so a
  * downloaded/exported HTML opened in such a window would otherwise be trusted, and
  * local HTML in a privileged context is a classic Electron RCE vector. Everything
@@ -55,7 +72,7 @@ export function isAppRendererUrl(
     } catch {
       return false
     }
-    return isPathInside(filePath, appRootDir)
+    return isPathInside(filePath, resolveAppRoot(appRootDir))
   }
 
   if (devServerUrl) {

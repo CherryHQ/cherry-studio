@@ -72,6 +72,13 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.url).toBe('file:///p/fe-3.pdf')
   })
 
+  it('formats Windows physical paths as valid file URLs', async () => {
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValueOnce('C:\\Users\\Test User\\fe-1.png' as never)
+
+    const [part] = await buildFilePartsForAttachments([attachment()])
+
+    expect(part.url).toBe('file:///C:/Users/Test%20User/fe-1.png')
+  })
   it('throws when metadata is unreadable (null) for the freshly created file', async () => {
     mocks.request.mockResolvedValueOnce(null)
     await expect(buildFilePartsForAttachments([attachment()])).rejects.toThrow(/Failed to read metadata/)

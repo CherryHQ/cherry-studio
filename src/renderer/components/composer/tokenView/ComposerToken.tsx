@@ -8,6 +8,7 @@ import {
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -211,7 +212,7 @@ function renderActiveComposerTokenElement({
         'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
         maxWidthClassName,
         colorClassName,
-        readOnly && 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
         selected && 'text-primary underline decoration-primary/40 underline-offset-2',
         className
       )}
@@ -268,10 +269,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
 
   return renderActiveComposerTokenElement({
     ...props,
-    className: cn(
-      'cursor-pointer rounded-[4px] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-      props.className
-    ),
+    className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
     icon: props.readOnly ? (
       <span
         className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
@@ -485,9 +483,16 @@ interface ComposerTokenHoverPopoverProps {
   content: ReactNode | ((controls: { closePopover: () => void }) => ReactNode)
   ariaLabel: string
   contentClassName?: string
+  onActivate?: () => void
 }
 
-function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassName }: ComposerTokenHoverPopoverProps) {
+function ComposerTokenHoverPopover({
+  trigger,
+  content,
+  ariaLabel,
+  contentClassName,
+  onActivate
+}: ComposerTokenHoverPopoverProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -603,7 +608,12 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.stopPropagation()
-        openPopover('keyboard')
+        if (onActivate) {
+          closePopover()
+          onActivate()
+        } else {
+          openPopover('keyboard')
+        }
         return
       }
 
@@ -613,7 +623,18 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
         closePopover()
       }
     },
-    [closePopover, openPopover]
+    [closePopover, onActivate, openPopover]
+  )
+
+  const handleTriggerClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (!onActivate || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+
+      stopTokenActionEvent(event)
+      closePopover()
+      onActivate()
+    },
+    [closePopover, onActivate]
   )
 
   useEffect(
@@ -635,6 +656,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       onMouseLeave={scheduleClosePopover}
       onMouseMove={scheduleOpenPopover}
       onPointerDown={markPointerOpenReason}
+      onClick={handleTriggerClick}
       onBlur={handleTriggerBlur}
       onKeyDownCapture={handleTriggerKeyDown}>
       {trigger}
@@ -680,6 +702,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     ? props.readOnlyFilePreview.url
     : undefined
   const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const openImagePreview = useCallback(() => {
+    if (!presentation.previewUrl) return
+    void ImagePreviewService.show(presentation.previewUrl)
+  }, [presentation.previewUrl])
   const title = props.token.description ?? props.token.promptText ?? label
   const accessibleTitle = props.readOnly ? label : title
   const removeLabel = removeLabelProp ?? 'Remove'
@@ -700,10 +726,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 group-data-[state=open]:ring-1 group-data-[state=open]:ring-ring/50',
-        props.readOnly && 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         presentation.containerClassName,
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
       title={props.readOnly || shouldShowPathTooltip ? undefined : title}
@@ -772,6 +798,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       trigger={chipElement}
       ariaLabel={accessibleTitle}
       contentClassName={presentation.previewUrl ? 'rounded-lg border-0 bg-transparent' : undefined}
+      onActivate={presentation.previewUrl ? openImagePreview : undefined}
       content={
         <FileTokenPreviewCard
           file={file}
@@ -794,10 +821,10 @@ export function FolderComposerToken(props: ComposerTokenProps) {
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50',
-        props.readOnly && 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
       title={path ? undefined : title}

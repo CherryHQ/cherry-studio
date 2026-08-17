@@ -27,6 +27,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+import { getCommand } from '@renderer/components/RichEditor/command'
+
 import NotesEditor from '../NotesEditor'
 
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList
@@ -36,8 +38,8 @@ Object.defineProperty(CSS, 'highlights', {
   value: new Map()
 })
 
-describe('NotesEditor character count transactions', () => {
-  it('tracks undo, redo, and repeated undo from the toolbar', async () => {
+describe('NotesEditor RichEditor integration', () => {
+  it('keeps command filtering local while preserving toolbar transactions', async () => {
     const editorRef: RefObject<RichEditorRef | null> = { current: null }
     const initialContent = '12345678901234567890'
     const TestEditor = () => {
@@ -56,8 +58,14 @@ describe('NotesEditor character count transactions', () => {
     }
     const { container } = render(<TestEditor />)
 
-    await waitFor(() => expect(editorRef.current).not.toBeNull())
+    // NotesEditor lazy-loads RichEditor; the real module is heavy enough to exceed the 1s default.
+    await waitFor(() => expect(editorRef.current).not.toBeNull(), { timeout: 10_000 })
     expect(screen.getByText('notes.characters: 20')).toBeInTheDocument()
+    expect(screen.queryByTestId('toolbar-image')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('toolbar-inlineMath')).not.toBeInTheDocument()
+    expect(screen.getByTestId('toolbar-blockMath')).toBeInTheDocument()
+    expect(getCommand('image')).toBeDefined()
+    expect(getCommand('inlineMath')).toBeDefined()
 
     const contentEditable = container.querySelector<HTMLElement>('[contenteditable="true"]')
     expect(contentEditable).not.toBeNull()

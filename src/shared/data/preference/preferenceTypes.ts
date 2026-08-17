@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
@@ -32,6 +33,8 @@ export type PreferenceShortcutType = {
 export type MenuPresentationMode = 'native' | 'cherry'
 
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
+export type RetryFallbackModelId = UniqueModelId
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -80,7 +83,12 @@ export type LanguageVarious =
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
+/**
+ * A composer key binding (send / line break / steer). Stored as a token array so the
+ * platform-aware `CommandOrControl` token and the shared formatting helpers apply.
+ * Values written before 2.0 are one of five fixed strings; readers normalize them.
+ */
+export type ComposerShortcut = ShortcutBinding
 
 export type AssistantTabSortType = 'tags' | 'list'
 
@@ -247,6 +255,10 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Whether this capability requires a configured HTTP(S) endpoint. */
+    requiresApiHost?: boolean
+    /** Whether this capability requires at least one configured API key. */
+    requiresApiKey?: boolean
     /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>
@@ -262,7 +274,6 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
@@ -270,11 +281,13 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openai-codex',
   'opencode',
   'openclaw',
+  'deepseek-harness',
   'gemini-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',
-  'github-copilot-cli'
+  'github-copilot-cli',
+  'pi'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
@@ -332,6 +345,7 @@ export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
+  'local-document',
   'paddleocr',
   'local-paddleocr',
   'ovocr',

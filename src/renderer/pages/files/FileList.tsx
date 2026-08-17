@@ -24,7 +24,7 @@ export type SortDir = 'asc' | 'desc'
 const FILE_ROW_HEIGHT_PX = 44
 const FILE_LIST_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_4rem_7rem_6.5rem] items-center gap-2'
 const FILE_LIST_CHECKBOX_CLASS_NAME =
-  'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:ring-ring/20'
+  'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-ring'
 
 function SortHeader({
   label,

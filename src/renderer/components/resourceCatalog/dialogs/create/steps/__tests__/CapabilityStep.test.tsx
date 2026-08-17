@@ -45,6 +45,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: vi.fn(),
   useInstalledSkills: () => ({
     skills: installedSkillsState.skills,
     loading: false
@@ -84,6 +85,8 @@ function CapabilityStepHarness() {
       avatar: '🤖',
       name: '',
       description: '',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId: null,
       prompt: '',
       knowledgeBaseIds: [],

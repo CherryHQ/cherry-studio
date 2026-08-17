@@ -50,6 +50,10 @@ Collection and persistence are main-process only. Spans live in
 on the terminal event. The renderer trace viewer (`TracePage`) reads the persisted
 spans on demand through the `trace.getData` IPC — it never collects spans itself.
 
+Trace history is stored under `{userData}/Runtime/trace/<topicId>/<traceId>`.
+The previous `~/.cherrystudio/trace` location is no longer written; it remains a
+cleanup-only target of the `normal_cache` (App cache) option.
+
 ## AdapterTracer
 
 `src/main/ai/observability/adapters/aiSdk/adapterTracer.ts` wraps the OTel `Tracer` returned
@@ -86,6 +90,13 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
 
+Pi has no native OTel exporter. Its runtime connection creates Cherry-owned
+`pi.generate_content` spans at the provider stream boundary and
+`pi.execute_tool` spans from Pi's tool lifecycle events. These spans use the
+agent-session trace context supplied by the host and flow through the existing
+`NodeTraceService` and `TraceStorageService`; parallel tool calls are tracked by
+tool-call id and unfinished spans are closed when the connection ends.
+
 ## Sensitive data capture & redaction
 
 > Cross-referenced from `ClaudeCodeTraceBridgeService.prepareTrace`.
@@ -107,14 +118,6 @@ arbitrary OTLP attribute structures across the ingest path and would risk
 dropping legitimate trace data. The accepted tradeoff is that capture is
 **local-only and developer-gated**; turning that into a redaction/threat-model
 guarantee is a deferred decision. Treat exported trace files as sensitive.
-
-Empty-conversation greetings are passed to the first model turn as explicitly
-untrusted UI context so short replies remain understandable. Normal AI SDK chat
-turns carrying that synthetic context set `recordInputs: false`, and Cherry's
-root turn span records only persisted message history. Claude Code developer
-tracing intentionally captures complete prompts and raw request bodies, so an
-Agent greeting may still appear in its local plaintext trace; the contextual
-greeting setting discloses this behavior.
 
 ## Developer-mode gating
 

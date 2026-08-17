@@ -26,16 +26,19 @@ const EMPTY_MODELS: readonly Model[] = Object.freeze([])
  * chat default is not, so it stays empty (and out of the cascade) until the
  * user picks one.
  */
-export function useDefaultModel() {
+export function useDefaultModel(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
   const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
   const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
-  const { model: defaultModel } = useModelById(defaultModelId as UniqueModelId)
-  const { model: quickModel } = useModelById((quickModelId as UniqueModelId) ?? defaultModelId)
-  const { model: translateModel } = useModelById((translateModelId as UniqueModelId) ?? defaultModelId)
-  const { model: paintingModel } = useModelById(paintingModelId as UniqueModelId)
+  const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
+  const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
+  const { model: translateModel } = useModelById(
+    enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
+  )
+  const { model: paintingModel } = useModelById(enabled ? (paintingModelId as UniqueModelId) : null)
 
   return {
     defaultModel,

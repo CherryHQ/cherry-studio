@@ -1,8 +1,7 @@
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
- * only (no selector fan-out), passes `userMessage` for the inject path, and
- * relays empty-session greeting context to the first runtime turn only.
+ * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
 import { application } from '@application'
@@ -10,7 +9,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -21,7 +20,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/t
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
-import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
 function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
@@ -47,7 +46,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    ctx?: DispatchContext
+  ): Promise<PreparedDispatch> {
     if (req.trigger !== 'submit-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
@@ -103,21 +106,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       updatedAt: createdAt
     }
 
-    const runtimeService = application.get('AgentSessionRuntimeService')
-    const isSessionBusy = runtimeService.isSessionBusy(sessionId)
-    const greetingContext = validateConversationGreeting(
-      !isSessionBusy &&
-        req.greetingContext?.trim() &&
-        agentSessionMessageService.listSessionMessages(sessionId, { limit: 1 }).items.length === 0
-        ? req.greetingContext
-        : undefined
-    )
-
     // Decide enqueue-vs-begin off the runtime entry's authoritative state, NOT
     // `AiStreamManager.hasLiveStream`: the latter is false during the inter-turn drain window
     // (the settled stream is terminal-in-grace) while the entry is mid-transition, so trusting it
     // would take the begin branch and clobber the in-flight drain's `currentTurn` / `pendingTurns`.
-    if (isSessionBusy) {
+    if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) {
+      if (ctx?.requireIdle) {
+        throw DataApiErrorFactory.resourceLocked('Agent session', sessionId, 'an active turn')
+      }
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
@@ -130,10 +126,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
           data: { parts: userMessageParts }
         }
       })
-      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      runtimeService.enqueueUserMessage(sessionId, userMessage, {
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
         messageSnapshot,
         reasoningEffort,
@@ -143,13 +137,15 @@ export class AgentChatContextProvider implements ChatContextProvider {
       return {
         topicId: req.topicId,
         models: [],
-        userMessageId,
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber],
-        isMultiModel: false
+        listeners: [subscriber]
       }
     }
 
+    // Match normal topics: only the first turn of an untouched conversation may auto-name.
+    // Later idle turns still create a fresh runtime entry, so runtime state alone cannot
+    // distinguish them from the initial turn; persisted messages are the durable boundary.
+    const shouldAutoNameInitialTurn = !agentSessionMessageService.hasSessionMessages(sessionId)
     const assistantMessageId = uuidv7()
 
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
@@ -172,27 +168,38 @@ export class AgentChatContextProvider implements ChatContextProvider {
     )
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    const savedMessages = agentSessionMessageService.saveMessages({
-      sessionId,
-      messages: [
+    let savedMessages: AgentSessionMessageEntity[]
+    try {
+      savedMessages = agentSessionMessageService.saveMessages(
         {
-          id: userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: userMessageParts }
+          sessionId,
+          messages: [
+            {
+              id: userMessageId,
+              role: 'user',
+              status: 'success',
+              data: { parts: userMessageParts }
+            },
+            {
+              id: assistantMessageId,
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] },
+              modelId: uniqueModelId,
+              messageSnapshot
+            }
+          ]
         },
-        {
-          id: assistantMessageId,
-          role: 'assistant',
-          status: 'pending',
-          data: { parts: [] },
-          modelId: uniqueModelId,
-          messageSnapshot
-        }
-      ]
-    })
-    // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-    topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+        ctx?.expectedAgentId
+      )
+    } catch (error) {
+      turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
+      throw error
+    }
+    if (shouldAutoNameInitialTurn) {
+      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
+      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+    }
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {
@@ -203,7 +210,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentName: agent.name
     })
 
-    const runtime = runtimeService.beginTurn({
+    const runtime = application.get('AgentSessionRuntimeService').beginTurn({
       sessionId,
       topicId: req.topicId,
       agentId,
@@ -213,10 +220,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       fastMode: req.fastMode,
       assistantMessageId,
       userMessage,
-      ...(greetingContext ? { greetingContext } : {}),
       headless: req.headless === true,
       traceId,
-      messageSnapshot
+      messageSnapshot,
+      shouldAutoName: shouldAutoNameInitialTurn
     })
 
     return {
@@ -242,10 +249,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
           abortController: runtime.abortController
         }
       ],
-      userMessageId,
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
-      listeners: [subscriber, ...runtime.listeners],
-      isMultiModel: false
+      listeners: [subscriber, ...runtime.listeners]
     }
   }
 }

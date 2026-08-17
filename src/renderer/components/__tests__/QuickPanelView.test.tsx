@@ -189,32 +189,6 @@ describe('QuickPanelView', () => {
   })
 
   describe('rendering', () => {
-    it('should render without crashing when wrapped in QuickPanelProvider', () => {
-      render(wrapWithProviders(<QuickPanelView inputAdapter={createInputAdapter().adapter} />))
-
-      // 检查面板容器是否存在且初始不可见
-      const panel = screen.getByTestId('quick-panel')
-      expect(panel.classList.contains('visible')).toBe(false)
-    })
-
-    it('should render list after open', async () => {
-      const list = createList(100)
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
-      })
-
-      // 检查面板可见
-      const panel = screen.getByTestId('quick-panel')
-      expect(panel.classList.contains('visible')).toBe(true)
-      // 检查第一个 item 是否渲染
-      expect(screen.getByText('Item 1')).toBeInTheDocument()
-    })
-
     it('uses a slightly narrower horizontal width than the inputbar stack', () => {
       const list = createList(1)
       const input = createInputAdapter()

@@ -33,7 +33,8 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
       onOpenChange={setIsOpen}
       showArrow={false}
       contentProps={{
-        className: 'rounded-[8px] border border-border bg-card p-3 text-card-foreground'
+        className:
+          'rounded-[8px] border border-border bg-card p-3 text-card-foreground dark:bg-card dark:text-card-foreground'
       }}>
       {children}
     </NormalTooltip>

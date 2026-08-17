@@ -47,7 +47,7 @@
 | File Processing | 文件内容提取 / 转换能力集合，不代表某个具体业务流程 |
 | Processor | 一个可执行文件处理能力的处理器，例如 `tesseract`、`paddleocr`、`mineru`、`doc2x` |
 | Feature | Processor 暴露的能力类型，当前只有 `image_to_text` 和 `document_to_markdown` |
-| Capability | Processor 对某个 Feature 的支持声明，包括输入类型、输出类型和默认 API 配置 |
+| Capability | Processor 对某个 Feature 的支持声明，包括输入类型、输出类型、默认 API 配置和只读输入约束 |
 | FileProcessingJob | 一次 processor execution，由统一 `JobManager` 生成 `jobId` 跟踪 |
 | Artifact | job 完成后产出的结果项，例如内联 text 或落盘 markdown file |
 | Provider task | 第三方 provider 自己的任务句柄，例如远程 OCR / Markdown 服务返回的 job id；只属于 Main 内部实现细节 |
@@ -58,6 +58,23 @@
 1. 不把底层 `image_to_text` 命名成 `translate_ocr`。
 2. 不把底层 `document_to_markdown` 命名成 `knowledge_preprocess`。
 3. 不在对外契约里暴露 `providerTaskId` 或 provider-specific query context。
+
+`document_to_markdown` capability 可声明只读的 `maxInputBytes?: number` 和 `maxInputPages?: number`。
+这些字段属于 preset，不能通过用户 override 修改。`maxInputBytes` 是排他上限，文件大小必须严格小于该值；
+`maxInputPages` 是包含上限，PDF 页数可以等于该值。未配置表示 file-processing 通用执行层不施加对应
+限制，不代表 provider 或 handler 内部没有其他运行时保护。
+
+| Processor | `maxInputBytes` | `maxInputPages` |
+| --- | ---: | ---: |
+| `paddleocr` | 50 MB | 100 |
+| `mineru` | 200 MB | 600 |
+| `doc2x` | 1 GB | 1000 |
+| `mistral` | 未配置 | 1000 |
+| `local-document` | 未配置 | 未配置（保留 handler 的 300 页保护） |
+| `open-mineru` | 200 MB | 未配置 |
+
+PaddleOCR preset 的 hosted model 默认值为：`image_to_text` 使用 `PP-OCRv6`，
+`document_to_markdown` 使用 `PaddleOCR-VL-1.6`。用户仍可通过 capability override 修改 `modelId`。
 
 ---
 
@@ -487,6 +504,7 @@ file-processing job 使用统一 JobManager 的保留和恢复语义。
 2. background handler 使用 `recovery: 'retry'`，重启后从头重试当前 attempt。
 3. remote-poll handler 使用 `recovery: 'retry'`，重启后从 job metadata 恢复 provider task id 和可持久 query state。
 4. API key、token、abort controller、in-flight query、background execution 等不写入 metadata。
+5. 已持久化 `remoteState.providerTaskId` 的任务已经提交到 provider；升级恢复时跳过当前 capability 输入限制预检并继续轮询，避免中断已付费请求。尚未提交的任务仍执行当前预检。
 
 最终 artifact 文件不会随 job 记录保留周期自动删除。artifact 生命周期由 feature 文件数据目录和上层业务清理策略决定。
 
@@ -506,11 +524,14 @@ file-processing job 使用统一 JobManager 的保留和恢复语义。
 6. `file.type` 必须匹配 capability `inputs`，例如：
    - `image_to_text` 接收 `image`
    - `document_to_markdown` 接收 `document`
+7. `document_to_markdown` capability 如果配置了 `maxInputBytes`，job execution 在 provider `prepare` 前使用 live `FileInfo.size` 校验所有文档输入；`size >= maxInputBytes` 时失败。
+8. PDF capability 如果配置了 `maxInputPages`，大小校验通过后再通过本地文件 URL 读取页数；只有 `pageCount > maxInputPages` 才失败。
+9. PDF 页数读取失败时 job 直接失败，不调用 provider；超限错误使用 Main i18n，提示用户压缩或拆分后重新添加。
 
 不在 facade 层做的校验：
 
 1. PDF、DOCX、PNG、JPG 等细分扩展名白名单。
-2. provider 特定模型限制。
+2. 除 capability `maxInputBytes` / `maxInputPages` 外的 provider 特定模型限制。
 3. provider 特定 API key / api host / path 可用性。
 4. 远程服务是否真的支持某个文档格式。
 
@@ -751,6 +772,8 @@ Job service 测试：
 10. file type 不匹配 capability inputs 时 fail fast。
 11. background handler 在重试时重新执行 capability。
 12. remote-poll handler 可以从 metadata 恢复 provider task state。
+13. PDF 页数无上限、非 PDF、恰好等于上限、超过上限和读取失败。
+14. 已提交 remote-poll task 跳过 PDF 页数预检，未提交 task 仍执行预检。
 
 Registry 测试：
 

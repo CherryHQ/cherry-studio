@@ -10,9 +10,14 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import {
+  dedupePathSegments,
+  getBinaryIsolatedHomeEnv,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv
+} from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
+import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -85,6 +90,12 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
 const LATEST_VERSIONS_CONCURRENCY = 4
+const MISE_PRERELEASE_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.misePrerelease).map((preset) => preset.miseTool)
+)
+const MISE_NPM_SHELL_OUT_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
+)
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -259,7 +270,7 @@ export class BinaryManager extends BaseService {
     // bootstrapped (always true by the time any restart runs).
     if (this.hasReachedAllReady) this.registerPreferenceInvalidation()
     await this.extractBundledBinaries()
-    this.miseBin = this.findMiseBin()
+    this.miseBin = await this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, binary management disabled')
       return
@@ -725,7 +736,7 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private findMiseBin(): string | null {
+  private async findMiseBin(): Promise<string | null> {
     const binaryName = getBinaryName('mise')
 
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
@@ -733,9 +744,12 @@ export class BinaryManager extends BaseService {
       return cherryBin
     }
 
+    if (isWin) {
+      return findMiseExecutable()
+    }
+
     try {
-      const cmd = isWin ? 'where' : 'which'
-      const result = execFileSync(cmd, [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const result = execFileSync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
       const systemPath = result.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath
@@ -872,7 +886,10 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  private async runMise(args: string[], opts?: { timeoutMs?: number }): Promise<{ stdout: string; stderr: string }> {
+  private async runMise(
+    args: string[],
+    opts?: { timeoutMs?: number; includePrerelease?: boolean; shellOutNpm?: boolean; prependPath?: string }
+  ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
       // used for the env would have silently fallen back to `process.env`,
@@ -881,7 +898,28 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const env = await this.getIsolatedEnv()
+    const isolatedEnv = await this.getIsolatedEnv()
+    let env = isolatedEnv
+    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath) {
+      env = { ...isolatedEnv }
+      if (opts.includePrerelease) env['MISE_PRERELEASES'] = '1'
+      if (opts.shellOutNpm) {
+        env['MISE_NPM_SHELL_OUT'] = '1'
+        env['MISE_NPM_PACKAGE_MANAGER'] = 'npm'
+      }
+      if (opts.prependPath) {
+        const pathSeparator = isWin ? ';' : path.delimiter
+        const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+        const pathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
+        const pathValue = dedupePathSegments([
+          opts.prependPath,
+          ...pathKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
+        ]).join(pathSeparator)
+        for (const key of pathKeys) delete env[key]
+        env[pathKey] = pathValue
+        if (!isWin) env.PATH = pathValue
+      }
+    }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
@@ -930,6 +968,68 @@ export class BinaryManager extends BaseService {
     return (await this.resolveManagedBinaryPath(toolName)) !== null
   }
 
+  private async resolveMiseBinaryForTool(
+    binaryName: string,
+    toolSpec: string
+  ): Promise<{ path: string; canonicalPath: string } | null> {
+    try {
+      const { stdout } = await this.runMise(['which', binaryName, '--tool', toolSpec])
+      const resolved = stdout.trim().split(/\r?\n/)[0]
+      if (!resolved || !path.isAbsolute(resolved)) return null
+      const canonicalPath = await fsp.realpath(resolved)
+      await fsp.access(canonicalPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+      return { path: resolved, canonicalPath }
+    } catch {
+      return null
+    }
+  }
+
+  private async resolveExactRuntime(runtime: string): Promise<string> {
+    const separator = runtime.lastIndexOf('@')
+    const runtimeTool = runtime.slice(0, separator)
+    const requestedVersion = runtime.slice(separator + 1)
+    const exactVersion = semverValid(requestedVersion)
+    if (exactVersion) return `${runtimeTool}@${exactVersion}`
+
+    const { stdout } = await this.runMise(['latest', '--minimum-release-age', '0s', runtime])
+    const resolvedVersion = semverValid(stdout.trim().split(/\r?\n/)[0])
+    if (!resolvedVersion) throw new Error(`mise did not resolve an exact runtime version for ${runtime}`)
+    return `${runtimeTool}@${resolvedVersion}`
+  }
+
+  private async resolveHealthyNpmRuntimeBin(runtime: string): Promise<string | null> {
+    const [runtimeNode, runtimeNpm, activeNode] = await Promise.all([
+      this.resolveMiseBinaryForTool('node', runtime),
+      this.resolveMiseBinaryForTool('npm', runtime),
+      this.resolveManagedBinaryPath('node')
+    ])
+    if (!runtimeNode || !runtimeNpm || !activeNode) return null
+
+    const canonicalRuntimeNode = isWin ? runtimeNode.canonicalPath.toLowerCase() : runtimeNode.canonicalPath
+    const canonicalActiveNode = isWin ? activeNode.toLowerCase() : activeNode
+    if (canonicalRuntimeNode !== canonicalActiveNode) return null
+
+    const nodeBin = isWin ? path.dirname(runtimeNode.path).toLowerCase() : path.dirname(runtimeNode.path)
+    const npmBin = isWin ? path.dirname(runtimeNpm.path).toLowerCase() : path.dirname(runtimeNpm.path)
+    return nodeBin === npmBin ? path.dirname(runtimeNpm.path) : null
+  }
+
+  private async prepareNpmRuntime(runtime: string): Promise<string> {
+    const exactRuntime = await this.resolveExactRuntime(runtime)
+    // A fuzzy use can trust a stale alias whose node target is missing. Activate
+    // an exact version, verify both launchers, then force-reinstall if needed.
+    await this.runMise(['use', '-g', '--pin', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+
+    let runtimeBin = await this.resolveHealthyNpmRuntimeBin(exactRuntime)
+    if (!runtimeBin) {
+      await this.runMise(['install', '--force', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+      await this.runMise(['use', '-g', '--pin', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+      runtimeBin = await this.resolveHealthyNpmRuntimeBin(exactRuntime)
+    }
+    if (!runtimeBin) throw new Error(`mise runtime is not runnable after reinstall: ${exactRuntime}`)
+    return runtimeBin
+  }
+
   private async installWithMise(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -954,8 +1054,18 @@ export class BinaryManager extends BaseService {
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
     const toolSpec = `${definition.tool}@${requested}`
+    const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
+    const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
+    const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
-    await this.runMise(['use', '-g', ...(runtime ? [runtime] : []), toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+    const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+
+    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec], {
+      timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+      includePrerelease,
+      shellOutNpm,
+      prependPath: runtimeBin
+    })
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
   }
@@ -1136,6 +1246,23 @@ export class BinaryManager extends BaseService {
     await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
+    }
+
+    // Only explicit updates clean versions no longer referenced by mise.
+    if (targetVersion) {
+      try {
+        await this.runMise(['prune', definition.tool])
+      } catch (err) {
+        logger.warn('Failed to prune obsolete mise tool versions', {
+          name: definition.name,
+          error: this.errorMessage(err)
+        })
+        return
+      }
+      await this.runMise(['reshim'])
+      if (!(await this.isManagedBinaryReady(definition.name))) {
+        throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
+      }
     }
   }
 
@@ -1509,7 +1636,9 @@ export class BinaryManager extends BaseService {
         const name = applied[cursor++]
         const { tool } = candidates.get(name)!
         try {
-          const { stdout } = await this.runMise(['latest', tool])
+          const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
+          const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
+          const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
           if (version) result[name] = version
         } catch (err) {

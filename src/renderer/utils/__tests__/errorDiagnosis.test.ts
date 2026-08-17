@@ -6,6 +6,10 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()
 }))
 
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: () => 'Free diagnosis model is unavailable' }
+}))
+
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
 // Mock the boundary directly so tests can stage the value without rewiring v2 data.
 vi.mock('@renderer/utils/model', () => ({
@@ -27,7 +31,7 @@ vi.mock('@logger', () => ({
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { readDefaultModel } from '@renderer/utils/model'
 
-import { diagnoseError } from '../errorDiagnosis'
+import { classifyErrorByAI, diagnoseError } from '../errorDiagnosis'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
@@ -36,19 +40,27 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-// listModels goes through ipcApi.request('ai.provider.model.list', …) now (Main IPC).
-const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
+const { mockGetDiagnosisModel, mockIpcRequest } = vi.hoisted(() => ({
+  mockGetDiagnosisModel: vi.fn(),
+  mockIpcRequest: vi.fn()
+}))
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: mockGetDiagnosisModel }
+}))
+
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }
+  ipcApi: { request: mockIpcRequest }
 }))
 
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockListModels.mockResolvedValue([
-      { id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' },
-      { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, name: 'Qwen', providerId: 'cherryai' }
-    ])
+    mockGetDiagnosisModel.mockResolvedValue({
+      id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+      name: 'Qwen',
+      providerId: 'cherryai',
+      apiModelId: 'qwen'
+    })
   })
 
   describe('diagnoseError', () => {
@@ -80,22 +92,22 @@ describe('ErrorDiagnosisService', () => {
       expect(result.summary).toBe('Network error')
     })
 
-    it('throws on empty response from all models', async () => {
+    it('shows the free-model unavailable error on empty response', async () => {
       mockFetchGenerate.mockResolvedValue('')
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow()
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
     })
 
-    it('throws on invalid JSON from all models', async () => {
+    it('shows the free-model unavailable error on invalid JSON', async () => {
       mockFetchGenerate.mockResolvedValue('not valid json')
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow()
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
     })
 
-    it('throws on missing required fields', async () => {
+    it('shows the free-model unavailable error on missing required fields', async () => {
       mockFetchGenerate.mockResolvedValue(JSON.stringify({ foo: 'bar' }))
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Invalid diagnosis response format')
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
     })
 
-    it('uses the default CherryAI free model as primary regardless of list order', async () => {
+    it('uses the persisted CherryAI free model', async () => {
       const mockResult = {
         summary: 'Error',
         category: 'unknown',
@@ -110,10 +122,9 @@ describe('ErrorDiagnosisService', () => {
       )
     })
 
-    it('falls back to defaultModel when the default CherryAI free model is unavailable', async () => {
-      mockListModels.mockResolvedValue([{ id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' }])
-      const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-      mockReadDefaultModel.mockResolvedValueOnce(customModel as any)
+    it('uses persisted Qwen without falling back to the default model', async () => {
+      const defaultModel = { id: 'dashscope::deepseek-v3', name: 'DeepSeek V3', providerId: 'dashscope' }
+      mockReadDefaultModel.mockResolvedValueOnce(defaultModel as any)
 
       const mockResult = {
         summary: 'Error',
@@ -124,7 +135,30 @@ describe('ErrorDiagnosisService', () => {
       mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
 
       await diagnoseError(makeError(), 'en')
-      expect(mockFetchGenerate.mock.calls[0][0]).toEqual(expect.objectContaining({ model: customModel }))
+      expect(mockGetDiagnosisModel).toHaveBeenCalledWith(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
+      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
+      expect(mockFetchGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
+          throwOnError: true
+        })
+      )
+      expect(mockFetchGenerate).not.toHaveBeenCalledWith(expect.objectContaining({ model: defaultModel }))
+      expect(mockReadDefaultModel).not.toHaveBeenCalled()
+      expect(mockIpcRequest).not.toHaveBeenCalled()
+    })
+
+    it('does not fall back when persisted Qwen is missing', async () => {
+      mockGetDiagnosisModel.mockResolvedValueOnce(undefined)
+      mockReadDefaultModel.mockResolvedValueOnce({
+        id: 'dashscope::deepseek-v3',
+        name: 'DeepSeek V3',
+        providerId: 'dashscope'
+      } as any)
+
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
+      expect(mockFetchGenerate).not.toHaveBeenCalled()
+      expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
 
     it('uses only CherryAI when no default model', async () => {
@@ -261,6 +295,56 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).not.toContain('hitting a rate limit')
     })
 
+    // The inline card classifies 403 as `permission`; the prompt must not then tell the user
+    // their key is invalid. Region and quota keep winning, matching `classifyError`.
+    it('routes HTTP 403 to permission context instead of auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"no access"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('refused this request with HTTP 403')
+      expect(callArgs.prompt).not.toContain('got an authentication error')
+    })
+
+    it('keeps a geo-blocked 403 in region context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'region', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, message: 'unsupported_country_region_territory' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('IP region is not supported')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('keeps a billing 403 in quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('still routes HTTP 401 to auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 401, message: 'Unauthorized' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('got an authentication error')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
     it('falls back to provider and model fields on the error', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
@@ -271,6 +355,22 @@ describe('ErrorDiagnosisService', () => {
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('anthropic')
       expect(callArgs.content).toContain('claude-sonnet-4-5')
+    })
+  })
+
+  describe('classifyErrorByAI', () => {
+    it('returns an empty result instead of falling back when free Qwen fails', async () => {
+      mockFetchGenerate.mockRejectedValue(new Error('network unavailable'))
+
+      await expect(classifyErrorByAI(makeError(), 'en')).resolves.toBe('')
+      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
+      expect(mockFetchGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
+          throwOnError: true
+        })
+      )
+      expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
   })
 })

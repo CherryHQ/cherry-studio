@@ -1,6 +1,7 @@
 import { Badge, Button } from '@cherrystudio/ui'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 import { Trash2 } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
@@ -22,6 +23,7 @@ function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: (
 
 interface ResourceCardProps {
   resource: ResourceItem
+  variant?: 'library' | 'settings'
   allGroups: Group[]
   onDelete: (resource: ResourceItem) => void
   onDuplicate: (resource: ResourceItem) => void
@@ -33,12 +35,22 @@ function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
-export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
+export function ResourceCard({
+  resource: r,
+  variant = 'library',
+  allGroups,
+  onDelete,
+  onDuplicate,
+  onEdit,
+  onExport
+}: ResourceCardProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
-  // Skills get the type-specific tinted background and lucide icon; other resources keep their own
-  // avatar (emoji/initials) on the neutral accent block.
-  const useTypedAvatarBg = r.type === 'skill'
+  const isSettings = variant === 'settings'
+  // Library cards keep the type tint for quick scanning. The settings surface uses a neutral icon block
+  // so Skill management follows the same calm visual hierarchy as the surrounding settings pages.
+  const showTypeIcon = r.type === 'skill'
+  const useTypedAvatarBg = showTypeIcon && !isSettings
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
@@ -46,20 +58,30 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
 
   return (
     <div
-      className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-subtle hover:shadow-sm"
+      className={cn(
+        'group relative cursor-pointer border bg-card transition-[border-color,box-shadow] hover:shadow-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        isSettings
+          ? 'rounded-xl border-border hover:border-border-strong'
+          : 'rounded-lg border-border-subtle hover:border-border-subtle'
+      )}
       style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
       role="button"
       tabIndex={0}
       aria-label={r.name}
       onClick={() => onEdit(r)}
       onKeyDown={(e) => activateCardOnKeyDown(e, () => onEdit(r))}>
-      <div className="p-3.5">
+      <div className={isSettings ? 'p-4' : 'p-3.5'}>
         <div className="flex items-center gap-3">
           <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base ${
-              useTypedAvatarBg ? cfg.color : 'bg-secondary'
-            }`}>
-            {useTypedAvatarBg ? <TypeIcon size={20} aria-hidden /> : r.avatar}
+            className={cn(
+              'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
+              useTypedAvatarBg ? cfg.color : 'bg-secondary text-secondary-foreground'
+            )}>
+            {showTypeIcon ? (
+              <TypeIcon size={20} aria-hidden className={isSettings ? 'text-foreground-tertiary' : undefined} />
+            ) : (
+              r.avatar
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -72,7 +94,13 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
                 </Badge>
               )}
             </div>
-            <p className="mt-0.5 truncate text-muted-foreground text-xs leading-4">{r.description}</p>
+            <p
+              className={cn(
+                'mt-0.5 text-muted-foreground text-xs leading-4',
+                isSettings ? 'line-clamp-2 min-h-8' : 'truncate'
+              )}>
+              {r.description}
+            </p>
             {visibleGroup && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">
                 <Badge
