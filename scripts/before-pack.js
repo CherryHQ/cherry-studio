@@ -81,8 +81,20 @@ const packages = [
   'node-screenshots-linux-x64-musl',
   'node-screenshots-win32-arm64-msvc',
   'node-screenshots-win32-ia32-msvc',
-  'node-screenshots-win32-x64-msvc'
+  'node-screenshots-win32-x64-msvc',
+  // macOS permission prompts. Unlike everything above, one package covers both arches.
+  'node-mac-permissions'
 ]
+
+/**
+ * Platform-gated packages whose names carry no arch token, so the name matcher in
+ * {@link keepPackages} cannot classify them. Kept for every arch of their own platform and
+ * excluded everywhere else — otherwise a Windows or Linux package cross-built on a Mac
+ * would ship a darwin-only `.node`.
+ */
+const platformOnlyPackages = {
+  darwin: ['node-mac-permissions']
+}
 
 const platformToArch = {
   mac: 'darwin',
@@ -96,7 +108,10 @@ const platformToArch = {
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
 const keepPackages = (platform, arch) => {
   const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
-  return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
+  return [
+    ...packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t))),
+    ...(platformOnlyPackages[platform] ?? [])
+  ]
 }
 
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
@@ -117,6 +132,7 @@ const assertPrebuiltPackages = (platform, arch) => {
   }
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
+exports.keepPackages = keepPackages
 
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'

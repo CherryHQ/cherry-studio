@@ -59,6 +59,8 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
   // into the export. Without the handoff the export silently loses every annotation.
   useImperativeHandle<HTMLCanvasElement | null, HTMLCanvasElement | null>(ref, () => canvasRef.current, [])
   const drawingRef = useRef<{ tool: AnnotationTool; startPoint: Point; points: Point[] } | null>(null)
+  /** Readback of the frozen pixels under the selection, reused across draw frames. */
+  const mosaicSourceRef = useRef<{ key: string; image: HTMLImageElement; data: ImageData } | null>(null)
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
@@ -76,12 +78,21 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
     ctx.setTransform(scaleFactor, 0, 0, scaleFactor, 0, 0)
     ctx.clearRect(0, 0, selection.width, selection.height)
 
-    // Gated: this allocates an offscreen canvas and reads back the whole selection,
-    // which must not happen on every frame of every non-mosaic gesture.
+    // Cached, not merely gated: `hasMosaic` stays true for the rest of the session once one
+    // mosaic is committed, so without this every frame of every other tool would allocate an
+    // offscreen canvas and read the whole selection back — tens of MB per pointermove.
+    // The capture's pixels are frozen, so only a new selection or image can invalidate it.
     let imageData: ImageData | null = null
     const hasMosaic = annotations.some((a) => a.type === 'mosaic') || activeDrawing?.type === 'mosaic'
     if (hasMosaic) {
-      imageData = getSelectionImageData(image, selection, scaleFactor)
+      const key = `${selection.x},${selection.y},${selection.width},${selection.height},${scaleFactor}`
+      const cached = mosaicSourceRef.current
+      if (cached && cached.key === key && cached.image === image) {
+        imageData = cached.data
+      } else {
+        imageData = getSelectionImageData(image, selection, scaleFactor)
+        mosaicSourceRef.current = imageData ? { key, image, data: imageData } : null
+      }
     }
 
     // Annotations are stored image-absolute; this maps them into canvas-local space.

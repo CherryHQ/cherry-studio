@@ -111,6 +111,11 @@
       "open_settings": "Open System Settings",
       "title": "Screen Recording Permission"
     },
+    "screenshot_failed": {
+      "message": "The screenshot could not be taken.",
+      "ok": "OK",
+      "title": "Screenshot Failed"
+    },
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },

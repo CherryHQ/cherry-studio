@@ -67,7 +67,9 @@ describe('MediaProtocolService', () => {
   it('drops every entry on destroy so a shutdown cannot leave captures resident', async () => {
     const id = service.store(MediaKind.Image, Buffer.from([5]), 'image/png')
     await service._doDestroy()
-    expect(service.has(MediaKind.Image, id)).toBe(false)
+    // Asserted through the protocol rather than a store probe: serving a capture after
+    // shutdown is the failure that matters, and it is what a renderer would still see.
+    expect((await handler(new Request(`cherry-media://image/${id}`))).status).toBe(404)
     // afterEach's second _doDestroy() must stay harmless.
   })
 })

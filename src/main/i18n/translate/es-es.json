@@ -111,6 +111,11 @@
       "open_settings": "[to be translated]:Open System Settings",
       "title": "[to be translated]:Screen Recording Permission"
     },
+    "screenshot_failed": {
+      "message": "[to be translated]:The screenshot could not be taken.",
+      "ok": "[to be translated]:OK",
+      "title": "[to be translated]:Screenshot Failed"
+    },
     "select_folder": "Seleccionar carpeta",
     "word_document": "Documento de Word"
   },

@@ -21,11 +21,9 @@ vi.mock('electron', () => ({
 }))
 vi.mock('@main/core/platform', () => ({ isMac: true }))
 
-const { captureAllMonitors, listWindows, getScreenCapturePermissionStatus } = await import(
-  '@main/services/screenshot/screenCapture'
-)
+const { captureAllMonitors, listWindows } = await import('@main/services/screenshot/screenCapture')
 
-const toPngSync = vi.fn<(copyOutputData: boolean) => Buffer>(() => Buffer.from([1]))
+const toPng = vi.fn<(copyOutputData: boolean) => Promise<Buffer>>(async () => Buffer.from([1]))
 
 const makeMonitor = (id: number) => ({
   id: () => id,
@@ -36,7 +34,7 @@ const makeMonitor = (id: number) => ({
   height: () => 1080,
   scaleFactor: () => 2,
   isPrimary: () => id === 1,
-  captureImage: async () => ({ width: 3840, height: 2160, toPngSync })
+  captureImage: async () => ({ width: 3840, height: 2160, toPng })
 })
 
 describe('screenCapture', () => {
@@ -44,7 +42,7 @@ describe('screenCapture', () => {
     monitorAll.mockReset()
     windowAll.mockReset()
     getMediaAccessStatus.mockReset()
-    toPngSync.mockClear()
+    toPng.mockClear()
   })
 
   it('reports an empty monitor list as missing permission when the OS says so', async () => {
@@ -90,7 +88,7 @@ describe('screenCapture', () => {
         peakInFlight = Math.max(peakInFlight, inFlight)
         await new Promise((resolve) => setTimeout(resolve, 10))
         inFlight--
-        return { width: 3840, height: 2160, toPngSync }
+        return { width: 3840, height: 2160, toPng }
       }
     })
     monitorAll.mockReturnValue([slowMonitor(1), slowMonitor(2)])
@@ -129,15 +127,6 @@ describe('screenCapture', () => {
     expect(listWindows().map((w) => w.pid)).toEqual([1])
   })
 
-  it('maps the Electron media-access status onto the permission tri-state', () => {
-    getMediaAccessStatus.mockReturnValue('not-determined')
-    expect(getScreenCapturePermissionStatus()).toBe('not-determined')
-    getMediaAccessStatus.mockReturnValue('granted')
-    expect(getScreenCapturePermissionStatus()).toBe('authorized')
-    getMediaAccessStatus.mockReturnValue('restricted')
-    expect(getScreenCapturePermissionStatus()).toBe('denied')
-  })
-
   it('captures every monitor keyed by its own id', async () => {
     getMediaAccessStatus.mockReturnValue('granted')
     monitorAll.mockReturnValue([makeMonitor(1), makeMonitor(2)])
@@ -152,6 +141,6 @@ describe('screenCapture', () => {
     getMediaAccessStatus.mockReturnValue('granted')
     monitorAll.mockReturnValue([makeMonitor(1)])
     await captureAllMonitors()
-    expect(toPngSync).toHaveBeenCalledWith(true)
+    expect(toPng).toHaveBeenCalledWith(true)
   })
 })

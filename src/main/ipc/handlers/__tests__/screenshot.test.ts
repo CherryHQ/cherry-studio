@@ -147,9 +147,9 @@ describe('screenshotHandlers', () => {
       expectNoDelegation()
     })
 
-    it('can still start a capture — that entry point is deliberately unguarded', async () => {
-      // The settings page is not an overlay and no session exists yet, so any
-      // session predicate here would make the feature unreachable.
+    it('can still start a capture — that entry point is only sender-scoped', async () => {
+      // An in-app control is not an overlay and no session exists yet, so any session
+      // predicate here would make the feature unreachable from inside the app.
       await screenshotHandlers['screenshot.capture'](undefined, ctx('main-window'))
 
       expect(overlayService.startCapture).toHaveBeenCalledOnce()

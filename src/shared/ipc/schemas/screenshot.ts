@@ -69,7 +69,10 @@ export type OcrRecognitionResult = z.infer<typeof ocrRecognitionResult>
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const screenshotRequestSchemas = {
-  /** Start a capture session (settings page / future entry points). */
+  /**
+   * Start a capture session from an in-app control, e.g. a composer's screenshot button.
+   * The shortcut does not come through here — it runs in main via `CommandService`.
+   */
   'screenshot.capture': defineRoute({ input: z.void(), output: z.void() }),
   /** Selection confirmed — copy to the clipboard and dismiss every overlay. */
   'screenshot.commit': defineRoute({ input: screenshotResultSchema, output: z.void() }),
@@ -125,4 +128,9 @@ export const screenshotRequestSchemas = {
 export type ScreenshotEventSchemas = {
   /** Sent to an overlay that lost the interaction, telling it to drop its selection. */
   'screenshot.reset_overlay': void
+  /**
+   * The session is over. A pooled overlay is only hidden, never unmounted, so nothing
+   * else tells its renderer to let go of the decoded capture until the next session.
+   */
+  'screenshot.session_ended': void
 }

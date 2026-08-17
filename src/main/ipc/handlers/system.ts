@@ -2,12 +2,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
   getScreenCapturePermissionStatus,
   openScreenCaptureSettings,
   requestScreenCapturePermission
-} from '@main/services/screenshot'
-import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
+} from '@main/utils/screenCapturePermission'
 import { getDeviceType } from '@main/utils/system'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'

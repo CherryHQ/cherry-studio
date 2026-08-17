@@ -37,6 +37,8 @@ const CaptureOverlay: FC = () => {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [mouseInWindow, setMouseInWindow] = useState(true)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  /** Held outside the load effect so the session-ended handler can revoke it too. */
+  const objectUrlRef = useRef<string | null>(null)
   const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const readyReportedRef = useRef(false)
 
@@ -83,6 +85,7 @@ const CaptureOverlay: FC = () => {
         // Blob URL, not the custom-scheme URL directly: a cross-origin image taints the canvas,
         // so the picture would look right while Copy and Save silently threw on every export.
         objectUrl = URL.createObjectURL(blob)
+        objectUrlRef.current = objectUrl
         const image = new Image()
         image.src = objectUrl
         await image.decode()
@@ -104,8 +107,30 @@ const CaptureOverlay: FC = () => {
       controller.abort() // Stop a full-screen PNG still in transit, not just its result.
       // Safe once decoded — the bitmap is the image element's, not the URL's.
       if (objectUrl) URL.revokeObjectURL(objectUrl)
+      objectUrlRef.current = null
     }
   }, [imageUrl])
+
+  /**
+   * Release the capture the moment the session ends.
+   *
+   * Neither the effect above nor the per-session reset below fires on dismiss: a pooled
+   * overlay is hidden, not unmounted, and its init data only changes when the NEXT session
+   * starts. Without this the decoded image and the canvas backing store — tens of MB per
+   * display — stay resident until then or until the pool decays.
+   */
+  useIpcOn('screenshot.session_ended', () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = null
+    }
+    imageRef.current = null
+    // Also unmounts the overlay body, dropping the annotation canvas and its backing store.
+    setImageLoaded(false)
+    dispatch({ type: 'RESET' })
+    resetAnnotations()
+    resetOcr()
+  })
 
   /**
    * Per-session reset for the reuse path.

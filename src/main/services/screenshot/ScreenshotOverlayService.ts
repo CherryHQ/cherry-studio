@@ -10,20 +10,18 @@ import { t } from '@main/i18n'
 import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
+import {
+  getScreenCapturePermissionStatus,
+  openScreenCaptureSettings,
+  requestScreenCapturePermission,
+  type ScreenCapturePermissionStatus
+} from '@main/utils/screenCapturePermission'
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
-import {
-  captureAllMonitors,
-  getScreenCapturePermissionStatus,
-  listMonitors,
-  listWindows,
-  openScreenCaptureSettings,
-  requestScreenCapturePermission,
-  type ScreenCapturePermissionStatus
-} from './screenCapture'
+import { captureAllMonitors, listMonitors, listWindows } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
 
 const logger = loggerService.withContext('ScreenshotOverlayService')
@@ -75,7 +73,7 @@ interface OcrRegion {
  */
 @Injectable('ScreenshotOverlayService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'MediaProtocolService'])
+@DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService'])
 export class ScreenshotOverlayService extends BaseService {
   /** Overlay window ids of the live session — one per display that matched a capture. */
   private overlayWindowIds: WindowId[] = []
@@ -101,16 +99,12 @@ export class ScreenshotOverlayService extends BaseService {
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
 
+  /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
+  private renderersReady = new Set<WindowId>()
+
   /** Token of the newest OCR request. At most one overlay is active, so "keep only
    *  the newest" is global — bucketing by window would let two chains run at once. */
   private latestOcrToken: symbol | null = null
-
-  /**
-   * Tail of the OCR serial chain. It stands for work genuinely in flight, so
-   * `cleanup()` must never reset it: a fresh chain would enter the inference
-   * service alongside the previous session's still-running recognition.
-   */
-  private ocrTail: Promise<void> = Promise.resolve()
 
   protected onInit(): void {
     const windowManager = application.get('WindowManager')
@@ -136,6 +130,19 @@ export class ScreenshotOverlayService extends BaseService {
           // overlay; only a failed main-frame load means there is no UI to interact with.
           if (!isMainFrame || code === ERR_ABORTED) return
           abortSession(`${code} ${description}`)
+        })
+        // Stuck in a loop: no crash event ever fires, and the reveal fallback would
+        // happily show a window that cannot process the Esc it is about to receive.
+        window.webContents.on('unresponsive', () => abortSession('unresponsive'))
+        // Escape rescue for an overlay whose renderer never painted — the one state where
+        // no renderer handler exists to press. Scoped to before-ready on purpose: once the
+        // renderer owns Escape, stealing it here would cancel the whole capture instead of
+        // the text annotation the user is typing.
+        window.webContents.on('before-input-event', (_event, input) => {
+          if (input.type !== 'keyDown' || input.key !== 'Escape') return
+          if (!this.isSessionOverlay(id) || this.renderersReady.has(id)) return
+          logger.warn('Escape closed an overlay whose renderer never reported ready', { windowId: id })
+          this.dismiss()
         })
       })
     )
@@ -295,6 +302,10 @@ export class ScreenshotOverlayService extends BaseService {
           void this.showPermissionDialog()
         } else {
           logger.error('Failed to start the screenshot session', error as Error)
+          // The user pressed a shortcut and nothing happened; a log they never read
+          // leaves "unsupported here" (Wayland, absent native binary) looking like a
+          // broken app. The reason is included because it is the only clue they get.
+          void this.showCaptureFailedDialog(error)
         }
       }
     } finally {
@@ -345,72 +356,62 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Requests are merged rather than cancelled: a recognition already handed to the
-   * worker cannot be interrupted, and aborting it would free the inference queue
-   * slot early — letting the next request run concurrently with the one still
-   * executing. So every request joins a serial chain and checks, both before and
-   * after the recognition, that it is still the newest one.
+   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
+   * has to make sure a superseded request produces nothing. The token is re-checked right
+   * before the recognition and again after it, so a request overtaken while it waited for
+   * its queue slot is dropped rather than painted over the newer result.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
     this.latestOcrToken = token
 
-    const run = this.ocrTail.then(async (): Promise<OcrRecognitionResult> => {
-      // Superseded while queued: skip an expensive recognition nobody wants.
+    // Ownership, not just session membership: two overlays of one session would
+    // otherwise let display A ask for OCR of display B's capture.
+    if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
+
+    // Re-checked per request, never cached from initData: the user can delete the
+    // model in settings while the overlay is open.
+    if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
+
+    const capture = this.sessionCaptures.get(mediaId)
+    if (!capture) return { status: 'rejected' }
+
+    // An origin outside the image is a caller coordinate bug; clamping it would run a
+    // full recognition on a 1px slice and report the result as "no text here".
+    if (region.x >= capture.width || region.y >= capture.height) return { status: 'rejected' }
+
+    // The renderer scales a CSS-px selection by scaleFactor and rounds, so the
+    // rect can reach a pixel past the image edge.
+    const clamped = {
+      x: region.x,
+      y: region.y,
+      width: Math.min(region.width, capture.width - region.x),
+      height: Math.min(region.height, capture.height - region.y)
+    }
+    if (clamped.width <= 0 || clamped.height <= 0) return { status: 'rejected' }
+
+    try {
+      const imageBytes = await cropPng(capture.buffer, clamped)
+
+      // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      // Ownership, not just session membership: two overlays of one session would
-      // otherwise let display A ask for OCR of display B's capture.
+      const result = await application
+        .get('OcrInferenceService')
+        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+
+      // A pooled overlay's React tree survives into the next session, so a late
+      // success would paint the previous capture's text onto the new one.
+      if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      // Re-checked per request, never cached from initData: the user can delete the
-      // model in settings while the overlay is open.
-      if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
-
-      const capture = this.sessionCaptures.get(mediaId)
-      if (!capture) return { status: 'rejected' }
-
-      // An origin outside the image is a caller coordinate bug; clamping it would run a
-      // full recognition on a 1px slice and report the result as "no text here".
-      if (region.x >= capture.width || region.y >= capture.height) return { status: 'rejected' }
-
-      // The renderer scales a CSS-px selection by scaleFactor and rounds, so the
-      // rect can reach a pixel past the image edge.
-      const clamped = {
-        x: region.x,
-        y: region.y,
-        width: Math.min(region.width, capture.width - region.x),
-        height: Math.min(region.height, capture.height - region.y)
-      }
-      if (clamped.width <= 0 || clamped.height <= 0) return { status: 'rejected' }
-
-      try {
-        const imageBytes = await cropPng(capture.buffer, clamped)
-        const result = await application
-          .get('OcrInferenceService')
-          .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
-
-        // A pooled overlay's React tree survives into the next session, so a late
-        // success would paint the previous capture's text onto the new one.
-        if (this.latestOcrToken !== token) return { status: 'rejected' }
-        if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
-
-        return { status: 'ok', lines: result.lines }
-      } catch (error) {
-        // Rethrown so the overlay shows its error state; logged here because the IPC
-        // transport only serializes the error to the renderer, it never records it.
-        logger.error('Region OCR failed', error as Error)
-        throw error
-      }
-    })
-
-    // Value and reason both dropped: the gate only needs "when did it end", so this keeps the
-    // recognized screen contents off a long-lived service and consumes the rejection for the next link.
-    this.ocrTail = run.then(
-      () => undefined,
-      () => undefined
-    )
-    return run
+      return { status: 'ok', lines: result.lines }
+    } catch (error) {
+      // Rethrown so the overlay shows its error state; logged here because the IPC
+      // transport only serializes the error to the renderer, it never records it.
+      logger.error('Region OCR failed', error as Error)
+      throw error
+    }
   }
 
   /**
@@ -422,6 +423,7 @@ export class ScreenshotOverlayService extends BaseService {
    */
   public markOverlayReady(windowId: WindowId, mediaId: string): void {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
+    this.renderersReady.add(windowId)
     this.pendingReveals.get(windowId)?.reveal()
   }
 
@@ -510,8 +512,13 @@ export class ScreenshotOverlayService extends BaseService {
   /** Close every overlay and release the session's resources. */
   public dismiss(): void {
     const windowManager = application.get('WindowManager')
+    const ipcApiService = application.get('IpcApiService')
 
     for (const windowId of this.overlayWindowIds) {
+      // Sent before close(): a pooled window is only hidden, so its renderer would
+      // otherwise hold the decoded capture and its canvas backing store — tens of MB
+      // per display — until the next session pushes new init data or the pool decays.
+      ipcApiService.send(windowId, 'screenshot.session_ended', undefined)
       // Opacity first: close() returns a pooled window to the pool rather than
       // destroying it, and a stale frame would flash on its next reuse.
       windowManager.getWindow(windowId)?.setOpacity(0)
@@ -576,11 +583,14 @@ export class ScreenshotOverlayService extends BaseService {
     this.mediaIds = []
     this.sessionCaptures.clear()
     this.overlayMediaIds.clear()
+    // Per-session: a recycled overlay that painted last time has to earn it again, or
+    // the next session's never-painted window would have no Escape rescue.
+    this.renderersReady.clear()
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
 
-    // Invalidates every in-flight OCR result. `ocrTail` is deliberately left alone — see its declaration.
+    // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null
   }
 
@@ -680,6 +690,18 @@ export class ScreenshotOverlayService extends BaseService {
     })
 
     if (response === 0) openScreenCaptureSettings()
+  }
+
+  /** Report a capture that failed for any reason other than a missing permission. */
+  private async showCaptureFailedDialog(error: unknown): Promise<void> {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: t('dialog.screenshot_failed.title'),
+      message: t('dialog.screenshot_failed.message'),
+      detail: error instanceof Error ? error.message : String(error),
+      buttons: [t('dialog.screenshot_failed.ok')],
+      defaultId: 0
+    })
   }
 }
 

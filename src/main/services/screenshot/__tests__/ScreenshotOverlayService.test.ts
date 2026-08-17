@@ -14,6 +14,8 @@ vi.mock('@main/core/platform', () => platform)
 
 // ─── Capture engine, OCR readiness, i18n ──────────────────────────────────────
 
+// Two mocks because the TCC gate lives outside this module: it answers for the whole
+// process, and routing it through the barrel would pull this service into every launch.
 const capture = vi.hoisted(() => ({
   captureAllMonitors: vi.fn(),
   listMonitors: vi.fn(),
@@ -23,6 +25,7 @@ const capture = vi.hoisted(() => ({
   openScreenCaptureSettings: vi.fn()
 }))
 vi.mock('../screenCapture', () => capture)
+vi.mock('@main/utils/screenCapturePermission', () => capture)
 
 const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
 vi.mock('@main/services/localModel', () => localModel)
@@ -255,35 +258,26 @@ const ocrRegion = (tag: number) => ({ x: tag, y: 0, width: 100, height: 100 })
 const FAKE_RECOGNITION_MS = 10
 
 /**
- * Replaces the inference service with one that takes measurable time, recording how
- * many recognitions overlap and which regions actually reached it. Timer-driven
- * rather than manually released, so a broken implementation fails an assertion
- * instead of hanging on a gate nobody opens.
+ * Replaces the inference service with one that takes measurable time, recording which
+ * regions actually reached it. Timer-driven rather than manually released, so a broken
+ * implementation fails an assertion instead of hanging on a gate nobody opens.
  */
 function gateInferenceService() {
-  let inFlight = 0
-  let peakInFlight = 0
   const reached: number[] = []
   let announceStart: (() => void) | null = null
 
   container.ocrInferenceService.recognize.mockImplementation(
     async (_paths: unknown, source: { imageBytes: Uint8Array }) => {
-      inFlight++
-      peakInFlight = Math.max(peakInFlight, inFlight)
       reached.push(source.imageBytes[0])
       announceStart?.()
       announceStart = null
       await new Promise<void>((resolve) => setTimeout(resolve, FAKE_RECOGNITION_MS))
-      inFlight--
       return { text: '', lines: [] }
     }
   )
 
   return {
     reached,
-    get peakInFlight() {
-      return peakInFlight
-    },
     /** Arm before issuing a request, await after, to know the worker really started. */
     nextStart: () => new Promise<void>((resolve) => (announceStart = resolve))
   }
@@ -1095,7 +1089,9 @@ describe('ScreenshotOverlayService', () => {
       expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
     })
 
-    it('runs one recognition at a time under a burst, and only the newest of the queued ones', async () => {
+    // Serialization itself is OcrInferenceService's PQueue(concurrency: 1) and is covered
+    // by its own tests; what this module owes is that a superseded request paints nothing.
+    it('keeps only the newest of a burst, and never sends the superseded ones to the worker', async () => {
       singleDisplaySetup()
       await service.startCapture()
       const mediaId = initDataOf('overlay-0-0').mediaId
@@ -1122,12 +1118,9 @@ describe('ScreenshotOverlayService', () => {
       // it is the queued middle that is dropped without touching the worker.
       expect(await first).toEqual({ status: 'rejected' })
       expect(gate.reached).toEqual([1, 5])
-      // Aborting instead of merging would free the queue slot early and let the next
-      // request start on top of an inference that keeps running regardless.
-      expect(gate.peakInFlight).toBe(1)
     })
 
-    it('does not start a second recognition when the active overlay switches to another display', async () => {
+    it('answers the display the user switched to, not the one they left', async () => {
       twoDisplaySetup()
       await service.startCapture()
       const gate = gateInferenceService()
@@ -1143,11 +1136,10 @@ describe('ScreenshotOverlayService', () => {
       )
       await vi.advanceTimersByTimeAsync(1000)
 
-      await onFirstDisplay
+      // A per-window token would leave both live and let display A's late result paint
+      // over the overlay the user actually moved to.
+      expect(await onFirstDisplay).toEqual({ status: 'rejected' })
       expect(await onSecondDisplay).toEqual({ status: 'ok', lines: [] })
-      // Per-window chains would hand both to the inference service at once — the very
-      // thing its concurrency of 1 exists to prevent.
-      expect(gate.peakInFlight).toBe(1)
     })
 
     it('rejects a recognition that finishes after the pooled window entered a new session', async () => {
@@ -1168,7 +1160,7 @@ describe('ScreenshotOverlayService', () => {
       expect(await pending).toEqual({ status: 'rejected' })
     })
 
-    it('keeps the serial gate across sessions, so a new one cannot overlap the old recognition', async () => {
+    it('lets a new session recognize while the previous session request is still running', async () => {
       singleDisplaySetup()
       await service.startCapture()
       const gate = gateInferenceService()
@@ -1182,11 +1174,10 @@ describe('ScreenshotOverlayService', () => {
       const fresh = service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(2))
       await vi.advanceTimersByTimeAsync(1000)
 
-      await stale
+      // The stale one must not resolve `ok`, or a pooled overlay would paint the
+      // previous capture's text over the new one.
+      expect(await stale).toEqual({ status: 'rejected' })
       expect(await fresh).toEqual({ status: 'ok', lines: [] })
-      // Resetting the tail in cleanup() would let the new session's recognition enter
-      // the inference service beside the previous one, which is still running.
-      expect(gate.peakInFlight).toBe(1)
     })
   })
 

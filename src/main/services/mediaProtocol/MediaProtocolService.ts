@@ -56,11 +56,6 @@ export class MediaProtocolService extends BaseService {
     return this.stores.get(kind)?.delete(id) ?? false
   }
 
-  /** Whether an entry is still stored. */
-  has(kind: MediaKind, id: string): boolean {
-    return this.stores.get(kind)?.has(id) ?? false
-  }
-
   /** Build the URL a renderer loads to read a stored entry. */
   getUrl(kind: MediaKind, id: string): string {
     return `${CHERRY_MEDIA_SCHEME}://${kind}/${id}`

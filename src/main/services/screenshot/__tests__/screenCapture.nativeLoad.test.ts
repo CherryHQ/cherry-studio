@@ -20,8 +20,8 @@ vi.mock('electron', () => ({
 vi.mock('@main/core/platform', () => ({ isMac: true }))
 
 describe('screenCapture native loading', () => {
-  // The whole point of the lazy getter: the `system.*` permission routes pull this module in
-  // through the barrel on every app start, capture feature enabled or not.
+  // The lazy getter is what keeps a broken or absent native binary from taking the whole
+  // module down at import time, which would break every consumer of the barrel.
   it('imports cleanly even when the native backend cannot load', async () => {
     await expect(import('@main/services/screenshot/screenCapture')).resolves.toBeDefined()
   })
@@ -29,10 +29,5 @@ describe('screenCapture native loading', () => {
   it('surfaces a load failure as ScreenCaptureError at call time, not at import time', async () => {
     const { captureAllMonitors } = await import('@main/services/screenshot/screenCapture')
     await expect(captureAllMonitors()).rejects.toThrow(ScreenCaptureError)
-  })
-
-  it('still answers permission queries with the native backend broken', async () => {
-    const { getScreenCapturePermissionStatus } = await import('@main/services/screenshot/screenCapture')
-    expect(getScreenCapturePermissionStatus()).toBe('authorized')
   })
 })

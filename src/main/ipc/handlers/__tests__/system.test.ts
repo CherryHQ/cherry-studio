@@ -45,8 +45,9 @@ vi.mock('electron', () => ({
   shell: { openPath: openPathMock, openExternal: openExternalMock }
 }))
 vi.mock('font-list', () => ({ default: { getFonts: getFontsMock } }))
-// Mocked at the barrel, the same specifier the handler imports from.
-vi.mock('@main/services/screenshot', () => ({
+// The TCC gate is its own module, not the screenshot barrel: answering a permission
+// query must not drag the overlay service into every app launch.
+vi.mock('@main/utils/screenCapturePermission', () => ({
   getScreenCapturePermissionStatus: screenCaptureStatusMock,
   requestScreenCapturePermission: requestScreenCaptureMock,
   openScreenCaptureSettings: openScreenCaptureSettingsMock
