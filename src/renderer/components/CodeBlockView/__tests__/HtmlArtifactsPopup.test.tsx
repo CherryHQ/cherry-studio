@@ -107,4 +107,40 @@ describe('HtmlArtifactsPopup', () => {
 
     expect(screen.queryByRole('button', { name: /html_artifacts\.capture\.to_file/ })).not.toBeInTheDocument()
   })
+
+  it('renders a script-less frame and keeps capture available for a fragment', () => {
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<div><h2>Hello</h2></div>"
+        kind="fragment"
+        onClose={vi.fn()}
+      />
+    )
+
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.capture.label' })).toBeInTheDocument()
+  })
+
+  it('routes a script-bearing document to the hardened webview and drops the capture menu', () => {
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>parent.api.fs.readText("/etc/hosts")</script></body></html>'}
+        kind="document"
+        onClose={vi.fn()}
+      />
+    )
+
+    const webview = screen.getByTestId('interactive-html-webview')
+    expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
+  })
 })
