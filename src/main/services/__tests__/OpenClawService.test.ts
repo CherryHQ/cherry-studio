@@ -1074,6 +1074,36 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect((service as any).probeGatewayTick()).resolves.toBeUndefined()
     })
+
+    // A probe result is only valid for the status/port generation it started against.
+    it('discards a healthy probe that resolves after a stop completed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const tick = (service as any).probeGatewayTick()
+      ;(service as any).gatewayStatus = 'stopped' // stopGateway completed while the probe was pending
+      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+      await tick
+
+      expect((service as any).gatewayStatus).toBe('stopped')
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', expect.anything())
+    })
+
+    it('discards a healthy probe when the gateway port changed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const tick = (service as any).probeGatewayTick()
+      ;(service as any).gatewayPort = 18888 // port transition during the probe
+      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+      await tick
+
+      expect((service as any).gatewayStatus).toBe('stopped')
+      expect((service as any).gatewayPort).toBe(18888)
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', expect.anything())
+    })
   })
 
   // ─── syncConfig ─────────────────────────────────────────────
