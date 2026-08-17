@@ -95,6 +95,8 @@ class FeishuAdapter extends ChannelAdapter {
   private channel: Lark.LarkChannel | null = null
   private appId: string
   private appSecret: string
+  private readonly encryptKey: string
+  private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
   private readonly streams = new Map<string, FeishuStreamSession>()
@@ -103,9 +105,11 @@ class FeishuAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
-    const { app_id, app_secret, allowed_chat_ids, domain } = config.channelConfig
+    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain } = config.channelConfig
     this.appId = app_id
     this.appSecret = app_secret
+    this.encryptKey = encrypt_key
+    this.verificationToken = verification_token
     this.allowedChatIds = allowed_chat_ids ?? []
     this.domain = domain
     this.notifyChatIds = [...this.allowedChatIds]
@@ -132,6 +136,13 @@ class FeishuAdapter extends ChannelAdapter {
     const channel = Lark.createLarkChannel({
       appId: this.appId,
       appSecret: this.appSecret,
+      transport: 'websocket',
+      ...((this.encryptKey || this.verificationToken) && {
+        webhook: {
+          ...(this.encryptKey && { encryptKey: this.encryptKey }),
+          ...(this.verificationToken && { verificationToken: this.verificationToken })
+        }
+      }),
       domain: resolveDomain(this.domain),
       source: 'cherry-studio',
       logger: sdkLogger,

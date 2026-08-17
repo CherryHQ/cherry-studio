@@ -119,6 +119,8 @@ describe('FeishuAdapter', () => {
         config: {
           app_id: (overrides.app_id as string) ?? 'test-app-id',
           app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
+          encrypt_key: (overrides.encrypt_key as string) ?? '',
+          verification_token: (overrides.verification_token as string) ?? '',
           allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
           domain: (overrides.domain as string) ?? 'feishu'
         }
@@ -154,6 +156,22 @@ describe('FeishuAdapter', () => {
       safety: { batch: { text: { delayMs: 0 } } },
       outbound: { textChunkLimit: 4000 },
       wsConfig: { pingTimeout: 10 }
+    })
+  })
+
+  it('forwards configured event security to the WebSocket dispatcher', async () => {
+    const adapter = createAdapter({
+      encrypt_key: 'test-encrypt-key',
+      verification_token: 'test-verification-token'
+    })
+    await adapter.connect()
+
+    expect(channelOptions).toMatchObject({
+      transport: 'websocket',
+      webhook: {
+        encryptKey: 'test-encrypt-key',
+        verificationToken: 'test-verification-token'
+      }
     })
   })
 
