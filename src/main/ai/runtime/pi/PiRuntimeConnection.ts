@@ -226,7 +226,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        channelLinked: linkedChannel !== null,
         citationsGuidance
       })
       const resourceLoader = new pi.DefaultResourceLoader({

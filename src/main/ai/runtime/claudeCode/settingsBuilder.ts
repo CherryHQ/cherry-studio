@@ -918,11 +918,9 @@ async function buildToolPermissions(
     // approval) is a deliberate decision (matches feat/chat-page): the READ tools have no side
     // effects in the main process — web_search/web_fetch read the network,
     // kb_search/kb_read/kb_list read the user's knowledge bases, report_artifacts only records a
-    // declaration. The untrusted-channel exposure this creates (approval-free reads + web_fetch URL
-    // egress for channel-linked sessions) is bounded by the system-level channel security policy
-    // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
-    // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
-    // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
+    // declaration. The autonomy tools (cron/notify/config) also stay auto-approved — they were
+    // blanket-allowed as the standalone `cherry` server before the merge. Keep this an explicit
+    // allowlist so a future cherry-tools addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: [
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
       // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
@@ -1405,10 +1403,10 @@ async function buildToolPermissions(
 }
 
 export async function buildSystemPrompt(
-  session: AgentSessionEntity,
+  _session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
-  channelLinked?: boolean,
+  _channelLinked?: boolean,
   agentDataPath = cwd,
   /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
@@ -1435,7 +1433,6 @@ export async function buildSystemPrompt(
     workspacePath: cwd,
     agentDataPath,
     agent,
-    channelLinked: channelLinked ?? Boolean(channelService.findBySessionId(session.id)),
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
     customBaseContext

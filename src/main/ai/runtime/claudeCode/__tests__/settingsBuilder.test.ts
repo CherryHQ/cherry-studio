@@ -3,7 +3,6 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -2077,7 +2076,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(systemPromptText(settings.systemPrompt)).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -2173,7 +2171,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
-    expect(systemPromptText(settings.systemPrompt)).toContain(CHANNEL_SECURITY_PROMPT)
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('External Channel Security Policy')
   })
 
   it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {

@@ -6,7 +6,6 @@
 
 import type * as NodeFs from 'node:fs'
 
-import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -285,21 +284,16 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     expect(text).toContain('WORKSPACE_ROLE: You are the workspace reviewer.')
     expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
     expect(text).toContain('<agent_instructions>\nAGENT_ROLE: You are the release manager.\n</agent_instructions>')
-    expect(text.indexOf(CHANNEL_SECURITY_PROMPT)).toBe(-1)
+    expect(text).not.toContain('External Channel Security Policy')
   })
 
-  it('keeps runtime safety guidance outside the user-controlled Agent System Prompt block', async () => {
+  it('does not add an external-channel policy to linked sessions', async () => {
     mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
 
     const text = promptText(
       await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Follow the configured role.' }), '/tmp/cwd')
     )
-    const instructionsEnd = text.indexOf('</agent_instructions>')
-    const securityStart = text.indexOf(CHANNEL_SECURITY_PROMPT)
-
-    expect(instructionsEnd).toBeGreaterThan(-1)
-    expect(securityStart).toBeGreaterThan(instructionsEnd)
-    expect(text.slice(text.indexOf('<agent_instructions>'), instructionsEnd)).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(text).not.toContain('External Channel Security Policy')
   })
 
   it('resolves Agent System Prompt variables with the embedded Agent model name', async () => {
@@ -517,29 +511,6 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
     expect(promptText(result)).toContain('built-in general-purpose Agent and onboarding guide')
-  })
-
-  it('applies the external channel security policy for linked assistant sessions', async () => {
-    mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
-    const agent = makeAgent({
-      instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
-    })
-
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-
-    expect(promptText(result)).toContain(CHANNEL_SECURITY_PROMPT)
-  })
-
-  it('does not apply the external channel security policy for unlinked assistant sessions', async () => {
-    const agent = makeAgent({
-      instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
-    })
-
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-
-    expect(promptText(result)).not.toContain(CHANNEL_SECURITY_PROMPT)
   })
 
   it('injects the bundled Assistant role exactly once', async () => {

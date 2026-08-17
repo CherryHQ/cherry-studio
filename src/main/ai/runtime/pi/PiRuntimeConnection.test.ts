@@ -151,7 +151,7 @@ vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
-const { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
+const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
 
 function appendedSystemPrompt(): string {
@@ -1489,7 +1489,7 @@ describe('PiRuntimeConnection', () => {
         AGENT_DATA_PATH,
         undefined
       )
-      expect(appendedSystemPrompt()).toContain(CHANNEL_SECURITY_PROMPT)
+      expect(appendedSystemPrompt()).not.toContain('External Channel Security Policy')
     })
 
     it('bakes a disabled autonomy tool into excludeTools and the live gate still blocks it', async () => {
