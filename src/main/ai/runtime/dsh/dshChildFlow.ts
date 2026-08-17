@@ -14,7 +14,8 @@
  * an anchor. `subagent`/`subagent_fork` anchors are targetless and a child's
  * first epoch binds to the oldest one; `send_message` anchors carry their
  * target session id, queue only for unbound targets (cold resumes), and bind
- * by exact match. Later epochs reuse the connection-persistent binding so one
+ * by exact match. A call that fails before any epoch withdraws its queued
+ * anchor. Later epochs reuse the connection-persistent binding so one
  * child's whole conversation stays under the tool card that introduced it.
  * Descendants of a child flatten into their ancestor's flow.
  */
@@ -83,6 +84,13 @@ export class DshSubagentCoordinator {
 
   /** Observe one main-stream chunk: spawn-capable tool calls become binding anchors. */
   noteMainChunk(chunk: CherryUIMessageChunk): void {
+    if (chunk.type === 'tool-output-error') {
+      // A failed call never gets a child epoch; drop its unconsumed anchor so a
+      // later retry for the same target cannot bind to the dead tool card.
+      const stale = this.pendingAnchors.findIndex((anchor) => anchor.callId === chunk.toolCallId)
+      if (stale !== -1) this.pendingAnchors.splice(stale, 1)
+      return
+    }
     if (chunk.type !== 'tool-input-available' || !CHILD_ANCHOR_TOOLS.has(chunk.toolName)) return
     const input = chunk.input as { description?: unknown; subagent_id?: unknown } | null | undefined
     if (chunk.toolName === 'send_message') {
