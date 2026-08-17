@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
-import { withoutTrailingSlash } from '@shared/utils/api'
+import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
 import { getBaseUrl } from '../../utils/provider'
 import { normalizeVertexCredentials } from '../vertex'
@@ -30,7 +30,7 @@ function getVertexServiceEndpoint(provider: Provider, location: string): string 
   const defaultHost =
     location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
 
-  if (!apiHost || apiHost.endsWith('aiplatform.googleapis.com')) {
+  if (!apiHost || isBareVertexApiHost(apiHost)) {
     return defaultHost
   }
 

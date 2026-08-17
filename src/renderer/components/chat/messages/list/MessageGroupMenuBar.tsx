@@ -2,7 +2,7 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -16,6 +16,32 @@ import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
 const logger = loggerService.withContext('MessageGroupMenuBar')
+
+function selectRetryCandidates(
+  messages: MessageListItem[],
+  selectedMessageId: string
+): { candidates: MessageListItem[]; skippedCount: number } {
+  const candidatesByModel = new Map<string, MessageListItem>()
+
+  for (const message of messages) {
+    const modelId = resolveUniqueModelId(message.modelId, message.model ?? message.messageSnapshot?.model)
+    const key = modelId ?? `message:${message.id}`
+    const current = candidatesByModel.get(key)
+    if (
+      !current ||
+      message.id === selectedMessageId ||
+      (current.id !== selectedMessageId &&
+        (message.createdAt > current.createdAt || (message.createdAt === current.createdAt && message.id > current.id)))
+    ) {
+      candidatesByModel.set(key, message)
+    }
+  }
+
+  return {
+    candidates: [...candidatesByModel.values()],
+    skippedCount: messages.length - candidatesByModel.size
+  }
+}
 
 interface Props {
   multiModelMessageStyle: MultiModelMessageStyle
@@ -52,18 +78,16 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const isError = (m.status || '').toLowerCase() === 'error'
     const parts = partsMap?.[m.id]
-    const content = parts ? getTextFromParts(parts) : ''
-    const noContent = !content || content.trim().length === 0
-    return isError || noContent
+    return m.status === 'error' || m.status === 'paused' || parts?.length === 0
   }
 
   const hasFailedMessages =
     !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
-    const candidates = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
+    const retryableMessages = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
+    const { candidates, skippedCount } = selectRetryCandidates(retryableMessages, selectMessageId)
     let failedCount = 0
     let lastError: unknown
 
@@ -79,6 +103,9 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     if (failedCount > 0) {
       actions.notifyError?.(formatErrorMessageWithPrefix(lastError, t('message.group.retry_failed')))
+    }
+    if (skippedCount > 0) {
+      actions.notifyInfo?.(t('message.group.retry_skipped_same_model', { count: skippedCount }))
     }
   }
 
@@ -128,7 +155,12 @@ const MessageGroupMenuBar: FC<Props> = ({
       <ActionContainer>
         {hasFailedMessages && (
           <Tooltip content={t('message.group.retry_failed')} delay={600}>
-            <Button variant="ghost" size="sm" onClick={handleRetryAll} className="size-7 min-w-7 p-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={t('message.group.retry_failed')}
+              onClick={handleRetryAll}
+              className="size-7 min-w-7 p-0">
               <RotateCcw size={14} />
             </Button>
           </Tooltip>

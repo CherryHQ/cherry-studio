@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Assistente integrado do Cherry Studio. Diagnostique problemas, guie operações, recolha FAQs, envie bugs/pedidos de recursos e pesquise/crie Competências"
+      },
+      "cherry_support": {
+        "description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback"
       }
     },
     "channels": {
@@ -97,8 +100,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Introduza o seu Client Secret do QQ Bot",
         "description": "Receber e responder a mensagens através da API oficial do QQ Bot.",
-        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
-        "mentionOnlyLabel": "[to be translated]:@Mention only",
+        "mentionOnlyHint": "Quando ativado, o bot só responde a @menções. Desative para receber todas as mensagens do grupo (requer permissão \"receber todas as mensagens\" na Plataforma Aberta QQ).",
+        "mentionOnlyLabel": "@Apenas menções",
         "title": "QQ",
         "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o seu ID de chat no formato correto."
       },
@@ -206,7 +209,8 @@
       "type": "Ícone de Agente"
     },
     "input": {
-      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões."
+      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões.",
+      "placeholder_streaming": "[to be translated]:Agent is working — {{sendKey}} queues a follow-up, {{steerKey}} steers it now."
     },
     "list": {
       "error": {
@@ -498,28 +502,28 @@
       },
       "workdir": {
         "delete": {
-          "channels_count_one": "[to be translated]:{{count}} channel",
-          "channels_count_other": "[to be translated]:{{count}} channels",
-          "channels_empty": "[to be translated]:No channels will be changed.",
-          "channels_title": "[to be translated]:Channels changed to no work directory",
+          "channels_count_one": "{{count}} canal",
+          "channels_count_other": "{{count}} canais",
+          "channels_empty": "Nenhum canal será alterado.",
+          "channels_title": "Canais alterados para nenhum diretório de trabalho",
           "content": "Eliminar esta pasta de trabalho também eliminará todas as tarefas sob ele. Apenas os registos da base de dados são removidos; a pasta real no disco não será eliminada.",
-          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
+          "disk_preserved": "A pasta no disco e seus arquivos não serão excluídos.",
           "error": {
             "failed": "Falha ao eliminar a pasta de trabalho"
           },
-          "more_count_one": "[to be translated]:…and {{count}} more item",
-          "more_count_other": "[to be translated]:…and {{count}} more items",
-          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
-          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
-          "preview_loading": "[to be translated]:Loading deletion impact…",
-          "sessions_count_one": "[to be translated]:{{count}} session",
-          "sessions_count_other": "[to be translated]:{{count}} sessions",
-          "sessions_empty": "[to be translated]:No sessions will be deleted.",
-          "sessions_title": "[to be translated]:Sessions to be deleted",
-          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
-          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
-          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
-          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
+          "more_count_one": "…e mais {{count}} item",
+          "more_count_other": "…e mais {{count}} itens",
+          "preview": "Excluir “{{name}}” remove suas sessões e faz com que os canais relacionados e as tarefas agendadas fiquem sem diretório de trabalho. Esta ação não pode ser desfeita.",
+          "preview_failed": "O impacto da exclusão não pôde ser carregado, portanto, este diretório de trabalho ainda não pode ser excluído.",
+          "preview_loading": "Calculando impacto da exclusão…",
+          "sessions_count_one": "{{count}} sessão",
+          "sessions_count_other": "{{count}} sessões",
+          "sessions_empty": "Nenhuma sessão será excluída.",
+          "sessions_title": "Sessões a serem excluídas",
+          "tasks_count_one": "{{count}} tarefa agendada",
+          "tasks_count_other": "{{count}} tarefas agendadas",
+          "tasks_empty": "Nenhuma tarefa agendada será alterada.",
+          "tasks_title": "Tarefas agendadas alteradas para sem diretório de trabalho",
           "title": "Eliminar pasta de trabalho",
           "trigger": "Apagar pasta de trabalho"
         },
@@ -550,11 +554,6 @@
           "description": "Definir variáveis de ambiente personalizadas para o tempo de execução do agente.",
           "helper": "Introduza variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
           "label": "Variáveis de Ambiente"
-        },
-        "maxTurns": {
-          "description": "Defina o número de ciclos de pedido/resposta executados automaticamente pelo agente.",
-          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
-          "label": "Limite máximo de turnos de conversação"
         },
         "permissionMode": {
           "description": "Como o agente de controle lida com situações que exigem autorização.",
@@ -664,13 +663,16 @@
           },
           "auto": {
             "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "description_pi": "[to be translated]:Works on its own. Asks when it recognizes a risky action.",
             "title": "Aprovar por mim",
-            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar.",
+            "warning_pi": "[to be translated]:Recognition is best-effort; an unusual command can still slip through."
           },
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
+            "warning_pi": "[to be translated]:Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
           },
           "confirmChange": {
             "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
@@ -978,7 +980,6 @@
       "executing": "A executar...",
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
-      "pending": "A aguardar confirmação",
       "pendingBadge": "Pendente",
       "permissionExpired": "Pedido de permissão expirou. A aguardar novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
@@ -1086,6 +1087,82 @@
         "Write": {
           "description": "Cria ou sobrescreve ficheiros",
           "label": "Escreva"
+        },
+        "bash": {
+          "description": "Executar comandos do terminal",
+          "label": "Executar comandos do terminal"
+        },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
+        "edit": {
+          "description": "Editar ficheiros",
+          "label": "Editar ficheiros"
+        },
+        "exit_plan_mode": {
+          "description": "[to be translated]:Present the plan for review and leave plan mode on approval",
+          "label": "[to be translated]:Exit plan mode"
+        },
+        "find": {
+          "description": "Procurar ficheiros",
+          "label": "Procurar ficheiros"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
+        },
+        "grep": {
+          "description": "Pesquisar conteúdos de ficheiros",
+          "label": "Pesquisar conteúdos de ficheiros"
+        },
+        "interrupt_agent": {
+          "description": "[to be translated]:Stop a background subagent's current turn",
+          "label": "[to be translated]:Interrupt subagent"
+        },
+        "list_agents": {
+          "description": "[to be translated]:List background subagents and their status",
+          "label": "[to be translated]:List subagents"
+        },
+        "ls": {
+          "description": "Listar conteúdos do diretório",
+          "label": "Listar conteúdos do diretório"
+        },
+        "read": {
+          "description": "Ler ficheiros",
+          "label": "Ler ficheiros"
+        },
+        "read_image": {
+          "description": "Lê um ficheiro PNG, JPEG, WebP ou GIF com um modelo com capacidade visual",
+          "label": "Ler imagem"
+        },
+        "send_message": {
+          "description": "[to be translated]:Send a follow-up message to a background subagent",
+          "label": "[to be translated]:Message subagent"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "subagent": {
+          "description": "[to be translated]:Delegate a task to a background subagent that can be messaged later",
+          "label": "[to be translated]:Delegate to subagent"
+        },
+        "subagent_fork": {
+          "description": "[to be translated]:Delegate a follow-up task to a subagent seeded with this conversation",
+          "label": "[to be translated]:Fork subagent"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
+        },
+        "write": {
+          "description": "Escrever ficheiros",
+          "label": "Escrever ficheiros"
         }
       }
     },
@@ -1151,6 +1228,11 @@
       "startSuccess": "Servidor API iniciado com sucesso",
       "stopError": "Falha ao parar o Servidor API: ",
       "stopSuccess": "Servidor API parado com sucesso"
+    },
+    "required": {
+      "confirm": "Ativar",
+      "description": "O modelo deste agente deve ser ligado através da API Gateway local do Cherry Studio. Ativá-la também inicia a gateway automaticamente em inícios futuros; pode desativá-la novamente em Configurações.",
+      "title": "Ativar a API Gateway?"
     },
     "status": {
       "running": "A executar",
@@ -1564,19 +1646,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
-          "resources": "[to be translated]:Files & Folders",
+          "resources": "Arquivos e Pastas",
           "skills": "Competências"
         },
         "description": "Selecione entre ficheiros, agentes ou competências",
-        "load_failed": "[to be translated]:Failed to load workspace resources",
+        "load_failed": "Falha ao carregar os recursos do workspace.",
         "loading": "A carregar...",
         "no_items_found": {
           "description": "Nenhum ficheiro, agente ou competência disponível",
           "label": "Nenhum item encontrado"
         },
         "no_resources_found": {
-          "description": "[to be translated]:No searchable files or folders in the current workspace",
-          "label": "[to be translated]:No Resources Found"
+          "description": "Nenhum arquivo ou pasta pesquisável no espaço de trabalho atual.",
+          "label": "Nenhum recurso encontrado"
         },
         "title": "Recursos"
       },
@@ -2173,6 +2255,7 @@
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "CLI do Gemini",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2195,6 +2278,43 @@
     "custom_path_error": "Falha ao definir caminho de terminal personalizado",
     "custom_path_required": "Este terminal requer a definição de um caminho personalizado",
     "custom_path_set": "Configuração personalizada do caminho do terminal bem-sucedida",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
     "disable": "Desativar",
     "edit_config": "Editar Config",
@@ -2245,6 +2365,7 @@
     "no_tools": "Nenhuma ferramenta disponível",
     "not_installed": "Não instalado",
     "open_provider_settings": "Abrir configurações do fornecedor",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2254,8 +2375,10 @@
     "search_provider_placeholder": "Fornecedores de pesquisa…",
     "select_folder": "Selecionar pasta",
     "select_provider_before_launch": "Selecione um fornecedor antes de iniciar {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Selecione uma ferramenta de CLI à esquerda para começar a configurar",
     "set_custom_path": "Definir caminho personalizado do terminal",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "Fornecedores de serviço suportados",
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicação de terminal executar a CLI",
@@ -2495,6 +2618,7 @@
     "openai-response": "Resposta OpenAI"
   },
   "error": {
+    "api_gateway_required": "Este modelo deve ser ligado através da API Gateway local do Cherry Studio, que atualmente está desativada. Ative-a para executar este agente.",
     "availableProviders": "Fornecedores disponíveis",
     "availableTools": "Ferramentas disponíveis",
     "backup": {
@@ -2545,7 +2669,7 @@
       "ocr": "Motor OCR não inicializado, verifique as definições de OCR",
       "parse": "A IA retornou uma resposta inválida, tente novamente ou mude de modelo",
       "payload": "Conteúdo do pedido muito grande, reduza o tamanho do ficheiro ou do texto",
-      "permission": "[to be translated]:The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
+      "permission": "O provedor recusou esta solicitação. Verifique os detalhes do erro, seu plano de conta, as permissões da chave de API ou o acesso a este recurso.",
       "proxy": "Erro de proxy ou certificado SSL, verifique as configurações de proxy e de rede",
       "quota": "A quota da conta esgotou-se. Adicione saldo ou mude de fornecedor.",
       "rate_limit": "Demasiados pedidos num curto espaço de tempo. Aguarde um momento e tente novamente, ou mude para um modelo com um limite de taxa mais elevado",
@@ -2570,7 +2694,6 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
-    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -2882,6 +3005,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Guia do utilizador",
+    "star": "Estrela no GitHub",
+    "title": "Ajuda",
+    "whats_new": "Novidades"
+  },
   "history": {
     "continue_chat": "Continuar a conversar",
     "error": {
@@ -3114,6 +3244,8 @@
         "delete_confirm_title": "Eliminar Fontes de Dados Selecionadas?",
         "loaded_only_hint": "Aplica-se apenas aos itens carregados ({{total}} no total)",
         "reindex": "Reindexar",
+        "reindex_none_eligible": "[to be translated]:All selected data sources are still processing and cannot be reindexed yet",
+        "reindex_skipped": "[to be translated]:Skipped {{count}} data source(s) still processing",
         "selected_count": "{{count}} selecionado"
       },
       "chunks_count": "{{count}} blocos",
@@ -3234,12 +3366,12 @@
       "default_separator": "Automático (recomendado)",
       "document_count": "Contagem de Documentos",
       "download_local_embedding_failed": "Não foi possível descarregar o modelo de embeddings local",
-      "download_local_model": "[to be translated]:Download Local Model",
+      "download_local_model": "Baixar Modelo Local",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Seleção de Modelo",
       "file_processing": "Processamento de Ficheiros",
       "file_processing_hint": "O processamento de ficheiros é executado automaticamente durante a importação do documento. Escolher o fornecedor certo pode melhorar a qualidade da análise do documento.",
-      "file_processing_none": "[to be translated]:Don't use",
+      "file_processing_none": "Não use",
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_separator": "Delimitador no qual o texto é dividido, em forma escapada. Com a divisão inteligente ativada, ele adiciona um ponto de interrupção; com ela desativada, o texto é dividido apenas por esse delimitador.",
@@ -3253,8 +3385,8 @@
       },
       "processor": "Processador de Fornecedor",
       "processor_not_configured": "Não configurado",
-      "processor_not_downloaded": "[to be translated]:Not downloaded",
-      "processor_unreachable": "[to be translated]:Service not running",
+      "processor_not_downloaded": "Não baixado",
+      "processor_unreachable": "Serviço não está em execução",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3341,6 +3473,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gerenciar Barra Lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
@@ -3413,10 +3546,6 @@
           "heartbeat_interval": {
             "label": "Intervalo de batimentos (minutos)"
           },
-          "max_turns": {
-            "help": "0 significa usar o padrão",
-            "label": "Máximo de turnos de conversa"
-          },
           "mcps": {
             "add": "Adicionar servidor MCP",
             "empty": "Nenhum vinculado",
@@ -3444,6 +3573,20 @@
           "plan_model": {
             "hint": "Decomposição e planeamento de tarefas",
             "label": "Modelo do plano (opcional)"
+          },
+          "runtime": {
+            "immutable_hint": "Não pode ser alterado após a criação",
+            "label": "Modo de execução",
+            "option": {
+              "claude_code": "Avançado: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
+              "pi": "Rápido: Pi"
+            },
+            "option_description": {
+              "claude_code": "[to be translated]:More capable — plan mode and per-tier models",
+              "dsh": "[to be translated]:Broad provider support with goal-driven execution",
+              "pi": "[to be translated]:Faster responses, lower overhead"
+            }
           },
           "small_model": {
             "hint": "Verificações leves e formatação",
@@ -3505,6 +3648,12 @@
         "context_compress_model": "Modelo de compressão",
         "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_count_follow_global": "Seguir definição global ({{count}})",
+        "context_count_unlimited": "Sem limite",
+        "context_globally_disabled": "A gestão de contexto está desativada globalmente, pelo que as definições de descarga e compressão aqui não têm efeito",
+        "context_inherited": "A seguir as definições globais: {{compress}}; saídas de ferramentas acima de {{threshold}} caracteres são descarregadas",
+        "context_inherited_compress_off": "compressão automática desativada",
+        "context_inherited_compress_on": "compressão automática ativada",
         "context_management": "Gestão de contexto",
         "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
@@ -3541,7 +3690,7 @@
             "hint": "Comprimento da resposta do Caps quando ativado"
           },
           "max_tool_calls": {
-            "hint": "Limita os loops de chamadas de ferramenta quando ativado"
+            "hint": "Limita as rodadas de chamadas de ferramentas quando ativado; caso contrário, usa o limite padrão de {{count}} rodadas"
           },
           "model": {
             "hint": "Substitui o modelo padrão global para este assistente"
@@ -3846,10 +3995,17 @@
     "skill_marketplace": {
       "empty_description": "Pesquise em registos online para encontrar competências instaláveis.",
       "empty_title": "Pesquisar competências",
+      "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
+      "github_empty_title": "Instalar do GitHub",
+      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_label": "URL GitHub SKILL.md",
+      "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",
       "no_results_title": "Nenhuma competência encontrada",
       "search_failed_description": "A pesquisa falhou. Por favor, tente novamente mais tarde.",
+      "search_label": "Pesquisar skills",
       "search_placeholder": "Procurar competências...",
+      "source_label": "Origem da skill",
       "title": "Pesquisa de competências online"
     },
     "sort": {
@@ -3876,13 +4032,6 @@
       "placeholder": "Novo nome da tag..."
     },
     "tag_sync_failed": "Falha ao sincronizar etiquetas",
-    "time_ago": {
-      "days": "{{count}} dia(s) atrás",
-      "hours": "{{count}} hora(s) atrás",
-      "just_now": "Agora mesmo",
-      "minutes": "{{count}} minuto(s) atrás",
-      "months": "{{count}} mês(es) atrás"
-    },
     "title": "Biblioteca",
     "toolbar": {
       "add_group_placeholder": "Nome do grupo...",
@@ -4046,6 +4195,14 @@
         "export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
         "no_config": "Endereço da API ou token do Siyuan não configurado"
       },
+      "stream_admission": {
+        "execution_changed": "A resposta mudou antes de a nova tentativa começar. Por favor, tente novamente.",
+        "execution_not_ready": "Esta resposta ainda está sendo gerada e não pode ser tentada novamente.",
+        "model_already_in_live_group": "Este modelo já está gerando no grupo de respostas ativo.",
+        "single_model_required": "Selecione um modelo para adicionar ao grupo de resposta ativo.",
+        "target_not_in_live_group": "A resposta selecionada não está mais no grupo de respostas ativo. Por favor, tente novamente.",
+        "topic_busy": "Esta conversa ainda está sendo gerada. Aguarde até terminar e tente novamente."
+      },
       "table": {
         "invalid": "Incapaz de recuperar dados de tabela válidos"
       },
@@ -4060,7 +4217,8 @@
         "content": "Eliminar todas as respostas do assistente neste grupo? A pergunta do utilizador e as mensagens posteriores serão mantidas.",
         "title": "Eliminar respostas agrupadas"
       },
-      "retry_failed": "Repetir mensagem com erro"
+      "retry_failed": "Repetir mensagem com erro",
+      "retry_skipped_same_model": "Foram ignoradas {{count}} respostas adicionais com falha porque \"Repetir Tudo\" inicia no máximo uma nova tentativa por modelo."
     },
     "ignore": {
       "knowledge": {
@@ -4492,27 +4650,27 @@
     },
     "pinned": "Fixado",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "add_tier": "Adicionar nível de preço",
+      "cache_fallback_help": "Deixe os preços de cache em branco para usar o preço de entrada deste nível; insira 0 para grátis.",
       "cache_read": "Preço de Leitura de Cache",
-      "cache_write": "[to be translated]:Cache Write Price",
+      "cache_write": "Preço de escrita em cache",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
+      "field_for_tier": "{{field}}, nível {{index}}",
       "input": "Preço de entrada",
       "million_tokens": "Um milhão de tokens",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
+      "min_input_tokens": "Começa nos tokens de entrada",
+      "min_input_tokens_help": "Limite inclusivo; deve ser maior que o nível anterior.",
       "output": "Preço de saída",
       "price": "Preço",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "remove_tier": "Remover nível de preço {{index}}",
+      "tier": "Nível {{index}}",
+      "tier_from": "De {{boundary}} tokens de entrada (inclusive)",
+      "use_input_price": "Use o preço de entrada",
+      "validation_min_input_tokens": "Digite um número inteiro positivo.",
+      "validation_min_input_tokens_order": "O nível deve começar após o nível anterior.",
+      "validation_price": "Insira um preço maior ou igual a 0."
     },
     "reasoning": "Raciocínio",
     "rerank_model": "Modelo de reclassificação",
@@ -4569,7 +4727,7 @@
       "success": "Nome da nota gerado com sucesso"
     },
     "characters": "caractere",
-    "collapse": "[minimizar]",
+    "collapse": "Recolher",
     "conflict": {
       "description": "Esta nota foi alterada fora do editor. Recarregue para carregar a versão mais recente (suas edições não guardadas serão descartadas) ou continue a editar.",
       "keep_draft": "Continue a editar",
@@ -4664,8 +4822,8 @@
         "font_size_medium": "Médio",
         "font_size_small": "Pequeno",
         "font_title": "Definições do tipo de letra",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
+        "line_breaks": "Modo de Quebra de Linha",
+        "line_breaks_description": "Render uma quebra de linha única como uma nova linha (estilo Obsidian). Quando desativado, as quebras de linha são colapsadas em espaços até que uma linha em branco separe os parágrafos.",
         "serif_font": "Tipo de letra serifado",
         "show_table_of_contents": "Mostrar índice",
         "show_table_of_contents_description": "Apresenta uma barra lateral com o índice para facilitar a navegação no documento",
@@ -4798,7 +4956,7 @@
     },
     "installed_at": "OpenClaw instalado em",
     "migration": {
-      "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
+      "description": "Foi detectada uma instalação externa do OpenClaw no PATH, mas o Cherry Studio usa seu próprio binário gerenciado do OpenClaw. Instale a versão gerenciada para continuar.",
       "install_button": "Reinstale o OpenClaw",
       "title": "OpenClaw Precisa de Atualização"
     },
@@ -5433,7 +5591,7 @@
         "insertRowBefore": "inserir acima"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
+    "backToTop": "Voltar ao topo",
     "commands": {
       "blockMath": {
         "description": "inserir fórmula matemática",
@@ -5923,7 +6081,7 @@
           "title": "Pacote de diagnóstico"
         },
         "errors": {
-          "busy": "Já está a ser exportado outro pacote de diagnóstico",
+          "busy": "Já está em curso outra operação com um pacote de diagnóstico",
           "copy_failed": "Não foi possível copiar o e-mail do suporte",
           "destination_conflict": "A localização escolhida para guardar entra em conflito com os dados de diagnóstico. Escolha outra pasta.",
           "email_client_failed": "Não foi possível abrir um cliente de e-mail. Em alternativa, pode copiar o e-mail do suporte.",
@@ -5972,6 +6130,48 @@
           "title": "Pacote de diagnóstico exportado"
         },
         "unknown": "Desconhecido",
+        "upload": {
+          "actions": {
+            "consent_upload": "Aceitar e carregar",
+            "open_form": "Abrir formulário",
+            "uploading": "A carregar..."
+          },
+          "dialog": {
+            "description": "Crie um pacote de diagnóstico e envie-o anonimamente para a equipa do Cherry Studio.",
+            "title": "Carregar pacote de diagnóstico"
+          },
+          "errors": {
+            "open_form_failed": "Não foi possível abrir o formulário de feedback",
+            "upload_failed": "Não foi possível criar ou guardar o pacote de diagnóstico"
+          },
+          "manual": {
+            "description": "O ficheiro ZIP foi guardado na pasta Transferências e o formulário anónimo foi aberto. Selecione o ficheiro guardado no formulário para concluir o envio.",
+            "title": "É necessário carregar manualmente"
+          },
+          "privacy": {
+            "description": "O pacote inclui sempre informações sobre a aplicação e o dispositivo. Os registos e dados detalhados selecionados podem conter texto introduzido por si, localizações de ficheiros, conteúdo de pedidos e respostas e informações sobre ligações a serviços. É enviado anonimamente para um formulário privado do Feishu e está limitado a {{size}}. Ao clicar em «Aceitar e carregar», autoriza a criação e o envio deste pacote.",
+            "title": "Aviso de privacidade"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Não foi possível carregar automaticamente o anexo.",
+            "form_changed": "A estrutura do formulário de feedback foi alterada e não pôde ser verificada em segurança.",
+            "form_unavailable": "O formulário de feedback não está disponível de momento.",
+            "network_failed": "Não foi possível concluir o pedido de rede.",
+            "submission_rejected": "O formulário de feedback rejeitou o envio."
+          },
+          "success": {
+            "description": "Tamanho do ficheiro {{size}} · {{included}} ficheiros recolhidos · {{omitted}} ficheiros não recolhidos",
+            "title": "Pacote de diagnóstico carregado"
+          },
+          "unknown": {
+            "description": "O ficheiro ZIP foi guardado na pasta Transferências, mas a resposta do servidor foi interrompida. O envio poderá já ter sido concluído. Verifique antes de abrir o formulário para evitar enviar duas vezes.",
+            "title": "O envio poderá ter sido concluído"
+          },
+          "unknown_without_copy": {
+            "description": "A resposta do servidor foi interrompida e não foi possível guardar localmente o ZIP de diagnóstico. Não tente carregar novamente, pois poderá enviar o mesmo comentário duas vezes.",
+            "title": "O envio poderá ter sido concluído, mas não foi guardada uma cópia local"
+          }
+        },
         "warning": "Algumas informações de diagnóstico não estavam disponíveis. O pacote exportado poderá estar incompleto."
       },
       "downloading": "A descarregar atualizações...",
@@ -5980,24 +6180,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Converse com o Assistente Cherry para partilhar comentários.",
-          "title": "Utilizar agente"
+          "description": "Converse com o Agent integrado Cherry Support para obter ajuda com o Cherry Studio ou partilhar feedback.",
+          "title": "Pedir ajuda ao Cherry Support"
         },
-        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
+        "agent_error": "Não foi possível abrir o Cherry Support. Tente novamente.",
         "button": "Comentários",
+        "diagnostics": {
+          "description": "Reveja as informações de diagnóstico recentes e carregue-as anonimamente num só passo.",
+          "title": "Carregar pacote de diagnóstico"
+        },
         "dialog": {
           "description": "Escolha como partilhar feedback e ajude-nos a melhorar o Cherry Studio.",
           "title": "Escolha um canal de feedback"
         },
         "github": {
           "description": "Criar um relatório de bug ou pedido de recurso no GitHub.",
+          "error": "Não foi possível abrir os issues do GitHub. Tente novamente.",
           "title": "Issue do GitHub"
         },
         "recommended": "Recomendado",
-        "survey": {
-          "description": "Partilhe feedback através da nossa pesquisa Feishu.",
-          "title": "Pesquisa de feedback"
-        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -6711,8 +6912,8 @@
       "invalidTool": "Nome ou chave de ferramenta inválida",
       "localModels": {
         "acceleration": {
-          "description": "[to be translated]:Use DirectML or CoreML to accelerate local embedding and OCR inference.",
-          "label": "[to be translated]:Hardware acceleration"
+          "description": "Use DirectML ou CoreML para acelerar a inferência local de embeddings e OCR.",
+          "label": "Aceleração de hardware"
         },
         "cancel": "Cancelar",
         "description": "Modelos executados localmente no dispositivo: descarregue-os uma vez e utilize-os offline, sem uma chave de API.",
@@ -6749,7 +6950,7 @@
       "removeDefinitionOnlyDependents": "Ferramentas instaladas dependem dela: {{dependents}}.",
       "removeError": "Falha ao remover ferramenta",
       "removeErrorHint": "O comando de limpeza falhou. Copie o log abaixo para solucionar problemas ou partilhe-o para obter ajuda.",
-      "removeRuntimeConfirmMessage": "Tem a certeza de que pretende remover \"{{name}}\"? A desinstalação deste runtime pode quebrar ferramentas npm ou pip que dependem dele.",
+      "removeRuntimeConfirmMessage": "Remover \"{{name}}\" do Cherry Studio? O Cherry limpará apenas a cópia exata gerenciada pelo mise. Os runtimes do sistema e os incluídos no aplicativo nunca são alterados. Ferramentas npm ou pip instaladas podem bloquear a remoção se dependerem deste runtime.",
       "runtimeDependency": "Tempo de execução",
       "runtimeDependencyHint": "Tempo de execução para ferramentas npm/pip",
       "searchFailed": "A pesquisa falhou; consulte os registos",
@@ -7017,11 +7218,12 @@
         "no": "sem descrição",
         "nowledge_mem": "Requer a aplicação Nowledge Mem em execução localmente. Mantém conversas de IA, ferramentas, notas, agentes e ficheiros numa memória privada no seu computador. Transfira de https://mem.nowledge.co/",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
+        "qveris": "Conecte-se ao QVeris para descobrir, inspecionar e chamar capacidades de agentes de IA. É necessário configurar a variável de ambiente QVERIS_API_KEY.",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
       },
       "command": "Comando",
       "config_description": "Configurar modelo de protocolo de contexto do servidor",
-      "copyLogs": "[to be translated]:Copy logs",
+      "copyLogs": "Copiar logs",
       "customRegistryPlaceholder": "Por favor, introduza o endereço do repositório privado, por exemplo: https://npm.company.com",
       "deleteError": "Falha ao eliminar servidor",
       "deleteServer": "Eliminar Servidor",
@@ -7075,7 +7277,7 @@
       },
       "logoUrl": "URL do Logotipo",
       "logs": "Registos",
-      "logsHint": "[to be translated]:Logs from the MCP server process",
+      "logsHint": "Logs do processo do servidor MCP",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -7136,6 +7338,10 @@
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
+      "qveris": {
+        "get_api_key": "Obter chave de API",
+        "missing_api_key": "O QVeris requer uma chave de API. <link>Registe-se ou inicie sessão para obter uma chave de API</link> e, em seguida, introduza-a como QVERIS_API_KEY."
+      },
       "registry": "Fonte de Gestão de Pacotes",
       "registryDefault": "Padrão",
       "registryOptions": {
@@ -7266,8 +7472,11 @@
         "confirm_delete_message": "confirmar antes de eliminar a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
+        "newline_shortcuts": "[to be translated]:Line break shortcut",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
+        "steer_shortcuts": "[to be translated]:Steer shortcut",
+        "steer_shortcuts_hint": "[to be translated]:While an Agent is running, this sends your message into the current turn right away to steer it; the send shortcut queues it until the turn ends.",
         "title": "Configurações de entrada"
       },
       "layout": {
@@ -7462,6 +7671,20 @@
         "use_all_keys": "Use chaves"
       },
       "collapse_all": "Recolher tudo",
+      "context_management": {
+        "compress_enabled": "Compressão automática",
+        "compress_enabled_description": "Resume automaticamente os turnos mais antigos ao aproximar-se do limite da janela de contexto. Os assistentes podem substituir esta definição",
+        "compress_model": "Modelo de compressão",
+        "compress_model_follow": "Seguir o modelo atual",
+        "enabled": "Ativar gestão de contexto",
+        "enabled_description": "Gere automaticamente o contexto da conversa: descarrega saídas de ferramentas demasiado grandes e comprime o histórico perto do limite da janela. Se desativada, nada é gerido e os pedidos que excedam a janela falham",
+        "max_messages": "Mensagens recentes mantidas",
+        "max_messages_description": "Envia apenas as mensagens mais recentes; as anteriores são excluídas do contexto. Deixe vazio para não limitar. Os assistentes podem substituir esta definição",
+        "max_messages_unlimited": "Sem limite",
+        "title": "Gestão de contexto",
+        "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
+        "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
+      },
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",
@@ -7594,7 +7817,6 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
-        "model": "Modelo de Nomenclatura",
         "prompt": "Prompt de nomenclatura de tópicos"
       },
       "translate_model": "Modelo de tradução",
@@ -7617,7 +7839,8 @@
       "assistant": "Mensagem do assistente",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
-      "title": "Notificações"
+      "title": "Notificações",
+      "update": "Atualização da Aplicação"
     },
     "openai": {
       "service_tier": {
@@ -8172,12 +8395,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover Aba para o Primeiro",
       "new_topic": "Novo tópico",
-      "next_tab": "[to be translated]:Next Tab",
+      "next_tab": "Próxima aba",
       "occupied_by_other_application": "Este atalho já está a ser utilizado pelo sistema ou por outra aplicação",
       "open_tab_in_new_window": "Abrir aba em nova janela",
       "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Premir atalho",
-      "prev_tab": "[to be translated]:Previous Tab",
+      "prev_tab": "Aba anterior",
       "print": "Imprimir",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
@@ -8295,8 +8518,8 @@
             "name": "Doc2x"
           },
           "local_document": {
-            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
-            "name": "[to be translated]:Local Document"
+            "description": "Converte PDFs para Markdown inteiramente nesta máquina. Documentos com camada de texto são analisados diretamente; digitalizações recorrem ao modelo de OCR local.",
+            "name": "Documento Local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) em execução em processo — totalmente offline, sem chave de API, com reconhecimento numa thread em segundo plano para manter a interface responsiva. Descarregue o modelo (~140MB) em Dependências de Ambiente antes do primeiro uso.",
@@ -8789,7 +9012,7 @@
       "aborted": "Tradução interrompida"
     },
     "input": {
-      "placeholder": "Pode colar ou arrastar texto, ficheiros de texto ou imagens (com suporte a OCR)"
+      "placeholder": "Digite o texto..."
     },
     "language": {
       "not_pair": "O idioma de origem é diferente do idioma definido",
@@ -8852,5 +9075,18 @@
     "quit": "Sair",
     "show_window": "Exibir Janela",
     "visualization": "Visualização"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }

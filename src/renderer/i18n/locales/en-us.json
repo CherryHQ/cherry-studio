@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -206,7 +209,8 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions.",
+      "placeholder_streaming": "Agent is working — {{sendKey}} queues a follow-up, {{steerKey}} steers it now."
     },
     "list": {
       "error": {
@@ -551,11 +555,6 @@
           "helper": "Enter custom environment variables (one per line, format: KEY=value)",
           "label": "Environment Variables"
         },
-        "maxTurns": {
-          "description": "Define how many request/response cycles the agent may complete automatically.",
-          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
-          "label": "Conversation turn limit"
-        },
         "permissionMode": {
           "description": "Control how the agent handles actions that require approval.",
           "label": "Permission mode",
@@ -664,13 +663,16 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
+            "description_pi": "Works on its own. Asks when it recognizes a risky action.",
             "title": "Approve for Me",
-            "warning": "Needs a model that supports it; others may ignore it or keep asking."
+            "warning": "Needs a model that supports it; others may ignore it or keep asking.",
+            "warning_pi": "Recognition is best-effort; an unusual command can still slip through."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — all tools will run without asking for approval."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply.",
+            "warning_pi": "Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
           },
           "confirmChange": {
             "description": "Switching modes updates the automatically approved tools.",
@@ -978,7 +980,6 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for confirmation",
       "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
@@ -1086,6 +1087,82 @@
         "Write": {
           "description": "Creates or overwrites files",
           "label": "Write"
+        },
+        "bash": {
+          "description": "Run shell commands",
+          "label": "Run shell commands"
+        },
+        "create_goal": {
+          "description": "Create a session goal to work toward",
+          "label": "Create goal"
+        },
+        "edit": {
+          "description": "Edit files",
+          "label": "Edit files"
+        },
+        "exit_plan_mode": {
+          "description": "Present the plan for review and leave plan mode on approval",
+          "label": "Exit plan mode"
+        },
+        "find": {
+          "description": "Find files",
+          "label": "Find files"
+        },
+        "get_goal": {
+          "description": "Read the current session goal",
+          "label": "Read goal"
+        },
+        "grep": {
+          "description": "Search file contents",
+          "label": "Search file contents"
+        },
+        "interrupt_agent": {
+          "description": "Stop a background subagent's current turn",
+          "label": "Interrupt subagent"
+        },
+        "list_agents": {
+          "description": "List background subagents and their status",
+          "label": "List subagents"
+        },
+        "ls": {
+          "description": "List directory contents",
+          "label": "List directory contents"
+        },
+        "read": {
+          "description": "Read files",
+          "label": "Read files"
+        },
+        "read_image": {
+          "description": "Read a PNG, JPEG, WebP, or GIF file with a vision-capable model",
+          "label": "Read image"
+        },
+        "send_message": {
+          "description": "Send a follow-up message to a background subagent",
+          "label": "Message subagent"
+        },
+        "skill": {
+          "description": "Load the full instructions of an enabled skill",
+          "label": "Load skill instructions"
+        },
+        "subagent": {
+          "description": "Delegate a task to a background subagent that can be messaged later",
+          "label": "Delegate to subagent"
+        },
+        "subagent_fork": {
+          "description": "Delegate a follow-up task to a subagent seeded with this conversation",
+          "label": "Fork subagent"
+        },
+        "todo_write": {
+          "description": "Manage the task list",
+          "label": "Manage the task list"
+        },
+        "update_goal": {
+          "description": "Update the session goal status or objective",
+          "label": "Update goal"
+        },
+        "write": {
+          "description": "Write files",
+          "label": "Write files"
         }
       }
     },
@@ -1151,6 +1228,11 @@
       "startSuccess": "API Gateway started successfully",
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
+    },
+    "required": {
+      "confirm": "Enable",
+      "description": "This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "Enable the API Gateway?"
     },
     "status": {
       "running": "Running",
@@ -2173,6 +2255,7 @@
     "cli_tool_placeholder": "Select the CLI tool to use",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2195,6 +2278,43 @@
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
+    "deepseek_harness": {
+      "agent_preset": "Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "PTC Code"
+        },
+        "inherit": {
+          "description": "Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "Harness default"
+        },
+        "minimal": {
+          "description": "Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "Minimal"
+        },
+        "standard": {
+          "description": "Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "Standard"
+        }
+      },
+      "danger_warning": "Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "Allows unrestricted access without operation approval.",
+          "label": "Full access"
+        },
+        "read-only": {
+          "description": "Restricts file writes and asks before risky operations.",
+          "label": "Read only"
+        },
+        "workspace-write": {
+          "description": "Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "Workspace write"
+        }
+      }
+    },
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
     "disable": "Disable",
     "edit_config": "Edit Config",
@@ -2245,6 +2365,7 @@
     "no_tools": "No tools available",
     "not_installed": "Not installed",
     "open_provider_settings": "Open provider settings",
+    "open_web_ui": "Open Web UI",
     "own_login": {
       "title": "{{toolName}} Official"
     },
@@ -2254,8 +2375,10 @@
     "search_provider_placeholder": "Search providers…",
     "select_folder": "Select Folder",
     "select_provider_before_launch": "Select a provider before launching {{toolName}}",
+    "select_provider_model": "Please select a provider and model first",
     "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
+    "stop": "Stop",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
@@ -2495,6 +2618,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",
     "backup": {
@@ -2570,7 +2694,6 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
-    "image_unreadable_for_non_vision_model": "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
@@ -2882,6 +3005,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "User guide",
+    "star": "Star us on GitHub",
+    "title": "Help",
+    "whats_new": "What's new"
+  },
   "history": {
     "continue_chat": "Continue Chatting",
     "error": {
@@ -3114,6 +3244,8 @@
         "delete_confirm_title": "Delete Selected Data Sources?",
         "loaded_only_hint": "Applies to loaded items only ({{total}} total)",
         "reindex": "Reindex",
+        "reindex_none_eligible": "All selected data sources are still processing and cannot be reindexed yet",
+        "reindex_skipped": "Skipped {{count}} data source(s) still processing",
         "selected_count": "{{count}} selected"
       },
       "chunks_count": "{{count}} chunks",
@@ -3341,6 +3473,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
@@ -3413,10 +3546,6 @@
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
           },
-          "max_turns": {
-            "help": "0 means use the default",
-            "label": "Max conversation turns"
-          },
           "mcps": {
             "add": "Add MCP server",
             "empty": "None bound",
@@ -3444,6 +3573,20 @@
           "plan_model": {
             "hint": "Task decomposition and planning",
             "label": "Plan model"
+          },
+          "runtime": {
+            "immutable_hint": "Cannot be changed after creation",
+            "label": "Runtime mode",
+            "option": {
+              "claude_code": "Advanced: Claude Agent",
+              "dsh": "DeepSeek Harness",
+              "pi": "Fast: Pi"
+            },
+            "option_description": {
+              "claude_code": "More capable — plan mode and per-tier models",
+              "dsh": "Broad provider support with goal-driven execution",
+              "pi": "Faster responses, lower overhead"
+            }
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",
@@ -3503,9 +3646,15 @@
       "basic": {
         "context_compress_enabled": "Auto-compress",
         "context_compress_model": "Compression model",
-        "context_compress_model_follow": "Default",
-        "context_count": "Context count",
-        "context_management": "Context management",
+        "context_compress_model_follow": "Follow current model",
+        "context_count": "Recent messages kept",
+        "context_count_follow_global": "Follow global ({{count}})",
+        "context_count_unlimited": "Unlimited",
+        "context_globally_disabled": "Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "auto-compress off",
+        "context_inherited_compress_on": "auto-compress on",
+        "context_management": "Customize context management",
         "context_truncate_threshold": "Tool-output truncation threshold (chars)",
         "creative": "Creative",
         "custom_params": "Custom parameters",
@@ -3522,10 +3671,10 @@
             "hint": "Summarize older turns automatically when nearing the context window"
           },
           "context_count": {
-            "hint": "Number of recent messages kept as context"
+            "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting"
           },
           "context_management": {
-            "hint": "Override global context-management settings for this assistant; off inherits the global settings"
+            "hint": "Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Tool outputs beyond this many characters are offloaded and truncated"
@@ -3846,10 +3995,17 @@
     "skill_marketplace": {
       "empty_description": "Search online registries to find installable skills.",
       "empty_title": "Search for skills",
+      "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Install from GitHub",
+      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "GitHub SKILL.md URL",
+      "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
       "no_results_title": "No skills found",
       "search_failed_description": "Search failed. Please try again later.",
+      "search_label": "Search skills",
       "search_placeholder": "Search skills...",
+      "source_label": "Skill source",
       "title": "Online skill search"
     },
     "sort": {
@@ -3876,13 +4032,6 @@
       "placeholder": "New tag name..."
     },
     "tag_sync_failed": "Failed to sync tags",
-    "time_ago": {
-      "days": "{{count}} day(s) ago",
-      "hours": "{{count}} hour(s) ago",
-      "just_now": "Just now",
-      "minutes": "{{count}} minute(s) ago",
-      "months": "{{count}} month(s) ago"
-    },
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",
@@ -4046,6 +4195,14 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
+      "stream_admission": {
+        "execution_changed": "The response changed before the retry started. Please try again.",
+        "execution_not_ready": "This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "This model is already generating in the active reply group.",
+        "single_model_required": "Select one model to add to the active reply group.",
+        "target_not_in_live_group": "The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "Unable to retrieve valid table data"
       },
@@ -4060,7 +4217,8 @@
         "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
         "title": "Delete Group Replies"
       },
-      "retry_failed": "Retry failed messages"
+      "retry_failed": "Retry one failed message per model",
+      "retry_skipped_same_model": "Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -5923,7 +6081,7 @@
           "title": "Diagnostic bundle"
         },
         "errors": {
-          "busy": "Another diagnostic bundle is already being exported",
+          "busy": "Another diagnostic bundle operation is already in progress",
           "copy_failed": "Could not copy the support email",
           "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
           "email_client_failed": "Could not open an email client. You can copy the support email instead.",
@@ -5972,6 +6130,48 @@
           "title": "Diagnostic bundle exported"
         },
         "unknown": "Unknown",
+        "upload": {
+          "actions": {
+            "consent_upload": "Agree and upload",
+            "open_form": "Open form",
+            "uploading": "Uploading..."
+          },
+          "dialog": {
+            "description": "Build a diagnostic bundle and send it anonymously to the Cherry Studio team.",
+            "title": "Upload diagnostic bundle"
+          },
+          "errors": {
+            "open_form_failed": "Could not open the feedback form",
+            "upload_failed": "Could not build or preserve the diagnostic bundle"
+          },
+          "manual": {
+            "description": "The ZIP was saved to Downloads and the anonymous form was opened. Select the saved file there to finish submitting it.",
+            "title": "Manual upload required"
+          },
+          "privacy": {
+            "description": "The bundle always includes app and device information. Selected logs and detailed records may contain things you entered, file locations, request and response content, and service connection information. It is sent anonymously to a private Feishu form and is limited to {{size}}. By clicking Agree and upload, you consent to building and sending this bundle.",
+            "title": "Privacy notice"
+          },
+          "reasons": {
+            "attachment_upload_failed": "The attachment could not be uploaded automatically.",
+            "form_changed": "The feedback form structure changed and could not be verified safely.",
+            "form_unavailable": "The feedback form is currently unavailable.",
+            "network_failed": "The network request could not be completed.",
+            "submission_rejected": "The feedback form rejected the submission."
+          },
+          "success": {
+            "description": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+            "title": "Diagnostic bundle uploaded"
+          },
+          "unknown": {
+            "description": "The ZIP was saved to Downloads, but the server response was interrupted. It may already have been submitted. Check before opening the form to avoid sending it twice.",
+            "title": "Submission may have succeeded"
+          },
+          "unknown_without_copy": {
+            "description": "The server response was interrupted and the diagnostic ZIP could not be saved locally. Do not retry the upload, because it may send the same feedback twice.",
+            "title": "Submission may have succeeded, but no local copy was saved"
+          }
+        },
         "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
       },
       "downloading": "Downloading...",
@@ -5980,24 +6180,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chat with Cherry Assistant to share feedback.",
-          "title": "Use Agent"
+          "description": "Chat with the built-in Cherry Support Agent for help with Cherry Studio or to share feedback.",
+          "title": "Ask Cherry Support"
         },
-        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
+        "agent_error": "Unable to open Cherry Support. Please try again.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Review recent diagnostic information, then upload it anonymously in one step.",
+          "title": "Upload diagnostic bundle"
+        },
         "dialog": {
           "description": "Choose how to share feedback and help us make Cherry Studio better.",
           "title": "Choose a feedback channel"
         },
         "github": {
           "description": "Create a bug report or feature request on GitHub.",
+          "error": "Unable to open GitHub Issues. Please try again.",
           "title": "GitHub Issue"
         },
         "recommended": "Recommended",
-        "survey": {
-          "description": "Share feedback through our Feishu survey.",
-          "title": "Feedback survey"
-        },
         "title": "Feedback"
       },
       "label": "About & Feedback",
@@ -7017,6 +7218,7 @@
         "no": "No description",
         "nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "qveris": "Connect to QVeris to discover, inspect, and call AI-agent capabilities. Requires configuring the QVERIS_API_KEY environment variable.",
         "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
       },
       "command": "Command",
@@ -7136,6 +7338,10 @@
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
+      "qveris": {
+        "get_api_key": "Get API Key",
+        "missing_api_key": "QVeris requires an API key. <link>Register or sign in to get an API key</link>, then enter it as QVERIS_API_KEY."
+      },
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryOptions": {
@@ -7266,8 +7472,11 @@
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / to open the input quick panel",
+        "newline_shortcuts": "Line break shortcut",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
+        "steer_shortcuts": "Steer shortcut",
+        "steer_shortcuts_hint": "While an Agent is running, this sends your message into the current turn right away to steer it; the send shortcut queues it until the turn ends.",
         "title": "Input Settings"
       },
       "layout": {
@@ -7462,6 +7671,20 @@
         "use_all_keys": "Key(s)"
       },
       "collapse_all": "Collapse all",
+      "context_management": {
+        "compress_enabled": "Auto compress",
+        "compress_enabled_description": "Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "Compression model",
+        "compress_model_follow": "Follow current model",
+        "enabled": "Enable context management",
+        "enabled_description": "Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "Recent messages kept",
+        "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
+        "max_messages_unlimited": "Unlimited",
+        "title": "Context Management",
+        "truncate_threshold": "Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
@@ -7594,7 +7817,6 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
-        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -7617,7 +7839,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notifications"
+      "title": "Notifications",
+      "update": "App Update"
     },
     "openai": {
       "service_tier": {
@@ -8852,5 +9075,18 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "xlsx_preview": {
+    "chart": "Chart",
+    "chart_unsupported": "This chart type isn't supported yet",
+    "error": {
+      "description": "This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "Formula couldn't be evaluated",
+    "sheet_tabs_label": "Sheets",
+    "too_large": {
+      "description": "File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "File too large to preview"
+    }
   }
 }

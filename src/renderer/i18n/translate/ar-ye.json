@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "[to be translated]:Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "channels": {
@@ -206,7 +209,8 @@
       "type": "[to be translated]:Agent Icon"
     },
     "input": {
-      "placeholder": "اكتب رسالتك، {{key}} للإرسال، @ للمسار، / للأمر"
+      "placeholder": "اكتب رسالتك، {{key}} للإرسال، @ للمسار، / للأمر",
+      "placeholder_streaming": "[to be translated]:Agent is working — {{sendKey}} queues a follow-up, {{steerKey}} steers it now."
     },
     "list": {
       "error": {
@@ -551,11 +555,6 @@
           "helper": "أدخل متغيرات البيئة (واحدة في كل سطر، الصيغة: KEY=value)",
           "label": "متغيرات البيئة"
         },
-        "maxTurns": {
-          "description": "عدد دورات الوكيل تلقائيًا.",
-          "helper": "القيم الأعلى تزيد مدة الجلسة، الأدنى تقصّرها.",
-          "label": "حد المحادثات"
-        },
         "permissionMode": {
           "description": "التحكم في كيفية تعامل الوكيل مع الإجراءات التي تتطلب موافقة.",
           "label": "وضع الإذن",
@@ -664,13 +663,16 @@
           },
           "auto": {
             "description": "[to be translated]:Runs without routine prompts. A safety check blocks risky actions.",
+            "description_pi": "[to be translated]:Works on its own. Asks when it recognizes a risky action.",
             "title": "[to be translated]:Approve for Me",
-            "warning": "[to be translated]:Needs a model that supports it; others may ignore it or keep asking."
+            "warning": "[to be translated]:Needs a model that supports it; others may ignore it or keep asking.",
+            "warning_pi": "[to be translated]:Recognition is best-effort; an unusual command can still slip through."
           },
           "bypassPermissions": {
             "description": "ينفذ كل شيء دون طلب إذن. استخدمه بحذر.",
             "title": "الوضع التلقائي الكامل",
-            "warning": "استخدمه بحذر — جميع الأدوات تعمل دون موافقة."
+            "warning": "استخدمه بحذر — جميع الأدوات تعمل دون موافقة.",
+            "warning_pi": "[to be translated]:Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
           },
           "confirmChange": {
             "description": "تغيير الأوضاع سيحدّث الأدوات المعتمدة تلقائياً.",
@@ -978,7 +980,6 @@
       "executing": "جاري التنفيذ...",
       "expired": "منتهي الصلاحية",
       "inputPreview": "معاينة مدخلات الأداة",
-      "pending": "بانتظار الموافقة",
       "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "انتهت صلاحية طلب الإذن. بانتظار تعليمات جديدة...",
       "requiresElevatedPermissions": "تتطلب هذه الأداة أذونات مرتفعة.",
@@ -1086,6 +1087,82 @@
         "Write": {
           "description": "ينشئ الملفات أو يستبدلها",
           "label": "كتابة"
+        },
+        "bash": {
+          "description": "[to be translated]:Run shell commands",
+          "label": "[to be translated]:Run shell commands"
+        },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
+        "edit": {
+          "description": "[to be translated]:Edit files",
+          "label": "[to be translated]:Edit files"
+        },
+        "exit_plan_mode": {
+          "description": "[to be translated]:Present the plan for review and leave plan mode on approval",
+          "label": "[to be translated]:Exit plan mode"
+        },
+        "find": {
+          "description": "[to be translated]:Find files",
+          "label": "[to be translated]:Find files"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
+        },
+        "grep": {
+          "description": "[to be translated]:Search file contents",
+          "label": "[to be translated]:Search file contents"
+        },
+        "interrupt_agent": {
+          "description": "[to be translated]:Stop a background subagent's current turn",
+          "label": "[to be translated]:Interrupt subagent"
+        },
+        "list_agents": {
+          "description": "[to be translated]:List background subagents and their status",
+          "label": "[to be translated]:List subagents"
+        },
+        "ls": {
+          "description": "[to be translated]:List directory contents",
+          "label": "[to be translated]:List directory contents"
+        },
+        "read": {
+          "description": "[to be translated]:Read files",
+          "label": "[to be translated]:Read files"
+        },
+        "read_image": {
+          "description": "[to be translated]:Read a PNG, JPEG, WebP, or GIF file with a vision-capable model",
+          "label": "[to be translated]:Read image"
+        },
+        "send_message": {
+          "description": "[to be translated]:Send a follow-up message to a background subagent",
+          "label": "[to be translated]:Message subagent"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "subagent": {
+          "description": "[to be translated]:Delegate a task to a background subagent that can be messaged later",
+          "label": "[to be translated]:Delegate to subagent"
+        },
+        "subagent_fork": {
+          "description": "[to be translated]:Delegate a follow-up task to a subagent seeded with this conversation",
+          "label": "[to be translated]:Fork subagent"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
+        },
+        "write": {
+          "description": "[to be translated]:Write files",
+          "label": "[to be translated]:Write files"
         }
       }
     },
@@ -1151,6 +1228,11 @@
       "startSuccess": "تم تشغيل بوابة API بنجاح",
       "stopError": "فشل إيقاف بوابة API: ",
       "stopSuccess": "تم إيقاف بوابة API بنجاح"
+    },
+    "required": {
+      "confirm": "[to be translated]:Enable",
+      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
+      "title": "[to be translated]:Enable the API Gateway?"
     },
     "status": {
       "running": "قيد التشغيل",
@@ -2173,6 +2255,7 @@
     "cli_tool_placeholder": "اختيار أداة سطر الأوامر للاستخدام",
     "cli_tools": {
       "claude_code": "[to be translated]:Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "[to be translated]:Gemini CLI",
       "github_copilot_cli": "[to be translated]:GitHub Copilot CLI",
       "kimi_code": "[to be translated]:Kimi Code",
@@ -2195,6 +2278,43 @@
     "custom_path_error": "فشل تعيين مسار الطرفية المخصص",
     "custom_path_required": "المسار المخصص مطلوب لهذا الطرفية",
     "custom_path_set": "تم تعيين مسار الطرفية المخصص بنجاح",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "تشغيل عدة أدوات سطر أوامر للبرمجة بسرعة لتحسين كفاءة التطوير",
     "disable": "[to be translated]:Disable",
     "edit_config": "[to be translated]:Edit Config",
@@ -2245,6 +2365,7 @@
     "no_tools": "[to be translated]:No tools available",
     "not_installed": "[to be translated]:Not installed",
     "open_provider_settings": "[to be translated]:Open provider settings",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "[to be translated]:{{toolName}} Official"
     },
@@ -2254,8 +2375,10 @@
     "search_provider_placeholder": "[to be translated]:Search providers…",
     "select_folder": "اختر مجلدًا",
     "select_provider_before_launch": "[to be translated]:Select a provider before launching {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "[to be translated]:Select a CLI tool from the left to start configuring",
     "set_custom_path": "تعيين مسار طرفية مخصص",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "المزوّدون المدعومون",
     "terminal": "الطرفية",
     "terminal_hint": "اختر تطبيق الطرفية لتشغيل أداة سطر الأوامر فيه",
@@ -2495,6 +2618,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
     "availableProviders": "المزودون المتاحون",
     "availableTools": "الأدوات المتاحة",
     "backup": {
@@ -2570,7 +2694,6 @@
       "503": "الخدمة غير متوفرة. المحاولة لاحقاً",
       "504": "انتهت مهلة البوابة. المحاولة لاحقاً"
     },
-    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "آخر خطأ",
     "maxEmbeddingsPerCall": "أقصى عدد تضمينات لكل استدعاء",
     "message": "رسالة الخطأ",
@@ -2882,6 +3005,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "[to be translated]:Feedback",
+    "guide": "[to be translated]:User guide",
+    "star": "[to be translated]:Star us on GitHub",
+    "title": "[to be translated]:Help",
+    "whats_new": "[to be translated]:What's new"
+  },
   "history": {
     "continue_chat": "تابع الدردشة",
     "error": {
@@ -3114,6 +3244,8 @@
         "delete_confirm_title": "حذف مصادر البيانات المحددة؟",
         "loaded_only_hint": "ينطبق على العناصر المحمَّلة فقط (الإجمالي {{total}})",
         "reindex": "إعادة الفهرسة",
+        "reindex_none_eligible": "[to be translated]:All selected data sources are still processing and cannot be reindexed yet",
+        "reindex_skipped": "[to be translated]:Skipped {{count}} data source(s) still processing",
         "selected_count": "{{count}} محددة"
       },
       "chunks_count": "{{count}} أجزاء",
@@ -3341,6 +3473,7 @@
   },
   "launchpad": {
     "apps": "تطبيقات",
+    "deepseek_harness_shortcut": "[to be translated]:DSH",
     "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "تطبيقات مصغرة",
     "miniApps": "التطبيقات المصغرة",
@@ -3413,10 +3546,6 @@
           "heartbeat_interval": {
             "label": "فاصل النبض (دقائق)"
           },
-          "max_turns": {
-            "help": "0 يعني استخدام الافتراضي",
-            "label": "أقصى عدد لدورات المحادثة"
-          },
           "mcps": {
             "add": "إضافة خادم MCP",
             "empty": "لا يوجد خوادم مربوطة",
@@ -3444,6 +3573,20 @@
           "plan_model": {
             "hint": "تفكيك المهام والتخطيط",
             "label": "نموذج التخطيط (اختياري)"
+          },
+          "runtime": {
+            "immutable_hint": "[to be translated]:Cannot be changed after creation",
+            "label": "[to be translated]:Runtime mode",
+            "option": {
+              "claude_code": "[to be translated]:Advanced: Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
+              "pi": "[to be translated]:Fast: Pi"
+            },
+            "option_description": {
+              "claude_code": "[to be translated]:More capable — plan mode and per-tier models",
+              "dsh": "[to be translated]:Broad provider support with goal-driven execution",
+              "pi": "[to be translated]:Faster responses, lower overhead"
+            }
           },
           "small_model": {
             "hint": "فحوصات وتنسيقات خفيفة",
@@ -3505,6 +3648,12 @@
         "context_compress_model": "[to be translated]:Compression model",
         "context_compress_model_follow": "[to be translated]:Default",
         "context_count": "عدد السياقات",
+        "context_count_follow_global": "[to be translated]:Follow global ({{count}})",
+        "context_count_unlimited": "[to be translated]:Unlimited",
+        "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "[to be translated]:auto-compress off",
+        "context_inherited_compress_on": "[to be translated]:auto-compress on",
         "context_management": "[to be translated]:Context management",
         "context_truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
         "creative": "إبداعي",
@@ -3846,10 +3995,17 @@
     "skill_marketplace": {
       "empty_description": "[to be translated]:Search online registries to find installable skills.",
       "empty_title": "[to be translated]:Search for skills",
+      "github_empty_description": "[to be translated]:Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "[to be translated]:Install from GitHub",
+      "github_url_invalid": "[to be translated]:Paste a GitHub link that ends with SKILL.md",
+      "github_url_label": "[to be translated]:GitHub SKILL.md URL",
+      "github_url_placeholder": "[to be translated]:GitHub link ending in /SKILL.md",
       "no_results_description": "[to be translated]:Try another keyword or import a local ZIP or directory.",
       "no_results_title": "[to be translated]:No skills found",
       "search_failed_description": "[to be translated]:Search failed. Please try again later.",
+      "search_label": "[to be translated]:Search skills",
       "search_placeholder": "[to be translated]:Search skills...",
+      "source_label": "[to be translated]:Skill source",
       "title": "[to be translated]:Online skill search"
     },
     "sort": {
@@ -3876,13 +4032,6 @@
       "placeholder": "اسم وسم جديد..."
     },
     "tag_sync_failed": "فشل مزامنة الوسوم",
-    "time_ago": {
-      "days": "منذ {{count}} يوم(أيام)",
-      "hours": "منذ {{count}} ساعة(ساعات)",
-      "just_now": "الآن",
-      "minutes": "منذ {{count}} دقيقة(دقائق)",
-      "months": "منذ {{count}} شهر(أشهر)"
-    },
     "title": "المكتبة",
     "toolbar": {
       "add_group_placeholder": "[to be translated]:Group name...",
@@ -4046,6 +4195,14 @@
         "export": "فشل التصدير إلى Siyuan Note، التحقق من حالة الاتصال والتكوين وفقاً للوثائق",
         "no_config": "عنوان API أو رمز Siyuan Note غير مهيأ"
       },
+      "stream_admission": {
+        "execution_changed": "[to be translated]:The response changed before the retry started. Please try again.",
+        "execution_not_ready": "[to be translated]:This response is still generating and cannot be retried yet.",
+        "model_already_in_live_group": "[to be translated]:This model is already generating in the active reply group.",
+        "single_model_required": "[to be translated]:Select one model to add to the active reply group.",
+        "target_not_in_live_group": "[to be translated]:The selected response is no longer in the active reply group. Please try again.",
+        "topic_busy": "[to be translated]:This conversation is still generating. Wait for it to finish and try again."
+      },
       "table": {
         "invalid": "تعذر استرداد بيانات جدول صالحة"
       },
@@ -4060,7 +4217,8 @@
         "content": "حذف رسالة مجموعة سيؤدي لحذف سؤال المستخدم وجميع إجابات المساعد",
         "title": "حذف رسالة المجموعة"
       },
-      "retry_failed": "إعادة محاولة الرسائل الفاشلة"
+      "retry_failed": "إعادة محاولة الرسائل الفاشلة",
+      "retry_skipped_same_model": "[to be translated]:Skipped {{count}} additional failed replies because Retry All starts at most one retry per model."
     },
     "ignore": {
       "knowledge": {
@@ -5972,6 +6130,48 @@
           "title": "[to be translated]:Diagnostic bundle exported"
         },
         "unknown": "[to be translated]:Unknown",
+        "upload": {
+          "actions": {
+            "consent_upload": "[to be translated]:Agree and upload",
+            "open_form": "[to be translated]:Open form",
+            "uploading": "[to be translated]:Uploading..."
+          },
+          "dialog": {
+            "description": "[to be translated]:Build a diagnostic bundle and send it anonymously to the Cherry Studio team.",
+            "title": "[to be translated]:Upload diagnostic bundle"
+          },
+          "errors": {
+            "open_form_failed": "[to be translated]:Could not open the feedback form",
+            "upload_failed": "[to be translated]:Could not build or preserve the diagnostic bundle"
+          },
+          "manual": {
+            "description": "[to be translated]:The ZIP was saved to Downloads and the anonymous form was opened. Select the saved file there to finish submitting it.",
+            "title": "[to be translated]:Manual upload required"
+          },
+          "privacy": {
+            "description": "[to be translated]:The bundle always includes app and device information. Selected logs and detailed records may contain things you entered, file locations, request and response content, and service connection information. It is sent anonymously to a private Feishu form and is limited to {{size}}. By clicking Agree and upload, you consent to building and sending this bundle.",
+            "title": "[to be translated]:Privacy notice"
+          },
+          "reasons": {
+            "attachment_upload_failed": "[to be translated]:The attachment could not be uploaded automatically.",
+            "form_changed": "[to be translated]:The feedback form structure changed and could not be verified safely.",
+            "form_unavailable": "[to be translated]:The feedback form is currently unavailable.",
+            "network_failed": "[to be translated]:The network request could not be completed.",
+            "submission_rejected": "[to be translated]:The feedback form rejected the submission."
+          },
+          "success": {
+            "description": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+            "title": "[to be translated]:Diagnostic bundle uploaded"
+          },
+          "unknown": {
+            "description": "[to be translated]:The ZIP was saved to Downloads, but the server response was interrupted. It may already have been submitted. Check before opening the form to avoid sending it twice.",
+            "title": "[to be translated]:Submission may have succeeded"
+          },
+          "unknown_without_copy": {
+            "description": "[to be translated]:The server response was interrupted and the diagnostic ZIP could not be saved locally. Do not retry the upload, because it may send the same feedback twice.",
+            "title": "[to be translated]:Submission may have succeeded, but no local copy was saved"
+          }
+        },
         "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
       },
       "downloading": "جاري التنزيل...",
@@ -5985,19 +6185,20 @@
         },
         "agent_error": "[to be translated]:Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "ملاحظات",
+        "diagnostics": {
+          "description": "[to be translated]:Review recent diagnostic information, then upload it anonymously in one step.",
+          "title": "[to be translated]:Upload diagnostic bundle"
+        },
         "dialog": {
           "description": "[to be translated]:Choose how to share feedback and help us make Cherry Studio better.",
           "title": "[to be translated]:Choose a feedback channel"
         },
         "github": {
           "description": "[to be translated]:Create a bug report or feature request on GitHub.",
+          "error": "[to be translated]:Unable to open GitHub Issues. Please try again.",
           "title": "[to be translated]:GitHub Issue"
         },
         "recommended": "[to be translated]:Recommended",
-        "survey": {
-          "description": "[to be translated]:Share feedback through our Feishu survey.",
-          "title": "[to be translated]:Feedback survey"
-        },
         "title": "ملاحظات"
       },
       "label": "حول والملاحظات",
@@ -7017,6 +7218,7 @@
         "no": "لا يوجد وصف",
         "nowledge_mem": "يتطلب تشغيل تطبيق Nowledge Mem محليًا. يحفظ دردشات الذكاء الاصطناعي، والأدوات، والملاحظات، والوكلاء، والملفات في ذاكرة خاصة على جهاز الكمبيوتر. حمله من https://mem.nowledge.co/",
         "python": "تنفيذ كود بايثون في بيئة معزولة وآمنة. قم بتشغيل بايثون عبر Pyodide، مع دعم معظم المكتبات القياسية وحزم الحوسبة العلمية",
+        "qveris": "[to be translated]:Connect to QVeris to discover, inspect, and call AI-agent capabilities. Requires configuring the QVERIS_API_KEY environment variable.",
         "sequentialthinking": "تنفيذ لخادم MCP يوفر أدوات لحل المشكلات بشكل ديناميكي وتأملي من خلال عمليات تفكير مهيكلة"
       },
       "command": "أمر",
@@ -7136,6 +7338,10 @@
       "providerPlaceholder": "اسم المزود",
       "providerUrl": "رابط المزود",
       "providers": "المزودون",
+      "qveris": {
+        "get_api_key": "[to be translated]:Get API Key",
+        "missing_api_key": "[to be translated]:QVeris requires an API key. <link>Register or sign in to get an API key</link>, then enter it as QVERIS_API_KEY."
+      },
       "registry": "سجل الحزم",
       "registryDefault": "افتراضي",
       "registryOptions": {
@@ -7266,8 +7472,11 @@
         "confirm_delete_message": "أكد قبل حذف الرسائل",
         "confirm_regenerate_message": "أكد قبل إعادة توليد الرسائل",
         "enable_quick_triggers": "فعّل مشغلات / و @",
+        "newline_shortcuts": "[to be translated]:Line break shortcut",
         "send_shortcuts": "اختصارات الإرسال",
         "show_estimated_tokens": "إظهار الرموز (Tokens) التقديرية",
+        "steer_shortcuts": "[to be translated]:Steer shortcut",
+        "steer_shortcuts_hint": "[to be translated]:While an Agent is running, this sends your message into the current turn right away to steer it; the send shortcut queues it until the turn ends.",
         "title": "إعدادات الإدخال"
       },
       "layout": {
@@ -7462,6 +7671,20 @@
         "use_all_keys": "المفاتيح"
       },
       "collapse_all": "طوِ الكل",
+      "context_management": {
+        "compress_enabled": "[to be translated]:Auto compress",
+        "compress_enabled_description": "[to be translated]:Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "[to be translated]:Compression model",
+        "compress_model_follow": "[to be translated]:Follow current model",
+        "enabled": "[to be translated]:Enable context management",
+        "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "[to be translated]:Recent messages kept",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
+        "max_messages_unlimited": "[to be translated]:Unlimited",
+        "title": "[to be translated]:Context Management",
+        "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "[to be translated]:Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "نموذج المساعد الافتراضي",
       "default_assistant_model_description": "النموذج المستخدم عند إنشاء مساعد جديد؛ سيستخدم هذا النموذج إذا لم يتم تعيين مساعد.",
       "docs": "توثيق النموذج",
@@ -7594,7 +7817,6 @@
       "topic_naming": {
         "auto": "تسمية تلقائية للموضوع",
         "label": "تسمية الموضوع",
-        "model": "[to be translated]:Naming Model",
         "prompt": "توجيه تسمية الموضوع"
       },
       "translate_model": "نموذج الترجمة",
@@ -7617,7 +7839,8 @@
       "assistant": "رسالة المساعد",
       "backup": "رسالة النسخ الاحتياطي",
       "knowledge_embed": "رسالة قاعدة المعرفة",
-      "title": "إعدادات الإشعارات"
+      "title": "إعدادات الإشعارات",
+      "update": "[to be translated]:App Update"
     },
     "openai": {
       "service_tier": {
@@ -8852,5 +9075,18 @@
     "quit": "إنهاء",
     "show_window": "إظهار النافذة",
     "visualization": "تمثيل بصري"
+  },
+  "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
+    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "error": {
+      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
+    "sheet_tabs_label": "[to be translated]:Sheets",
+    "too_large": {
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "[to be translated]:File too large to preview"
+    }
   }
 }

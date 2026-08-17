@@ -25,6 +25,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
+import { encodeGithubPath, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -41,6 +42,8 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
 const MAX_FILES_COUNT = 2000
 const MAX_FOLDER_NAME_LENGTH = 80
+// A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
+const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
@@ -186,7 +189,8 @@ export class SkillService {
   /**
    * Install from a marketplace installSource handle.
    * Format: "claude-plugins:{owner}/{repo}/{directoryPath}",
-   * "skills.sh:{owner}/{repo}/{skillId}", or "clawhub:{owner}/{slug}".
+   * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
+   * or "github:{https URL of the skill's SKILL.md}".
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
     const { installSource } = options
@@ -200,6 +204,8 @@ export class SkillService {
         return this.installFromSkillsSh(identifier)
       case 'clawhub':
         return this.installFromClawhub(identifier)
+      case 'github':
+        return this.installFromGithub(identifier)
       default:
         throw new Error(`Unknown install source: ${source}`)
     }
@@ -496,6 +502,165 @@ export class SkillService {
       return installed
     } finally {
       await this.safeRemoveDirectory(tempDir)
+    }
+  }
+
+  /**
+   * Install the one skill a GitHub SKILL.md URL points at. No registry is involved: the URL carries
+   * the repo and the path, and the shared parser is the same one the UI validates with.
+   *
+   * A GitHub URL has no delimiter between the ref and the path, so the boundary is resolved against
+   * the repo's own refs. What gets fetched is the commit observed during that lookup, not the ref
+   * name again: a branch that moves in between would otherwise hand over different content than the
+   * one whose tree was inspected.
+   */
+  private async installFromGithub(identifier: string): Promise<InstalledSkill> {
+    const location = parseGithubSkillUrl(identifier)
+    if (!location) {
+      throw new Error(`Invalid GitHub skill URL: ${identifier}`)
+    }
+
+    const { owner, repo, refAndDirectory } = location
+    const repoUrl = `https://github.com/${owner}/${repo}`
+    const { ref, oid, directoryPath } = await this.resolveGithubCommit(repoUrl, refAndDirectory)
+    logger.info('Installing from GitHub', { owner, repo, ref, oid, directoryPath })
+
+    // Keep the ref, not the commit, as the stored origin: a later install of the same skill has to
+    // match this URL to be treated as an update rather than a foreign folder collision.
+    const sourceUrl = `${repoUrl}/tree/${encodeGithubPath(`${ref}/${directoryPath}`)}`
+    const tempDir = await this.createTempDir('github')
+
+    try {
+      await this.fetchCommit(repoUrl, oid, directoryPath, tempDir)
+      await this.assertUniqueSkillPath(tempDir, directoryPath)
+      const skillDir = await this.resolveSkillDirectory(tempDir, null, directoryPath)
+      await this.assertSkillDirectoryWithinLimits(skillDir)
+      return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
+    } finally {
+      await this.safeRemoveDirectory(tempDir)
+    }
+  }
+
+  /**
+   * Ask the remote where the ref ends and which commit it points at. A branch name may contain `/`,
+   * so `blob/feature/foo/skills/demo/SKILL.md` is only unambiguous once the repo's refs are known.
+   * A commit permalink needs no ref and is the one identity that cannot drift.
+   */
+  private async resolveGithubCommit(
+    repoUrl: string,
+    refAndDirectory: string[]
+  ): Promise<{ ref: string; oid: string; directoryPath: string }> {
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const output = await this.runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
+    const refs = output.split('\n').flatMap((line) => {
+      const [oid, fullName] = line.split('\t').map((part) => part.trim())
+      // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
+      const match = fullName?.match(/^refs\/(heads|tags)\/(.+?)(?:\^\{\})?$/)
+      if (!oid || !match || fullName.endsWith('^{}')) return []
+      return [{ oid, namespace: match[1] as 'heads' | 'tags', name: match[2] }]
+    })
+
+    const resolution = resolveRefFromSegments(refs, refAndDirectory)
+    switch (resolution.kind) {
+      case 'resolved':
+        return { ref: resolution.ref.name, oid: resolution.ref.oid, directoryPath: resolution.directoryPath }
+      case 'repo-root':
+        throw new Error(
+          `"${resolution.ref.name}" is a ${resolution.ref.namespace === 'tags' ? 'tag' : 'branch'} in ${repoUrl}, ` +
+            'so this URL points at a SKILL.md in the repository root — install a skill directory instead.'
+        )
+      case 'ambiguous':
+        throw new Error(`${repoUrl} has both a branch and a tag named "${resolution.name}"; the URL cannot say which.`)
+      case 'no-match': {
+        const [head, ...rest] = refAndDirectory
+        // A permalink names its commit outright, so no ref has to match for it to be exact.
+        if (rest.length > 0 && /^[0-9a-f]{40}$/i.test(head)) {
+          return { ref: head, oid: head.toLowerCase(), directoryPath: rest.join('/') }
+        }
+        throw new Error(`No branch or tag in ${repoUrl} matches "${refAndDirectory.join('/')}"`)
+      }
+    }
+  }
+
+  /**
+   * Materialize one commit, and from it only the selected directory. Fetching the OID rather than a
+   * ref name is what makes the install deterministic; the blob filter and sparse pattern keep an
+   * unrelated multi-gigabyte repository from being written to disk on the way to one skill, and the
+   * hardened env keeps it from hanging on a credential prompt or smudging LFS payloads.
+   */
+  private async fetchCommit(repoUrl: string, oid: string, directoryPath: string, destDir: string): Promise<void> {
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const git = (args: string[]) => this.runGit(gitCommand, ['-C', destDir, ...args])
+
+    await fs.promises.mkdir(destDir, { recursive: true })
+    await git(['init', '--quiet'])
+    await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, oid])
+    // Leading `/` anchors the pattern at the repo root and keeps a directory named like an option
+    // from being read as one.
+    await git(['sparse-checkout', 'set', '--no-cone', `/${directoryPath}/`])
+    await git(['checkout', '--quiet', 'FETCH_HEAD'])
+  }
+
+  /** Apply the same ceilings an untrusted ZIP gets — a repository is no more trusted than an archive. */
+  private async assertSkillDirectoryWithinLimits(skillDir: string): Promise<void> {
+    let totalSize = 0
+    let fileCount = 0
+
+    const walk = async (directory: string): Promise<void> => {
+      for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
+        const entryPath = path.join(directory, entry.name)
+        if (entry.isDirectory()) {
+          await walk(entryPath)
+          continue
+        }
+        if (!entry.isFile()) continue
+
+        fileCount += 1
+        totalSize += (await fs.promises.stat(entryPath)).size
+        if (totalSize > MAX_EXTRACTED_SIZE) {
+          throw new Error(`Skill directory too large: exceeds ${MAX_EXTRACTED_SIZE} bytes`)
+        }
+        if (fileCount > MAX_FILES_COUNT) {
+          throw new Error(`Skill directory has too many files: exceeds ${MAX_FILES_COUNT}`)
+        }
+      }
+    }
+
+    await walk(skillDir)
+  }
+
+  private async runGit(gitCommand: string, args: string[]): Promise<string> {
+    const env = await getShellEnv()
+    return executeCommand(gitCommand, args, {
+      capture: true,
+      timeout: GIT_COMMAND_TIMEOUT_MS,
+      env: { ...env, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1', GIT_ASKPASS: '', GCM_INTERACTIVE: 'never' }
+    })
+  }
+
+  /**
+   * Refuse a tree whose paths collide once the filesystem folds case or normalizes Unicode. Such a
+   * checkout merges two directories into one, so the containment checks would inspect bytes that are
+   * not the ones the URL selected.
+   */
+  private async assertUniqueSkillPath(repoDir: string, directoryPath: string): Promise<void> {
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const output = await this.runGit(gitCommand, ['-C', repoDir, 'ls-tree', '-r', '--name-only', 'FETCH_HEAD'])
+    const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
+    const wanted = foldKey(`${directoryPath}/`)
+
+    const collisions = new Set<string>()
+    for (const entry of output.split('\n')) {
+      const line = entry.trim()
+      if (!line || !foldKey(line).startsWith(wanted)) continue
+      collisions.add(line.slice(0, line.indexOf('/', directoryPath.length)))
+    }
+
+    if (collisions.size > 1) {
+      throw new Error(
+        `The commit contains directories that collide with "${directoryPath}" once case and Unicode are ` +
+          `normalized (${[...collisions].join(', ')}); refusing to install an ambiguous checkout.`
+      )
     }
   }
 
@@ -797,6 +962,22 @@ export class SkillService {
     return this.resolveSkillDirectory(extractedDir, null, null)
   }
 
+  /**
+   * A symlinked component silently redirects the requested path elsewhere in the repository, so an
+   * explicitly selected directory would install a skill other than the one shown to the user. The
+   * realpath containment check alone cannot see this: the target stays inside the repository.
+   */
+  private async assertNoSymlinkComponents(repoDir: string, relativePath: string): Promise<void> {
+    let current = repoDir
+    for (const part of relativePath.split(path.sep).filter(Boolean)) {
+      current = path.join(current, part)
+      const stats = await fs.promises.lstat(current).catch(() => null)
+      if (stats?.isSymbolicLink()) {
+        throw new Error(`Skill directory path passes through a symlink: ${relativePath}`)
+      }
+    }
+  }
+
   private async resolveSkillDirectory(
     repoDir: string,
     skillName: string | null,
@@ -810,6 +991,7 @@ export class SkillService {
       if (isOutsidePath(relative)) {
         throw new Error(`Skill directory path escapes the repository: ${directoryPath}`)
       }
+      await this.assertNoSymlinkComponents(repoDir, relative)
       const skillMdPath = await findSkillMdPath(resolved)
       if (skillMdPath) return this.validateRepositorySkillDirectory(repoDir, resolved, skillMdPath)
 
@@ -1393,9 +1575,11 @@ export class SkillService {
   }
 
   private async createTempDir(prefix: string): Promise<string> {
-    const tempDir = path.join(application.getPath('feature.agents.skills.install.temp'), `${prefix}-${Date.now()}`)
-    await fs.promises.mkdir(tempDir, { recursive: true })
-    return tempDir
+    const root = application.getPath('feature.agents.skills.install.temp')
+    await fs.promises.mkdir(root, { recursive: true })
+    // mkdtemp, not a timestamp: two installs starting in the same millisecond would otherwise share
+    // one workspace and delete each other's checkout on cleanup.
+    return fs.promises.mkdtemp(path.join(root, `${prefix}-`))
   }
 
   private async safeRemoveDirectory(dirPath: string): Promise<void> {

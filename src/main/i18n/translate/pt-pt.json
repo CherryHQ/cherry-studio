@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consultor integrado do Cherry Studio. Diagnostica problemas, orienta operações, recolhe perguntas frequentes, submete erros e pedidos de funcionalidades e pesquisa ou cria Skills"
+      },
+      "cherry_support": {
+        "description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback"
       }
     },
     "session": {
@@ -22,13 +25,13 @@
         "count_tokens": "Estima quantos tokens de entrada são consumidos por um conjunto de mensagens no formato Anthropic.",
         "generate_content": "Gera conteúdo através do método `generateContent` do Gemini. Os corpos do pedido e da resposta seguem o formato da API Gemini; `streamGenerateContent` é servido no mesmo caminho.",
         "get_knowledge_base": "Obtém uma base de conhecimento pelo respetivo ID.",
-        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
+        "get_mcp_server": "Obter os detalhes de um servidor MCP e a respetiva lista de ferramentas.",
         "health": "Estado do serviço, hora atual e versão. Não requer autenticação.",
         "info": "Nome e versão da API e os seus principais endpoints. Não requer autenticação.",
         "list_knowledge_bases": "Lista as bases de conhecimento disponíveis nesta instância do Cherry Studio.",
-        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
+        "list_mcp_servers": "Listar os servidores MCP ativados no Cherry Studio, cada um com o URL de ligação.",
         "list_models": "Lista os modelos disponíveis neste gateway, no formato de modelos da OpenAI.",
-        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
+        "mcp_proxy": "Endpoint do Model Context Protocol para um servidor MCP (Streamable HTTP). Aponte qualquer cliente MCP para este URL para usar o servidor através do Cherry Studio.",
         "messages": "Cria uma mensagem. Os corpos do pedido e da resposta seguem o formato Anthropic Messages; com `stream: true` a saída é incremental.",
         "responses": "Cria uma resposta. Os corpos do pedido e da resposta seguem o formato OpenAI Responses.",
         "search_knowledge_bases": "Pesquisa numa ou mais bases de conhecimento e devolve os excertos de documentos correspondentes."
@@ -106,8 +109,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
-      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+      "document_size_limit_exceeded": "O serviço atual de análise de documentos requer ficheiros menores que {{maxSize}}. Comprima ou divida este ficheiro e adicione-o novamente.",
+      "pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente."
     }
   },
   "openclaw": {

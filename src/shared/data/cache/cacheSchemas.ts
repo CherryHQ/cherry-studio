@@ -1,5 +1,7 @@
+import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -389,6 +391,20 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  // Usage statistics view selections, persisted so leaving and re-entering the page restores
+  // them. The heatmap drill-down date stays component-local: a stored past date would reopen
+  // the page on an empty range.
+  'settings.usage.window': '30d' | '90d' | '365d'
+  'settings.usage.group_by': 'provider' | 'model' | 'apiKey' | 'source'
+  'settings.usage.chart_metric': 'tokens' | 'requests' | 'cost'
+  'settings.usage.chart_type': 'stack' | 'pie' | 'bar' | 'line'
+  'settings.usage.rollup': 'total' | 'daily' | 'weekly' | 'monthly'
+  'settings.usage.top_count': 5 | 10 | 20
+  'settings.usage.heatmap_metric': 'tokens' | 'cost'
+  'settings.usage.entry_sort_by': AiUsageRecordListSortBy
+  'settings.usage.entry_sort_order': AiUsageRecordSortOrder
+  // Null defers to the cost-total fallback (USD, else the first currency with usage).
+  'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -421,6 +437,16 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.usage.window': '30d',
+  'settings.usage.group_by': 'provider',
+  'settings.usage.chart_metric': 'tokens',
+  'settings.usage.chart_type': 'bar',
+  'settings.usage.rollup': 'daily',
+  'settings.usage.top_count': 10,
+  'settings.usage.heatmap_metric': 'tokens',
+  'settings.usage.entry_sort_by': 'createdAt',
+  'settings.usage.entry_sort_order': 'desc',
+  'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []

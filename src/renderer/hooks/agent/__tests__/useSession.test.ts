@@ -83,6 +83,7 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   workspaceId: workspace.id,
   workspace,
   orderKey: 'a0',
+  lastActivityAt: '2024-01-01T00:00:00Z',
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,
@@ -388,6 +389,21 @@ describe('useSessions', () => {
       query: { entityType: 'session' },
       enabled: false
     })
+  })
+
+  it('refetches session pins after a pin membership notification', () => {
+    const refetchPins = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/pins', {
+      data: [],
+      refetch: refetchPins
+    })
+
+    renderHook(() => useSessions('agent-1'))
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    expect(refetchPins).toHaveBeenCalledOnce()
   })
 
   it('flattens items from a single page', async () => {

@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。"
+      },
+      "cherry_support": {
+        "description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent"
       }
     },
     "session": {
@@ -22,13 +25,13 @@
         "count_tokens": "Anthropic 形式のメッセージが消費する入力トークン数を見積もります。",
         "generate_content": "Gemini の `generateContent` メソッドでコンテンツを生成します。リクエストとレスポンスの形式は Gemini API と同じで、`streamGenerateContent` も同じパスで提供されます。",
         "get_knowledge_base": "ID を指定してナレッジベースを 1 件取得します。",
-        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
+        "get_mcp_server": "MCP サーバーの詳細とツール一覧を取得します。",
         "health": "サービスの稼働状態、現在時刻、バージョンを返します。認証は不要です。",
         "info": "API の名称・バージョンと主要なエンドポイントを返します。認証は不要です。",
         "list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
-        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
+        "list_mcp_servers": "Cherry Studio で有効になっている MCP サーバーを、接続用 URL とともに一覧表示します。",
         "list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
-        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
+        "mcp_proxy": "MCP サーバー用の Model Context Protocol エンドポイント (Streamable HTTP)。任意の MCP クライアントでこの URL を指定すると、Cherry Studio 経由でサーバーを使用できます。",
         "messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
         "responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",
         "search_knowledge_bases": "1 つ以上のナレッジベースを検索し、該当するドキュメントの断片を返します。"
@@ -106,8 +109,8 @@
   },
   "file_processing": {
     "errors": {
-      "document_size_limit_exceeded": "[to be translated]:The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
-      "pdf_page_limit_exceeded": "[to be translated]:This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+      "document_size_limit_exceeded": "現在のドキュメント解析サービスでは、{{maxSize}} 未満のファイルが必要です。このファイルを圧縮または分割してから、もう一度追加してください。",
+      "pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。"
     }
   },
   "openclaw": {

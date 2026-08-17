@@ -1031,7 +1031,6 @@ vi.mock('@cherrystudio/ui', () => {
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},
-    MODEL_ICON_CATALOG: {},
     resolveProviderIcon: () => undefined,
     resolveModelIcon: () => undefined,
     resolveModelToProviderIcon: () => undefined,

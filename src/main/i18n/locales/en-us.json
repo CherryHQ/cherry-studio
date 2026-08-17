@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "session": {

@@ -38,6 +38,10 @@ resolves migration storage through the live application path registry.
   synchronous Agent import transaction begins. The transaction then drains the
   staging table in batches, so source JSON and transformed parts are never all
   retained in the V8 heap at once.
+- After messages are imported, each Session's `last_activity_at` is initialized
+  from user creation times and terminal assistant completion times. Transient
+  assistant rows contribute only their creation time. Empty transcripts fall
+  back to Session creation.
 - Agent and per-Agent Session ordering is converted to fractional order keys.
 - Scheduled-task trigger fields become JobManager trigger objects. Legacy task
   run logs are intentionally not migrated.
@@ -91,10 +95,13 @@ validates every exact v2 target against every v1 source, then clears the final
 `Data/Agents/{agentId}` directories and planned managed Session workspaces that
 are not themselves legacy sources. A target already used as the same Agent's
 exact legacy workspace is retained, including case-only path variants on
-Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
-Validation completes for the whole cleanup plan before any target is removed.
-This avoids hashing or copying data only to fail on stale retry output, while
-leaving legacy short-ID and external user workspaces unchanged. A target
+Windows and macOS, even when another Agent also references it. Any other
+cross-Agent, ancestor/descendant, or resolved-path overlap preserves the legacy
+source and skips filesystem output for that target instead of aborting the
+database migration. The affected Agent may omit identity, memory, or managed
+workspace files, while the remaining targets continue normally. The completed
+migration surfaces the number of skipped targets as a warning; detailed paths
+remain in the diagnostic log. A target
 recreated after cleanup is accepted only when it is identical to the verified
 staging copy.
 
@@ -113,7 +120,8 @@ The filesystem migration is copy-only with respect to v1. It never removes or
 rewrites the v1 `.claude`, `agents.db`, `Data/Agents/{legacyAgentId suffix}`, or
 external user workspace because those paths remain the source of truth when a
 user downgrades to v1. Retry cleanup removes only the exact v2 Agent and managed
-Session targets owned by the current migration plan.
+Session targets owned by the current migration plan that do not overlap a
+legacy source.
 
 Filesystem copies use content fingerprints rather than source metadata. Each
 source is fingerprinted before copying, and the complete private staging entry
@@ -154,6 +162,7 @@ remain excluded for as long as v1 downgrade support exists.
 | `agents.allowed_tools` | `agent.disabled_tools` | Starts empty; the concepts are not equivalent |
 | `agents.mcps[]` | `agent_mcp_server` | IDs remapped through the MCP migrator |
 | `session_messages.agent_session_id` | `agent_session_message.runtime_resume_token` | Preserves runtime resume state |
+| `session_messages.created_at` / `updated_at` + `role` / source status | `agent_session.last_activity_at` | Maximum user creation / terminal assistant completion time; transient assistant rows use creation time; empty Sessions use Session creation |
 | `scheduled_tasks.schedule_*` | `job_schedule.trigger` | Converted to cron, interval, or once |
 
 ## Intentionally dropped data

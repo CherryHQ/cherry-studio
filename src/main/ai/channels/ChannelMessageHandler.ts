@@ -8,7 +8,10 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
+import {
+  isAgentSessionWorkspaceError,
+  prepareAgentSessionWorkspaceDirectory
+} from '@main/ai/runtime/agentSessionWorkspace'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { Disposable } from '@main/core/lifecycle'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
@@ -340,7 +343,7 @@ export class ChannelMessageHandler {
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
         try {
-          await prepareClaudeCodeWorkspaceDirectory(session)
+          await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
             await adapter

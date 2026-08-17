@@ -8,7 +8,6 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
-import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -16,6 +15,7 @@ import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
+import { redactUrlToOrigin } from '@shared/utils/redaction'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
@@ -225,6 +225,24 @@ ${Object.values(APPLY_SETTING_REGISTRY)
   }
 }
 
+const ASSISTANT_TOOLS = {
+  navigate: NAVIGATE_TOOL,
+  diagnose: DIAGNOSE_TOOL,
+  product_info: PRODUCT_INFO_TOOL,
+  apply_setting: APPLY_SETTING_TOOL,
+  create_agent: CREATE_AGENT_TOOL
+} as const
+
+export type AssistantToolName = keyof typeof ASSISTANT_TOOLS
+
+/** Product-support capabilities intentionally exclude creation of arbitrary Agents. */
+export const SUPPORT_ASSISTANT_TOOL_NAMES: readonly AssistantToolName[] = [
+  'navigate',
+  'diagnose',
+  'product_info',
+  'apply_setting'
+]
+
 // Health check cache: { providerId -> { result, timestamp } }
 const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
@@ -232,7 +250,13 @@ const HEALTH_CACHE_TTL = 30_000 // 30 seconds
 class AssistantServer {
   public mcpServer: McpServer
 
-  constructor(private readonly defaultModel?: UniqueModelId) {
+  private readonly enabledToolNames: ReadonlySet<AssistantToolName>
+
+  constructor(
+    private readonly defaultModel?: UniqueModelId,
+    enabledToolNames: readonly AssistantToolName[] = Object.keys(ASSISTANT_TOOLS) as AssistantToolName[]
+  ) {
+    this.enabledToolNames = new Set(enabledToolNames)
     this.mcpServer = new McpServer(
       {
         name: 'assistant',
@@ -249,7 +273,7 @@ class AssistantServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL, PRODUCT_INFO_TOOL, APPLY_SETTING_TOOL, CREATE_AGENT_TOOL]
+      tools: Array.from(this.enabledToolNames, (name) => ASSISTANT_TOOLS[name])
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -257,6 +281,9 @@ class AssistantServer {
       const args = request.params.arguments ?? {}
 
       try {
+        if (!this.enabledToolNames.has(toolName as AssistantToolName)) {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
+        }
         switch (toolName) {
           case 'navigate':
             return await this.navigate(args as Record<string, string | Record<string, string> | undefined>)
@@ -470,7 +497,6 @@ class AssistantServer {
         model: parsedModel.data,
         configuration: {
           permission_mode: 'default',
-          max_turns: 100,
           env_vars: {}
         }
       })
@@ -885,7 +911,7 @@ class AssistantServer {
         proxy: proxy ? redactUrlToOrigin(proxy) : proxy,
         zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
-        topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),
+        quickModel: this.describeModelId(preferenceService.get('feature.quick_assistant.model_id')),
         tray: preferenceService.get('app.tray.enabled'),
         trayOnClose: preferenceService.get('app.tray.on_close'),
         launchToTray: preferenceService.get('app.tray.on_launch'),
