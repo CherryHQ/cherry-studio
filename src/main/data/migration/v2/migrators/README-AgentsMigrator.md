@@ -101,7 +101,9 @@ source and skips filesystem output for that target instead of aborting the
 database migration. The affected Agent may omit identity, memory, or managed
 workspace files, while the remaining targets continue normally. The completed
 migration surfaces the number of skipped targets as a warning; detailed paths
-remain in the diagnostic log. A target
+remain in the diagnostic log. An external virtual-drive workspace whose real
+path cannot be resolved is handled the same way, while resolution failures
+inside the managed Agent root remain fatal. A target
 recreated after cleanup is accepted only when it is identical to the verified
 staging copy.
 

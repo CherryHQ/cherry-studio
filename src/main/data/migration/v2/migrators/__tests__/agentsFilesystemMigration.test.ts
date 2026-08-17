@@ -32,14 +32,15 @@ import {
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
 
-const { copyMutation, platformState } = vi.hoisted(() => ({
+const { copyMutation, platformState, realpathFailures } = vi.hoisted(() => ({
   copyMutation: {
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
-  platformState: { isMac: false, isWin: false }
+  platformState: { isMac: false, isWin: false },
+  realpathFailures: new Map<string, NodeJS.ErrnoException>()
 }))
 
 vi.mock('@main/core/platform', async (importOriginal) => {
@@ -80,6 +81,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       const result = await original.copyFile(...args)
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
+    },
+    realpath: async (...args: Parameters<typeof original.realpath>) => {
+      const failure = realpathFailures.get(path.resolve(String(args[0])))
+      if (failure) throw failure
+      return original.realpath(...args)
     },
     symlink: async (...args: Parameters<typeof original.symlink>) => {
       copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
@@ -151,6 +157,7 @@ describe('agentsFilesystemMigration', () => {
     copyMutation.beforeCpEntry = undefined
     copyMutation.copyFileCalls.length = 0
     copyMutation.symlinkCalls.length = 0
+    realpathFailures.clear()
     platformState.isMac = false
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -1153,6 +1160,68 @@ describe('agentsFilesystemMigration', () => {
     await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
     expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
     expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
+  })
+
+  it('skips filesystem output when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    const realpathError = Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+      code: 'UNKNOWN',
+      errno: -4094,
+      path: externalWorkspace,
+      syscall: 'realpath'
+    })
+    realpathFailures.set(path.resolve(externalWorkspace), realpathError)
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    await expect(access(path.join(agentsDataRoot, FINAL_AGENT_ID))).rejects.toThrow()
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+  })
+
+  it('keeps realpath UNKNOWN fatal for a managed legacy workspace', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    const managedSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(legacyWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${legacyWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: legacyWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
+      })
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
   })
 
   it('preserves an Agent target that is also its own legacy Session workspace', async () => {
