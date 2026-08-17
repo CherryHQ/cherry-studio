@@ -146,6 +146,13 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
+interface OptimisticTopicName {
+  baseUpdatedAt: string
+  name: string
+  requestId: number
+  settled: boolean
+}
+
 function matchesAssistantFilter(topic: Topic, assistantIdFilter: string | null | undefined) {
   if (assistantIdFilter === undefined) return false
   if (assistantIdFilter === null) return !topic.assistantId
@@ -390,6 +397,11 @@ export function Topics({
     topicItemsReconciliationRef.current = reconciliation
     return reconciliation.items
   }, [apiTopics, isTopicPinned])
+  const [optimisticTopicNames, setOptimisticTopicNames] = useState<ReadonlyMap<string, OptimisticTopicName>>(
+    () => new Map()
+  )
+  const topicRenameRequestIdRef = useRef(0)
+  const topicRenameQueuesRef = useRef(new Map<string, Promise<void>>())
   const [optimisticMove, setOptimisticMove] = useState<{
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null
@@ -398,10 +410,39 @@ export function Topics({
     () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
     [orderSignature, topicPinnedIds]
   )
-  const topics = apiBackedTopics
+  const topics = useMemo(
+    () =>
+      optimisticTopicNames.size === 0
+        ? apiBackedTopics
+        : apiBackedTopics.map((topic) => {
+            const optimisticName = optimisticTopicNames.get(topic.id)
+            return optimisticName === undefined ? topic : { ...topic, name: optimisticName.name }
+          }),
+    [apiBackedTopics, optimisticTopicNames]
+  )
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
+
+  useEffect(() => {
+    setOptimisticTopicNames((current) => {
+      if (current.size === 0) return current
+
+      let next: Map<string, OptimisticTopicName> | undefined
+      for (const topic of apiBackedTopics) {
+        const optimisticName = current.get(topic.id)
+        if (
+          optimisticName?.settled &&
+          (topic.name === optimisticName.name || topic.updatedAt !== optimisticName.baseUpdatedAt)
+        ) {
+          next ??= new Map(current)
+          next.delete(topic.id)
+        }
+      }
+
+      return next ?? current
+    })
+  }, [apiBackedTopics, optimisticTopicNames])
 
   useEffect(() => {
     topicsRef.current = topics
@@ -537,8 +578,45 @@ export function Topics({
         return
       }
 
-      void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
-      toast.success(t('common.saved'))
+      const requestId = ++topicRenameRequestIdRef.current
+      setOptimisticTopicNames((current) => {
+        const next = new Map(current)
+        next.set(topicId, { baseUpdatedAt: topic.updatedAt, name: trimmedName, requestId, settled: false })
+        return next
+      })
+
+      const previousRequest = topicRenameQueuesRef.current.get(topicId) ?? Promise.resolve()
+      const request = previousRequest
+        .catch(() => undefined)
+        .then(() => updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true }))
+      const settledRequest = request.then(
+        () => {
+          setOptimisticTopicNames((current) => {
+            const optimisticName = current.get(topicId)
+            if (optimisticName?.requestId !== requestId) return current
+            const next = new Map(current)
+            next.set(topicId, { ...optimisticName, settled: true })
+            return next
+          })
+          toast.success(t('common.saved'))
+        },
+        (err) => {
+          setOptimisticTopicNames((current) => {
+            if (current.get(topicId)?.requestId !== requestId) return current
+            const next = new Map(current)
+            next.delete(topicId)
+            return next
+          })
+          logger.error('Failed to rename topic', { err, topicId })
+          toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        }
+      )
+      const queueTail = settledRequest.finally(() => {
+        if (topicRenameQueuesRef.current.get(topicId) === queueTail) {
+          topicRenameQueuesRef.current.delete(topicId)
+        }
+      })
+      topicRenameQueuesRef.current.set(topicId, queueTail)
     },
     [topics, t, updateTopic]
   )
