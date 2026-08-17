@@ -17,6 +17,7 @@ import {
   ENDPOINT_TYPE,
   FastModeTransportSchema,
   objectValues,
+  ProviderReasoningFormatSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -243,7 +244,9 @@ export const EndpointConfigSchema = z.object({
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** How this endpoint expects reasoning parameters to be formatted (e.g. `self-hosted` for vLLM/SGLang relays). */
+  reasoningFormat: ProviderReasoningFormatSchema.optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -257,7 +260,9 @@ export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
  */
 export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
-  baseUrl: z.string().optional()
+  baseUrl: z.string().optional(),
+  /** User-owned reasoning format override for this endpoint type's API. */
+  reasoningFormat: ProviderReasoningFormatSchema.optional()
 })
 
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>

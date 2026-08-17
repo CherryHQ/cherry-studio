@@ -1,3 +1,4 @@
+import type { ProviderReasoningFormat } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
@@ -281,10 +282,37 @@ export function useProviderEndpointActions({
     }
   }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
+  const commitReasoningFormat = useCallback(
+    async (reasoningFormat: ProviderReasoningFormat | undefined): Promise<boolean> => {
+      if (!provider) {
+        return false
+      }
+
+      const nextEndpointConfigs = {
+        ...provider.endpointConfigs,
+        [primaryEndpoint]: {
+          ...provider.endpointConfigs?.[primaryEndpoint],
+          reasoningFormat
+        }
+      }
+
+      try {
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        return true
+      } catch (error) {
+        logger.error('Failed to commit provider reasoning format', { providerId: provider.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
+      }
+    },
+    [patchProvider, primaryEndpoint, provider, t]
+  )
+
   return {
     commitApiHost,
     commitAnthropicApiHost,
     commitApiVersion,
-    resetApiHost
+    resetApiHost,
+    commitReasoningFormat
   }
 }

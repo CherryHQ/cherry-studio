@@ -67,7 +67,12 @@ export type {
   RegistryEndpointConfig,
   ServerToolConfig
 } from './schemas/provider'
-export { FastModeTransportSchema, REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
+export {
+  FastModeTransportSchema,
+  ProviderReasoningFormatSchema,
+  REASONING_FORMAT_TYPES,
+  ServerToolConfigSchema
+} from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,

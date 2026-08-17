@@ -1,4 +1,16 @@
-import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import type { ProviderReasoningFormat } from '@cherrystudio/provider-registry'
+import {
+  Button,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -53,6 +65,50 @@ export function AzureApiVersionField({
           onBlur={onApiVersionCommit}
         />
       </InputGroup>
+    </ProviderField>
+  )
+}
+
+interface ReasoningFormatFieldProps {
+  /** Current persisted reasoning format for the primary endpoint; undefined = registry default. */
+  value: ProviderReasoningFormat | undefined
+  onCommit: (reasoningFormat: ProviderReasoningFormat | undefined) => void
+}
+
+export function ReasoningFormatField({ value, onCommit }: ReasoningFormatFieldProps) {
+  const { t } = useTranslation()
+  const selectedValue = value?.type ?? 'default'
+
+  const handleValueChange = (next: string) => {
+    if (next === 'self-hosted') {
+      onCommit({ type: 'self-hosted' })
+    } else {
+      onCommit(undefined)
+    }
+  }
+
+  return (
+    <ProviderField
+      className="mt-4"
+      title={t('settings.provider.reasoning_format')}
+      help={
+        <div className="pt-1 text-[12px] text-muted-foreground leading-[1.35]">
+          {t('settings.provider.reasoning_format_help')}
+        </div>
+      }>
+      <Select value={selectedValue} onValueChange={handleValueChange}>
+        <SelectTrigger size="sm" className="w-full max-w-65">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start" className="w-56">
+          <SelectItem value="default" className="text-sm">
+            {t('settings.provider.reasoning_format_default')}
+          </SelectItem>
+          <SelectItem value="self-hosted" className="text-sm">
+            {t('settings.provider.reasoning_format_self_hosted')}
+          </SelectItem>
+        </SelectContent>
+      </Select>
     </ProviderField>
   )
 }
