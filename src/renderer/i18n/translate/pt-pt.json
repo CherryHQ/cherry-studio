@@ -7185,6 +7185,7 @@
         "no": "sem descrição",
         "nowledge_mem": "Requer a aplicação Nowledge Mem em execução localmente. Mantém conversas de IA, ferramentas, notas, agentes e ficheiros numa memória privada no seu computador. Transfira de https://mem.nowledge.co/",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
+        "qveris": "Conecte-se ao QVeris para descobrir, inspecionar e chamar capacidades de agentes de IA. É necessário configurar a variável de ambiente QVERIS_API_KEY.",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
       },
       "command": "Comando",
@@ -7304,6 +7305,10 @@
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
+      "qveris": {
+        "get_api_key": "Obter chave de API",
+        "missing_api_key": "O QVeris requer uma chave de API. <link>Registe-se ou inicie sessão para obter uma chave de API</link> e, em seguida, introduza-a como QVERIS_API_KEY."
+      },
       "registry": "Fonte de Gestão de Pacotes",
       "registryDefault": "Padrão",
       "registryOptions": {

@@ -7185,6 +7185,7 @@
         "no": "無描述",
         "nowledge_mem": "需要在本機執行 Nowledge Mem 應用程式。它會將 AI 對話、工具、筆記、Agent 與檔案儲存為電腦上的私人記憶。請從 https://mem.nowledge.co/ 下載。",
         "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
+        "qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。需要設定 QVERIS_API_KEY 環境變數。",
         "sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
       "command": "指令",
@@ -7304,6 +7305,10 @@
       "providerPlaceholder": "供應商名稱",
       "providerUrl": "供應商網址",
       "providers": "供應商",
+      "qveris": {
+        "get_api_key": "取得 API Key",
+        "missing_api_key": "QVeris 需要 API Key。<link>註冊或登入以取得 API Key</link>，然後將其填入 QVERIS_API_KEY。"
+      },
       "registry": "套件管理源",
       "registryDefault": "預設",
       "registryOptions": {

@@ -7184,6 +7184,7 @@
         "no": "Keine Beschreibung",
         "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
+        "qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },
       "command": "Befehl",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
+      "qveris": {
+        "get_api_key": "API-Schlüssel erhalten",
+        "missing_api_key": "QVeris benötigt einen API-Schlüssel. <link>Registrieren Sie sich oder melden Sie sich an, um einen API-Schlüssel zu erhalten</link>, und geben Sie ihn anschließend als QVERIS_API_KEY ein."
+      },
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryOptions": {

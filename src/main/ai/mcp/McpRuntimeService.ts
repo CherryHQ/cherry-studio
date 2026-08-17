@@ -369,14 +369,23 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
   }
 
@@ -484,16 +493,25 @@ export class McpRuntimeService extends BaseService {
         ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          // Special case for hosted built-in MCP servers - uses HTTP transport instead of in-memory.
           if (
             isInMemoryBuiltinMcpServer(server) &&
-            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
+            (server.name === BuiltinMcpServerNames.nowledgeMem ||
+              server.name === BuiltinMcpServerNames.flomo ||
+              server.name === BuiltinMcpServerNames.qveris)
           ) {
             const httpUrlMap: Record<string, string> = {
               [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
+              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp',
+              [BuiltinMcpServerNames.qveris]: 'https://mcp.qveris.ai/mcp'
             }
             const httpUrl = httpUrlMap[server.name]
+            const qverisApiKey = server.env?.QVERIS_API_KEY?.trim()
+
+            if (server.name === BuiltinMcpServerNames.qveris && !qverisApiKey) {
+              throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+            }
+
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -501,10 +519,11 @@ export class McpRuntimeService extends BaseService {
               requestInit: {
                 headers: {
                   ...defaultAppHeaders(),
-                  APP: 'Cherry Studio'
+                  APP: 'Cherry Studio',
+                  ...(server.name === BuiltinMcpServerNames.qveris ? { Authorization: `Bearer ${qverisApiKey}` } : {})
                 }
               },
-              authProvider
+              ...(server.name === BuiltinMcpServerNames.qveris ? {} : { authProvider })
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
             return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
